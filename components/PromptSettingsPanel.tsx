@@ -270,36 +270,12 @@ export default function PromptSettingsPanel({
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2 px-4">
-          <CardTitle className="text-sm">AI MODEL & PRICING</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 px-4 pb-4">
-          <div className="space-y-2">
-            <Label htmlFor="ai-model" className="text-xs">
-              AI Model
-            </Label>
-            <Select value="nano-banana-pro" disabled>
-              <SelectTrigger
-                className="h-8 text-sm opacity-50 cursor-not-allowed"
-                data-testid="select-ai-model"
-              >
-                <SelectValue placeholder="Nano Banana Pro" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nano-banana-pro">Nano Banana Pro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           {settings.promptType === "paid-prompt" && (
             <div className="space-y-2">
               <div className="flex items-center gap-1">
                 <Label htmlFor="price" className="text-xs">
-                  Price per generation (USD)
+                  Price (USD per creation)
                 </Label>
                 <TooltipProvider>
                   <Tooltip delayDuration={0}>
@@ -308,7 +284,7 @@ export default function PromptSettingsPanel({
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs max-w-xs">
-                        Due to settings, minimum-price per generation is{" "}
+                        Due to settings, minimum-price per creation is{" "}
                         {settings.price.toFixed(4)} USD.
                       </p>
                     </TooltipContent>
@@ -334,6 +310,30 @@ export default function PromptSettingsPanel({
               />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2 px-4">
+          <CardTitle className="text-sm">AI MODEL & PRICING</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 px-4 pb-4">
+          <div className="space-y-2">
+            <Label htmlFor="ai-model" className="text-xs">
+              AI Model
+            </Label>
+            <Select value="nano-banana-pro" disabled>
+              <SelectTrigger
+                className="h-8 text-sm opacity-50 cursor-not-allowed"
+                data-testid="select-ai-model"
+              >
+                <SelectValue placeholder="Nano Banana Pro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nano-banana-pro">Nano Banana Pro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 

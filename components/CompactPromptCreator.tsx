@@ -1,5 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Zap, Plus, Search, X, Star, Heart, ImageIcon } from "lucide-react";
+import {
+  Zap,
+  Plus,
+  Search,
+  X,
+  Star,
+  Heart,
+  ImageIcon,
+  ChevronUp,
+  ChevronDown,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,12 +31,104 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
+
+type VariableType = "text" | "checkbox" | "slider" | "single-select" | "multi-select";
 
 interface Variable {
   id: string;
   name: string;
+  type: VariableType;
   defaultValue: string;
   currentValue: string;
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseNumber(value: string | undefined) {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseBracketToken(raw: string) {
+  // Token grammar (compact, human-friendly):
+  // [name]
+  // [name=value]
+  // [name:type=value|opts=a,b,c|min=0|max=10|step=1]
+  // Supported types: text, checkbox, slider, single, multi
+  const parts = raw.split("|").map((p) => p.trim()).filter(Boolean);
+  const head = parts[0] || "";
+  const headEq = head.indexOf("=");
+  const headLeft = (headEq === -1 ? head : head.slice(0, headEq)).trim();
+  const value = (headEq === -1 ? "" : head.slice(headEq + 1)).trim();
+  const headColon = headLeft.indexOf(":");
+  const name = (headColon === -1 ? headLeft : headLeft.slice(0, headColon)).trim();
+  const rawType = (headColon === -1 ? "" : headLeft.slice(headColon + 1)).trim();
+
+  let type: VariableType = "text";
+  if (rawType) {
+    const t = rawType.toLowerCase();
+    if (t === "checkbox" || t === "binary") type = "checkbox";
+    else if (t === "slider") type = "slider";
+    else if (t === "single" || t === "single-select" || t === "select")
+      type = "single-select";
+    else if (t === "multi" || t === "multi-select") type = "multi-select";
+    else type = "text";
+  }
+
+  const params: Record<string, string> = {};
+  for (const p of parts.slice(1)) {
+    const idx = p.indexOf("=");
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim();
+    const v = p.slice(idx + 1).trim();
+    if (!k) continue;
+    params[k] = v;
+  }
+
+  const options = params.opts
+    ? params.opts
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : undefined;
+
+  return {
+    name,
+    type,
+    value,
+    options,
+    min: parseNumber(params.min),
+    max: parseNumber(params.max),
+    step: parseNumber(params.step),
+  };
+}
+
+function serializeBracketToken(variable: Variable) {
+  const valuePart = variable.type === "checkbox"
+    ? String(variable.currentValue === "true" || variable.currentValue === "1")
+    : variable.currentValue;
+
+  const typePart = variable.type === "text" ? "" : `:${variable.type}`;
+  const head = `${variable.name}${typePart}=${valuePart}`;
+  const extras: string[] = [];
+  if (variable.type === "slider") {
+    if (variable.min !== undefined) extras.push(`min=${variable.min}`);
+    if (variable.max !== undefined) extras.push(`max=${variable.max}`);
+    if (variable.step !== undefined) extras.push(`step=${variable.step}`);
+  }
+  if (variable.type === "single-select" || variable.type === "multi-select") {
+    if (variable.options?.length) extras.push(`opts=${variable.options.join(",")}`);
+  }
+  return `[${[head, ...extras].join("|")}]`;
 }
 
 interface Template {
@@ -100,6 +204,8 @@ const EXAMPLE_VARIABLES: Record<string, string> = {
 export default function CompactPromptCreator() {
   const [promptText, setPromptText] = useState("");
   const [variables, setVariables] = useState<Variable[]>([]);
+  const [open, setOpen] = useState(true);
+  const [variablesOpen, setVariablesOpen] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<{
@@ -114,30 +220,78 @@ export default function CompactPromptCreator() {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Extract variables from [variable] syntax
+  // Extract variables from [name] / [name=value] / [name:type=value|...] syntax
   useEffect(() => {
     const regex = /\[([^\]]+)\]/g;
-    const foundNames: string[] = [];
-    let match;
+    const order: string[] = [];
+    const tokenByName = new Map<string, ReturnType<typeof parseBracketToken>>();
+    let match: RegExpExecArray | null;
     while ((match = regex.exec(promptText)) !== null) {
-      foundNames.push(match[1]);
+      const raw = (match[1] || "").trim();
+      if (!raw) continue;
+      const token = parseBracketToken(raw);
+      if (!token.name) continue;
+
+      if (!tokenByName.has(token.name)) {
+        order.push(token.name);
+        tokenByName.set(token.name, token);
+      } else if (token.value) {
+        // Prefer explicit token values if duplicates exist
+        tokenByName.set(token.name, token);
+      }
     }
 
     setVariables((prev) => {
-      const existingNames = prev.map((v) => v.name);
-      const newVars = foundNames
-        .filter((name) => !existingNames.includes(name))
-        .map((name) => ({
-          id: crypto.randomUUID(),
-          name,
-          defaultValue: "",
-          currentValue: "",
-        }));
+      const byName = new Map(prev.map((v) => [v.name, v] as const));
 
-      const filtered = prev.filter((v) => foundNames.includes(v.name));
-      return [...filtered, ...newVars];
+      const next: Variable[] = [];
+      for (const name of order) {
+        const token = tokenByName.get(name);
+        const tokenValue = token?.value || "";
+        const existing = byName.get(name);
+        next.push({
+          id: existing?.id || crypto.randomUUID(),
+          name,
+          type: (token?.type || existing?.type || "text") as VariableType,
+          defaultValue:
+            existing?.defaultValue ||
+            tokenValue ||
+            EXAMPLE_VARIABLES[name] ||
+            `example ${name.toLowerCase()}`,
+          currentValue: tokenValue || existing?.currentValue || "",
+          options: token?.options || existing?.options,
+          min: token?.min ?? existing?.min,
+          max: token?.max ?? existing?.max,
+          step: token?.step ?? existing?.step,
+        });
+      }
+
+      return next;
     });
   }, [promptText]);
+
+  const updateVariable = useCallback(
+    (name: string, updater: (prevVar: Variable) => Variable) => {
+      let nextVar: Variable | null = null;
+      setVariables((prev) =>
+        prev.map((v) => {
+          if (v.name !== name) return v;
+          nextVar = updater(v);
+          return nextVar;
+        })
+      );
+
+      setPromptText((prevText) => {
+        if (!nextVar) return prevText;
+        const tokenRegex = new RegExp(
+          `\\[\\s*${escapeRegExp(name)}(?:[^\\]]*)\\]`,
+          "g"
+        );
+        return prevText.replace(tokenRegex, serializeBracketToken(nextVar));
+      });
+    },
+    []
+  );
 
   // Handle text selection
   const handleTextSelect = useCallback(() => {
@@ -207,8 +361,43 @@ export default function CompactPromptCreator() {
   return (
     <>
       {/* Compact Prompt Creator UI */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-3xl">
-        <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl overflow-hidden">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[84%] max-w-4xl">
+        {!open ? (
+          <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">
+                  Quick Create
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  Paste a prompt with [variables] to adjust quickly
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setOpen(true)}
+                data-testid="button-open-quick-create"
+              >
+                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+              <div className="text-sm font-semibold text-foreground">Quick Create</div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setOpen(false)}
+                data-testid="button-close-quick-create"
+              >
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              </Button>
+            </div>
           {/* Selection popup */}
           {selectionPosition && selectedText && (
             <div
@@ -241,46 +430,210 @@ export default function CompactPromptCreator() {
             </div>
           )}
 
-          <div className="flex">
+          <div className="flex min-w-0 overflow-hidden">
             {/* Text Input Area */}
-            <div className="flex-1 p-3">
-              <Textarea
-                ref={textareaRef}
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                onMouseUp={handleTextSelect}
-                onKeyUp={handleTextSelect}
-                placeholder="Describe your image... Use [variable] syntax to create variables"
-                className="min-h-[80px] max-h-[120px] resize-none border-0 bg-transparent focus-visible:ring-0 text-sm"
-                data-testid="input-compact-prompt"
-              />
+            <div className="flex-1 p-4 min-w-0 flex flex-col">
+              <div className="flex-1 rounded-xl border border-border bg-background overflow-hidden">
+                <Textarea
+                  ref={textareaRef}
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  onMouseUp={handleTextSelect}
+                  onKeyUp={handleTextSelect}
+                  placeholder="Describe your image... Use [variable] to create adjustable variables"
+                  className="h-full min-h-[170px] max-h-[260px] resize-none bg-transparent border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 font-mono leading-relaxed !px-4 !py-3"
+                  style={{ WebkitTextFillColor: "currentColor", caretColor: "currentColor", opacity: 1 }}
+                  data-testid="input-compact-prompt"
+                />
+              </div>
             </div>
 
-            {/* Variables Panel */}
+            {/* Mini Variable Adjuster */}
             {variables.length > 0 && (
-              <div className="w-48 border-l border-border p-2 flex flex-col gap-1.5">
-                {variables.map((variable) => (
-                  <div
-                    key={variable.id}
-                    className="px-2 py-1.5 rounded border-2 border-destructive/60 bg-destructive/10 text-xs"
-                    data-testid={`variable-pill-${variable.name}`}
+              <div
+                className={
+                  variablesOpen
+                    ? "w-72 border-l border-border p-3 bg-muted/20 backdrop-blur-sm shrink-0"
+                    : "w-12 border-l border-border p-2.5 bg-muted/20 backdrop-blur-sm shrink-0"
+                }
+              >
+                <div className="flex items-center justify-between gap-2 px-1 pb-2">
+                  {variablesOpen && (
+                    <div className="text-[11px] font-semibold text-muted-foreground">
+                      Variables
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setVariablesOpen((v) => !v)}
+                    data-testid="button-toggle-variables"
                   >
-                    <span className="font-medium text-foreground">
-                      {variable.name}
-                    </span>
-                    {variable.currentValue && (
-                      <span className="text-muted-foreground ml-1">
-                        : {variable.currentValue}
-                      </span>
+                    {variablesOpen ? (
+                      <PanelRightClose className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
                     )}
+                  </Button>
+                </div>
+
+                {variablesOpen && (
+                  <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
+                    {variables.map((variable) => (
+                      <div
+                        key={variable.id}
+                        className="rounded-md border border-border bg-background px-2 py-1.5"
+                        data-testid={`variable-adjuster-${variable.name}`}
+                      >
+                        <Label className="text-[11px] text-muted-foreground">
+                          {variable.name}
+                        </Label>
+
+                      {variable.type === "text" && (
+                        <Input
+                          value={variable.currentValue}
+                          onChange={(e) =>
+                            updateVariable(variable.name, (prevVar) => ({
+                              ...prevVar,
+                              currentValue: e.target.value,
+                            }))
+                          }
+                          placeholder={variable.defaultValue}
+                          className="h-7 mt-1 text-xs text-foreground placeholder:text-muted-foreground bg-background/60 border-border/70"
+                          style={{ WebkitTextFillColor: "currentColor" }}
+                          data-testid={`input-variable-${variable.name}`}
+                        />
+                      )}
+
+                      {variable.type === "checkbox" && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Checkbox
+                            checked={
+                              variable.currentValue === "true" ||
+                              variable.currentValue === "1"
+                            }
+                            onCheckedChange={(checked) =>
+                              updateVariable(variable.name, (prevVar) => ({
+                                ...prevVar,
+                                currentValue: checked ? "true" : "false",
+                              }))
+                            }
+                            data-testid={`checkbox-variable-${variable.name}`}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            Enabled
+                          </span>
+                        </div>
+                      )}
+
+                      {variable.type === "slider" && (
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground dark:text-white/70">
+                              Value
+                            </span>
+                            <span className="text-[11px] text-foreground dark:text-white font-mono">
+                              {variable.currentValue || "0"}
+                            </span>
+                          </div>
+                          <Slider
+                            min={variable.min ?? 0}
+                            max={variable.max ?? 100}
+                            step={variable.step ?? 1}
+                            value={[Number(variable.currentValue || variable.min || 0)]}
+                            onValueChange={(v) =>
+                              updateVariable(variable.name, (prevVar) => ({
+                                ...prevVar,
+                                currentValue: String(v[0]),
+                              }))
+                            }
+                            data-testid={`slider-variable-${variable.name}`}
+                          />
+                        </div>
+                      )}
+
+                      {variable.type === "single-select" && (
+                        <div className="mt-2">
+                          <Select
+                            value={variable.currentValue}
+                            onValueChange={(value) =>
+                              updateVariable(variable.name, (prevVar) => ({
+                                ...prevVar,
+                                currentValue: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-7 text-xs bg-background/60 border-border/70 text-foreground">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(variable.options || [])
+                                .slice(0, 25)
+                                .map((opt) => (
+                                  <SelectItem key={opt} value={opt}>
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {variable.type === "multi-select" && (
+                        <div className="mt-2 space-y-1">
+                          {(variable.options || []).slice(0, 8).map((opt) => {
+                            const selected = (variable.currentValue || "")
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                              .includes(opt);
+                            return (
+                              <div key={opt} className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={selected}
+                                  onCheckedChange={(checked) =>
+                                    updateVariable(variable.name, (prevVar) => {
+                                      const set = new Set(
+                                        (prevVar.currentValue || "")
+                                          .split(",")
+                                          .map((s) => s.trim())
+                                          .filter(Boolean)
+                                      );
+                                      if (checked) set.add(opt);
+                                      else set.delete(opt);
+                                      return {
+                                        ...prevVar,
+                                        currentValue: Array.from(set).join(","),
+                                      };
+                                    })
+                                  }
+                                  data-testid={`checkbox-multi-${variable.name}-${opt}`}
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {opt}
+                                </span>
+                              </div>
+                            );
+                          })}
+
+                          {(!variable.options || variable.options.length === 0) && (
+                            <div className="text-[11px] text-muted-foreground">
+                              Add options via token: [name:multi=value|opts=a,b,c]
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
 
           {/* Bottom Controls */}
-          <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20 backdrop-blur-sm">
             {/* Left: Settings */}
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
@@ -366,7 +719,8 @@ export default function CompactPromptCreator() {
               </Button>
             </div>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Template Search Modal */}

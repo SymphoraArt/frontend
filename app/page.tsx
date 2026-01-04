@@ -2,6 +2,7 @@
 
 import FilterBar from "@/components/FilterBar";
 import ArtworkGrid, { type ArtworkItem } from "@/components/ArtworkGrid";
+import CompactPromptCreator from "@/components/CompactPromptCreator";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { Prompt, Artist } from "../shared/schema";
@@ -84,6 +85,7 @@ export default function Gallery() {
           onCardClick={(id) => router.push(`/generator/${id}`)}
         />
       </main>
+      <CompactPromptCreator />
     </div>
   );
 }
