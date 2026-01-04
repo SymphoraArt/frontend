@@ -5,35 +5,29 @@ import GeneratorInterface from "@/components/GeneratorInterface";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import type { Prompt, Artist } from "../../../shared/schema";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-
-const isUUID = (str: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
 export default function Generator() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const promptIdOrSlug = params.id;
-  const isSlug = promptIdOrSlug && !isUUID(promptIdOrSlug);
+  const promptId = params.id;
 
   const {
-    data: prompt,
+    data: promptData,
     isLoading: promptLoading,
     error: promptError,
-  } = useQuery<Prompt>({
-    queryKey: [
-      isSlug
-        ? `/api/prompts/by-slug/${promptIdOrSlug}`
-        : `/api/prompts/${promptIdOrSlug}`,
-    ],
-    enabled: !!promptIdOrSlug,
+  } = useQuery<{ prompt: any }>({
+    queryKey: [`/api/prompts/${promptId}`],
+    enabled: !!promptId,
   });
 
-  const { data: artist } = useQuery<Artist>({
-    queryKey: [`/api/artists/${prompt?.artistId}`],
-    enabled: !!prompt?.artistId,
+  const prompt = promptData?.prompt;
+  const creatorId = prompt?.creator?.toString?.() || prompt?.creator;
+
+  const { data: creatorData } = useQuery<{ user: any }>({
+    queryKey: [`/api/users/${creatorId}`],
+    enabled: !!creatorId,
   });
 
   if (promptLoading) {
@@ -58,7 +52,7 @@ export default function Generator() {
             Prompt not found
           </p>
           <Button
-            onClick={() => router.push("/gallery")}
+            onClick={() => router.push("/showcase")}
             data-testid="button-back-gallery"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -69,17 +63,35 @@ export default function Generator() {
     );
   }
 
+  const promptIdString = prompt._id?.toString() || prompt.id;
+  const artistName =
+    creatorData?.user?.profile?.displayName ||
+    creatorData?.user?.profile?.username ||
+    "Unknown Artist";
+  const artistId = creatorId;
+
+  const primaryImage = prompt.showcaseImages?.find(
+    (img: any) => img.isPrimary === true
+  );
+  const thumbnailImage = primaryImage || prompt.showcaseImages?.[0];
+  const imageUrl = thumbnailImage?.thumbnail || thumbnailImage?.url || "";
+
+  const allShowcaseImages = prompt.showcaseImages || [];
+
+  const isFreeShowcase = prompt.type === "showcase";
+
   return (
-    <div className="min-h-screen bg-background pt-16">
-      <main className="w-full px-6 lg:px-8 py-4">
+    <div className="h-screen bg-background overflow-hidden flex flex-col">
+      <main className="flex-1 overflow-hidden">
         <GeneratorInterface
-          promptId={prompt.id}
+          promptId={promptIdString}
           title={prompt.title}
-          artistName={artist?.displayName || "Unknown Artist"}
-          artistId={prompt.artistId || undefined}
-          imageUrl={prompt.previewImageUrl || ""}
-          isFreeShowcase={prompt.isFreeShowcase || false}
-          publicPromptText={prompt.publicPromptText || undefined}
+          artistName={artistName}
+          artistId={artistId}
+          imageUrl={imageUrl}
+          showcaseImages={allShowcaseImages}
+          isFreeShowcase={isFreeShowcase}
+          publicPromptText={undefined}
         />
       </main>
     </div>

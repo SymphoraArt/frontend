@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -35,14 +34,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
 import ImageLightbox from "./ImageLightbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import type { Variable } from "./PromptEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Download, Loader2 } from "lucide-react";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -53,17 +60,12 @@ const ASPECT_RATIOS = [
 ];
 
 interface VariationSettings {
-  evil: number;
-  cameraEffects: string[];
   aspectRatio: string;
   model: string;
   resolution: string;
 }
 
 interface X402Settings {
-  evil: number;
-  middleFinger: boolean;
-  cameraEffects: string[];
   model: string;
   aspectRatio: string;
   resolution: string;
@@ -92,9 +94,6 @@ function X402LinkSection({
     network: "base",
     description: "AI Image Generation",
     settings: {
-      evil: settings.evil,
-      middleFinger: settings.middleFinger,
-      cameraEffects: settings.cameraEffects,
       model: settings.model,
       aspectRatio: settings.aspectRatio,
       resolution: settings.resolution,
@@ -250,6 +249,11 @@ interface GeneratorInterfaceProps {
   artistName?: string;
   artistId?: string;
   imageUrl?: string;
+  showcaseImages?: Array<{
+    url: string;
+    thumbnail?: string;
+    isPrimary?: boolean;
+  }>;
   isFreeShowcase?: boolean;
   publicPromptText?: string;
 }
@@ -260,15 +264,13 @@ export default function GeneratorInterface({
   artistName = "Unknown Artist",
   artistId,
   imageUrl,
+  showcaseImages = [],
   isFreeShowcase = false,
   publicPromptText,
 }: GeneratorInterfaceProps) {
   const router = useRouter();
-  const [evilSlider, setEvilSlider] = useState([75]);
-  const [cameraEffects, setCameraEffects] = useState<string[]>([]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [resolution, setResolution] = useState("2K");
-  const [middleFinger, setMiddleFinger] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [selectedVariation, setSelectedVariation] = useState<string | null>(
@@ -281,11 +283,34 @@ export default function GeneratorInterface({
     Record<string, string>
   >({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
+    null
+  );
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [generationId, setGenerationId] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const { data: promptVariables = [] } = useQuery<Variable[]>({
-    queryKey: [`/api/prompts/${promptId}/variables`],
+  const { data: promptData } = useQuery<{
+    prompt?: {
+      promptData?: {
+        variables?: Array<Variable>;
+      };
+    };
+  }>({
+    queryKey: [`/api/prompts/${promptId}`],
     enabled: !!promptId,
   });
+
+  const promptVariables = useMemo(() => {
+    return promptData?.prompt?.promptData?.variables || [];
+  }, [promptData]);
+
+  useEffect(() => {
+    if (promptVariables.length > 0) {
+      setVariableValues({});
+    }
+  }, [promptVariables]);
 
   const handleReferenceImageUpload = (variableId: string, file: File) => {
     const reader = new FileReader();
@@ -306,18 +331,164 @@ export default function GeneratorInterface({
     });
   };
 
-  const CAMERA_EFFECTS = [
-    { value: "cinematic", label: "Cinematic lighting" },
-    { value: "warm", label: "Warm lighting" },
-    { value: "dystopian", label: "Dystopian grey" },
-  ];
+  const handleCreateNow = async () => {
+    if (!promptId) {
+      toast({
+        title: "Error",
+        description: "Prompt ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const toggleCameraEffect = (effect: string) => {
-    setCameraEffects((prev) =>
-      prev.includes(effect)
-        ? prev.filter((e) => e !== effect)
-        : [...prev, effect]
-    );
+    const userIdToUse = "695a2e2b0cbd6b395af5d725";
+
+    setIsGenerating(true);
+    setGeneratedImageUrl(null);
+    setShowSuccessModal(false);
+    setGenerationId(null);
+
+    try {
+      const variableValuesArray = promptVariables
+        .map((variable) => {
+          const varName = variable.name || variable.id;
+          const value = variableValues[varName] || variable.defaultValue || "";
+          return value ? { variableName: varName, value } : null;
+        })
+        .filter(
+          (v): v is { variableName: string; value: string } => v !== null
+        );
+
+      const generationRequest = {
+        userId: userIdToUse,
+        promptId: promptId,
+        variableValues: variableValuesArray,
+        usedSettings: {
+          aspectRatio: aspectRatio,
+          resolution: resolution,
+        },
+      };
+
+      const generationResponse = await fetch("/api/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(generationRequest),
+      });
+
+      if (!generationResponse.ok) {
+        const errorData = await generationResponse.json();
+        throw new Error(errorData.error || "Failed to create generation");
+      }
+
+      const generationData = await generationResponse.json();
+      const newGenerationId = generationData.id;
+      setGenerationId(newGenerationId);
+
+      const decryptResponse = await fetch(
+        `/api/generations/${newGenerationId}?decrypt=true`
+      );
+
+      if (!decryptResponse.ok) {
+        throw new Error("Failed to decrypt final prompt");
+      }
+
+      const decryptData = await decryptResponse.json();
+      const finalPrompt = decryptData.generation?.finalPrompt;
+
+      if (!finalPrompt) {
+        throw new Error("Final prompt not found");
+      }
+
+      const imageRequest = {
+        prompt: finalPrompt,
+        aspectRatio: aspectRatio,
+        resolution: resolution,
+      };
+
+      const imageResponse = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(imageRequest),
+      });
+
+      if (!imageResponse.ok) {
+        const errorData = await imageResponse.json();
+        throw new Error(errorData.error || "Failed to generate image");
+      }
+
+      const imageData = await imageResponse.json();
+      setGeneratedImageUrl(imageData.imageUrl);
+
+      const updateResponse = await fetch(
+        `/api/generations/${newGenerationId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "completed",
+            generatedImage: {
+              url: imageData.imageUrl,
+              createdAt: new Date().toISOString(),
+            },
+          }),
+        }
+      );
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        console.warn("Generation status update failed:", errorData);
+      }
+
+      setShowSuccessModal(true);
+    } catch (error: any) {
+      toast({
+        title: "Generation Failed",
+        description:
+          error.message || "An error occurred while generating the image",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    if (!generatedImageUrl) return;
+
+    try {
+      if (generatedImageUrl.startsWith("data:")) {
+        const a = document.createElement("a");
+        a.href = generatedImageUrl;
+        a.download = `generated-image-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      const response = await fetch(generatedImageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `generated-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the image",
+        variant: "destructive",
+      });
+    }
   };
 
   const [variations] = useState<Variation[]>([
@@ -325,8 +496,6 @@ export default function GeneratorInterface({
       id: "v1",
       imageUrl: `${imageUrl}&v=1`,
       settings: {
-        evil: 80,
-        cameraEffects: ["cinematic"],
         aspectRatio: "16:9",
         model: "Nano Banana Pro",
         resolution: "2K",
@@ -337,8 +506,6 @@ export default function GeneratorInterface({
       id: "v2",
       imageUrl: `${imageUrl}&v=2`,
       settings: {
-        evil: 65,
-        cameraEffects: ["warm"],
         aspectRatio: "1:1",
         model: "Nano Banana Pro",
         resolution: "4K",
@@ -349,8 +516,6 @@ export default function GeneratorInterface({
       id: "v3",
       imageUrl: `${imageUrl}&v=3`,
       settings: {
-        evil: 90,
-        cameraEffects: ["dystopian"],
         aspectRatio: "9:16",
         model: "Nano Banana Pro",
         resolution: "1K",
@@ -361,8 +526,6 @@ export default function GeneratorInterface({
       id: "v4",
       imageUrl: `${imageUrl}&v=4`,
       settings: {
-        evil: 55,
-        cameraEffects: ["cinematic", "warm"],
         aspectRatio: "4:3",
         model: "Nano Banana Pro",
         resolution: "4K",
@@ -373,8 +536,6 @@ export default function GeneratorInterface({
       id: "v5",
       imageUrl: `${imageUrl}&v=5`,
       settings: {
-        evil: 70,
-        cameraEffects: [],
         aspectRatio: "16:9",
         model: "Nano Banana Pro",
         resolution: "2K",
@@ -402,16 +563,12 @@ export default function GeneratorInterface({
 
   const baseCost = 15;
   const resolutionCost = resolution === "4K" ? 10 : resolution === "2K" ? 5 : 0;
-  const effectsCost = cameraEffects.length * 5;
   const imageUploadCost = 20;
   const premiumCost = 50;
-  const totalCost =
-    baseCost + resolutionCost + effectsCost + imageUploadCost + premiumCost;
+  const totalCost = baseCost + resolutionCost + imageUploadCost + premiumCost;
 
   const handleVariationSelect = (variation: Variation) => {
     setSelectedVariation(variation.id);
-    setEvilSlider([variation.settings.evil]);
-    setCameraEffects(variation.settings.cameraEffects);
     setAspectRatio(variation.settings.aspectRatio);
     setResolution(variation.settings.resolution);
   };
@@ -482,172 +639,96 @@ export default function GeneratorInterface({
             ) : (
               <Card className="border-0 bg-card/50">
                 <CardHeader className="p-3 pb-2">
-                  <CardTitle className="text-sm">Settings</CardTitle>
+                  <CardTitle className="text-sm">Variables</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 space-y-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Evil</Label>
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {evilSlider[0]}%
-                      </span>
-                    </div>
-                    <Slider
-                      value={evilSlider}
-                      onValueChange={setEvilSlider}
-                      max={100}
-                      step={1}
-                      className="h-1"
-                      data-testid="slider-evil"
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="finger"
-                      checked={middleFinger}
-                      onCheckedChange={(checked) =>
-                        setMiddleFinger(checked as boolean)
-                      }
-                      className="h-3.5 w-3.5"
-                      data-testid="checkbox-finger"
-                    />
-                    <Label
-                      htmlFor="finger"
-                      className="text-xs font-normal cursor-pointer"
-                    >
-                      Middle finger
-                    </Label>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Camera Effects</Label>
-                    <div className="space-y-1.5">
-                      {CAMERA_EFFECTS.map((effect) => (
-                        <div
-                          key={effect.value}
-                          className="flex items-center space-x-2"
-                        >
-                          <Checkbox
-                            id={`effect-${effect.value}`}
-                            checked={cameraEffects.includes(effect.value)}
-                            onCheckedChange={() =>
-                              toggleCameraEffect(effect.value)
-                            }
-                            className="h-3.5 w-3.5"
-                            data-testid={`checkbox-effect-${effect.value}`}
-                          />
-                          <Label
-                            htmlFor={`effect-${effect.value}`}
-                            className="text-xs font-normal cursor-pointer"
-                          >
-                            {effect.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Variables (Everyday object etc.) - directly under Camera Effects */}
                   {promptVariables.length > 0 &&
-                    promptVariables.map((variable) => (
-                      <div key={variable.id} className="space-y-1.5">
-                        <Label className="text-xs text-foreground">
-                          {variable.label}
-                        </Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={
-                              variableValues[variable.id] ||
-                              (variable.defaultValue as string) ||
-                              ""
-                            }
-                            onChange={(e) =>
-                              setVariableValues((prev) => ({
-                                ...prev,
-                                [variable.id]: e.target.value,
-                              }))
-                            }
-                            placeholder={`Enter ${variable.label.toLowerCase()}...`}
-                            className="h-8 text-xs flex-1"
-                            data-testid={`input-variable-${variable.id}`}
-                          />
-                          {variable.allowReferenceImage && (
-                            <>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                ref={(el) => {
-                                  fileInputRefs.current[variable.id] = el;
-                                }}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file)
-                                    handleReferenceImageUpload(
-                                      variable.id,
-                                      file
-                                    );
-                                }}
-                                data-testid={`input-file-${variable.id}`}
-                              />
-                              {referenceImages[variable.id] ? (
-                                <div className="relative w-8 h-8 rounded-md overflow-hidden border border-border group shrink-0">
-                                  <img
-                                    src={referenceImages[variable.id]}
-                                    alt="Reference"
-                                    className="w-full h-full object-cover"
-                                  />
+                    promptVariables.map((variable, index) => {
+                      const varName = variable.name || variable.id;
+                      return (
+                        <div
+                          key={
+                            variable.id || variable.name || `variable-${index}`
+                          }
+                          className="space-y-1.5"
+                        >
+                          <Label className="text-md text-foreground">
+                            {variable.label}
+                          </Label>
+                          {variable.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {variable.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={variableValues[varName] || ""}
+                              onChange={(e) =>
+                                setVariableValues((prev) => ({
+                                  ...prev,
+                                  [varName]: e.target.value,
+                                }))
+                              }
+                              placeholder={
+                                variable.defaultValue
+                                  ? (variable.defaultValue as string)
+                                  : `Enter ${variable.label.toLowerCase()}...`
+                              }
+                              className="h-8 text-xs flex-1"
+                              data-testid={`input-variable-${variable.id}`}
+                            />
+                            {variable.allowReferenceImage && (
+                              <>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  ref={(el) => {
+                                    fileInputRefs.current[varName] = el;
+                                  }}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file)
+                                      handleReferenceImageUpload(varName, file);
+                                  }}
+                                  data-testid={`input-file-${variable.id}`}
+                                />
+                                {referenceImages[varName] ? (
+                                  <div className="relative w-8 h-8 rounded-md overflow-hidden border border-border group shrink-0">
+                                    <img
+                                      src={referenceImages[varName]}
+                                      alt="Reference"
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <button
+                                      onClick={() =>
+                                        removeReferenceImage(varName)
+                                      }
+                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                      data-testid={`button-remove-ref-${variable.id}`}
+                                    >
+                                      <X className="h-3 w-3 text-white" />
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button
                                     onClick={() =>
-                                      removeReferenceImage(variable.id)
+                                      fileInputRefs.current[varName]?.click()
                                     }
-                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                    data-testid={`button-remove-ref-${variable.id}`}
+                                    className="w-8 h-8 rounded-md border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center shrink-0 transition-colors"
+                                    data-testid={`button-add-ref-${variable.id}`}
                                   >
-                                    <X className="h-3 w-3 text-white" />
+                                    <Plus className="h-3.5 w-3.5 text-muted-foreground" />
                                   </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() =>
-                                    fileInputRefs.current[variable.id]?.click()
-                                  }
-                                  className="w-8 h-8 rounded-md border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center shrink-0 transition-colors"
-                                  data-testid={`button-add-ref-${variable.id}`}
-                                >
-                                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                                </button>
-                              )}
-                            </>
-                          )}
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {variable.description && (
-                          <p className="text-[10px] text-muted-foreground">
-                            {variable.description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
 
                   <Separator className="my-2" />
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Model</Label>
-                    <Select value="nano-banana-pro" disabled>
-                      <SelectTrigger
-                        className="h-8 text-xs opacity-50 cursor-not-allowed"
-                        data-testid="select-model"
-                      >
-                        <SelectValue placeholder="Nano Banana Pro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="nano-banana-pro">
-                          Nano Banana Pro
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <div className="space-y-1.5">
                     <Label className="text-xs">Aspect ratio</Label>
@@ -724,30 +805,6 @@ export default function GeneratorInterface({
                   <CardContent className="p-3 pt-0 space-y-2">
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Evil</span>
-                        <span className="font-mono text-foreground">
-                          {evilSlider[0]}%
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Middle Finger
-                        </span>
-                        <span className="font-mono text-foreground">
-                          {middleFinger ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Camera Effects
-                        </span>
-                        <span className="font-mono text-foreground">
-                          {cameraEffects.length > 0
-                            ? cameraEffects.join(", ")
-                            : "None"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Model</span>
                         <span className="font-mono text-foreground">
                           Nano Banana Pro
@@ -771,18 +828,29 @@ export default function GeneratorInterface({
                       </div>
                     </div>
 
-                    <Button className="w-full h-9" data-testid="button-create">
-                      <Sparkles className="h-3.5 w-3.5 mr-2" />
-                      Create Now
+                    <Button
+                      className="w-full h-9"
+                      data-testid="button-create"
+                      onClick={handleCreateNow}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 mr-2" />
+                          Create Now
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>
 
                 <X402LinkSection
                   settings={{
-                    evil: evilSlider[0],
-                    middleFinger,
-                    cameraEffects,
                     model: "nano-banana-pro",
                     aspectRatio,
                     resolution,
@@ -794,145 +862,150 @@ export default function GeneratorInterface({
           </div>
         </ScrollArea>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto min-h-0">
           <div className="p-3">
             <div className="grid grid-cols-2 gap-1 max-w-2xl mx-auto">
-              {[1, 2, 3, 4].map((idx) => {
-                const variationUrl = imageUrl
-                  ? `${imageUrl.replace("w=800", `w=400`).replace("h=800", "h=400")}&variant=${idx}`
-                  : undefined;
-                return (
-                  <div
-                    key={idx}
-                    className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group"
-                    onClick={() => imageUrl && setLightboxImage(imageUrl)}
-                    data-testid={`generated-image-${idx}`}
-                  >
-                    <img
-                      src={variationUrl}
-                      alt={`Variation ${idx}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                        e.currentTarget.nextElementSibling?.classList.remove(
-                          "hidden"
-                        );
-                      }}
-                    />
-                    <div className="hidden absolute inset-0 flex items-center justify-center bg-muted">
-                      <div className="text-center">
-                        <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                        <p className="text-xs text-muted-foreground">
-                          Image {idx}
-                        </p>
+              {showcaseImages && showcaseImages.length > 0
+                ? showcaseImages.slice(0, 4).map((img, idx) => {
+                    const displayUrl = img.thumbnail || img.url;
+                    const fullUrl = img.url;
+                    return (
+                      <div
+                        key={idx}
+                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group"
+                        onClick={() => fullUrl && setLightboxImage(fullUrl)}
+                        data-testid={`generated-image-${idx}`}
+                      >
+                        {displayUrl && (
+                          <img
+                            src={displayUrl}
+                            alt={`Showcase image ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              e.currentTarget.nextElementSibling?.classList.remove(
+                                "hidden"
+                              );
+                            }}
+                          />
+                        )}
+                        <div className="hidden absolute inset-0 flex items-center justify-center bg-muted">
+                          <div className="text-center">
+                            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-xs text-muted-foreground">
+                              Image {idx + 1}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Maximize2 className="h-6 w-6 text-white" />
+                        </div>
                       </div>
-                    </div>
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Maximize2 className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="border-t border-border/50 mt-4 pt-4 max-w-2xl mx-auto">
-              <div className="flex items-center gap-2 mb-3">
-                <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">
-                  Comments
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  {comments.length}
-                </Badge>
-              </div>
-
-              <div className="space-y-3 mb-3">
-                {comments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className="flex gap-2"
-                    data-testid={`comment-${comment.id}`}
-                  >
-                    <Avatar className="h-6 w-6 shrink-0">
-                      <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
-                        {comment.username.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-foreground">
-                          {comment.username}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {comment.createdAt}
-                        </span>
+                    );
+                  })
+                : [1, 2, 3, 4].map((idx) => {
+                    const variationUrl = imageUrl
+                      ? `${imageUrl.replace("w=800", `w=400`).replace("h=800", "h=400")}&variant=${idx}`
+                      : undefined;
+                    return (
+                      <div
+                        key={idx}
+                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group"
+                        onClick={() => imageUrl && setLightboxImage(imageUrl)}
+                        data-testid={`generated-image-${idx}`}
+                      >
+                        <img
+                          src={variationUrl}
+                          alt={`Variation ${idx}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            e.currentTarget.nextElementSibling?.classList.remove(
+                              "hidden"
+                            );
+                          }}
+                        />
+                        <div className="hidden absolute inset-0 flex items-center justify-center bg-muted">
+                          <div className="text-center">
+                            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-xs text-muted-foreground">
+                              Image {idx}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Maximize2 className="h-6 w-6 text-white" />
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {comment.content}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {hasGeneratedFromThisArtwork ? (
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Add a comment..."
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    className="min-h-[36px] h-9 text-xs resize-none py-2"
-                    data-testid="input-comment"
-                  />
-                  <Button
-                    size="sm"
-                    className="h-9 px-3"
-                    data-testid="button-send-comment"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">
-                  Generate an image from this artwork to comment
-                </p>
-              )}
+                    );
+                  })}
             </div>
           </div>
         </ScrollArea>
 
-        <div className="w-20 lg:w-24 border-l border-border/50 bg-card/30 shrink-0 flex flex-col overflow-hidden">
-          <div className="p-2 border-b border-border/50 shrink-0">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              History
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5">
-            {variations.map((variation) => (
-              <div
-                key={variation.id}
-                className={`relative aspect-square rounded-sm overflow-hidden cursor-pointer transition-all ${
-                  selectedVariation === variation.id
-                    ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
-                    : "hover:opacity-80"
-                }`}
-                onClick={() => handleVariationSelect(variation)}
-                data-testid={`variation-${variation.id}`}
-              >
-                <img
-                  src={variation.imageUrl}
-                  alt={`Variation ${variation.id}`}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
-                  <p className="text-[8px] text-white/80 text-center">
-                    {variation.createdAt}
+        <ScrollArea className="w-[22rem] shrink-0 border-l border-border/50">
+          <div className="p-3">
+            <Card className="border-0 bg-card/50 h-full flex flex-col">
+              <CardHeader className="p-3 pb-2 shrink-0">
+                <CardTitle className="text-sm">Comments</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 flex-1 flex flex-col min-h-0">
+                <ScrollArea className="flex-1">
+                  <div className="space-y-3 pr-2">
+                    {comments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="flex gap-2"
+                        data-testid={`comment-${comment.id}`}
+                      >
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
+                            {comment.username.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-foreground">
+                              {comment.username}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {comment.createdAt}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {comment.content}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+                {hasGeneratedFromThisArtwork ? (
+                  <div className="flex gap-2 mt-3 shrink-0">
+                    <Textarea
+                      placeholder="Add a comment..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="min-h-[36px] h-9 text-xs resize-none py-2"
+                      data-testid="input-comment"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9 px-3"
+                      data-testid="button-send-comment"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic mt-3 shrink-0">
+                    Generate an image from this artwork to comment
                   </p>
-                </div>
-              </div>
-            ))}
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        </ScrollArea>
       </div>
 
       <ImageLightbox
@@ -940,6 +1013,47 @@ export default function GeneratorInterface({
         onClose={() => setLightboxImage(null)}
         imageUrl={lightboxImage || ""}
       />
+
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Generation Complete!</DialogTitle>
+            <DialogDescription>
+              Your image has been generated successfully.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {generatedImageUrl ? (
+              <div className="relative w-full flex items-center justify-center min-h-[300px] max-h-[80vh] bg-muted rounded-lg overflow-hidden">
+                <img
+                  src={generatedImageUrl}
+                  alt="Generated image"
+                  className="w-auto h-auto max-w-full max-h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="relative w-full flex items-center justify-center min-h-[300px] max-h-[80vh] bg-muted rounded-lg overflow-hidden">
+                <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowSuccessModal(false)}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={handleDownloadImage}
+                disabled={!generatedImageUrl}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
