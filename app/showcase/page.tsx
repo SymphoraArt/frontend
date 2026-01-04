@@ -5,130 +5,156 @@ import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import CompactPromptCreator from "@/components/CompactPromptCreator";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueries } from "@tanstack/react-query";
 
 export default function Showcase() {
   const router = useRouter();
-
   const PAGE_SIZE = 12;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [cursor, setCursor] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const mockPrompts = [
-    {
-      id: "1",
-      title: "Cyberpunk Cityscape",
-      artist: "NeonArtist",
-      price: 5,
-      isFree: false,
-      rating: 4.8,
-      downloads: 1234,
-      thumbnail: "",
-      category: "Sci-Fi",
+  const {
+    data: promptsData,
+    isLoading,
+    fetchStatus,
+  } = useQuery({
+    queryKey: ["/api/prompts", cursor],
+    queryFn: async () => {
+      const url = new URL("/api/prompts", window.location.origin);
+      if (cursor) url.searchParams.set("cursor", cursor);
+      url.searchParams.set("limit", String(PAGE_SIZE));
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
+      return res.json();
     },
-    {
-      id: "2",
-      title: "Fantasy Portrait Magic",
-      artist: "MagicCreator",
-      price: 0,
-      isFree: true,
-      rating: 4.9,
-      downloads: 2456,
-      thumbnail: "",
-      category: "Fantasy",
-    },
-    {
-      id: "3",
-      title: "Abstract Digital Dreams",
-      artist: "ModernMind",
-      price: 3,
-      isFree: false,
-      rating: 4.6,
-      downloads: 876,
-      thumbnail: "",
-      category: "Abstract",
-    },
-    {
-      id: "4",
-      title: "Neon Samurai Warrior",
-      artist: "CyberSensei",
-      price: 8,
-      isFree: false,
-      rating: 4.9,
-      downloads: 3421,
-      thumbnail: "",
-      category: "Sci-Fi",
-    },
-    {
-      id: "5",
-      title: "Ethereal Forest Spirit",
-      artist: "NatureWhisperer",
-      price: 0,
-      isFree: true,
-      rating: 4.7,
-      downloads: 1876,
-      thumbnail: "",
-      category: "Fantasy",
-    },
-    {
-      id: "6",
-      title: "Geometric Void",
-      artist: "ShapeShifter",
-      price: 4,
-      isFree: false,
-      rating: 4.5,
-      downloads: 654,
-      thumbnail: "",
-      category: "Abstract",
-    },
-    {
-      id: "7",
-      title: "Retro Futuristic Car",
-      artist: "VehicleVision",
-      price: 6,
-      isFree: false,
-      rating: 4.8,
-      downloads: 2103,
-      thumbnail: "",
-      category: "Sci-Fi",
-    },
-    {
-      id: "8",
-      title: "Dragon's Realm",
-      artist: "MythicMaster",
-      price: 0,
-      isFree: true,
-      rating: 4.9,
-      downloads: 4123,
-      thumbnail: "",
-      category: "Fantasy",
-    },
-  ];
+  });
 
-  const visiblePrompts = useMemo(
-    () => mockPrompts.slice(0, Math.min(visibleCount, mockPrompts.length)),
-    [mockPrompts, visibleCount]
+  const [allPrompts, setAllPrompts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (promptsData?.items) {
+      const items = promptsData.items.map((item: any) => ({
+        ...item,
+        id: item._id?.toString() || item.id,
+        creatorId: item.creator?.toString?.() || item.creator || item.creatorId,
+      }));
+
+      if (cursor === null) {
+        setAllPrompts(items);
+      } else {
+        setAllPrompts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          return [
+            ...prev,
+            ...items.filter((item: any) => !existingIds.has(item.id)),
+          ];
+        });
+      }
+    }
+  }, [promptsData, cursor]);
+
+  const creatorIds = useMemo(
+    () => [...new Set(allPrompts.map((p: any) => p.creatorId).filter(Boolean))],
+    [allPrompts]
   );
 
-  const hasMore = visibleCount < mockPrompts.length;
+  const creatorQueries = useQueries({
+    queries: creatorIds.map((id) => ({
+      queryKey: ["/api/users", id],
+      queryFn: async () => {
+        const res = await fetch(`/api/users/${id}`, { credentials: "include" });
+        return res.ok ? (await res.json()).user : null;
+      },
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const creatorsMap = useMemo(() => {
+    const map = new Map();
+    creatorQueries.forEach((q) => {
+      if (q.data) {
+        map.set(q.data._id?.toString() || q.data.id, {
+          displayName: q.data.profile?.displayName,
+          username: q.data.profile?.username,
+        });
+      }
+    });
+    return map;
+  }, [creatorQueries]);
+
+  const visiblePrompts = useMemo(() => {
+    return allPrompts
+      .filter((p: any) => p.id)
+      .map((p: any) => {
+        const creator = creatorsMap.get(p.creatorId);
+
+        const primaryImage = p.showcaseImages?.find(
+          (i: any) => i.isPrimary === true
+        );
+        const selectedImage = primaryImage || p.showcaseImages?.[0];
+        const imageUrl = selectedImage?.thumbnail || selectedImage?.url || "";
+
+        return {
+          id: p.id,
+          title: p.title,
+          artist: creator?.displayName || creator?.username || "Unknown Artist",
+          price: p.pricing?.pricePerGeneration || 0,
+          isFree: p.type === "showcase" || p.type === "free",
+          rating: p.stats?.reviews?.averageRating || 0,
+          downloads: p.stats?.totalGenerations || 0,
+          thumbnail: imageUrl,
+          category: p.category || "",
+        };
+      });
+  }, [allPrompts, creatorsMap]);
+
+  const hasMore = promptsData?.nextCursor !== null;
+  const isLoadingMore = fetchStatus === "fetching" && cursor !== null;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    if (!hasMore) return;
+    if (!sentinel || !hasMore || isLoadingMore) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (!first?.isIntersecting) return;
-        setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, mockPrompts.length));
+      ([entry]) => {
+        if (entry?.isIntersecting && promptsData?.nextCursor) {
+          setCursor(promptsData.nextCursor);
+        }
       },
-      { root: null, rootMargin: "800px", threshold: 0 }
+      { rootMargin: "800px" }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, mockPrompts.length]);
+  }, [hasMore, isLoadingMore, promptsData?.nextCursor]);
+
+  if (isLoading && allPrompts.length === 0) {
+    return (
+      <div className="min-h-screen bg-background pt-16">
+        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+        <main className="w-full px-2 py-2 flex items-center justify-center">
+          <p className="text-foreground text-lg">Loading prompts...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (visiblePrompts.length === 0) {
+    return (
+      <div className="min-h-screen bg-background pt-16">
+        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+        <main className="w-full px-2 py-8 flex flex-col items-center justify-center">
+          <p className="text-foreground text-lg mb-4">
+            No prompts available yet
+          </p>
+          <p className="text-foreground/60 text-sm">
+            Be the first to create and release a prompt!
+          </p>
+        </main>
+        <CompactPromptCreator />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pt-16">
@@ -152,11 +178,13 @@ export default function Showcase() {
             );
           })}
         </div>
-
         <div ref={sentinelRef} className="h-10" />
-
         <div className="w-full py-4 flex items-center justify-center text-sm text-muted-foreground">
-          {hasMore ? "Loading more..." : "You\"re all caught up."}
+          {isLoadingMore
+            ? "Loading more..."
+            : hasMore
+              ? "Scroll to load more..."
+              : "You're all caught up."}
         </div>
       </main>
       <CompactPromptCreator />

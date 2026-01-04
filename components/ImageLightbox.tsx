@@ -100,16 +100,18 @@ export default function ImageLightbox({ isOpen, onClose, imageUrl }: ImageLightb
             if (e.target === e.currentTarget) onClose();
           }}
         >
-          <img
-            src={imageUrl}
-            alt="Fullscreen view"
-            className="max-w-full max-h-[95vh] object-contain transition-transform duration-200 select-none"
-            style={{
-              transform: `scale(${scale}) rotate(${rotation}deg)`,
-            }}
-            draggable={false}
-            data-testid="lightbox-image"
-          />
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt="Fullscreen view"
+              className="max-w-full max-h-[95vh] object-contain transition-transform duration-200 select-none"
+              style={{
+                transform: `scale(${scale}) rotate(${rotation}deg)`,
+              }}
+              draggable={false}
+              data-testid="lightbox-image"
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
