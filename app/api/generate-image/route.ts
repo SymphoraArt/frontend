@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-type Body = {
+type GenerateImageBody = {
   prompt?: string;
+  aspectRatio?: string;
+  resolution?: string;
 };
 
 async function maybeEnhancePrompt(prompt: string): Promise<string> {
@@ -14,9 +16,7 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [
         {
@@ -28,10 +28,7 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
           ],
         },
       ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 512,
-      },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
     }),
   });
 
@@ -42,14 +39,9 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
 
   type GeminiResponse = {
     candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: unknown;
-        }>;
-      };
+      content?: { parts?: Array<{ text?: unknown }> };
     }>;
   };
-
   const data = (await res.json()) as GeminiResponse;
   const text: unknown = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof text !== "string" || !text.trim()) return prompt;
@@ -58,16 +50,15 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as Body;
+    const body = (await req.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
+    // (optional) enhance prompt via text Gemini key, then use Pollinations
     let enhancedPrompt = prompt;
     let usedGemini = false;
-
     try {
       const maybe = await maybeEnhancePrompt(prompt);
       if (maybe && maybe !== prompt) {

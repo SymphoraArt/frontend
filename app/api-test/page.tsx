@@ -202,6 +202,9 @@ export default function ApiTestPage() {
   const [newPromptIsFeatured, setNewPromptIsFeatured] = useState(false);
   const [newPromptPublished, setNewPromptPublished] = useState(true);
   const [newPromptPrice, setNewPromptPrice] = useState(2.5);
+  const [newPromptImages, setNewPromptImages] = useState<
+    Array<{ url: string; thumbnail?: string; isPrimary?: boolean }>
+  >([{ url: "", isPrimary: false }]);
 
   const [templateText, setTemplateText] = useState(
     `A blurred silhouette of a [subject] in motion, wearing a [color] sports kit, captured with a slow shutter for dynamic motion blur. High contrast, minimalist composition with no logos or text. Neutral background, abstract, and energetic. Editorial style reminiscent of [Brand] advertising.`
@@ -402,6 +405,18 @@ export default function ApiTestPage() {
 
       if (newPromptType === "paid") {
         body.pricing = { pricePerGeneration: Number(newPromptPrice) || 0 };
+      }
+
+      // Process showcase images
+      const showcaseImages = newPromptImages
+        .filter((img) => img.url.trim())
+        .map((img) => ({
+          url: img.url.trim(),
+          thumbnail: img.thumbnail?.trim() || undefined,
+          isPrimary: img.isPrimary || false,
+        }));
+      if (showcaseImages.length > 0) {
+        body.showcaseImages = showcaseImages;
       }
 
       const data = await fetchJson("/api/prompts", {
@@ -1679,6 +1694,138 @@ export default function ApiTestPage() {
                       .join(", ")}
                   </div>
                 )}
+              </div>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: "#666",
+                    marginBottom: 4,
+                  }}
+                >
+                  Showcase Images (URLs)
+                </label>
+                {newPromptImages.map((img, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto auto auto",
+                      gap: 8,
+                      marginBottom: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <input
+                      value={img.url}
+                      onChange={(e) => {
+                        const updated = [...newPromptImages];
+                        updated[idx] = { ...updated[idx], url: e.target.value };
+                        setNewPromptImages(updated);
+                      }}
+                      placeholder="Image URL"
+                      style={{
+                        padding: 6,
+                        borderRadius: 6,
+                        border: "1px solid #ccc",
+                        fontSize: 12,
+                      }}
+                    />
+                    <input
+                      value={img.thumbnail || ""}
+                      onChange={(e) => {
+                        const updated = [...newPromptImages];
+                        updated[idx] = {
+                          ...updated[idx],
+                          thumbnail: e.target.value,
+                        };
+                        setNewPromptImages(updated);
+                      }}
+                      placeholder="Thumbnail URL (optional)"
+                      style={{
+                        padding: 6,
+                        borderRadius: 6,
+                        border: "1px solid #ccc",
+                        fontSize: 12,
+                        width: "150px",
+                      }}
+                    />
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 11,
+                        color: "#666",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={img.isPrimary || false}
+                        onChange={(e) => {
+                          const updated = [...newPromptImages];
+                          updated[idx] = {
+                            ...updated[idx],
+                            isPrimary: e.target.checked,
+                          };
+                          // Uncheck others if this is primary
+                          if (e.target.checked) {
+                            updated.forEach((item, i) => {
+                              if (i !== idx) item.isPrimary = false;
+                            });
+                          }
+                          setNewPromptImages(updated);
+                        }}
+                      />
+                      Primary
+                    </label>
+                    <button
+                      onClick={() => {
+                        if (newPromptImages.length > 1) {
+                          setNewPromptImages(
+                            newPromptImages.filter((_, i) => i !== idx)
+                          );
+                        }
+                      }}
+                      disabled={newPromptImages.length === 1}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #ccc",
+                        background:
+                          newPromptImages.length === 1 ? "#f0f0f0" : "#fff",
+                        cursor:
+                          newPromptImages.length === 1
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    setNewPromptImages([
+                      ...newPromptImages,
+                      { url: "", isPrimary: false },
+                    ]);
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #4a90e2",
+                    background: "#4a90e2",
+                    color: "#fff",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  + Add Image
+                </button>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input

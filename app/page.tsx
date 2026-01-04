@@ -10,13 +10,18 @@ import type { Prompt, Artist } from "../shared/schema";
 export default function Gallery() {
   const router = useRouter();
 
-  const { data: prompts = [], isLoading: promptsLoading } = useQuery<Prompt[]>({
+  const { data: promptsData, isLoading: promptsLoading } = useQuery<{
+    items: Prompt[];
+    nextCursor: string | null;
+  }>({
     queryKey: ["/api/prompts"],
   });
 
   const { data: artists = [] } = useQuery<Artist[]>({
     queryKey: ["/api/artists"],
   });
+
+  const prompts = promptsData?.items ?? [];
 
   const artworkItems: ArtworkItem[] = prompts
     .filter(

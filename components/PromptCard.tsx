@@ -1,5 +1,4 @@
-"use client"
-
+"use client";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +29,7 @@ export default function PromptCard({
   downloads,
   thumbnail,
   category,
-  onClick
+  onClick,
 }: PromptCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -43,7 +42,18 @@ export default function PromptCard({
       data-testid={`card-prompt-${id}`}
     >
       <div className="relative h-full bg-muted overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center">
+        {thumbnail ? (
+          <img
+            src={thumbnail}
+            alt={title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+              e.currentTarget.nextElementSibling?.classList.remove("hidden");
+            }}
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center hidden">
           <Sparkles className="h-12 w-12 text-primary/30" />
         </div>
 
@@ -52,28 +62,33 @@ export default function PromptCard({
           className="absolute top-2 right-2 backdrop-blur-sm text-xs"
           data-testid={`badge-price-${id}`}
         >
-          {isFree ? 'FREE' : `${price}cr`}
+          {isFree ? "FREE" : `${price} USDC`}
         </Badge>
 
         {isHovered && (
           <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/60 to-transparent flex flex-col items-center justify-end p-3 gap-2">
             <div className="w-full space-y-1">
-              <h3 className="font-semibold text-sm truncate text-center" data-testid={`text-title-${id}`}>
+              <h3
+                className="font-semibold text-sm truncate text-center"
+                data-testid={`text-title-${id}`}
+              >
                 {title}
               </h3>
-              <p className="text-xs text-muted-foreground truncate text-center">by {artist}</p>
+              <p className="text-xs text-muted-foreground truncate text-center">
+                by {artist}
+              </p>
               <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Star className="h-3 w-3 fill-primary text-primary" />
                   <span>{rating.toFixed(1)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Download className="h-3 w-3" />
-                  <span>{downloads}</span>
-                </div>
               </div>
             </div>
-            <Button size="sm" className="w-full" data-testid={`button-use-${id}`}>
+            <Button
+              size="sm"
+              className="w-full"
+              data-testid={`button-use-${id}`}
+            >
               Use Prompt
             </Button>
           </div>
