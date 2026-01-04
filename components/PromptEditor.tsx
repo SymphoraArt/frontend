@@ -22,10 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
   Accordion,
@@ -135,7 +132,6 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const [photoCount, setPhotoCount] = useState(1);
   const [promptType, setPromptType] = useState<PromptType>("paid-prompt");
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState("");
   const [resolution, setResolution] = useState<string | null>(null);
   const [isFreeShowcase, setIsFreeShowcase] = useState(false);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
@@ -151,15 +147,34 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   }>({ open: false, varName: "", selectedText: "", selectionRange: null });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const isShowcase = promptType === "showcase";
 
-  const { data: savedPrompts = [] } = useQuery<any[]>({
+  const { data: savedPrompts = [] } = useQuery<
+    Array<{ id: string; title: string; createdAt?: string }>
+  >({
     queryKey: ["/api/prompts"],
     enabled: showLoadDialog,
   });
+
+  const getErrorMessage = (e: unknown) => {
+    if (e instanceof Error) return e.message;
+    return String(e);
+  };
+
+  const coerceVariableDefaultValue = (
+    value: unknown
+  ): string | number | boolean | string[] => {
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return value;
+    if (typeof value === "boolean") return value;
+    if (Array.isArray(value)) {
+      return value.map((v) => String(v));
+    }
+    if (value === null || value === undefined) return "";
+    return String(value);
+  };
 
   const getCaretCoordinates = (
     element: HTMLTextAreaElement,
@@ -193,7 +208,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     ];
 
     properties.forEach((prop) => {
-      div.style[prop as any] = style[prop as any];
+      const key = prop as unknown as keyof CSSStyleDeclaration;
+      (div.style as unknown as Record<string, string>)[prop] = String(
+        (style as unknown as Record<string, string>)[key as unknown as string]
+      );
     });
 
     div.style.position = "absolute";
@@ -239,7 +257,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
     // Position RELATIVE to textarea (for absolute positioning within parent)
     // Add padding offset (px-3 py-[11px] on textarea = 12px left, 11px top)
-    let top = coords.top + coords.height + 11 + 8; // +8 for spacing below text
+    const top = coords.top + coords.height + 11 + 8; // +8 for spacing below text
     let left = coords.left + 12; // Account for px-3 padding
 
     // Make sure button doesn't overflow the container
@@ -663,65 +681,6 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     );
   };
 
-  const handleVariableLinkClick = (varName: string) => {
-    const variable = variables.find(
-      (v) => v.name === varName || v.label === varName
-    );
-    if (variable) {
-      setOpenVariables([variable.id]);
-
-      setTimeout(() => {
-        const element = document.getElementById(`variable-${variable.id}`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
-      }, 100);
-    }
-  };
-
-  const renderPromptWithLinks = () => {
-    const regex = /\[([^\]]+)\]/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(prompt)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(
-          <span key={`text-${lastIndex}`}>
-            {prompt.substring(lastIndex, match.index)}
-          </span>
-        );
-      }
-
-      const varName = match[1];
-      const variable = variables.find((v) => v.name === varName);
-      const displayText = variable ? variable.label : varName;
-
-      parts.push(
-        <button
-          key={`var-${match.index}`}
-          type="button"
-          onClick={() => handleVariableLinkClick(varName)}
-          className="text-primary hover-elevate px-1 rounded"
-          data-testid={`link-variable-${varName}`}
-        >
-          [{displayText}]
-        </button>
-      );
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex < prompt.length) {
-      parts.push(
-        <span key={`text-${lastIndex}`}>{prompt.substring(lastIndex)}</span>
-      );
-    }
-
-    return parts.length > 0 ? parts : prompt;
-  };
-
   const addOption = (varId: string) => {
     const input = newOptionInput[varId] || "";
     if (!input.trim()) return;
@@ -807,10 +766,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         title: "Generation Complete",
         description: "Your image was generated successfully.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Generation Failed",
-        description: error.message || "Error generating image.",
+        description: getErrorMessage(error) || "Error generating image.",
         variant: "destructive",
       });
     } finally {
@@ -844,10 +803,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         title: "Generation Complete",
         description: "Your image was generated successfully.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Generation Failed",
-        description: error.message || "Error generating image.",
+        description: getErrorMessage(error) || "Error generating image.",
         variant: "destructive",
       });
     } finally {
@@ -857,9 +816,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
   const savePromptMutation = useMutation({
     mutationFn: async () => {
-      let savedPrompt;
-
-      const promptData = {
+      const payload = {
+        id: currentPromptId,
         title: promptTitle,
         content: prompt,
         userId: null,
@@ -872,35 +830,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         promptType,
         uploadedPhotos,
         resolution,
-      };
-
-      if (currentPromptId) {
-        const response = await apiRequest(
-          "PATCH",
-          `/api/prompts/${currentPromptId}`,
-          promptData
-        );
-        savedPrompt = await response.json();
-
-        const existingVarsResponse = await fetch(
-          `/api/prompts/${currentPromptId}/variables`
-        );
-        const existingVars = await existingVarsResponse.json();
-
-        for (const existingVar of existingVars) {
-          await apiRequest("DELETE", `/api/variables/${existingVar.id}`, {});
-        }
-      } else {
-        const response = await apiRequest("POST", "/api/prompts", promptData);
-        savedPrompt = await response.json();
-      }
-
-      for (const variable of variables) {
-        const variableData: Record<string, any> = {
-          promptId: savedPrompt.id,
+        isFreeShowcase,
+        variables: variables.map((variable) => ({
           name: variable.name,
           label: variable.label,
-          description: variable.description || null,
+          description: variable.description || "",
           type: variable.type,
           defaultValue: variable.defaultValue,
           required: variable.required,
@@ -908,12 +842,36 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           min: variable.min ?? null,
           max: variable.max ?? null,
           options: variable.options ?? null,
-        };
+        })),
+      };
 
-        await apiRequest("POST", "/api/variables", variableData);
+      const response = await apiRequest("POST", "/api/prompt", payload);
+      const savedPrompt: unknown = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          typeof savedPrompt === "object" &&
+          savedPrompt !== null &&
+          "error" in savedPrompt
+            ? String((savedPrompt as { error?: unknown }).error)
+            : "Failed to save prompt";
+        throw new Error(errorMessage);
       }
 
-      setCurrentPromptId(savedPrompt.id);
+      if (
+        typeof savedPrompt !== "object" ||
+        savedPrompt === null ||
+        !("id" in savedPrompt)
+      ) {
+        throw new Error("Invalid response from server");
+      }
+
+      const savedId = String((savedPrompt as { id?: unknown }).id ?? "");
+      if (!savedId) {
+        throw new Error("Invalid response from server");
+      }
+
+      setCurrentPromptId(savedId);
       return savedPrompt;
     },
     onSuccess: () => {
@@ -922,11 +880,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         description: "Your prompt was saved successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       console.error("Save error:", error);
       toast({
         title: "Error",
-        description: "An error occurred while saving.",
+        description: getErrorMessage(error) || "An error occurred while saving.",
         variant: "destructive",
       });
     },
@@ -943,41 +901,73 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
   const loadPrompt = async (promptId: string) => {
     try {
-      const promptResponse = await fetch(`/api/prompts/${promptId}`);
-      const promptData = await promptResponse.json();
+      const promptResponse = await fetch(`/api/prompt?id=${promptId}`);
+      const promptData: unknown = await promptResponse.json();
 
-      const variablesResponse = await fetch(
-        `/api/prompts/${promptId}/variables`
-      );
-      const variablesData = await variablesResponse.json();
+      if (!promptResponse.ok) {
+        const errorMessage =
+          typeof promptData === "object" &&
+          promptData !== null &&
+          "error" in promptData
+            ? String((promptData as { error?: unknown }).error)
+            : "Failed to load prompt";
+        throw new Error(errorMessage);
+      }
+
+      if (typeof promptData !== "object" || promptData === null) {
+        throw new Error("Invalid response from server");
+      }
+
+      const data = promptData as Record<string, unknown>;
+
+      const variablesData: unknown[] = Array.isArray(data.variables)
+        ? (data.variables as unknown[])
+        : [];
 
       setCurrentPromptId(promptId);
-      setPromptTitle(promptData.title);
-      setPrompt(promptData.content);
-      setCategory(promptData.category || "");
-      setTags(promptData.tags || []);
-      setAiModel(promptData.aiModel || "gemini");
-      setPrice((promptData.price || 1) / 10000);
-      setAspectRatio(promptData.aspectRatio || null);
-      setPhotoCount(promptData.photoCount || 1);
-      setResolution(promptData.resolution || null);
-      setPromptType(promptData.promptType || "create-now");
-      setUploadedPhotos(promptData.uploadedPhotos || []);
+      setPromptTitle(String(data.title ?? ""));
+      setPrompt(String(data.content ?? ""));
+      setCategory(typeof data.category === "string" ? data.category : "");
+      setTags(Array.isArray(data.tags) ? (data.tags as string[]) : []);
+      setAiModel(typeof data.aiModel === "string" ? data.aiModel : "gemini");
+      setPrice(
+        typeof data.price === "number" ? data.price / 10000 : (1 / 10000)
+      );
+      setAspectRatio(typeof data.aspectRatio === "string" ? data.aspectRatio : null);
+      setPhotoCount(typeof data.photoCount === "number" ? data.photoCount : 1);
+      setResolution(typeof data.resolution === "string" ? data.resolution : null);
+      setPromptType(
+        (typeof data.promptType === "string"
+          ? data.promptType
+          : "create-now") as PromptType
+      );
+      setIsFreeShowcase(Boolean(data.isFreeShowcase ?? false));
+      setUploadedPhotos(
+        Array.isArray(data.uploadedPhotos)
+          ? (data.uploadedPhotos as string[])
+          : []
+      );
 
       setVariables(
-        variablesData.map((v: any) => ({
-          id: v.id,
-          name: v.name,
-          label: v.label,
-          description: v.description || "",
-          type: v.type,
-          defaultValue: v.defaultValue,
-          required: v.required,
-          position: v.position,
-          min: v.min,
-          max: v.max,
-          options: v.options,
-        }))
+        variablesData
+          .filter((v: unknown): v is Record<string, unknown> =>
+            typeof v === "object" && v !== null
+          )
+          .map((v) => ({
+            id: String(v.id ?? ""),
+            name: String(v.name ?? ""),
+            label: String(v.label ?? ""),
+            description: String(v.description ?? ""),
+            type: (v.type as VariableType) ?? "text",
+            defaultValue: coerceVariableDefaultValue(v.defaultValue),
+            required: Boolean(v.required ?? false),
+            position: Number(v.position ?? 0),
+            min: typeof v.min === "number" ? v.min : undefined,
+            max: typeof v.max === "number" ? v.max : undefined,
+            options: Array.isArray(v.options)
+              ? (v.options as unknown as SelectOption[])
+              : undefined,
+          }))
       );
       setOpenVariables([]);
       setShowLoadDialog(false);
@@ -986,22 +976,14 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         title: "Loaded",
         description: "Prompt was loaded successfully.",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Load error:", error);
       toast({
         title: "Error",
-        description: "An error occurred while loading.",
+        description: getErrorMessage(error) || "An error occurred while loading.",
         variant: "destructive",
       });
     }
-  };
-
-  const newPrompt = () => {
-    setCurrentPromptId(null);
-    setPromptTitle("");
-    setPrompt("");
-    setVariables([]);
-    setOpenVariables([]);
   };
 
   const settingsData: PromptSettings = {
@@ -1178,7 +1160,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                       return (
                         <span
                           key={index}
-                          className={`select-none cursor-pointer pointer-events-auto ${isOpen ? "text-primary" : "text-primary/80"}`}
+                          className={`select-none cursor-pointer pointer-events-auto inline-flex items-center rounded px-1 py-0.5 mx-0.5 font-mono font-medium bg-primary/10 text-primary hover:bg-primary/15 ${isOpen ? "ring-1 ring-primary/40" : ""}`}
                           onClick={(e) => {
                             e.preventDefault();
                             setSelectedVariableId(variable.id);
@@ -1391,10 +1373,13 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           data-testid={`accordion-trigger-${variable.id}`}
                         >
                           <div className="flex items-center gap-2 flex-1">
-                            <span className="text-sm font-medium">
+                            <span className="text-sm font-semibold font-sans text-foreground">
                               {variable.label}
                             </span>
-                            <Badge variant="outline" className="text-xs">
+                            <Badge
+                              variant="secondary"
+                              className="text-xs font-medium font-sans bg-muted text-foreground border border-border"
+                            >
                               {variable.type}
                             </Badge>
                           </div>
@@ -1432,7 +1417,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                             <Label className="text-xs">Internal Name</Label>
                             <Badge
                               variant="secondary"
-                              className="text-xs font-mono"
+                              className="text-xs font-mono font-medium bg-muted text-foreground border border-border"
                             >
                               [{variable.name}]
                             </Badge>
@@ -1886,7 +1871,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                 onClick={() => textareaRef.current?.focus()}
               >
                 <div
-                  className="absolute inset-0 font-mono text-sm whitespace-pre-wrap pointer-events-none overflow-hidden select-none text-white"
+                  className="absolute inset-0 font-mono text-sm whitespace-pre-wrap pointer-events-none overflow-hidden select-none text-foreground"
                   style={{
                     wordBreak: "break-word",
                     overflowWrap: "anywhere",
@@ -1909,7 +1894,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                         return (
                           <span
                             key={index}
-                            className={`select-none cursor-pointer pointer-events-auto ${isOpen ? "text-orange-400 dark:text-orange-300" : "text-teal-400 dark:text-teal-300"}`}
+                            className={`select-none cursor-pointer pointer-events-auto inline-flex items-center rounded px-1 py-0.5 mx-0.5 font-mono font-medium bg-primary/10 text-primary hover:bg-primary/15 ${isOpen ? "ring-1 ring-primary/40" : ""}`}
                             onClick={(e) => {
                               e.preventDefault();
                               setEditingVariableId(variable.id);
@@ -1936,7 +1921,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onSelect={handleTextSelection}
-                  onClick={(e) => {
+                  onClick={() => {
                     handleTextSelection();
                     setTimeout(() => {
                       const pos = textareaRef.current?.selectionStart ?? 0;
@@ -2016,8 +2001,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     data-testid="button-create-from-selection"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Variable erstellen: "{selectedText.slice(0, 20)}
-                    {selectedText.length > 20 ? "..." : ""}"
+                    Variable erstellen: &quot;{selectedText.slice(0, 20)}
+                    {selectedText.length > 20 ? "..." : ""}&quot;
                   </Button>
                 )}
               </div>
@@ -2159,7 +2144,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                         </AccordionTrigger>
                         <AccordionContent className="px-1.5 pt-1 space-y-2 w-full max-w-full overflow-x-hidden">
                           <div className="space-y-2">
-                            <Label className="text-xs text-white">Label</Label>
+                            <Label className="text-xs text-foreground">Label</Label>
                             <Input
                               value={variable.label}
                               onChange={(e) =>
@@ -2175,9 +2160,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs text-white">
-                              Beschreibung
-                            </Label>
+                            <Label className="text-xs text-foreground">Description</Label>
                             <Textarea
                               value={variable.description}
                               onChange={(e) =>
@@ -2193,19 +2176,17 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs text-white">
-                              Interner Name
-                            </Label>
+                            <Label className="text-xs text-foreground">Internal Name</Label>
                             <Badge
                               variant="secondary"
-                              className="text-xs font-mono"
+                              className="text-xs font-mono font-medium bg-muted text-foreground border border-border"
                             >
                               {variable.name}
                             </Badge>
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs text-white">Typ</Label>
+                            <Label className="text-xs text-foreground">Type</Label>
                             <Select
                               value={variable.type}
                               onValueChange={(value) =>
@@ -2643,7 +2624,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           <ScrollArea className="max-h-[400px]">
             <div className="space-y-2 p-1">
               {savedPrompts && savedPrompts.length > 0 ? (
-                savedPrompts.map((p: any) => (
+                savedPrompts.map((p) => (
                   <Button
                     key={p.id}
                     variant="outline"
@@ -2711,8 +2692,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           <AlertDialogHeader className="-mt-4">
             <AlertDialogTitle>Variable Already Exists</AlertDialogTitle>
             <AlertDialogDescription>
-              A variable with the name "
-              <span className="font-medium">{linkOrCreateDialog.varName}</span>"
+              A variable with the name &quot;
+              <span className="font-medium">{linkOrCreateDialog.varName}</span>&quot;
               already exists. What would you like to do?
             </AlertDialogDescription>
           </AlertDialogHeader>
