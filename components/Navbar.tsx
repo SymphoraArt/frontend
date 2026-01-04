@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Plus, Eye, Moon, Sun } from "lucide-react";
+import { Search, Plus, Eye, Moon, Sun, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +47,14 @@ export default function Navbar({
   const walletAddress = user?.wallet?.address;
   const googleAccount = user?.google;
 
+  const displayEmail =
+    email || googleAccount?.email || (walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : null);
+  const privyName = (user as any)?.name;
+  const displayName =
+    (typeof privyName === "string" && privyName) ||
+    (typeof googleAccount?.name === "string" && googleAccount.name) ||
+    (displayEmail ? displayEmail.split("@")[0] : username);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -54,10 +62,7 @@ export default function Navbar({
     if (stored === "light" || stored === "dark") {
       setTheme(stored);
     } else {
-      const prefersDark = window.matchMedia?.(
-        "(prefers-color-scheme: dark)"
-      )?.matches;
-      setTheme(prefersDark ? "dark" : "light");
+      setTheme("light");
     }
   }, []);
 
@@ -165,18 +170,8 @@ export default function Navbar({
                   <Moon className="h-4 w-4" />
                 )}
               </Button>
-              {!authenticated ? (
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={disableLogin}
-                  onClick={login}
-                  data-testid="button-login"
-                >
-                  Log in
-                </Button>
-              ) : (
-                <Flex gap="2">
+              <Flex gap="2">
+                {authenticated && (
                   <Button
                     variant="default"
                     size="sm"
@@ -187,53 +182,76 @@ export default function Navbar({
                     <Plus className="h-4 w-4" />
                     <span className="hidden sm:inline">Create Prompt</span>
                   </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="rounded-full"
-                        data-testid="button-user-menu"
-                      >
-                        <Avatar className="h-9 w-9">
-                          <AvatarFallback className="bg-primary text-primary-foreground">
-                            {username.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <div className="px-2 py-2">
-                        <p className="text-sm font-medium">{username}</p>
-                        <p className="text-xs text-muted-foreground">
-                          artist@example.com
-                        </p>
-                      </div>
-                      <DropdownMenuSeparator />
+                )}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="rounded-full" data-testid="button-user-menu">
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {authenticated ? displayName.charAt(0) : <User className="h-4 w-4" />}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <div className="px-2 py-2">
+                      <p className="text-sm font-medium">
+                        {authenticated ? displayName : "Guest"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {authenticated ? displayEmail || "" : "Log in to save your creations"}
+                      </p>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => router.push("/my-gallery")}
+                      disabled={!authenticated}
+                      data-testid="menu-item-my-gallery"
+                    >
+                      My Gallery
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/my-prompts")}
+                      disabled={!authenticated}
+                      data-testid="menu-item-my-prompts"
+                    >
+                      My Prompts
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/my-gallery")}
+                      disabled={!authenticated}
+                      data-testid="menu-item-creations"
+                    >
+                      My Creations
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/settings")}
+                      disabled={!authenticated}
+                      data-testid="menu-item-settings"
+                    >
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {!authenticated ? (
                       <DropdownMenuItem
-                        onClick={() => router.push("/my-gallery")}
-                        data-testid="menu-item-my-gallery"
+                        onClick={login}
+                        disabled={disableLogin}
+                        data-testid="menu-item-login"
                       >
-                        My Gallery
+                        Log in
                       </DropdownMenuItem>
-                      <DropdownMenuItem data-testid="menu-item-my-prompts">
-                        My Prompts
-                      </DropdownMenuItem>
-                      <DropdownMenuItem data-testid="menu-item-creations">
-                        My Creations
-                      </DropdownMenuItem>
-                      <DropdownMenuItem data-testid="menu-item-settings">
-                        Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
+                    ) : (
                       <DropdownMenuItem
                         data-testid="menu-item-logout"
                         onClick={logout}
                       >
                         Logout
                       </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </Flex>
-              )}
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </Flex>
             </Flex>
           </div>
         </div>

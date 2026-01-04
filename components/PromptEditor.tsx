@@ -51,6 +51,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import PromptSettingsPanel from "./PromptSettingsPanel";
+import { usePrivy } from "@privy-io/react-auth";
+import { addCreation, getUserKeyFromPrivyUser } from "@/lib/creations";
 
 type VariableType =
   | "text"
@@ -100,6 +102,7 @@ interface PromptEditorProps {
 }
 
 export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
+  const { user } = usePrivy();
   const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -791,6 +794,15 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       });
       const data = await response.json();
       setGeneratedImage(data.imageUrl);
+      const userKey = getUserKeyFromPrivyUser(user);
+      if (userKey && data?.imageUrl) {
+        addCreation(userKey, {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          imageUrl: data.imageUrl,
+          prompt: previewText,
+          createdAt: new Date().toISOString(),
+        });
+      }
       toast({
         title: "Generation Complete",
         description: "Your image was generated successfully.",
@@ -819,6 +831,15 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       });
       const data = await response.json();
       setGeneratedImage(data.imageUrl);
+      const userKey = getUserKeyFromPrivyUser(user);
+      if (userKey && data?.imageUrl) {
+        addCreation(userKey, {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          imageUrl: data.imageUrl,
+          prompt: previewText,
+          createdAt: new Date().toISOString(),
+        });
+      }
       toast({
         title: "Generation Complete",
         description: "Your image was generated successfully.",
@@ -1784,7 +1805,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                 <Button
                   variant="outline"
                   onClick={handleSubmit}
-                  disabled={isGenerating || savePromptMutation.isPending}
+                  disabled={
+                    isGenerating ||
+                    savePromptMutation.isPending ||
+                    generatedImage === null
+                  }
                   className="w-full"
                   data-testid="button-submit"
                 >
@@ -2029,7 +2054,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               <Button
                 variant="outline"
                 onClick={handleSubmit}
-                disabled={isGenerating || savePromptMutation.isPending}
+                disabled={
+                  isGenerating ||
+                  savePromptMutation.isPending ||
+                  generatedImage === null
+                }
                 className="w-full"
                 data-testid="button-submit"
               >

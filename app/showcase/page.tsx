@@ -4,9 +4,14 @@ import FilterBar from "@/components/FilterBar";
 import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import CompactPromptCreator from "@/components/CompactPromptCreator";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function Showcase() {
   const router = useRouter();
+
+  const PAGE_SIZE = 12;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const mockPrompts = [
     {
@@ -99,12 +104,38 @@ export default function Showcase() {
     },
   ];
 
+  const visiblePrompts = useMemo(
+    () => mockPrompts.slice(0, Math.min(visibleCount, mockPrompts.length)),
+    [mockPrompts, visibleCount]
+  );
+
+  const hasMore = visibleCount < mockPrompts.length;
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    if (!hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, mockPrompts.length));
+      },
+      { root: null, rootMargin: "800px", threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, mockPrompts.length]);
+
   return (
     <div className="min-h-screen bg-background pt-16">
       <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
       <main className="w-full px-2 py-2">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 auto-rows-[200px]">
-          {mockPrompts.map((prompt, idx) => {
+          {visiblePrompts.map((prompt, idx) => {
             const spans =
               idx % 7 === 0
                 ? "row-span-2 col-span-2"
@@ -120,6 +151,12 @@ export default function Showcase() {
               </div>
             );
           })}
+        </div>
+
+        <div ref={sentinelRef} className="h-10" />
+
+        <div className="w-full py-4 flex items-center justify-center text-sm text-muted-foreground">
+          {hasMore ? "Loading more..." : "You\"re all caught up."}
         </div>
       </main>
       <CompactPromptCreator />

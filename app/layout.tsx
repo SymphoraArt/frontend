@@ -7,10 +7,10 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
-import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { Providers } from "../providers";
 import Navbar from "@/components/Navbar";
+import ThemeSync from "@/components/ThemeSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,15 +52,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} antialiased`}
       >
         <Providers>
-          <Theme appearance="light" scaling="95%">
+          <ThemeSync>
             <Navbar />
             {children}
-          </Theme>
+          </ThemeSync>
         </Providers>
       </body>
     </html>
