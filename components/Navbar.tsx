@@ -17,7 +17,6 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Flex } from "@radix-ui/themes";
 
 interface NavbarProps {
-  credits?: number;
   username?: string;
   onSearch?: (query: string) => void;
 }
@@ -28,15 +27,12 @@ export function useNavbarVisibility() {
 }
 
 export default function Navbar({
-  credits = 125,
   username = "Artist",
   onSearch,
 }: NavbarProps) {
   const { ready, authenticated, user, login, logout } = usePrivy();
   const disableLogin = !ready || (ready && authenticated);
   const router = useRouter();
-  const [authDialog, setAuthDialog] = useState<null | "login">(null);
-  const [authEmail, setAuthEmail] = useState("");
   const [showNav, setShowNav] = useState(true);
   const lastScrollYRef = useRef(0);
   const themeTransitionTimeoutRef = useRef<number | null>(null);
@@ -49,7 +45,7 @@ export default function Navbar({
 
   const displayEmail =
     email || googleAccount?.email || (walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : null);
-  const privyName = (user as any)?.name;
+  const privyName = (user as { name?: string } | undefined)?.name;
   const displayName =
     (typeof privyName === "string" && privyName) ||
     (typeof googleAccount?.name === "string" && googleAccount.name) ||
