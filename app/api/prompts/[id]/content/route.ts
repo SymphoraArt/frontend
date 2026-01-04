@@ -2,34 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
 
-export async function POST(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   const { searchParams } = new URL(request.url);
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
-  const body = await request.json();
-
-  const prices: Record<string, string> = {
-    '1K': '$0.05',
-    '2K': '$0.10',
-    '4K': '$0.25',
-  };
-  const price = prices[body.resolution] || '$0.10';
 
   try {
     const result = await paymentEngine.settle({
-      resourceUrl: '/api/generate-image',
-      method: 'POST',
+      resourceUrl: `/api/prompts/${params.id}/content`,
+      method: 'GET',
       paymentHeader: paymentHeader || undefined,
       chainKey: chain,
-      price,
-      description: `Generate ${body.resolution} image`,
+      price: '$0.05',
+      description: `Unlock prompt ${params.id}`,
       payToAddress: process.env.SERVER_WALLET_ADDRESS!,
-      category: 'image-generation',
+      category: 'prompt-unlock',
     });
 
     if (result.success) {
       return NextResponse.json(
-        { imageUrl: 'generated-image.png', metadata: result.metadata },
+        { content: "Unlocked prompt content" },
         { status: 200, headers: result.headers }
       );
     } else {
