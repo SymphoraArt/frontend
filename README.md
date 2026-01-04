@@ -21,6 +21,9 @@ NEXT_PUBLIC_PRIVY_APP_ID=
 #thirdweb
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
 THIRDWEB_SECRET_KEY=
+
+#gemini
+GEMINI_API_KEY=
 ```
 
 ### Install Dependencies

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/db/mongodb";
+import getMongoClient from "@/lib/db/mongodb";
 import { ObjectId } from "mongodb";
 
 export async function GET(
@@ -15,7 +15,16 @@ export async function GET(
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
 
-  const client = await clientPromise;
+  let client;
+  try {
+    client = await getMongoClient();
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: `MongoDB not configured: ${message}` },
+      { status: 503 }
+    );
+  }
   const db = client.db(process.env.MONGODB_DB || "symphora");
 
   const user = await db.collection("users").findOne(

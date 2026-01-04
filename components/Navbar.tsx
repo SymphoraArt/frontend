@@ -206,28 +206,24 @@ export default function Navbar({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => router.push("/my-gallery")}
-                      disabled={!authenticated}
                       data-testid="menu-item-my-gallery"
                     >
                       My Gallery
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => router.push("/my-prompts")}
-                      disabled={!authenticated}
                       data-testid="menu-item-my-prompts"
                     >
                       My Prompts
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => router.push("/my-gallery")}
-                      disabled={!authenticated}
                       data-testid="menu-item-creations"
                     >
                       My Creations
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => router.push("/settings")}
-                      disabled={!authenticated}
                       data-testid="menu-item-settings"
                     >
                       Settings

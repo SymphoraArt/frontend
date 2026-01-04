@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/db/mongodb";
+import getMongoClient from "@/lib/db/mongodb";
 
 type CreateUserBody = {
   username?: string;
@@ -12,7 +12,16 @@ export async function GET(req: Request) {
   const username = searchParams.get("username"); 
   const limit = Math.min(Number(searchParams.get("limit") || "20"), 50);
 
-  const client = await clientPromise;
+  let client;
+  try {
+    client = await getMongoClient();
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: `MongoDB not configured: ${message}` },
+      { status: 503 }
+    );
+  }
   const db = client.db(process.env.MONGODB_DB);
 
   const query: any = {};
@@ -83,7 +92,16 @@ export async function POST(req: Request) {
     lastActive: now,
   };
 
-  const client = await clientPromise;
+  let client;
+  try {
+    client = await getMongoClient();
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: `MongoDB not configured: ${message}` },
+      { status: 503 }
+    );
+  }
   const db = client.db(process.env.MONGODB_DB);
 
   try {

@@ -436,6 +436,29 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     }
   };
 
+  const downloadGeneratedImage = async () => {
+    if (!generatedImage) return;
+    try {
+      const res = await fetch(generatedImage);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `generation-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      toast({
+        title: "Download Failed",
+        description: getErrorMessage(e) || "Could not download image.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const performVariableCreation = (
     varName: string,
     originalText: string,
@@ -755,6 +778,19 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromPrivyUser(user);
       if (userKey && data?.imageUrl) {
+        try {
+          await apiRequest("POST", "/api/generations", {
+            userKey,
+            prompt: previewText,
+            imageUrl: String(data.imageUrl),
+            provider: typeof data.provider === "string" ? data.provider : "unknown",
+            meta: {
+              usedGemini: Boolean(data.usedGemini ?? false),
+            },
+          });
+        } catch {
+          // ignore persistence error; local fallback below
+        }
         addCreation(userKey, {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           imageUrl: data.imageUrl,
@@ -792,6 +828,19 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromPrivyUser(user);
       if (userKey && data?.imageUrl) {
+        try {
+          await apiRequest("POST", "/api/generations", {
+            userKey,
+            prompt: previewText,
+            imageUrl: String(data.imageUrl),
+            provider: typeof data.provider === "string" ? data.provider : "unknown",
+            meta: {
+              usedGemini: Boolean(data.usedGemini ?? false),
+            },
+          });
+        } catch {
+          // ignore persistence error; local fallback below
+        }
         addCreation(userKey, {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           imageUrl: data.imageUrl,
@@ -1768,6 +1817,14 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   className="w-full h-auto rounded-md border"
                   data-testid="generated-image"
                 />
+                <Button
+                  variant="outline"
+                  onClick={downloadGeneratedImage}
+                  className="w-full mt-2"
+                  data-testid="button-download-image"
+                >
+                  Save Image
+                </Button>
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center text-center text-muted-foreground text-sm">
