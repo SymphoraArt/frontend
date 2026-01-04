@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import getMongoClient from "@/lib/db/mongodb";
-import { ObjectId } from "mongodb";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 export async function GET(
   _req: Request,
@@ -8,30 +7,41 @@ export async function GET(
 ) {
   const { id } = await context.params;
 
-  let _id: ObjectId;
-  try {
-    _id = new ObjectId(id);
-  } catch {
-    return NextResponse.json({ error: "invalid id" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  let client;
   try {
-    client = await getMongoClient();
+    const supabase = getSupabaseServerClient();
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id,username,display_name,bio,avatar_url,created_at,stats")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!user) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      user: {
+        _id: user.id,
+        id: user.id,
+        profile: {
+          username: user.username,
+          displayName: user.display_name,
+          bio: user.bio || "",
+          avatar: user.avatar_url || "",
+        },
+        stats: user.stats || {},
+        createdAt: user.created_at,
+      },
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { error: `MongoDB not configured: ${message}` },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const db = client.db(process.env.MONGODB_DB || "symphora");
-
-  const user = await db.collection("users").findOne(
-    { _id },
-    { projection: { walletAddresses: 0 } }
-  );
-
-  if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ user });
 }

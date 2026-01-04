@@ -1,11 +1,4 @@
 import { z } from "zod";
-import { ObjectId } from "mongodb";
-
-// Zod schema for converting MongoDB ObjectId to string
-const objectIdSchema = z.union([
-  z.string(),
-  z.instanceof(ObjectId),
-]).transform((val) => val instanceof ObjectId ? val.toString() : val);
 
 // ==================== Users ====================
 export const userSchema = z.object({

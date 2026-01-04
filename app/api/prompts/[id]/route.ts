@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import getMongoClient from "@/lib/db/mongodb";
-import { ObjectId } from "mongodb";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 type PatchBody = {
   title?: string;
@@ -10,7 +9,7 @@ type PatchBody = {
   aiSettings?: { aspectRatio?: string; includeText?: boolean };
   pricing?: { pricePerGeneration?: number };
   isFeatured?: boolean;
-  published?: boolean; // if true, sets publishedAt (keeps existing if already set)
+  published?: boolean;
 };
 
 export async function GET(
@@ -19,30 +18,30 @@ export async function GET(
 ) {
   const { id } = await context.params;
 
-  let _id: ObjectId;
-  try {
-    _id = new ObjectId(id);
-  } catch {
-    return NextResponse.json({ error: "invalid id" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  let client;
   try {
-    client = await getMongoClient();
+    const supabase = getSupabaseServerClient();
+
+    const { data: prompt, error } = await supabase
+      .from("prompts")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!prompt) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ prompt });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { error: `MongoDB not configured: ${message}` },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const db = client.db(process.env.MONGODB_DB);
-
-  const prompt = await db.collection("prompts").findOne({ _id });
-  if (!prompt)
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-
-  return NextResponse.json({ prompt });
 }
 
 export async function PATCH(
@@ -51,56 +50,54 @@ export async function PATCH(
 ) {
   const { id } = await context.params;
 
-  let _id: ObjectId;
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
   try {
-    _id = new ObjectId(id);
-  } catch {
-    return NextResponse.json({ error: "invalid id" }, { status: 400 });
-  }
+    const body = (await req.json()) as PatchBody;
+    const supabase = getSupabaseServerClient();
 
-  const body = (await req.json()) as PatchBody;
-  const update: any = { updatedAt: new Date() };
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
 
-  if (typeof body.title === "string") update.title = body.title;
-  if (typeof body.description === "string")
-    update.description = body.description;
-  if (typeof body.category === "string") update.category = body.category;
-  if (Array.isArray(body.tags)) update.tags = body.tags;
+    if (typeof body.title === "string") update.title = body.title;
+    if (typeof body.description === "string") update.description = body.description;
+    if (typeof body.category === "string") update.category = body.category;
+    if (Array.isArray(body.tags)) update.tags = body.tags;
 
-  if (body.aiSettings) {
-    update.aiSettings = {};
-    if (body.aiSettings.aspectRatio)
-      update.aiSettings.aspectRatio = body.aiSettings.aspectRatio;
-    if (typeof body.aiSettings.includeText === "boolean")
-      update.aiSettings.includeText = body.aiSettings.includeText;
-  }
+    if (body.aiSettings) {
+      update.ai_settings = {
+        aspectRatio: body.aiSettings.aspectRatio,
+        includeText: body.aiSettings.includeText,
+      };
+    }
 
-  if (body.pricing) update.pricing = body.pricing;
+    if (body.pricing) {
+      update.price = body.pricing.pricePerGeneration;
+    }
 
-  if (typeof body.isFeatured === "boolean") update.isFeatured = body.isFeatured;
+    if (typeof body.isFeatured === "boolean") update.is_featured = body.isFeatured;
 
-  if (body.published === true) {
-    // if publishedAt doesn't exist, set it; if you want to keep existing value, use conditional logic instead of $setOnInsert
-    update.publishedAt = new Date();
-  }
+    if (body.published === true) {
+      update.published_at = new Date().toISOString();
+    }
 
-  let client;
-  try {
-    client = await getMongoClient();
+    const { error, count } = await supabase
+      .from("prompts")
+      .update(update)
+      .eq("id", id);
+
+    if (error) throw error;
+
+    if (count === 0) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { error: `MongoDB not configured: ${message}` },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const db = client.db(process.env.MONGODB_DB);
-
-  const result = await db
-    .collection("prompts")
-    .updateOne({ _id }, { $set: update });
-
-  if (result.matchedCount === 0)
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
 }
