@@ -31,6 +31,14 @@ export async function POST(request: NextRequest) {
   };
   const price = prices[body.resolution || '2K'] || '$0.10';
 
+  const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
+  if (!serverWalletAddress) {
+    return NextResponse.json(
+      { error: 'SERVER_WALLET_ADDRESS is not configured' },
+      { status: 500 }
+    );
+  }
+
   try {
     // Process payment first
     const paymentResult = await paymentEngine.settle({
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
       chainKey: chain,
       price,
       description: `Generate ${body.resolution || '2K'} image`,
-      payToAddress: process.env.SERVER_WALLET_ADDRESS!,
+      payToAddress: serverWalletAddress,
       category: 'image-generation',
     });
 

@@ -4,21 +4,30 @@ import type { ChainKey } from "@/shared/payment-config";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { searchParams } = new URL(request.url);
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
+  const { id } = await params;
+
+  const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
+  if (!serverWalletAddress) {
+    return NextResponse.json(
+      { error: 'SERVER_WALLET_ADDRESS is not configured' },
+      { status: 500 }
+    );
+  }
 
   try {
     const result = await paymentEngine.settle({
-      resourceUrl: `/api/prompts/${params.id}/content`,
+      resourceUrl: `/api/prompts/${id}/content`,
       method: 'GET',
       paymentHeader: paymentHeader || undefined,
       chainKey: chain,
       price: '$0.05',
-      description: `Unlock prompt ${params.id}`,
-      payToAddress: process.env.SERVER_WALLET_ADDRESS!,
+      description: `Unlock prompt ${id}`,
+      payToAddress: serverWalletAddress,
       category: 'prompt-unlock',
     });
 
