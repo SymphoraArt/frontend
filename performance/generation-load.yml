@@ -1,0 +1,69 @@
+config:
+  target: 'http://localhost:5000'
+  phases:
+    - duration: 60
+      arrivalRate: 1
+      name: "Warm up"
+    - duration: 120
+      arrivalRate: 5
+      name: "Load testing"
+    - duration: 60
+      arrivalRate: 10
+      name: "Stress testing"
+    - duration: 30
+      arrivalRate: 1
+      name: "Cooldown"
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+
+scenarios:
+  - name: "Generation API Load Test"
+    weight: 70
+    flow:
+      - post:
+          url: "/api/generations"
+          json:
+            promptId: "test-prompt-123"
+            variableValues:
+              color: "blue"
+              object: "house"
+            settings:
+              aspectRatio: "1:1"
+              numImages: 1
+          capture:
+            json: "$.id"
+            as: "generationId"
+      - think: 2
+      - loop:
+          - get:
+              url: "/api/generations/{{ generationId }}"
+          - think: 3
+        count: 10
+        whileTrue: "response.status === 200 && json.status !== 'completed' && json.status !== 'failed'"
+
+  - name: "Payment Calculation Load Test"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/payments/calculate?amount=1.0&includeFee=true"
+
+  - name: "Health Check Load Test"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/health"
+
+  - name: "Rate Limiting Test"
+    weight: 5
+    flow:
+      - loop:
+          - post:
+              url: "/api/generations"
+              json:
+                promptId: "test-prompt-123"
+                variableValues:
+                  color: "red"
+                  object: "car"
+          - think: 0.1
+        count: 20

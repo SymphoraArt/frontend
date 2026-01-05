@@ -1,0 +1,2669 @@
+<testsuites id="" name="" tests="75" failures="75" skipped="0" errors="0" time="367.618534">
+<testsuite name="generation-flow.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="chromium" tests="9" failures="9" skipped="0" time="62.568" errors="0">
+<testcase name="AI Generation Flow › should load the generator interface" classname="generation-flow.spec.ts" time="13.218">
+<failure message="generation-flow.spec.ts:12:7 should load the generator interface" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:12:7 › AI Generation Flow › should load the generator interface 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should validate required fields" classname="generation-flow.spec.ts" time="13.65">
+<failure message="generation-flow.spec.ts:33:7 should validate required fields" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:33:7 › AI Generation Flow › should validate required fields ─
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle variable input interactions" classname="generation-flow.spec.ts" time="12.47">
+<failure message="generation-flow.spec.ts:42:7 should handle variable input interactions" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:42:7 › AI Generation Flow › should handle variable input interactions 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation settings" classname="generation-flow.spec.ts" time="12.913">
+<failure message="generation-flow.spec.ts:64:7 should handle generation settings" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:64:7 › AI Generation Flow › should handle generation settings 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle free generation flow" classname="generation-flow.spec.ts" time="1.919">
+<failure message="generation-flow.spec.ts:81:7 should handle free generation flow" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:81:7 › AI Generation Flow › should handle free generation flow 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle paid generation flow" classname="generation-flow.spec.ts" time="1.918">
+<failure message="generation-flow.spec.ts:142:7 should handle paid generation flow" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:142:7 › AI Generation Flow › should handle paid generation flow 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation errors" classname="generation-flow.spec.ts" time="1.918">
+<failure message="generation-flow.spec.ts:220:7 should handle generation errors" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:220:7 › AI Generation Flow › should handle generation errors 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should be mobile responsive" classname="generation-flow.spec.ts" time="1.86">
+<failure message="generation-flow.spec.ts:248:7 should be mobile responsive" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:248:7 › AI Generation Flow › should be mobile responsive ────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle network connectivity issues" classname="generation-flow.spec.ts" time="2.702">
+<failure message="generation-flow.spec.ts:262:7 should handle network connectivity issues" type="FAILURE">
+<![CDATA[  [chromium] › generation-flow.spec.ts:262:7 › AI Generation Flow › should handle network connectivity issues 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="performance.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="chromium" tests="6" failures="6" skipped="0" time="10.902" errors="0">
+<testcase name="Performance Tests › should load generator page within performance budget" classname="performance.spec.ts" time="2.52">
+<failure message="performance.spec.ts:4:7 should load generator page within performance budget" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:4:7 › Performance Tests › should load generator page within performance budget 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+       6 |
+       7 |     // Navigate to the generator page
+    >  8 |     await page.goto('/generator');
+         |                ^
+       9 |
+      10 |     // Wait for page to be fully loaded
+      11 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:8:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle rapid generation requests without crashing" classname="performance.spec.ts" time="2.566">
+<failure message="performance.spec.ts:25:7 should handle rapid generation requests without crashing" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:25:7 › Performance Tests › should handle rapid generation requests without crashing 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      24 |
+      25 |   test('should handle rapid generation requests without crashing', async ({ page }) => {
+    > 26 |     await page.goto('/generator');
+         |                ^
+      27 |
+      28 |     // Mock rapid API responses
+      29 |     await page.route('**/api/generations', async route => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:26:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain performance with large variable sets" classname="performance.spec.ts" time="1.87">
+<failure message="performance.spec.ts:70:7 should maintain performance with large variable sets" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:70:7 › Performance Tests › should maintain performance with large variable sets 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      69 |
+      70 |   test('should maintain performance with large variable sets', async ({ page }) => {
+    > 71 |     await page.goto('/generator');
+         |                ^
+      72 |
+      73 |     const startTime = Date.now();
+      74 |
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:71:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle image gallery performance" classname="performance.spec.ts" time="1.445">
+<failure message="performance.spec.ts:131:7 should handle image gallery performance" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:131:7 › Performance Tests › should handle image gallery performance 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      130 |
+      131 |   test('should handle image gallery performance', async ({ page }) => {
+    > 132 |     await page.goto('/generator');
+          |                ^
+      133 |
+      134 |     // Mock generation completion with multiple images
+      135 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:132:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain responsiveness during polling" classname="performance.spec.ts" time="1.283">
+<failure message="performance.spec.ts:167:7 should maintain responsiveness during polling" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:167:7 › Performance Tests › should maintain responsiveness during polling 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      166 |
+      167 |   test('should maintain responsiveness during polling', async ({ page }) => {
+    > 168 |     await page.goto('/generator');
+          |                ^
+      169 |
+      170 |     // Mock generation that takes time to complete
+      171 |     let pollCount = 0;
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:168:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle memory efficiently with large datasets" classname="performance.spec.ts" time="1.218">
+<failure message="performance.spec.ts:225:7 should handle memory efficiently with large datasets" type="FAILURE">
+<![CDATA[  [chromium] › performance.spec.ts:225:7 › Performance Tests › should handle memory efficiently with large datasets 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generations
+    Call log:
+      - navigating to "http://localhost:3000/generations", waiting until "load"
+
+
+      224 |
+      225 |   test('should handle memory efficiently with large datasets', async ({ page }) => {
+    > 226 |     await page.goto('/generations');
+          |                ^
+      227 |
+      228 |     // Mock a large number of generations
+      229 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:226:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-chromium/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="generation-flow.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="firefox" tests="9" failures="9" skipped="0" time="110.059" errors="0">
+<testcase name="AI Generation Flow › should load the generator interface" classname="generation-flow.spec.ts" time="12.472">
+<failure message="generation-flow.spec.ts:12:7 should load the generator interface" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:12:7 › AI Generation Flow › should load the generator interface 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should validate required fields" classname="generation-flow.spec.ts" time="12.002">
+<failure message="generation-flow.spec.ts:33:7 should validate required fields" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:33:7 › AI Generation Flow › should validate required fields ──
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle variable input interactions" classname="generation-flow.spec.ts" time="13.768">
+<failure message="generation-flow.spec.ts:42:7 should handle variable input interactions" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:42:7 › AI Generation Flow › should handle variable input interactions 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation settings" classname="generation-flow.spec.ts" time="12.696">
+<failure message="generation-flow.spec.ts:64:7 should handle generation settings" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:64:7 › AI Generation Flow › should handle generation settings 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle free generation flow" classname="generation-flow.spec.ts" time="11.559">
+<failure message="generation-flow.spec.ts:81:7 should handle free generation flow" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:81:7 › AI Generation Flow › should handle free generation flow 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle paid generation flow" classname="generation-flow.spec.ts" time="11.776">
+<failure message="generation-flow.spec.ts:142:7 should handle paid generation flow" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:142:7 › AI Generation Flow › should handle paid generation flow 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation errors" classname="generation-flow.spec.ts" time="12.157">
+<failure message="generation-flow.spec.ts:220:7 should handle generation errors" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:220:7 › AI Generation Flow › should handle generation errors ─
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should be mobile responsive" classname="generation-flow.spec.ts" time="12.033">
+<failure message="generation-flow.spec.ts:248:7 should be mobile responsive" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:248:7 › AI Generation Flow › should be mobile responsive ─────
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle network connectivity issues" classname="generation-flow.spec.ts" time="11.596">
+<failure message="generation-flow.spec.ts:262:7 should handle network connectivity issues" type="FAILURE">
+<![CDATA[  [firefox] › generation-flow.spec.ts:262:7 › AI Generation Flow › should handle network connectivity issues 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="performance.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="firefox" tests="6" failures="6" skipped="0" time="88.521" errors="0">
+<testcase name="Performance Tests › should load generator page within performance budget" classname="performance.spec.ts" time="5.477">
+<failure message="performance.spec.ts:4:7 should load generator page within performance budget" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:4:7 › Performance Tests › should load generator page within performance budget 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+       6 |
+       7 |     // Navigate to the generator page
+    >  8 |     await page.goto('/generator');
+         |                ^
+       9 |
+      10 |     // Wait for page to be fully loaded
+      11 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:8:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle rapid generation requests without crashing" classname="performance.spec.ts" time="13.426">
+<failure message="performance.spec.ts:25:7 should handle rapid generation requests without crashing" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:25:7 › Performance Tests › should handle rapid generation requests without crashing 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      24 |
+      25 |   test('should handle rapid generation requests without crashing', async ({ page }) => {
+    > 26 |     await page.goto('/generator');
+         |                ^
+      27 |
+      28 |     // Mock rapid API responses
+      29 |     await page.route('**/api/generations', async route => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:26:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain performance with large variable sets" classname="performance.spec.ts" time="12.665">
+<failure message="performance.spec.ts:70:7 should maintain performance with large variable sets" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:70:7 › Performance Tests › should maintain performance with large variable sets 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      69 |
+      70 |   test('should maintain performance with large variable sets', async ({ page }) => {
+    > 71 |     await page.goto('/generator');
+         |                ^
+      72 |
+      73 |     const startTime = Date.now();
+      74 |
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:71:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle image gallery performance" classname="performance.spec.ts" time="15.379">
+<failure message="performance.spec.ts:131:7 should handle image gallery performance" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:131:7 › Performance Tests › should handle image gallery performance 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      130 |
+      131 |   test('should handle image gallery performance', async ({ page }) => {
+    > 132 |     await page.goto('/generator');
+          |                ^
+      133 |
+      134 |     // Mock generation completion with multiple images
+      135 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:132:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain responsiveness during polling" classname="performance.spec.ts" time="13.102">
+<failure message="performance.spec.ts:167:7 should maintain responsiveness during polling" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:167:7 › Performance Tests › should maintain responsiveness during polling 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      166 |
+      167 |   test('should maintain responsiveness during polling', async ({ page }) => {
+    > 168 |     await page.goto('/generator');
+          |                ^
+      169 |
+      170 |     // Mock generation that takes time to complete
+      171 |     let pollCount = 0;
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:168:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle memory efficiently with large datasets" classname="performance.spec.ts" time="28.472">
+<failure message="performance.spec.ts:225:7 should handle memory efficiently with large datasets" type="FAILURE">
+<![CDATA[  [firefox] › performance.spec.ts:225:7 › Performance Tests › should handle memory efficiently with large datasets 
+
+    Error: page.goto: NS_ERROR_CONNECTION_REFUSED
+    Call log:
+      - navigating to "http://localhost:3000/generations", waiting until "load"
+
+
+      224 |
+      225 |   test('should handle memory efficiently with large datasets', async ({ page }) => {
+    > 226 |     await page.goto('/generations');
+          |                ^
+      227 |
+      228 |     // Mock a large number of generations
+      229 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:226:16
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-firefox/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-firefox/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-firefox/video.webm]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-firefox/error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="generation-flow.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="webkit" tests="9" failures="9" skipped="0" time="209.08" errors="0">
+<testcase name="AI Generation Flow › should load the generator interface" classname="generation-flow.spec.ts" time="51.291">
+<failure message="generation-flow.spec.ts:12:7 should load the generator interface" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:12:7 › AI Generation Flow › should load the generator interface 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-webkit/test-failed-1.png]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should validate required fields" classname="generation-flow.spec.ts" time="44.912">
+<failure message="generation-flow.spec.ts:33:7 should validate required fields" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:33:7 › AI Generation Flow › should validate required fields ───
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle variable input interactions" classname="generation-flow.spec.ts" time="51.6">
+<failure message="generation-flow.spec.ts:42:7 should handle variable input interactions" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:42:7 › AI Generation Flow › should handle variable input interactions 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    Tearing down "context" exceeded the test timeout of 30000ms.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-webkit/test-failed-1.png]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation settings" classname="generation-flow.spec.ts" time="23.654">
+<failure message="generation-flow.spec.ts:64:7 should handle generation settings" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:64:7 › AI Generation Flow › should handle generation settings ─
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle free generation flow" classname="generation-flow.spec.ts" time="4.555">
+<failure message="generation-flow.spec.ts:81:7 should handle free generation flow" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:81:7 › AI Generation Flow › should handle free generation flow 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle paid generation flow" classname="generation-flow.spec.ts" time="9.204">
+<failure message="generation-flow.spec.ts:142:7 should handle paid generation flow" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:142:7 › AI Generation Flow › should handle paid generation flow 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation errors" classname="generation-flow.spec.ts" time="4.22">
+<failure message="generation-flow.spec.ts:220:7 should handle generation errors" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:220:7 › AI Generation Flow › should handle generation errors ──
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should be mobile responsive" classname="generation-flow.spec.ts" time="10.161">
+<failure message="generation-flow.spec.ts:248:7 should be mobile responsive" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:248:7 › AI Generation Flow › should be mobile responsive ──────
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle network connectivity issues" classname="generation-flow.spec.ts" time="9.483">
+<failure message="generation-flow.spec.ts:262:7 should handle network connectivity issues" type="FAILURE">
+<![CDATA[  [webkit] › generation-flow.spec.ts:262:7 › AI Generation Flow › should handle network connectivity issues 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="performance.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="webkit" tests="6" failures="6" skipped="0" time="23.215" errors="0">
+<testcase name="Performance Tests › should load generator page within performance budget" classname="performance.spec.ts" time="6.508">
+<failure message="performance.spec.ts:4:7 should load generator page within performance budget" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:4:7 › Performance Tests › should load generator page within performance budget 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+       6 |
+       7 |     // Navigate to the generator page
+    >  8 |     await page.goto('/generator');
+         |                ^
+       9 |
+      10 |     // Wait for page to be fully loaded
+      11 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:8:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle rapid generation requests without crashing" classname="performance.spec.ts" time="3.607">
+<failure message="performance.spec.ts:25:7 should handle rapid generation requests without crashing" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:25:7 › Performance Tests › should handle rapid generation requests without crashing 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      24 |
+      25 |   test('should handle rapid generation requests without crashing', async ({ page }) => {
+    > 26 |     await page.goto('/generator');
+         |                ^
+      27 |
+      28 |     // Mock rapid API responses
+      29 |     await page.route('**/api/generations', async route => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:26:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain performance with large variable sets" classname="performance.spec.ts" time="3.05">
+<failure message="performance.spec.ts:70:7 should maintain performance with large variable sets" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:70:7 › Performance Tests › should maintain performance with large variable sets 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      69 |
+      70 |   test('should maintain performance with large variable sets', async ({ page }) => {
+    > 71 |     await page.goto('/generator');
+         |                ^
+      72 |
+      73 |     const startTime = Date.now();
+      74 |
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:71:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle image gallery performance" classname="performance.spec.ts" time="1.986">
+<failure message="performance.spec.ts:131:7 should handle image gallery performance" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:131:7 › Performance Tests › should handle image gallery performance 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      130 |
+      131 |   test('should handle image gallery performance', async ({ page }) => {
+    > 132 |     await page.goto('/generator');
+          |                ^
+      133 |
+      134 |     // Mock generation completion with multiple images
+      135 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:132:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain responsiveness during polling" classname="performance.spec.ts" time="4.242">
+<failure message="performance.spec.ts:167:7 should maintain responsiveness during polling" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:167:7 › Performance Tests › should maintain responsiveness during polling 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      166 |
+      167 |   test('should maintain responsiveness during polling', async ({ page }) => {
+    > 168 |     await page.goto('/generator');
+          |                ^
+      169 |
+      170 |     // Mock generation that takes time to complete
+      171 |     let pollCount = 0;
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:168:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle memory efficiently with large datasets" classname="performance.spec.ts" time="3.822">
+<failure message="performance.spec.ts:225:7 should handle memory efficiently with large datasets" type="FAILURE">
+<![CDATA[  [webkit] › performance.spec.ts:225:7 › Performance Tests › should handle memory efficiently with large datasets 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generations", waiting until "load"
+
+
+      224 |
+      225 |   test('should handle memory efficiently with large datasets', async ({ page }) => {
+    > 226 |     await page.goto('/generations');
+          |                ^
+      227 |
+      228 |     // Mock a large number of generations
+      229 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:226:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-webkit/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-webkit/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-webkit/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-webkit/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="generation-flow.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="Mobile Chrome" tests="9" failures="9" skipped="0" time="13.419" errors="0">
+<testcase name="AI Generation Flow › should load the generator interface" classname="generation-flow.spec.ts" time="2.726">
+<failure message="generation-flow.spec.ts:12:7 should load the generator interface" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:12:7 › AI Generation Flow › should load the generator interface 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should validate required fields" classname="generation-flow.spec.ts" time="0.93">
+<failure message="generation-flow.spec.ts:33:7 should validate required fields" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:33:7 › AI Generation Flow › should validate required fields 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle variable input interactions" classname="generation-flow.spec.ts" time="1.596">
+<failure message="generation-flow.spec.ts:42:7 should handle variable input interactions" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:42:7 › AI Generation Flow › should handle variable input interactions 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation settings" classname="generation-flow.spec.ts" time="1.237">
+<failure message="generation-flow.spec.ts:64:7 should handle generation settings" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:64:7 › AI Generation Flow › should handle generation settings 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle free generation flow" classname="generation-flow.spec.ts" time="1.49">
+<failure message="generation-flow.spec.ts:81:7 should handle free generation flow" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:81:7 › AI Generation Flow › should handle free generation flow 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle paid generation flow" classname="generation-flow.spec.ts" time="1.607">
+<failure message="generation-flow.spec.ts:142:7 should handle paid generation flow" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:142:7 › AI Generation Flow › should handle paid generation flow 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation errors" classname="generation-flow.spec.ts" time="1.509">
+<failure message="generation-flow.spec.ts:220:7 should handle generation errors" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:220:7 › AI Generation Flow › should handle generation errors 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should be mobile responsive" classname="generation-flow.spec.ts" time="1.419">
+<failure message="generation-flow.spec.ts:248:7 should be mobile responsive" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:248:7 › AI Generation Flow › should be mobile responsive 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle network connectivity issues" classname="generation-flow.spec.ts" time="0.905">
+<failure message="generation-flow.spec.ts:262:7 should handle network connectivity issues" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › generation-flow.spec.ts:262:7 › AI Generation Flow › should handle network connectivity issues 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="performance.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="Mobile Chrome" tests="6" failures="6" skipped="0" time="16.814" errors="0">
+<testcase name="Performance Tests › should load generator page within performance budget" classname="performance.spec.ts" time="1.324">
+<failure message="performance.spec.ts:4:7 should load generator page within performance budget" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:4:7 › Performance Tests › should load generator page within performance budget 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+       6 |
+       7 |     // Navigate to the generator page
+    >  8 |     await page.goto('/generator');
+         |                ^
+       9 |
+      10 |     // Wait for page to be fully loaded
+      11 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:8:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle rapid generation requests without crashing" classname="performance.spec.ts" time="1.227">
+<failure message="performance.spec.ts:25:7 should handle rapid generation requests without crashing" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:25:7 › Performance Tests › should handle rapid generation requests without crashing 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      24 |
+      25 |   test('should handle rapid generation requests without crashing', async ({ page }) => {
+    > 26 |     await page.goto('/generator');
+         |                ^
+      27 |
+      28 |     // Mock rapid API responses
+      29 |     await page.route('**/api/generations', async route => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:26:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain performance with large variable sets" classname="performance.spec.ts" time="1.273">
+<failure message="performance.spec.ts:70:7 should maintain performance with large variable sets" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:70:7 › Performance Tests › should maintain performance with large variable sets 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      69 |
+      70 |   test('should maintain performance with large variable sets', async ({ page }) => {
+    > 71 |     await page.goto('/generator');
+         |                ^
+      72 |
+      73 |     const startTime = Date.now();
+      74 |
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:71:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle image gallery performance" classname="performance.spec.ts" time="4.571">
+<failure message="performance.spec.ts:131:7 should handle image gallery performance" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:131:7 › Performance Tests › should handle image gallery performance 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      130 |
+      131 |   test('should handle image gallery performance', async ({ page }) => {
+    > 132 |     await page.goto('/generator');
+          |                ^
+      133 |
+      134 |     // Mock generation completion with multiple images
+      135 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:132:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain responsiveness during polling" classname="performance.spec.ts" time="4.436">
+<failure message="performance.spec.ts:167:7 should maintain responsiveness during polling" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:167:7 › Performance Tests › should maintain responsiveness during polling 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generator
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      166 |
+      167 |   test('should maintain responsiveness during polling', async ({ page }) => {
+    > 168 |     await page.goto('/generator');
+          |                ^
+      169 |
+      170 |     // Mock generation that takes time to complete
+      171 |     let pollCount = 0;
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:168:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle memory efficiently with large datasets" classname="performance.spec.ts" time="3.983">
+<failure message="performance.spec.ts:225:7 should handle memory efficiently with large datasets" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › performance.spec.ts:225:7 › Performance Tests › should handle memory efficiently with large datasets 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/generations
+    Call log:
+      - navigating to "http://localhost:3000/generations", waiting until "load"
+
+
+      224 |
+      225 |   test('should handle memory efficiently with large datasets', async ({ page }) => {
+    > 226 |     await page.goto('/generations');
+          |                ^
+      227 |
+      228 |     // Mock a large number of generations
+      229 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:226:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Chrome/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Chrome/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Chrome/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="generation-flow.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="Mobile Safari" tests="9" failures="9" skipped="0" time="39.016" errors="0">
+<testcase name="AI Generation Flow › should load the generator interface" classname="generation-flow.spec.ts" time="2.689">
+<failure message="generation-flow.spec.ts:12:7 should load the generator interface" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:12:7 › AI Generation Flow › should load the generator interface 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-4f99f-oad-the-generator-interface-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should validate required fields" classname="generation-flow.spec.ts" time="6.182">
+<failure message="generation-flow.spec.ts:33:7 should validate required fields" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:33:7 › AI Generation Flow › should validate required fields 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0bb02-ld-validate-required-fields-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle variable input interactions" classname="generation-flow.spec.ts" time="5.427">
+<failure message="generation-flow.spec.ts:42:7 should handle variable input interactions" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:42:7 › AI Generation Flow › should handle variable input interactions 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-26288-variable-input-interactions-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation settings" classname="generation-flow.spec.ts" time="5.025">
+<failure message="generation-flow.spec.ts:64:7 should handle generation settings" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:64:7 › AI Generation Flow › should handle generation settings 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-2451a--handle-generation-settings-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle free generation flow" classname="generation-flow.spec.ts" time="4.008">
+<failure message="generation-flow.spec.ts:81:7 should handle free generation flow" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:81:7 › AI Generation Flow › should handle free generation flow 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-0af9d-handle-free-generation-flow-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle paid generation flow" classname="generation-flow.spec.ts" time="4.042">
+<failure message="generation-flow.spec.ts:142:7 should handle paid generation flow" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:142:7 › AI Generation Flow › should handle paid generation flow 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-503ad-handle-paid-generation-flow-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle generation errors" classname="generation-flow.spec.ts" time="3.795">
+<failure message="generation-flow.spec.ts:220:7 should handle generation errors" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:220:7 › AI Generation Flow › should handle generation errors 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-f302b-ld-handle-generation-errors-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should be mobile responsive" classname="generation-flow.spec.ts" time="4.043">
+<failure message="generation-flow.spec.ts:248:7 should be mobile responsive" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:248:7 › AI Generation Flow › should be mobile responsive 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-e668e-should-be-mobile-responsive-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="AI Generation Flow › should handle network connectivity issues" classname="generation-flow.spec.ts" time="3.805">
+<failure message="generation-flow.spec.ts:262:7 should handle network connectivity issues" type="FAILURE">
+<![CDATA[  [Mobile Safari] › generation-flow.spec.ts:262:7 › AI Generation Flow › should handle network connectivity issues 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      4 |   test.beforeEach(async ({ page }) => {
+      5 |     // Navigate to the generator page
+    > 6 |     await page.goto('/generator');
+        |                ^
+      7 |
+      8 |     // Wait for the page to load
+      9 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/generation-flow.spec.ts:6:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/generation-flow-AI-Generat-15aaf-network-connectivity-issues-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="performance.spec.ts" timestamp="2026-01-05T20:55:23.692Z" hostname="Mobile Safari" tests="6" failures="6" skipped="0" time="23.487" errors="0">
+<testcase name="Performance Tests › should load generator page within performance budget" classname="performance.spec.ts" time="3.744">
+<failure message="performance.spec.ts:4:7 should load generator page within performance budget" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:4:7 › Performance Tests › should load generator page within performance budget 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+       6 |
+       7 |     // Navigate to the generator page
+    >  8 |     await page.goto('/generator');
+         |                ^
+       9 |
+      10 |     // Wait for page to be fully loaded
+      11 |     await page.waitForLoadState('networkidle');
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:8:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-731a0-e-within-performance-budget-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle rapid generation requests without crashing" classname="performance.spec.ts" time="3.963">
+<failure message="performance.spec.ts:25:7 should handle rapid generation requests without crashing" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:25:7 › Performance Tests › should handle rapid generation requests without crashing 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      24 |
+      25 |   test('should handle rapid generation requests without crashing', async ({ page }) => {
+    > 26 |     await page.goto('/generator');
+         |                ^
+      27 |
+      28 |     // Mock rapid API responses
+      29 |     await page.route('**/api/generations', async route => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:26:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-facd0-n-requests-without-crashing-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain performance with large variable sets" classname="performance.spec.ts" time="4.057">
+<failure message="performance.spec.ts:70:7 should maintain performance with large variable sets" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:70:7 › Performance Tests › should maintain performance with large variable sets 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      69 |
+      70 |   test('should maintain performance with large variable sets', async ({ page }) => {
+    > 71 |     await page.goto('/generator');
+         |                ^
+      72 |
+      73 |     const startTime = Date.now();
+      74 |
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:71:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-6fcd1-ce-with-large-variable-sets-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle image gallery performance" classname="performance.spec.ts" time="4.041">
+<failure message="performance.spec.ts:131:7 should handle image gallery performance" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:131:7 › Performance Tests › should handle image gallery performance 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      130 |
+      131 |   test('should handle image gallery performance', async ({ page }) => {
+    > 132 |     await page.goto('/generator');
+          |                ^
+      133 |
+      134 |     // Mock generation completion with multiple images
+      135 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:132:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-1a922-e-image-gallery-performance-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should maintain responsiveness during polling" classname="performance.spec.ts" time="3.858">
+<failure message="performance.spec.ts:167:7 should maintain responsiveness during polling" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:167:7 › Performance Tests › should maintain responsiveness during polling 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generator", waiting until "load"
+
+
+      166 |
+      167 |   test('should maintain responsiveness during polling', async ({ page }) => {
+    > 168 |     await page.goto('/generator');
+          |                ^
+      169 |
+      170 |     // Mock generation that takes time to complete
+      171 |     let pollCount = 0;
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:168:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-67193-sponsiveness-during-polling-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Performance Tests › should handle memory efficiently with large datasets" classname="performance.spec.ts" time="3.824">
+<failure message="performance.spec.ts:225:7 should handle memory efficiently with large datasets" type="FAILURE">
+<![CDATA[  [Mobile Safari] › performance.spec.ts:225:7 › Performance Tests › should handle memory efficiently with large datasets 
+
+    Error: page.goto: Could not connect to the server.
+    Call log:
+      - navigating to "http://localhost:3000/generations", waiting until "load"
+
+
+      224 |
+      225 |   test('should handle memory efficiently with large datasets', async ({ page }) => {
+    > 226 |     await page.goto('/generations');
+          |                ^
+      227 |
+      228 |     // Mock a large number of generations
+      229 |     await page.evaluate(() => {
+        at /Users/mac/thirdweb-hackathon/AIgency/e2e/performance.spec.ts:226:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Safari/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Safari/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Safari/test-failed-1.png]]
+
+[[ATTACHMENT|test-results/performance-Performance-Te-14a8b-ciently-with-large-datasets-Mobile-Safari/video.webm]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>
