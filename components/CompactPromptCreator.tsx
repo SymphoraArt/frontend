@@ -3,7 +3,6 @@ import {
   Zap,
   Plus,
   Search,
-  X,
   Star,
   Heart,
   ImageIcon,

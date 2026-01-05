@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export function getSupabaseServerClient() {
+export function getSupabaseAdminClient() {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -12,6 +12,37 @@ export function getSupabaseServerClient() {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+    },
+  });
+}
+
+export function getSupabaseServerClient() {
+  return getSupabaseAdminClient();
+}
+
+export function getSupabaseUserClientFromRequest(req: Request) {
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!url) throw new Error("SUPABASE_URL is not set");
+  if (!anonKey) throw new Error("SUPABASE_ANON_KEY is not set");
+
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    throw new Error("Missing Authorization Bearer token");
+  }
+  const token = authHeader.slice("bearer ".length);
+
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
   });
 }
