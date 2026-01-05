@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Download, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -803,6 +804,36 @@ export default function GeneratorInterface({
                                 {variable.defaultValue ? "Enabled" : "Enable this option"}
                               </label>
                             </div>
+                          )}
+                          
+                          {/* RADIO buttons */}
+                          {varType === "radio" && variable.options && (
+                            <RadioGroup
+                              value={currentValue || String(variable.defaultValue || "")}
+                              onValueChange={(val) =>
+                                setVariableValues((prev) => ({
+                                  ...prev,
+                                  [varName]: val,
+                                }))
+                              }
+                              className="space-y-2"
+                              data-testid={`radio-variable-${variable.id}`}
+                            >
+                              {variable.options.map((opt, optIdx) => (
+                                <div key={optIdx} className="flex items-center gap-2">
+                                  <RadioGroupItem
+                                    value={opt.promptValue}
+                                    id={`${varName}-${optIdx}`}
+                                  />
+                                  <label
+                                    htmlFor={`${varName}-${optIdx}`}
+                                    className="text-xs text-foreground cursor-pointer"
+                                  >
+                                    {opt.visibleName || opt.promptValue}
+                                  </label>
+                                </div>
+                              ))}
+                            </RadioGroup>
                           )}
                           
                           {/* Reference image upload (for any type) */}
