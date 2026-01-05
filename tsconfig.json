@@ -44,7 +44,6 @@
     "baseUrl": ".",
     "types": [
       "node",
-      "vite/client",
       "react",
       "react-dom"
     ],
