@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,9 @@ import { Download, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
+import { usePaymentBalance, useBestPaymentChain } from "@/hooks/useWalletBalance";
+import type { ChainKey } from "@/lib/payment-config";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -292,7 +296,20 @@ export default function GeneratorInterface({
   );
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(null);
+  const [selectedChain, setSelectedChain] = useState<ChainKey>('base-sepolia');
   const { toast } = useToast();
+
+  // X402 Payment hooks
+  const { generateImage, isPending: isPaymentPending, getPaymentStatus } = useX402PaymentProduction();
+  const { chainKey: bestChain, balance: bestBalance } = useBestPaymentChain();
+  const selectedChainBalance = usePaymentBalance(selectedChain);
+  
+  // Auto-select best chain if available
+  useEffect(() => {
+    if (bestChain && bestBalance?.hasSufficientBalance) {
+      setSelectedChain(bestChain);
+    }
+  }, [bestChain, bestBalance]);
 
   const { data: promptData } = useQuery<{
     prompt?: {
@@ -350,6 +367,18 @@ export default function GeneratorInterface({
     setGeneratedImageUrl(null);
     setShowSuccessModal(false);
     setGenerationId(null);
+    
+    // Check payment readiness
+    const paymentStatus = getPaymentStatus();
+    if (!paymentStatus.isReady) {
+      toast({
+        title: "Wallet Required",
+        description: "Please connect your wallet to generate images",
+        variant: "destructive",
+      });
+      setIsGenerating(false);
+      return;
+    }
 
     try {
       const variableValuesArray = promptVariables
@@ -404,26 +433,20 @@ export default function GeneratorInterface({
         throw new Error("Final prompt not found");
       }
 
-      const imageRequest = {
-        prompt: finalPrompt,
-        aspectRatio: aspectRatio,
-        resolution: resolution,
-      };
-
-      const imageResponse = await fetch("/api/generate-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Generate image with X402 payment
+      const imageData = await generateImage(
+        {
+          prompt: finalPrompt,
+          aspectRatio: aspectRatio,
+          resolution: resolution as '1K' | '2K' | '4K',
         },
-        body: JSON.stringify(imageRequest),
-      });
+        selectedChain
+      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
 
-      if (!imageResponse.ok) {
-        const errorData = await imageResponse.json();
-        throw new Error(errorData.error || "Failed to generate image");
+      if (!imageData?.imageUrl) {
+        throw new Error("Failed to generate image - no image URL returned");
       }
 
-      const imageData = await imageResponse.json();
       setGeneratedImageUrl(imageData.imageUrl);
 
       const updateResponse = await fetch(
@@ -450,10 +473,24 @@ export default function GeneratorInterface({
 
       setShowSuccessModal(true);
     } catch (error: any) {
+      // Handle payment-specific errors
+      let errorTitle = "Generation Failed";
+      let errorDescription = error.message || "An error occurred while generating the image";
+      
+      if (error.message?.includes("Wallet not connected") || error.message?.includes("wallet")) {
+        errorTitle = "Wallet Required";
+        errorDescription = "Please connect your wallet to generate images";
+      } else if (error.message?.includes("Payment") || error.message?.includes("payment")) {
+        errorTitle = "Payment Failed";
+        errorDescription = error.message || "Payment could not be processed. Please try again.";
+      } else if (error.message?.includes("insufficient") || error.message?.includes("balance")) {
+        errorTitle = "Insufficient Balance";
+        errorDescription = "You don't have enough USDC to complete this transaction. Please add funds to your wallet.";
+      }
+      
       toast({
-        title: "Generation Failed",
-        description:
-          error.message || "An error occurred while generating the image",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
     } finally {
@@ -988,16 +1025,46 @@ export default function GeneratorInterface({
                       </div>
                     </div>
 
+                    {/* Chain Selection */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Payment Chain
+                      </Label>
+                      <Select
+                        value={selectedChain}
+                        onValueChange={(value) => setSelectedChain(value as ChainKey)}
+                        disabled={isGenerating || isPaymentPending}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="base-sepolia">Base Sepolia</SelectItem>
+                          <SelectItem value="base">Base Mainnet</SelectItem>
+                          <SelectItem value="ethereum-sepolia">Ethereum Sepolia</SelectItem>
+                          <SelectItem value="ethereum">Ethereum Mainnet</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {selectedChainBalance && (
+                        <div className="text-xs text-muted-foreground">
+                          Balance: {selectedChainBalance.displayBalance} {selectedChainBalance.symbol}
+                          {!selectedChainBalance.hasSufficientBalance && (
+                            <span className="text-destructive ml-2">(Insufficient)</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <Button
                       className="w-full h-9"
                       data-testid="button-create"
                       onClick={handleCreateNow}
-                      disabled={isGenerating}
+                      disabled={isGenerating || isPaymentPending || (selectedChainBalance && !selectedChainBalance.hasSufficientBalance)}
                     >
-                      {isGenerating ? (
+                      {isGenerating || isPaymentPending ? (
                         <>
                           <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
-                          Generating...
+                          {isPaymentPending ? "Processing Payment..." : "Generating..."}
                         </>
                       ) : (
                         <>
