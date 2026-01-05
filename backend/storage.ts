@@ -14,8 +14,8 @@ import {
   type ArtworkComment,
   type InsertArtworkComment,
 } from "@shared/schema";
-import { db } from "./db";
-import { ObjectId } from "mongodb";
+import { getDb } from "./db";
+import { ObjectId, Db } from "mongodb";
 import { encryptPrompt, decryptPrompt } from "./encryption";
 
 const COLLECTIONS = {
@@ -28,8 +28,20 @@ const COLLECTIONS = {
   ARTWORK_COMMENTS: 'artwork_comments',
 } as const;
 
+// Helper to get database instance (returns null if not connected)
+function getDatabase(): Db | null {
+  return getDb();
+}
+
 // Check if running in dummy mode (no database)
-const isDummyMode = !db;
+function isDummyMode(): boolean {
+  return getDatabase() === null;
+}
+
+// Type guard: ensures database is available, returns null if not
+function requireDatabase(): Db | null {
+  return getDatabase();
+}
 
 // Helper function to convert MongoDB document to schema type
 function toSchemaType<T>(doc: any): T {
@@ -85,7 +97,8 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // ==================== Users ====================
   async getUser(id: string): Promise<User | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const user = await db.collection(COLLECTIONS.USERS).findOne({
         _id: new ObjectId(id)
@@ -98,14 +111,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     const user = await db.collection(COLLECTIONS.USERS).findOne({ username });
     if (!user) return undefined;
     return toSchemaType<User>(user);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertUser,
@@ -124,7 +139,8 @@ export class DatabaseStorage implements IStorage {
 
   // ==================== Prompts ====================
   async getPrompt(id: string): Promise<Prompt | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const prompt = await db.collection(COLLECTIONS.PROMPTS).findOne({
         _id: new ObjectId(id)
@@ -137,7 +153,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPromptBySlug(slug: string): Promise<Prompt | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     const normalizedSlug = slug.toLowerCase().replace(/-/g, ' ');
     const allPrompts = await db.collection(COLLECTIONS.PROMPTS)
       .find({})
@@ -154,7 +171,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPromptWithDecryptedContent(id: string): Promise<(Prompt & { decryptedContent: string }) | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     const prompt = await this.getPrompt(id);
     if (!prompt) return undefined;
 
@@ -168,7 +186,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllPrompts(): Promise<Prompt[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const prompts = await db.collection(COLLECTIONS.PROMPTS)
       .find({})
       .sort({ createdAt: -1 })
@@ -177,7 +196,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPublicPrompts(): Promise<Prompt[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const prompts = await db.collection(COLLECTIONS.PROMPTS)
       .find({})
       .sort({ createdAt: -1 })
@@ -186,7 +206,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPromptsByArtistId(artistId: string): Promise<Prompt[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const prompts = await db.collection(COLLECTIONS.PROMPTS)
       .find({ artistId })
       .sort({ createdAt: -1 })
@@ -198,7 +219,8 @@ export class DatabaseStorage implements IStorage {
     const { content, ...rest } = promptData;
     const encrypted = encryptPrompt(content);
 
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...rest,
@@ -225,7 +247,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePrompt(id: string, promptData: Partial<{ content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>>): Promise<Prompt | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     const { content, ...rest } = promptData;
 
     let updateData: any = { ...rest };
@@ -255,7 +278,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePrompt(id: string): Promise<boolean> {
-    if (isDummyMode) return false;
+    const db = getDatabase();
+    if (!db) return false;
     try {
       const result = await db.collection(COLLECTIONS.PROMPTS).deleteOne({
         _id: new ObjectId(id)
@@ -268,7 +292,8 @@ export class DatabaseStorage implements IStorage {
 
   // ==================== Variables ====================
   async getVariablesByPromptId(promptId: string): Promise<Variable[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const variables = await db.collection(COLLECTIONS.VARIABLES)
       .find({ promptId })
       .sort({ position: 1 })
@@ -277,7 +302,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVariable(insertVariable: InsertVariable): Promise<Variable> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertVariable,
@@ -292,7 +318,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVariable(id: string, update: Partial<InsertVariable>): Promise<Variable | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const result = await db.collection(COLLECTIONS.VARIABLES).findOneAndUpdate(
         { _id: new ObjectId(id) },
@@ -307,7 +334,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVariable(id: string): Promise<boolean> {
-    if (isDummyMode) return false;
+    const db = getDatabase();
+    if (!db) return false;
     try {
       const result = await db.collection(COLLECTIONS.VARIABLES).deleteOne({
         _id: new ObjectId(id)
@@ -319,13 +347,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVariablesByPromptId(promptId: string): Promise<void> {
-    if (isDummyMode) return;
+    const db = getDatabase();
+    if (!db) return;
     await db.collection(COLLECTIONS.VARIABLES).deleteMany({ promptId });
   }
 
   // ==================== Artists ====================
   async getArtist(id: string): Promise<Artist | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const artist = await db.collection(COLLECTIONS.ARTISTS).findOne({
         _id: new ObjectId(id)
@@ -338,14 +368,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getArtistByUsername(username: string): Promise<Artist | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     const artist = await db.collection(COLLECTIONS.ARTISTS).findOne({ username });
     if (!artist) return undefined;
     return toSchemaType<Artist>(artist);
   }
 
   async getAllArtists(): Promise<Artist[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const artists = await db.collection(COLLECTIONS.ARTISTS)
       .find({})
       .toArray();
@@ -353,7 +385,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createArtist(insertArtist: InsertArtist): Promise<Artist> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertArtist,
@@ -368,7 +401,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateArtist(id: string, update: Partial<InsertArtist>): Promise<Artist | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const result = await db.collection(COLLECTIONS.ARTISTS).findOneAndUpdate(
         { _id: new ObjectId(id) },
@@ -384,7 +418,8 @@ export class DatabaseStorage implements IStorage {
 
   // ==================== Artworks ====================
   async getArtwork(id: string): Promise<Artwork | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const artwork = await db.collection(COLLECTIONS.ARTWORKS).findOne({
         _id: new ObjectId(id)
@@ -397,7 +432,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getArtworksByArtistId(artistId: string): Promise<Artwork[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const artworks = await db.collection(COLLECTIONS.ARTWORKS)
       .find({ artistId })
       .sort({ createdAt: -1 })
@@ -406,7 +442,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllArtworks(): Promise<Artwork[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const artworks = await db.collection(COLLECTIONS.ARTWORKS)
       .find({})
       .sort({ createdAt: -1 })
@@ -415,7 +452,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPublicArtworks(): Promise<Artwork[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const artworks = await db.collection(COLLECTIONS.ARTWORKS)
       .find({ isPublic: true })
       .sort({ createdAt: -1 })
@@ -424,7 +462,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createArtwork(insertArtwork: InsertArtwork): Promise<Artwork> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertArtwork,
@@ -443,7 +482,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateArtwork(id: string, update: Partial<InsertArtwork>): Promise<Artwork | undefined> {
-    if (isDummyMode) return undefined;
+    const db = getDatabase();
+    if (!db) return undefined;
     try {
       const result = await db.collection(COLLECTIONS.ARTWORKS).findOneAndUpdate(
         { _id: new ObjectId(id) },
@@ -458,7 +498,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteArtwork(id: string): Promise<boolean> {
-    if (isDummyMode) return false;
+    const db = getDatabase();
+    if (!db) return false;
     try {
       const result = await db.collection(COLLECTIONS.ARTWORKS).deleteOne({
         _id: new ObjectId(id)
@@ -471,7 +512,8 @@ export class DatabaseStorage implements IStorage {
 
   // ==================== Generated Variations ====================
   async getVariationsByArtworkId(artworkId: string): Promise<GeneratedVariation[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const variations = await db.collection(COLLECTIONS.GENERATED_VARIATIONS)
       .find({ artworkId })
       .sort({ createdAt: -1 })
@@ -480,7 +522,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVariation(insertVariation: InsertGeneratedVariation): Promise<GeneratedVariation> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertVariation,
@@ -500,7 +543,8 @@ export class DatabaseStorage implements IStorage {
 
   // ==================== Artwork Comments ====================
   async getCommentsByArtworkId(artworkId: string): Promise<ArtworkComment[]> {
-    if (isDummyMode) return [];
+    const db = getDatabase();
+    if (!db) return [];
     const comments = await db.collection(COLLECTIONS.ARTWORK_COMMENTS)
       .find({ artworkId })
       .sort({ createdAt: -1 })
@@ -509,7 +553,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createComment(insertComment: InsertArtworkComment): Promise<ArtworkComment> {
-    if (isDummyMode) {
+    const db = getDatabase();
+    if (!db) {
       return {
         id: new ObjectId().toString(),
         ...insertComment,

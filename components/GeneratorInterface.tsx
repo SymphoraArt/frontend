@@ -352,6 +352,8 @@ export default function GeneratorInterface({
   };
 
   const handleCreateNow = async () => {
+    console.log('🚀 Generate button clicked');
+
     if (!promptId) {
       toast({
         title: "Error",
@@ -367,18 +369,33 @@ export default function GeneratorInterface({
     setGeneratedImageUrl(null);
     setShowSuccessModal(false);
     setGenerationId(null);
-    
+
     // Check payment readiness
     const paymentStatus = getPaymentStatus();
+    console.log('💳 Payment status:', paymentStatus);
+
     if (!paymentStatus.isReady) {
+      console.error('❌ Payment not ready:', paymentStatus);
+      
+      // More detailed error message
+      let errorMessage = "Please connect your wallet to generate images";
+      if (!paymentStatus.isConnected) {
+        errorMessage = "Wallet not connected. Please connect your wallet using the wallet button in the navbar.";
+      } else if (paymentStatus.isPending) {
+        errorMessage = "Payment is being processed. Please wait...";
+      }
+      
       toast({
         title: "Wallet Required",
-        description: "Please connect your wallet to generate images",
+        description: errorMessage,
         variant: "destructive",
+        duration: 5000, // Show for 5 seconds
       });
       setIsGenerating(false);
       return;
     }
+
+    console.log('✅ Payment ready, proceeding with generation');
 
     try {
       const variableValuesArray = promptVariables
@@ -434,14 +451,45 @@ export default function GeneratorInterface({
       }
 
       // Generate image with X402 payment
-      const imageData = await generateImage(
-        {
-          prompt: finalPrompt,
-          aspectRatio: aspectRatio,
-          resolution: resolution as '1K' | '2K' | '4K',
-        },
-        selectedChain
-      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+      console.log('💸 Calling generateImage with payment modal...');
+      console.log('Chain:', selectedChain);
+      console.log('Final prompt:', finalPrompt);
+
+      let imageData;
+      try {
+        imageData = await generateImage(
+          {
+        prompt: finalPrompt,
+        aspectRatio: aspectRatio,
+            resolution: resolution as '1K' | '2K' | '4K',
+          },
+          selectedChain
+        ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+
+        console.log('✅ Image generation completed:', imageData);
+      } catch (paymentError: any) {
+        console.error('❌ Payment/generation error:', paymentError);
+        
+        // Check if it's a wallet connection error
+        if (paymentError?.message?.includes('Wallet not connected') || 
+            paymentError?.message?.includes('wallet')) {
+          toast({
+            title: "Wallet Connection Required",
+            description: "Please connect your wallet to proceed with payment. Click the wallet icon in the navbar.",
+            variant: "destructive",
+            duration: 5000,
+          });
+        } else {
+          // Other payment errors
+          toast({
+            title: "Payment Failed",
+            description: paymentError?.message || "Failed to process payment. Please try again.",
+            variant: "destructive",
+            duration: 5000,
+          });
+      }
+        throw paymentError; // Re-throw to be caught by outer catch
+      }
 
       if (!imageData?.imageUrl) {
         throw new Error("Failed to generate image - no image URL returned");

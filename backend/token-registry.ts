@@ -7,8 +7,8 @@
  * Safety-first design: tokens without registry entries are REJECTED.
  */
 
-import { type ChainKey } from "../../shared/payment-config";
-import { log } from "./app";
+import { type ChainKey } from "../shared/payment-config";
+import { log } from "./logger";
 
 /**
  * Risk classification levels for tokens

@@ -15,7 +15,7 @@
 import { createThirdwebClient, getContract, readContract } from "thirdweb";
 import { defineChain } from "thirdweb/chains";
 import { PAYMENT_CHAINS, type ChainKey } from "../../shared/payment-config";
-import { log } from "../app";
+import { log } from "../logger";
 
 /**
  * Uniswap V3 pool configuration
@@ -333,7 +333,7 @@ export class UniswapTwapOracle {
 
     const data = await readContract({
       contract,
-      method: 'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)',
+      method: 'slot0',
       params: [],
     });
 
@@ -367,7 +367,7 @@ export class UniswapTwapOracle {
 
     return await readContract({
       contract,
-      method: 'function liquidity() view returns (uint128)',
+      method: 'liquidity',
       params: [],
     });
   }
@@ -398,7 +398,7 @@ export class UniswapTwapOracle {
 
     const data = await readContract({
       contract,
-      method: 'function observe(uint32[] secondsAgos) view returns (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s)',
+      method: 'observe',
       params: [secondsAgos],
     });
 
@@ -437,20 +437,15 @@ export class UniswapTwapOracle {
    * Validate pool liquidity
    */
   private validateLiquidity(liquidity: bigint, poolConfig: UniswapV3PoolConfig): void {
-    // Note: This is a simplified check
-    // In production, you would convert liquidity to USD using current price
-    // For now, just check that liquidity is non-zero
-
-    if (liquidity === 0n) {
+    // Simplified for hackathon: Check for non-zero liquidity only.
+    // In production, would convert liquidity to USD and compare with minLiquidityUsd.
+    if (liquidity === BigInt(0)) {
       throw new UniswapOracleError(
         'Pool has zero liquidity',
         UniswapErrorCode.INSUFFICIENT_LIQUIDITY,
         { poolAddress: poolConfig.poolAddress }
       );
     }
-
-    // TODO: Convert liquidity to USD and compare with minLiquidityUsd
-    // This requires knowing the current price and token decimals
   }
 
   /**

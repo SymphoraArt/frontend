@@ -15,7 +15,7 @@
 import { createThirdwebClient, getContract, readContract } from "thirdweb";
 import { defineChain } from "thirdweb/chains";
 import { PAYMENT_CHAINS, type ChainKey } from "../../shared/payment-config";
-import { log } from "../app";
+import { log } from "../logger";
 
 /**
  * Chainlink price feed configuration per token per chain
@@ -351,7 +351,7 @@ export class ChainlinkOracle {
 
     const data = await readContract({
       contract,
-      method: 'function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
+      method: 'latestRoundData',
       params: [],
     });
 
@@ -369,7 +369,7 @@ export class ChainlinkOracle {
    */
   private validateRoundData(roundData: ChainlinkRoundData, config: ChainlinkFeedConfig): void {
     // Check for valid round ID
-    if (roundData.roundId === 0n) {
+    if (roundData.roundId === BigInt(0)) {
       throw new ChainlinkOracleError(
         'Invalid round ID: 0',
         ChainlinkErrorCode.INVALID_ROUND,
@@ -387,7 +387,7 @@ export class ChainlinkOracle {
     }
 
     // Check for negative price
-    if (roundData.answer < 0n) {
+    if (roundData.answer < BigInt(0)) {
       throw new ChainlinkOracleError(
         'Invalid price: negative value',
         ChainlinkErrorCode.NEGATIVE_PRICE,
@@ -396,7 +396,7 @@ export class ChainlinkOracle {
     }
 
     // Check for zero price
-    if (roundData.answer === 0n) {
+    if (roundData.answer === BigInt(0)) {
       throw new ChainlinkOracleError(
         'Invalid price: zero value',
         ChainlinkErrorCode.ZERO_PRICE,
@@ -405,7 +405,7 @@ export class ChainlinkOracle {
     }
 
     // Check for valid timestamps
-    if (roundData.updatedAt === 0n) {
+    if (roundData.updatedAt === BigInt(0)) {
       throw new ChainlinkOracleError(
         'Invalid timestamp: updatedAt is 0',
         ChainlinkErrorCode.INVALID_ROUND,

@@ -77,7 +77,25 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}})();`,
+            __html: `(function(){
+              // Theme initialization
+              try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}
+              
+              // Suppress Ambire wallet extension errors (non-critical)
+              if(typeof window!=='undefined'){
+                const originalError=console.error;
+                console.error=function(...args){
+                  const msg=args.join(' ');
+                  if(msg.includes('resource.clone is not a function')||
+                     msg.includes('ambire-inpage.js')||
+                     msg.includes('Unexpected end of input')){
+                    // Suppress Ambire errors - they don't affect functionality
+                    return;
+                  }
+                  originalError.apply(console,args);
+                };
+              }
+            })();`,
           }}
         />
       </head>

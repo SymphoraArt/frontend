@@ -10,10 +10,10 @@
  * High-risk tokens are subject to tighter limits or rejection.
  */
 
-import { type ChainKey } from "../../shared/payment-config";
+import { type ChainKey } from "../shared/payment-config";
 import { tokenRegistry, type TokenRegistryEntry, type RiskLevel } from "./token-registry";
 import { priceOracle } from "./price-oracle";
-import { log } from "./app";
+import { log } from "./logger";
 
 /**
  * Risk assessment result
@@ -233,54 +233,31 @@ export class TokenRiskEngine {
 
   /**
    * Assess liquidity risk factor
+   * 
+   * Simplified for hackathon: Assumes sufficient liquidity for tokens in registry.
+   * In production, would query DEX pools for actual liquidity.
    */
   private async assessLiquidity(
     token: TokenRegistryEntry,
     chain: ChainKey,
     amountUsd: number
   ): Promise<RiskFactor> {
-    // For now, use simplified liquidity check
-    // In production, would query DEX liquidity, order books, etc.
-    const minRequiredLiquidity = amountUsd * this.config.liquidityMultiplier;
+    // Fallback: Assume sufficient liquidity for registered tokens
     const tokenMinLiquidity = token.liquidity.minLiquidityUsd;
 
-    // Use the higher of token minimum or calculated minimum
-    const requiredLiquidity = Math.max(minRequiredLiquidity, tokenMinLiquidity);
-
-    // TODO: Implement actual liquidity queries from DEX pools
-    // For now, assume sufficient liquidity for tokens in registry
-    const hasMinLiquidity = true;
-    const estimatedLiquidity = tokenMinLiquidity;
-
-    let score: number;
-    let level: "low" | "medium" | "high" | "critical";
-    let blocking = false;
-
-    if (!hasMinLiquidity) {
-      score = 90;
-      level = "critical";
-      blocking = true;
-    } else if (estimatedLiquidity < requiredLiquidity * 2) {
-      score = 60;
-      level = "high";
-    } else if (estimatedLiquidity < requiredLiquidity * 5) {
-      score = 30;
-      level = "medium";
-    } else {
-      score = 10;
-      level = "low";
-    }
-
     return {
-      score,
-      level,
-      details: `Estimated liquidity: $${estimatedLiquidity.toLocaleString()} (required: $${requiredLiquidity.toLocaleString()})`,
-      blocking,
+      score: 10, // Low risk - tokens in registry are assumed to have sufficient liquidity
+      level: "low",
+      details: `Token registered with minimum liquidity: $${tokenMinLiquidity.toLocaleString()}`,
+      blocking: false,
     };
   }
 
   /**
    * Assess volatility risk factor
+   * 
+   * Simplified for hackathon: Uses token registry risk level as proxy.
+   * In production, would calculate volatility from historical price data.
    */
   private async assessVolatility(
     token: TokenRegistryEntry,
@@ -296,33 +273,14 @@ export class TokenRiskEngine {
       };
     }
 
-    // TODO: Implement actual volatility calculation
-    // Would use historical price data to calculate:
-    // - 24h price change
-    // - 7-day standard deviation
-    // - Compare against acceptable thresholds
+    // Fallback: Use risk level from token registry as volatility proxy
+    const scoreMap: Record<string, { score: number; level: "low" | "medium" | "high" | "critical" }> = {
+      "LOW": { score: 15, level: "low" },
+      "MEDIUM": { score: 40, level: "medium" },
+      "HIGH": { score: 70, level: "high" },
+    };
 
-    // For now, use token risk level as proxy
-    let score: number;
-    let level: "low" | "medium" | "high" | "critical";
-
-    switch (token.riskLevel) {
-      case "LOW":
-        score = 15;
-        level = "low";
-        break;
-      case "MEDIUM":
-        score = 40;
-        level = "medium";
-        break;
-      case "HIGH":
-        score = 70;
-        level = "high";
-        break;
-      default:
-        score = 95;
-        level = "critical";
-    }
+    const { score, level } = scoreMap[token.riskLevel] || { score: 95, level: "critical" as const };
 
     return {
       score,

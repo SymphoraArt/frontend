@@ -6,7 +6,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { searchParams } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
   const { id } = await params;
@@ -19,9 +20,39 @@ export async function GET(
     );
   }
 
+  // Construct full URL for X402 payment (requires absolute URL)
+  // Use NEXT_PUBLIC_APP_URL if available, otherwise construct from request
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  
+  if (!baseUrl) {
+    // Fallback: construct from request URL
+    const protocol = requestUrl.protocol || 'http:';
+    const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
+    baseUrl = `${protocol}//${host}`;
+  }
+  
+  // Ensure baseUrl doesn't end with slash
+  baseUrl = baseUrl.replace(/\/$/, '');
+  
+  const resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
+  
+  // Validate URL format
+  try {
+    const testUrl = new URL(resourceUrl);
+    if (!testUrl.protocol || !testUrl.host) {
+      throw new Error('Invalid URL: missing protocol or host');
+    }
+  } catch (urlError) {
+    console.error('❌ Invalid resourceUrl constructed:', resourceUrl);
+    return NextResponse.json(
+      { error: 'Failed to construct payment URL' },
+      { status: 500 }
+    );
+  }
+
   try {
     const result = await paymentEngine.settle({
-      resourceUrl: `/api/prompts/${id}/content`,
+      resourceUrl: resourceUrl,
       method: 'GET',
       paymentHeader: paymentHeader || undefined,
       chainKey: chain,
