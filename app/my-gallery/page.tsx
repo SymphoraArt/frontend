@@ -14,6 +14,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+type SupabaseGeneration = {
+  id: string;
+  image_url: string;
+  prompt: string | null;
+  created_at: string;
+};
+
 export default function MyGalleryPage() {
   const { ready, authenticated, user, login } = usePrivy();
   const userKey = useMemo(() => getUserKeyFromPrivyUser(user), [user]);
@@ -24,9 +31,57 @@ export default function MyGalleryPage() {
       setItems([]);
       return;
     }
-    setItems(listCreations(userKey));
-    return subscribeCreations(userKey, setItems);
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/generations?userKey=${encodeURIComponent(userKey)}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const json = (await res.json()) as { items?: SupabaseGeneration[] };
+        const mapped: StoredCreation[] = (Array.isArray(json.items) ? json.items : []).map((g) => ({
+          id: String(g.id),
+          imageUrl: String(g.image_url),
+          prompt: typeof g.prompt === "string" ? g.prompt : "",
+          createdAt: typeof g.created_at === "string" ? g.created_at : new Date().toISOString(),
+        }));
+        if (!cancelled) setItems(mapped);
+      } catch {
+        if (!cancelled) setItems(listCreations(userKey));
+      }
+    };
+
+    load();
+
+    const unsub = subscribeCreations(userKey, () => {
+      load();
+    });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, [userKey]);
+
+  const handleClear = async () => {
+    if (!userKey) return;
+    try {
+      await fetch(`/api/generations?userKey=${encodeURIComponent(userKey)}`, { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+    clearCreations(userKey);
+  };
+
+  const handleRemove = async (id: string) => {
+    if (!userKey) return;
+    try {
+      await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+    removeCreation(userKey, id);
+  };
 
   if (!ready) {
     return (
@@ -79,7 +134,7 @@ export default function MyGalleryPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => clearCreations(userKey)}
+            onClick={handleClear}
             disabled={items.length === 0}
             data-testid="button-clear-my-gallery"
           >
@@ -117,7 +172,7 @@ export default function MyGalleryPage() {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2"
-                      onClick={() => removeCreation(userKey, c.id)}
+                      onClick={() => handleRemove(c.id)}
                       data-testid={`button-delete-creation-${c.id}`}
                     >
                       Remove

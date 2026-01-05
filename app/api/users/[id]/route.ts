@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/db/mongodb";
-import { ObjectId } from "mongodb";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 export async function GET(
   _req: Request,
@@ -8,21 +7,41 @@ export async function GET(
 ) {
   const { id } = await context.params;
 
-  let _id: ObjectId;
-  try {
-    _id = new ObjectId(id);
-  } catch {
-    return NextResponse.json({ error: "invalid id" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const client = await clientPromise;
-  const db = client.db(process.env.MONGODB_DB || "symphora");
+  try {
+    const supabase = getSupabaseServerClient();
 
-  const user = await db.collection("users").findOne(
-    { _id },
-    { projection: { walletAddresses: 0 } }
-  );
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id,username,display_name,bio,avatar_url,created_at,stats")
+      .eq("id", id)
+      .maybeSingle();
 
-  if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ user });
+    if (error) throw error;
+
+    if (!user) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      user: {
+        _id: user.id,
+        id: user.id,
+        profile: {
+          username: user.username,
+          displayName: user.display_name,
+          bio: user.bio || "",
+          avatar: user.avatar_url || "",
+        },
+        stats: user.stats || {},
+        createdAt: user.created_at,
+      },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -41,9 +41,30 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "AIgency",
+  title: {
+    default: "AIgency",
+    template: "%s | AIgency",
+  },
   description:
     "AIgency — discover, create, and generate stunning AI art with customizable prompt templates. A creative marketplace powered by Gemini AI.",
+  keywords: ["AI art", "image generation", "prompt templates", "Gemini AI", "creative marketplace"],
+  authors: [{ name: "AIgency Team" }],
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  openGraph: {
+    title: "AIgency",
+    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AIgency",
+    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

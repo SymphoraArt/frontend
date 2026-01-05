@@ -1,87 +1,87 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 
 type GenerateImageBody = {
-  prompt: string;
+  prompt?: string;
   aspectRatio?: string;
   resolution?: string;
 };
 
+async function maybeEnhancePrompt(prompt: string): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return prompt;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
+    key
+  )}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Rewrite the following text-to-image prompt to be more vivid and detailed while preserving intent. Return ONLY the rewritten prompt text, no quotes, no markdown.\n\nPROMPT:\n${prompt}`,
+            },
+          ],
+        },
+      ],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+    }),
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Gemini error: ${res.status} ${t}`);
+  }
+
+  type GeminiResponse = {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: unknown }> };
+    }>;
+  };
+  const data = (await res.json()) as GeminiResponse;
+  const text: unknown = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== "string" || !text.trim()) return prompt;
+  return text.trim();
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenerateImageBody;
-
-    if (!body.prompt) {
-      return NextResponse.json(
-        { error: "prompt is required" },
-        { status: 400 }
-      );
+    const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+    if (!prompt) {
+      return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "GOOGLE_GENAI_API_KEY is not configured" },
-        { status: 500 }
-      );
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey: apiKey,
-    });
-
-    let enhancedPrompt = body.prompt;
-    if (body.aspectRatio) {
-      enhancedPrompt += ` (aspect ratio: ${body.aspectRatio})`;
-    }
-    if (body.resolution) {
-      enhancedPrompt += ` (resolution: ${body.resolution})`;
-    }
-
-    const response = await ai.models.generateContent({
-      // model: "gemini-2.5-flash-image",
-      model: "gemini-3-pro-image-preview",
-      contents: enhancedPrompt,
-    });
-
-    let imageData: string | null = null;
-    let mimeType: string = "image/png";
-
-    if (
-      response.candidates &&
-      response.candidates[0] &&
-      response.candidates[0].content &&
-      response.candidates[0].content.parts
-    ) {
-      // @ts-ignore
-      for (const part of response.candidates[0].content.parts) {
-        // @ts-ignore
-        if (part.inlineData) {
-          // @ts-ignore
-          imageData = part.inlineData.data;
-          // @ts-ignore
-          mimeType = part.inlineData.mimeType || "image/png";
-          break;
-        }
+    // (optional) enhance prompt via text Gemini key, then use Pollinations
+    let enhancedPrompt = prompt;
+    let usedGemini = false;
+    try {
+      const maybe = await maybeEnhancePrompt(prompt);
+      if (maybe && maybe !== prompt) {
+        enhancedPrompt = maybe;
+        usedGemini = Boolean(process.env.GEMINI_API_KEY);
       }
+    } catch {
+      enhancedPrompt = prompt;
+      usedGemini = false;
     }
 
-    if (!imageData) {
-      return NextResponse.json(
-        { error: "No image data found in response" },
-        { status: 500 }
-      );
-    }
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      enhancedPrompt
+    )}?width=1024&height=1024&nologo=true`;
 
-    const imageUrl = `data:${mimeType};base64,${imageData}`;
-
-    return NextResponse.json({ imageUrl });
-  } catch (error: any) {
-    console.error("Generate image error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate image", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      imageUrl,
+      prompt: enhancedPrompt,
+      provider: "pollinations",
+      usedGemini,
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
