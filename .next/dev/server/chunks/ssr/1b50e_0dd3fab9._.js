@@ -1,0 +1,1260 @@
+module.exports = [
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/utils.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/********************************
+     Encoding/Decoding Utils
+********************************/ __turbopack_context__.s([
+    "bufferToHex",
+    ()=>bufferToHex,
+    "concatenateBuffers",
+    ()=>concatenateBuffers,
+    "isBase64url",
+    ()=>isBase64url,
+    "parseBase64url",
+    ()=>parseBase64url,
+    "parseBuffer",
+    ()=>parseBuffer,
+    "sha256",
+    ()=>sha256,
+    "toBase64url",
+    ()=>toBase64url,
+    "toBuffer",
+    ()=>toBuffer
+]);
+function toBuffer(txt) {
+    return Uint8Array.from(txt, (c)=>c.charCodeAt(0)).buffer;
+}
+function parseBuffer(buffer) {
+    return String.fromCharCode(...new Uint8Array(buffer));
+}
+function isBase64url(txt) {
+    return txt.match(/^[a-zA-Z0-9\-_]+=*$/) !== null;
+}
+function toBase64url(buffer) {
+    const txt = btoa(parseBuffer(buffer)); // base64
+    return txt.replaceAll('+', '-').replaceAll('/', '_');
+}
+function parseBase64url(txt) {
+    txt = txt.replaceAll('-', '+').replaceAll('_', '/'); // base64url -> base64
+    return toBuffer(atob(txt));
+}
+async function sha256(buffer) {
+    return await crypto.subtle.digest('SHA-256', buffer);
+}
+function bufferToHex(buffer) {
+    return [
+        ...new Uint8Array(buffer)
+    ].map((b)=>b.toString(16).padStart(2, "0")).join("");
+}
+function concatenateBuffers(buffer1, buffer2) {
+    var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+    tmp.set(new Uint8Array(buffer1), 0);
+    tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
+    return tmp;
+}
+;
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/client.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "authenticate",
+    ()=>authenticate,
+    "isAutocompleteAvailable",
+    ()=>isAutocompleteAvailable,
+    "isAvailable",
+    ()=>isAvailable,
+    "isLocalAuthenticator",
+    ()=>isLocalAuthenticator,
+    "register",
+    ()=>register
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/utils.js [app-ssr] (ecmascript)");
+;
+function isAvailable() {
+    return !!window.PublicKeyCredential;
+}
+async function isLocalAuthenticator() {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+}
+/**
+ * Before "hints" were a thing, the "authenticatorAttachment" was the way to go.
+ */ function getAuthAttachment(hints) {
+    if (!hints || hints.length === 0) return undefined; // The webauthn protocol considers `null` as invalid but `undefined` as "both"!
+    if (hints.includes('client-device')) {
+        if (hints.includes('security-key') || hints.includes('hybrid')) return undefined; // both
+        else return "platform";
+    }
+    return "cross-platform";
+}
+/**
+ * For autocomplete / conditional mediation, the ongoing "authentication" must be aborted when triggering a registration.
+ * It should also be aborted when triggering authentication another time.
+ */ let ongoingAuth = null;
+async function register(options) {
+    if (!options.challenge) throw new Error('"challenge" required');
+    if (!options.user) throw new Error('"user" required');
+    if (!__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["isBase64url"](options.challenge)) throw new Error('Provided challenge is not properly encoded in Base64url');
+    const user = typeof options.user === 'string' ? {
+        name: options.user
+    } : options.user;
+    if (!user.id) user.id = crypto.randomUUID();
+    const creationOptions = {
+        challenge: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](options.challenge),
+        rp: {
+            id: options.domain ?? window.location.hostname,
+            name: options.domain ?? window.location.hostname
+        },
+        user: {
+            id: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBuffer"](user.id),
+            name: user.name,
+            displayName: user.displayName ?? user.name
+        },
+        hints: options.hints,
+        pubKeyCredParams: [
+            {
+                alg: -7,
+                type: "public-key"
+            },
+            {
+                alg: -257,
+                type: "public-key"
+            }
+        ],
+        timeout: options.timeout,
+        authenticatorSelection: {
+            userVerification: options.userVerification,
+            authenticatorAttachment: getAuthAttachment(options.hints),
+            residentKey: options.discoverable ?? 'preferred',
+            requireResidentKey: options.discoverable === 'required'
+        },
+        attestation: "direct",
+        ...options.customProperties
+    };
+    console.debug(creationOptions);
+    if (ongoingAuth != null) ongoingAuth.abort('Cancel ongoing authentication');
+    ongoingAuth = new AbortController();
+    const raw = await navigator.credentials.create({
+        publicKey: creationOptions,
+        signal: ongoingAuth?.signal
+    });
+    const response = raw.response;
+    ongoingAuth = null;
+    console.debug(raw);
+    if (raw.type != "public-key") throw "Unexpected credential type!";
+    const publicKey = response.getPublicKey();
+    if (!publicKey) throw "Non-compliant browser or authenticator!";
+    // This should provide the same as `response.toJson()` which is sadly only available on FireFox
+    const json = {
+        type: raw.type,
+        id: raw.id,
+        rawId: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](raw.rawId),
+        authenticatorAttachment: raw.authenticatorAttachment,
+        clientExtensionResults: raw.getClientExtensionResults(),
+        response: {
+            attestationObject: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.attestationObject),
+            authenticatorData: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.getAuthenticatorData()),
+            clientDataJSON: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.clientDataJSON),
+            publicKey: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](publicKey),
+            publicKeyAlgorithm: response.getPublicKeyAlgorithm(),
+            transports: response.getTransports()
+        },
+        user
+    };
+    return json;
+}
+async function isAutocompleteAvailable() {
+    return PublicKeyCredential.isConditionalMediationAvailable && PublicKeyCredential.isConditionalMediationAvailable();
+}
+async function authenticate(options) {
+    if (!__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["isBase64url"](options.challenge)) throw new Error('Provided challenge is not properly encoded in Base64url');
+    if (options.autocomplete && !await isAutocompleteAvailable()) throw new Error('Passkeys autocomplete with conditional mediation is not available in this browser.');
+    let authOptions = {
+        challenge: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](options.challenge),
+        rpId: options.domain ?? window.location.hostname,
+        allowCredentials: options.allowCredentials?.map(toPublicKeyCredentialDescriptor),
+        hints: options.hints,
+        userVerification: options.userVerification,
+        timeout: options.timeout,
+        ...options.customProperties
+    };
+    console.debug(authOptions);
+    if (ongoingAuth != null) ongoingAuth.abort('Cancel ongoing authentication');
+    ongoingAuth = new AbortController();
+    const raw = await navigator.credentials.get({
+        publicKey: authOptions,
+        mediation: options.autocomplete ? 'conditional' : undefined,
+        signal: ongoingAuth?.signal
+    });
+    if (raw.type != "public-key") throw "Unexpected credential type!";
+    ongoingAuth = null;
+    console.debug(raw);
+    const response = raw.response;
+    // This should provide the same as `response.toJson()` which is sadly only available on FireFox
+    const json = {
+        clientExtensionResults: raw.getClientExtensionResults(),
+        id: raw.id,
+        rawId: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](raw.rawId),
+        type: raw.type,
+        authenticatorAttachment: raw.authenticatorAttachment,
+        response: {
+            authenticatorData: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.authenticatorData),
+            clientDataJSON: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.clientDataJSON),
+            signature: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.signature),
+            userHandle: response.userHandle ? __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](response.userHandle) : undefined
+        }
+    };
+    return json;
+}
+function toPublicKeyCredentialDescriptor(cred) {
+    if (typeof cred === 'string') {
+        return {
+            id: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](cred),
+            type: 'public-key'
+        };
+    } else {
+        return {
+            id: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](cred.id),
+            type: 'public-key',
+            transports: cred.transports
+        };
+    }
+}
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/authenticatorMetadata.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * The source comes from
+ * "official" https://mds.fidoalliance.org/
+ * and the
+ * "community-driven" https://github.com/passkeydeveloper/passkey-authenticator-aaguids
+ * combined together.
+ */ __turbopack_context__.s([
+    "authenticatorMetadata",
+    ()=>authenticatorMetadata
+]);
+const authenticatorMetadata = {
+    "00000000-0000-0000-0000-000000000000": "Unknown authenticator",
+    "0076631b-d4a0-427f-5773-0ec71c9e0279": "HYPR FIDO2 Authenticator",
+    "01020304-0506-0708-0102-030405060708": "Chromium Virtual Authenticator (browser dev tools)",
+    "050dd0bc-ff20-4265-8d5d-305c4b215192": "eToken Fusion FIPS",
+    "07a9f89c-6407-4594-9d56-621d5f1e358b": "NXP Semiconductros FIDO2 Conformance Testing CTAP2 Authenticator",
+    "08987058-cadc-4b81-b6e1-30de50dcbe96": "Windows Hello",
+    "092277e5-8437-46b5-b911-ea64b294acb7": "Taglio CTAP2.1 CS",
+    "09591fc6-9811-48f7-8f57-b9f23df6413f": "Pone Biometrics OFFPAD Authenticator",
+    "0acf3011-bc60-f375-fb53-6f05f43154e0": "Nymi FIDO2 Authenticator",
+    "0bb43545-fd2c-4185-87dd-feb0b2916ace": "Security Key NFC by Yubico - Enterprise Edition",
+    "0d9b2e56-566b-c393-2940-f821b7f15d6d": "Excelsecu eSecu FIDO2 Pro Security Key",
+    "0db01cd6-5618-455b-bb46-1ec203d3213e": "GoldKey Security Token",
+    "0ea242b4-43c4-4a1b-8b17-dd6d0b6baec6": "Keeper",
+    "10c70715-2a9a-4de1-b0aa-3cff6d496d39": "eToken Fusion NFC FIPS",
+    "1105e4ed-af1d-02ff-ffff-ffffffffffff": "Egomet FIDO2 Authenticator for Android",
+    "12755c32-8ad1-46eb-881c-e0b38d848b09": "Feitian ePass FIDO Authenticator (CTAP2.1, CTAP2.0, U2F)",
+    "12ded745-4bed-47d4-abaa-e713f51d6393": "Feitian AllinOne FIDO2 Authenticator",
+    "146e77ef-11eb-4423-b847-ce77864e9411": "eToken Fusion NFC PIV",
+    "149a2021-8ef6-4133-96b8-81f8d5b7f1f5": "Security Key by Yubico with NFC",
+    "17290f1e-c212-34d0-1423-365d729f09d9": "Thales PIN iOS SDK",
+    "175cd298-83d2-4a26-b637-313c07a6434e": "Chunghwa Telecom FIDO2 Smart Card Authenticator",
+    "19083c3d-8383-4b18-bc03-8f1c9ab2fd1b": "YubiKey 5 Series",
+    "1ac71f64-468d-4fe0-bef1-0e5f2f551f18": "YubiKey 5 Series with NFC (Enterprise Profile)",
+    "1c086528-58d5-f211-823c-356786e36140": "Atos CardOS FIDO2",
+    "1d1b4e33-76a1-47fb-97a0-14b10d0933f1": "Cryptnox FIDO2.1",
+    "1d8cac46-47a1-3386-af50-e88ae46fe802": "Ledger Flex FIDO2 Authenticator",
+    "1e906e14-77af-46bc-ae9f-fe6ef18257e4": "VeridiumID Passkey iOS SDK",
+    "20ac7a17-c814-4833-93fe-539f0d5e3389": "YubiKey 5 Series (Enterprise Profile)",
+    "20f0be98-9af9-986a-4b42-8eca4acb28e4": "Excelsecu eSecu FIDO2 Fingerprint Security Key",
+    "2194b428-9397-4046-8f39-007a1605a482": "IDPrime 931 Fido",
+    "22248c4c-7a12-46e2-9a41-44291b373a4d": "LogMeOnce",
+    "234cd403-35a2-4cc2-8015-77ea280c77f5": "Feitian ePass FIDO2-NFC Series (CTAP2.1, CTAP2.0, U2F)",
+    "23786452-f02d-4344-87ed-aaf703726881": "SafeNet eToken Fusion CC",
+    "24673149-6c86-42e7-98d9-433fb5b73296": "YubiKey 5 Series with Lightning",
+    "260e3021-482d-442d-838c-7edfbe153b7e": "Feitian ePass FIDO2-NFC Plus Authenticator",
+    "2772ce93-eb4b-4090-8b73-330f48477d73": "Security Key NFC by Yubico - Enterprise Edition Preview",
+    "2a55aee6-27cb-42c0-bc6e-04efe999e88a": "HID Crescendo 4000",
+    "2bff89f2-323a-48fc-b7c8-9ff7fe87c07e": "Feitian BioPass FIDO2 Pro (Enterprise Profile)",
+    "2c0df832-92de-4be1-8412-88a8f074df4a": "Feitian FIDO Smart Card",
+    "2c2aeed8-8174-4159-814b-486e92a261d0": "NEOWAVE WINKEO V2.0",
+    "2cd2f727-f6ca-44da-8f48-5c2e5da000a2": "Nitrokey 3 AM",
+    "2d3bec26-15ee-4f5d-88b2-53622490270b": "HID Crescendo Key V2",
+    "2fc0579f-8113-47ea-b116-bb5a8db9202a": "YubiKey 5 Series with NFC",
+    "2ffd6452-01da-471f-821b-ea4bf6c8676a": "IDPrime 941 Fido",
+    "30b5035e-d297-4fc1-b00b-addc96ba6a97": "OneSpan FIDO Touch",
+    "30b5035e-d297-4ff1-010b-addc96ba6a98": "OneSpan DIGIPASS FX1a",
+    "30b5035e-d297-4ff1-b00b-addc96ba6a98": "OneSpan DIGIPASS FX1 BIO",
+    "30b5035e-d297-4ff7-b00b-addc96ba6a98": "OneSpan DIGIPASS FX7",
+    "3124e301-f14e-4e38-876d-fbeeb090e7bf": "YubiKey 5 Series with Lightning Preview",
+    "31c3f7ff-bf15-4327-83ec-9336abcbcd34": "WinMagic FIDO Eazy - Software",
+    "341e4da9-3c2e-8103-5a9f-aad887135200": "Ledger Nano S FIDO2 Authenticator",
+    "34744913-4f57-4e6e-a527-e9ec3c4b94e6": "YubiKey Bio Series - Multi-protocol Edition",
+    "34f5766d-1536-4a24-9033-0e294e510fb0": "YubiKey 5 Series with NFC Preview",
+    "361a3082-0278-4583-a16f-72a527f973e4": "eWBM eFA500 FIDO2 Authenticator",
+    "3789da91-f943-46bc-95c3-50ea2012f03a": "NEOWAVE Winkeo FIDO2",
+    "39589099-9a75-49fc-afaa-801ca211c62a": "Feitian ePass FIDO-NFC (Enterprise Profile) (CTAP2.1, CTAP2.0, U2F)",
+    "39a5647e-1853-446c-a1f6-a79bae9f5bc7": "IDmelon",
+    "3a662962-c6d4-4023-bebb-98ae92e78e20": "YubiKey 5 FIPS Series with Lightning (Enterprise Profile)",
+    "3b1adb99-0dfe-46fd-90b8-7f7614a4de2a": "GoTrust Idem Key FIDO2 Authenticator",
+    "3b24bf49-1d45-4484-a917-13175df0867b": "YubiKey 5 Series with Lightning (Enterprise Profile)",
+    "3e078ffd-4c54-4586-8baa-a77da113aec5": "Hideez Key 3 FIDO2",
+    "3e22415d-7fdf-4ea4-8a0c-dd60c4249b9d": "Feitian iePass FIDO Authenticator",
+    "3f59672f-20aa-4afe-b6f4-7e5e916b6d98": "Arculus FIDO 2.1 Key Card [P71]",
+    "3fd410dc-8ab7-4b86-a1cb-c7174620b2dc": "IDEMIA SOLVO Fly 80 R1 FIDO Card Draft",
+    "42b4fb4a-2866-43b2-9bf7-6c6669c2e5d3": "Google Titan Security Key v2",
+    "42df17de-06ba-4177-a2bb-6701be1380d6": "Feitian BioPass FIDO2 Plus Authenticator",
+    "454e5346-4944-4ffd-6c93-8e9267193e9a": "Ensurity ThinC",
+    "454e5346-4944-4ffd-6c93-8e9267193e9b": "Ensurity AUTH BioPro",
+    "4599062e-6926-4fe7-9566-9e8fb1aedaa0": "YubiKey 5 Series (Enterprise Profile)",
+    "46544d5d-8f5d-4db4-89ac-ea8977073fff": "Foongtone FIDO Authenticator",
+    "47ab2fb4-66ac-4184-9ae1-86be814012d5": "Security Key NFC by Yubico - Enterprise Edition",
+    "4b3f8944-d4f2-4d21-bb19-764a986ec160": "KeyXentic FIDO2 Secp256R1 FIDO2 CTAP2 Authenticator",
+    "4b89f401-464e-4745-a520-486ddfc5d80e": "IIST FIDO2 Authenticator",
+    "4c0cf95d-2f40-43b5-ba42-4c83a11c04ba": "Feitian BioPass FIDO2 Pro Authenticator",
+    "4c50ff10-1057-4fc6-b8ed-43a529530c3c": "ImproveID Authenticator",
+    "4d41190c-7beb-4a84-8018-adf265a6352d": "Thales IDPrime FIDO Bio",
+    "4e768f2c-5fab-48b3-b300-220eb487752b": "Hideez Key 4 FIDO2 SDK",
+    "504d7149-4e4c-3841-4555-55445a677357": "WiSECURE AuthTron USB FIDO2 Authenticator",
+    "50726f74-6f6e-5061-7373-50726f746f6e": "Proton Pass",
+    "50a45b0c-80e7-f944-bf29-f552bfa2e048": "ACS FIDO Authenticator",
+    "516d3969-5a57-5651-5958-4e7a49434167": "SmartDisplayer BobeePass FIDO2 Authenticator",
+    "531126d6-e717-415c-9320-3d9aa6981239": "Dashlane",
+    "53414d53-554e-4700-0000-000000000000": "Samsung Pass",
+    "5343502d-5343-5343-6172-644649444f32": "ESS Smart Card Inc. Authenticator",
+    "54d9fee8-e621-4291-8b18-7157b99c5bec": "HID Crescendo Enabled",
+    "5626bed4-e756-430b-a7ff-ca78c8b12738": "VALMIDO PRO FIDO",
+    "57235694-51a5-4a4d-a81a-f42185df6502": "SHALO AUTH",
+    "5753362b-4e6b-6345-7b2f-255438404c75": "WiSECURE Blentity FIDO2 Authenticator",
+    "57f7de54-c807-4eab-b1c6-1c9be7984e92": "YubiKey 5 FIPS Series",
+    "58276709-bb4b-4bb3-baf1-60eea99282a7": "YubiKey Bio Series - Multi-protocol Edition 1VDJSN",
+    "58b44d0b-0a7c-f33a-fd48-f7153c871352": "Ledger Nano S Plus FIDO2 Authenticator",
+    "59f85fe7-faa5-4c92-9f52-697b9d4d5473": "RSA Authenticator 4 for Android",
+    "5b0e46ba-db02-44ac-b979-ca9b84f5e335": "YubiKey 5 FIPS Series with Lightning Preview",
+    "5ca1ab1e-1337-fa57-f1d0-a117e71ca702": "Allthenticator iOS App: roaming BLE FIDO2 Allthenticator for Windows, Mac, Linux, and Allthenticate door readers",
+    "5ca1ab1e-fa57-1337-f1d0-a117371ca702": "Allthenticator Android App: roaming BLE FIDO2 Allthenticator for Windows, Mac, Linux, and Allthenticate door readers",
+    "5d629218-d3a5-11ed-afa1-0242ac120002": "Swissbit iShield Key Pro",
+    "5e264d9d-28ef-4d34-95b4-5941e7a4faa8": "Ideem ZSM FIDO2 Authenticator",
+    "5ea308b2-7ac7-48b9-ac09-7e2da9015f8c": "Veridium Android SDK",
+    "5eaff75a-dd43-451f-af9f-87c9eeae293e": "Swissbit iShield Key 2 FIPS Enterprise",
+    "5fdb81b8-53f0-4967-a881-f5ec26fe4d18": "VinCSS FIDO2 Authenticator",
+    "6002f033-3c07-ce3e-d0f7-0ffe5ed42543": "Excelsecu eSecu FIDO2 Fingerprint Key",
+    "6028b017-b1d4-4c02-b4b3-afcdafc96bb2": "Windows Hello",
+    "61250591-b2bc-4456-b719-0b17be90bb30": "eWBM eFPA FIDO2 Authenticator",
+    "62e54e98-c209-4df3-b692-de71bb6a8528": "YubiKey 5 FIPS Series with NFC Preview",
+    "662ef48a-95e2-4aaa-a6c1-5b9c40375824": "YubiKey 5 Series with NFC - Enhanced PIN",
+    "664d9f67-84a2-412a-9ff7-b4f7d8ee6d05": "OpenSK authenticator",
+    "66a0ccb3-bd6a-191f-ee06-e375c50b9846": "Thales Bio iOS SDK",
+    "692db549-7ae5-44d5-a1e5-dd20a493b723": "HID Crescendo Key",
+    "69700f79-d1fb-472e-bd9b-a3a3b9a9eda0": "Pone Biometrics OFFPAD Authenticator",
+    "69e7c36f-f2f6-9e0d-07a6-bcc243262e6b": "OneKey FIDO2 Authenticator",
+    "6ab56fad-881f-4a43-acb2-0be065924522": "YubiKey 5 Series with NFC (Enterprise Profile)",
+    "6d44ba9b-f6ec-2e49-b930-0c8fe920cb73": "Security Key by Yubico with NFC",
+    "6dae43be-af9c-417b-8b9f-1b611168ec60": "Dapple Authenticator from Dapple Security Inc.",
+    "6e24d385-004a-16a0-7bfe-efd963845b34": "Ledger Stax FIDO2 Authenticator",
+    "6e8d1eae-8d40-4c25-bcf8-4633959afc71": "Veridium iOS SDK",
+    "6ec5cff2-a0f9-4169-945b-f33b563f7b99": "YubiKey Bio Series - Multi-protocol Edition (Enterprise Profile)",
+    "70e7c36f-f2f6-9e0d-07a6-bcc243262e6b": "OneKey FIDO2 Bluetooth Authenticator",
+    "72c6b72d-8512-4c66-8359-9d3d10d9222f": "Security Key NFC by Yubico - Enterprise Edition (Enterprise Profile)",
+    "73402251-f2a8-4f03-873e-3cb6db604b03": "uTrust FIDO2 Security Key",
+    "73bb0cd4-e502-49b8-9c6f-b59445bf720b": "YubiKey 5 FIPS Series",
+    "7409272d-1ff9-4e10-9fc9-ac0019c124fd": "YubiKey Bio Series - FIDO Edition",
+    "74820b05-a6c9-40f9-8fb0-9f86aca93998": "SafeNet eToken Fusion",
+    "760eda36-00aa-4d29-855b-4012a182cdeb": "Security Key NFC by Yubico Preview",
+    "77010bd7-212a-4fc9-b236-d2ca5e9d4084": "Feitian BioPass FIDO2 Authenticator",
+    "771b48fd-d3d4-4f74-9232-fc157ab0507a": "Edge on Mac",
+    "773c30d9-5919-4e96-a4f5-db65e95cf890": "GSTAG OAK FIDO2 Authenticator",
+    "7787a482-13e8-4784-8a06-c7ed49a7aaf4": "Swissbit iShield Key 2",
+    "78ba3993-d784-4f44-8d6e-cc0a8ad5230e": "Feitian ePass FIDO-NFC(CTAP2.1, CTAP2.0, U2F)",
+    "7991798a-a7f3-487f-98c0-3faf7a458a04": "HID Crescendo Key V3",
+    "79f3c8ba-9e35-484b-8f47-53a5a0f5c630": "YubiKey 5 FIPS Series with NFC (Enterprise Profile)",
+    "7b96457d-e3cd-432b-9ceb-c9fdd7ef7432": "YubiKey 5 FIPS Series with Lightning",
+    "7d1351a6-e097-4852-b8bf-c9ac5c9ce4a3": "YubiKey Bio Series - Multi-protocol Edition",
+    "7d2afadd-bf6b-44a2-a66b-e831fceb8eff": "Taglio CTAP2.1 EP",
+    "7e3f3d30-3557-4442-bdae-139312178b39": "RSA DS100",
+    "817cdab8-0d51-4de1-a821-e25b88519cf3": "Swissbit iShield Key 2 FIPS",
+    "820d89ed-d65a-409e-85cb-f73f0578f82a": "IDmelon iOS Authenticator",
+    "82b0a720-127a-4788-b56d-d1d4b2d82eac": "ID-One Key",
+    "833b721a-ff5f-4d00-bb2e-bdda3ec01e29": "Feitian ePass FIDO2 Authenticator",
+    "83c47309-aabb-4108-8470-8be838b573cb": "YubiKey Bio Series - FIDO Edition (Enterprise Profile)",
+    "85203421-48f9-4355-9bc8-8a53846e5083": "YubiKey 5 FIPS Series with Lightning",
+    "8681a073-5f50-4d52-bce4-e21658d207b3": "RSA Authenticator 4 for iOS",
+    "87dbc5a1-4c94-4dc8-8a47-97d800fd1f3c": "eWBM eFA320 FIDO2 Authenticator",
+    "882adaf5-3aa9-4708-8e7d-3957103775b4": "T-Shield TrustSec FIDO2 Bio and client PIN version",
+    "8836336a-f590-0921-301d-46427531eee6": "Thales Bio Android SDK",
+    "8876631b-d4a0-427f-5773-0ec71c9e0279": "Solo Secp256R1 FIDO2 CTAP2 Authenticator",
+    "88bbd2f0-342a-42e7-9729-dd158be5407a": "Precision InnaIT Key FIDO 2 Level 2 certified",
+    "891494da-2c90-4d31-a9cd-4eab0aed1309": "Sésame",
+    "8976631b-d4a0-427f-5773-0ec71c9e0279": "Solo Tap Secp256R1 FIDO2 CTAP2 Authenticator",
+    "89b19028-256b-4025-8872-255358d950e4": "Sentry Enterprises CTAP2 Authenticator",
+    "8c39ee86-7f9a-4a95-9ba3-f6b097e5c2ee": "YubiKey Bio Series - FIDO Edition (Enterprise Profile)",
+    "8c97a730-3f7b-41a6-87d6-1e9b62bda6f0": "FT-JCOS FIDO Fingerprint Card",
+    "8d1b1fcb-3c76-49a9-9129-5515b346aa02": "IDEMIA ID-ONE Card",
+    "8d4378b0-725d-4432-b3c2-01fcdaf46286": "VeridiumID Passkey Android SDK",
+    "8da0e4dc-164b-454e-972e-88f362b23d59": "CardOS FIDO2 Token",
+    "905b4cb4-ed6f-4da9-92fc-45e0d4e9b5c7": "YubiKey 5 FIPS Series (Enterprise Profile)",
+    "90636e1f-ef82-43bf-bdcf-5255f139d12f": "YubiKey Bio Series - Multi-protocol Edition",
+    "912435d9-4a88-42f3-972d-1244b0d51420": "SI0X FIDO CL WRIST v1.0",
+    "91ad6b93-264b-4987-8737-3a690cad6917": "Token Ring FIDO2 Authenticator",
+    "931327dd-c89b-406c-a81e-ed7058ef36c6": "Swissbit iShield Key FIDO2",
+    "95442b2e-f15e-4def-b270-efb106facb4e": "eWBM eFA310 FIDO2 Authenticator",
+    "95e4d58c-056e-4a65-866d-f5a69659e880": "TruU Windows Authenticator",
+    "970c8d9c-19d2-46af-aa32-3f448db49e35": "WinMagic FIDO Eazy - TPM",
+    "973446ca-e21c-9a9b-99f5-9b985a67af0f": "ACS FIDO Authenticator Card",
+    "97e6a830-c952-4740-95fc-7c78dc97ce47": "YubiKey Bio Series - Multi-protocol Edition (Enterprise Profile)",
+    "9876631b-d4a0-427f-5773-0ec71c9e0279": "Somu Secp256R1 FIDO2 CTAP2 Authenticator",
+    "998f358b-2dd2-4cbe-a43a-e8107438dfb3": "OnlyKey Secp256R1 FIDO2 CTAP2 Authenticator",
+    "99bf4610-ec26-4252-b31f-7380ccd59db5": "ZTPass SmartAuth",
+    "99ed6c29-4573-4847-816d-78ad8f1c75ef": "VeroCard FIDO2 Authenticator",
+    "9c835346-796b-4c27-8898-d6032f515cc5": "Cryptnox FIDO2",
+    "9d3df6ba-282f-11ed-a261-0242ac120002": "Arculus FIDO2/U2F Key Card",
+    "9ddd1817-af5a-4672-a2b9-3e3dd95000a9": "Windows Hello",
+    "9e66c661-e428-452a-a8fb-51f7ed088acf": "YubiKey 5 FIPS Series with Lightning (RC Preview)",
+    "9eb7eabc-9db5-49a1-b6c3-555a802093f4": "YubiKey 5 Series with NFC KVZR57",
+    "9f0d8150-baa5-4c00-9299-ad62c8bb4e87": "GoTrust Idem Card FIDO2 Authenticator",
+    "9f77e279-a6e2-4d58-b700-31e5943c6a98": "Hyper FIDO Pro",
+    "9ff4cc65-6154-4fff-ba09-9e2af7882ad2": "Security Key NFC by Yubico - Enterprise Edition (Enterprise Profile)",
+    "a02140b7-0cbd-42e1-a9b5-a39da2545114": "Feitian BioPass FIDO2 Plus (Enterprise Profile)",
+    "a02167b9-ae71-4ac7-9a07-06432ebb6f1c": "YubiKey 5 Series with Lightning",
+    "a10c6dd9-465e-4226-8198-c7c44b91c555": "Kaspersky Password Manager",
+    "a1f52be5-dfab-4364-b51c-2bd496b14a56": "OCTATCO EzFinger2 FIDO2 AUTHENTICATOR",
+    "a25342c0-3cdc-4414-8e46-f4807fca511c": "YubiKey 5 Series with NFC",
+    "a3975549-b191-fd67-b8fb-017e2917fdb3": "Excelsecu eSecu FIDO2 NFC Security Key",
+    "a4e9fc6d-4cbe-4758-b8ba-37598bb5bbaa": "Security Key NFC by Yubico",
+    "a7fc3f84-86a3-4da4-a3d7-eb6485a066d8": "NEOWAVE Badgeo FIDO2 (CTAP 2.1)",
+    "ab32f0c6-2239-afbb-c470-d2ef4e254db6": "TEST (DUMMY RECORD)",
+    "ab32f0c6-2239-afbb-c470-d2ef4e254db7": "TOKEN2 FIDO2 Security Key",
+    "ad08c78a-4e41-49b9-86a2-ac15b06899e2": "YubiKey Bio Series - FIDO Edition (Enterprise Profile)",
+    "adce0002-35bc-c60a-648b-0b25f1f05503": "Chrome on Mac",
+    "aeb6569c-f8fb-4950-ac60-24ca2bbe2e52": "HID Crescendo C2300",
+    "b12eac35-586c-4809-a4b1-d81af6c305cf": "Deepnet SafeKey/Classic (NFC)",
+    "b267239b-954f-4041-a01b-ee4f33c145b6": "authenton1 - CTAP2.1",
+    "b2c1a50b-dad8-4dc7-ba4d-0ce9597904bc": "YubiKey 5 Series with NFC - Enhanced PIN (Enterprise Profile)",
+    "b35a26b2-8f6e-4697-ab1d-d44db4da28c6": "Zoho Vault",
+    "b415094c-49d3-4c8b-b3fe-7d0ad28a6bc4": "ZTPass SmartAuth",
+    "b50d5e0a-7f81-4959-9b12-f45407407503": "IDPrime 3940 FIDO",
+    "b5397666-4885-aa6b-cebf-e52262a439a2": "Chromium Browser",
+    "b6ede29c-3772-412c-8a78-539c1f4c62d2": "Feitian BioPass FIDO2 Plus Authenticator",
+    "b78a0a55-6ef8-d246-a042-ba0f6d55050c": "LastPass",
+    "b7d3f68e-88a6-471e-9ecf-2df26d041ede": "Security Key NFC by Yubico",
+    "b84e4048-15dc-4dd0-8640-f4f60813c8af": "NordPass",
+    "b90e7dc1-316e-4fee-a25a-56a666a670fe": "YubiKey 5 Series with Lightning (Enterprise Profile)",
+    "b92c3f9a-c014-4056-887f-140a2501163b": "Security Key by Yubico",
+    "b93fd961-f2e6-462f-b122-82002247de78": "Android Authenticator",
+    "b9f6b7b6-f929-4189-bca9-dd951240c132": "Deepnet SafeKey/Classic (USB)",
+    "ba76a271-6eb6-4171-874d-b6428dbe3437": "ATKey.ProS",
+    "ba86dc56-635f-4141-aef6-00227b1b9af6": "TruU Windows Authenticator",
+    "bada5566-a7aa-401f-bd96-45619a55120d": "1Password",
+    "bb405265-40cf-4115-93e5-a332c1968d8c": "ID-One Card",
+    "bbf4b6a7-679d-f6fc-c4f2-8ac0ddf9015a": "Excelsecu eSecu FIDO2 PRO Security Key",
+    "bc2fe499-0d8e-4ffe-96f3-94a82840cf8c": "OCTATCO EzQuant FIDO2 AUTHENTICATOR",
+    "be727034-574a-f799-5c76-0929e0430973": "Crayonic KeyVault K1 (USB-NFC-BLE FIDO2 Authenticator)",
+    "bfc748bb-3429-4faa-b9f9-7cfa9f3b76d0": "iPasswords",
+    "c1f9a0bc-1dd2-404a-b27f-8e29047a43fd": "YubiKey 5 FIPS Series with NFC",
+    "c3f47802-de73-4dfc-ba22-671fe3304f90": "eToken Fusion NFC PIV Enterprise",
+    "c4ddaf11-3032-4e77-b3b9-3a340369b9ad": "HID Crescendo Fusion",
+    "c5703116-972b-4851-a3e7-ae1259843399": "NEOWAVE Badgeo FIDO2",
+    "c5ef55ff-ad9a-4b9f-b580-adebafe026d0": "YubiKey 5 Series with Lightning",
+    "c62100de-759b-4bf8-b22b-63b3e3a80401": "Token Ring 3 FIDO2 Authenticator",
+    "c80dbd9a-533f-4a17-b941-1a2f1c7cedff": "HID Crescendo C3000",
+    "c89674e3-a765-4b07-888a-7c086fbdf04b": "StarSign FIDO Card",
+    "c89e6a38-6c00-5426-5aa5-c9cbf48f0382": "ACS FIDO Authenticator NFC",
+    "ca4cff1b-5a81-4404-8194-59aabcf1660b": "IDPrime 3930 FIDO",
+    "ca87cb70-4c1b-4579-a8e8-4efdd7c007e0": "FIDO Alliance TruU Sample FIDO2 Authenticator",
+    "cb69481e-8ff7-4039-93ec-0a2729a154a8": "YubiKey 5 Series",
+    "cc45f64e-52a2-451b-831a-4edd8022a202": "ToothPic Passkey Provider",
+    "cd69adb5-3c7a-deb9-3177-6800ea6cb72a": "Thales PIN Android SDK",
+    "cdbdaea2-c415-5073-50f7-c04e968640b6": "Excelsecu eSecu FIDO2 Security Key",
+    "ce6bf97f-9f69-4ba7-9032-97adc6ca5cf1": "YubiKey 5 FIPS Series with NFC (RC Preview)",
+    "cfcb13a2-244f-4b36-9077-82b79d6a7de7": "USB/NFC Passcode Authenticator",
+    "d2fbd093-ee62-488d-9dad-1e36389f8826": "YubiKey 5 FIPS Series (RC Preview)",
+    "d350af52-0351-4ba2-acd3-dfeeadc3f764": "pwSafe",
+    "d384db22-4d50-ebde-2eac-5765cf1e2a44": "Excelsecu eSecu FIDO2 Fingerprint Security Key",
+    "d41f5a69-b817-4144-a13c-9ebd6d9254d6": "ATKey.Card CTAP2.0",
+    "d548826e-79b4-db40-a3d8-11116f7e8349": "Bitwarden",
+    "d61d3b87-3e7c-4aea-9c50-441c371903ad": "KeyVault Secp256R1 FIDO2 CTAP2 Authenticator",
+    "d7781e5d-e353-46aa-afe2-3ca49f13332a": "YubiKey 5 Series with NFC",
+    "d7a423ad-3e19-4492-9200-78137dccc136": "VivoKey Apex FIDO2",
+    "d821a7d4-e97c-4cb6-bd82-4237731fd4be": "Hyper FIDO Bio Security Key",
+    "d8522d9f-575b-4866-88a9-ba99fa02f35b": "YubiKey Bio Series - FIDO Edition",
+    "d91c5288-0ef0-49b7-b8ae-21ca0aa6b3f3": "KEY-ID FIDO2 Authenticator",
+    "d94a29d9-52dd-4247-9c2d-8b818b610389": "VeriMark Guard Fingerprint Key",
+    "da1fa263-8b25-42b6-a820-c0036f21ba7f": "ATKey.Card NFC",
+    "dd4ec289-e01d-41c9-bb89-70fa845d4bf2": "iCloud Keychain (Managed)",
+    "dd86a2da-86a0-4cbe-b462-4bd31f57bc6f": "YubiKey Bio Series - FIDO Edition",
+    "de503f9c-21a4-4f76-b4b7-558eb55c6f89": "Devolutions",
+    "e1a96183-5016-4f24-b55b-e3ae23614cc6": "ATKey.Pro CTAP2.0",
+    "e400ef8c-711d-4692-af46-7f2cf7da23ad": "Swissbit iShield Key 2 Enterprise",
+    "e416201b-afeb-41ca-a03d-2281c28322aa": "ATKey.Pro CTAP2.1",
+    "e41b42a3-60ac-4afb-8757-a98f2d7f6c9f": "Deepnet SafeKey/Classic (FP)",
+    "e77e3c64-05e3-428b-8824-0cbeb04b829d": "Security Key NFC by Yubico",
+    "e86addcd-7711-47e5-b42a-c18257b0bf61": "IDCore 3121 Fido",
+    "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4": "Google Password Manager",
+    "eabb46cc-e241-80bf-ae9e-96fa6d2975cf": "TOKEN2 PIN Plus Security Key Series ",
+    "eb3b131e-59dc-536a-d176-cb7306da10f5": "ellipticSecure MIRkey USB Authenticator",
+    "ec31b4cc-2acc-4b8e-9c01-bade00ccbe26": "KeyXentic FIDO2 Secp256R1 FIDO2 CTAP2 Authenticator",
+    "ed042a3a-4b22-4455-bb69-a267b652ae7e": "Security Key NFC by Yubico - Enterprise Edition",
+    "ee041bce-25e5-4cdb-8f86-897fd6418464": "Feitian ePass FIDO2-NFC Authenticator",
+    "ee882879-721c-4913-9775-3dfcce97072a": "YubiKey 5 Series",
+    "efb96b10-a9ee-4b6c-a4a9-d32125ccd4a4": "Safenet eToken FIDO",
+    "f2145e86-211e-4931-b874-e22bba7d01cc": "ID-One Key",
+    "f3809540-7f14-49c1-a8b3-8f813b225541": "Enpass",
+    "f4c63eff-d26c-4248-801c-3736c7eaa93a": "FIDO KeyPass S3",
+    "f56f58b3-d711-4afc-ba7d-6ac05f88cb19": "WinMagic FIDO Eazy - Phone",
+    "f7c558a0-f465-11e8-b568-0800200c9a66": "KONAI Secp256R1 FIDO2 Conformance Testing CTAP2 Authenticator",
+    "f8a011f3-8c0a-4d15-8006-17111f9edc7d": "Security Key by Yubico",
+    "f8d5c4e9-e539-4c06-8662-ec2a4155a555": "StarSign Key Fob",
+    "fa2b99dc-9e39-4257-8f92-4a30d23c4118": "YubiKey 5 Series with NFC",
+    "fbefdf68-fe86-0106-213e-4d5fa24cbe2e": "Excelsecu eSecu FIDO2 NFC Security Key",
+    "fbfc3007-154e-4ecc-8c0b-6e020557d7bd": "iCloud Keychain",
+    "fcb1bcb4-f370-078c-6993-bc24d0ae3fbe": "Ledger Nano X FIDO2 Authenticator",
+    "fcc0118f-cd45-435b-8da1-9782b2da0715": "YubiKey 5 FIPS Series with NFC",
+    "fdb141b2-5d84-443e-8a35-4698c205a502": "KeePassXC",
+    "fec067a1-f1d0-4c5e-b4c0-cc3237475461": "KX701 SmartToken FIDO",
+    "ff4dac45-ede8-4ec2-aced-cf66103f4335": "YubiKey 5 Series"
+};
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "getAlgoName",
+    ()=>getAlgoName,
+    "parseAuthentication",
+    ()=>parseAuthentication,
+    "parseAuthenticator",
+    ()=>parseAuthenticator,
+    "parseClient",
+    ()=>parseClient,
+    "parseRegistration",
+    ()=>parseRegistration,
+    "toAuthenticationInfo",
+    ()=>toAuthenticationInfo,
+    "toRegistrationInfo",
+    ()=>toRegistrationInfo
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/utils.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$authenticatorMetadata$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/authenticatorMetadata.js [app-ssr] (ecmascript)");
+;
+;
+const utf8Decoder = new TextDecoder('utf-8');
+function parseClient(data) {
+    if (typeof data == 'string') data = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](data);
+    return JSON.parse(utf8Decoder.decode(data));
+}
+function parseAuthenticator(authData) {
+    if (typeof authData == 'string') authData = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](authData);
+    //console.debug(authData)
+    let flags = new DataView(authData.slice(32, 33)).getUint8(0);
+    //console.debug(flags)
+    // https://w3c.github.io/webauthn/#sctn-authenticator-data
+    return {
+        rpIdHash: extractRpIdHash(authData),
+        flags: {
+            userPresent: !!(flags & 1),
+            //reserved1: !!(flags & 2),
+            userVerified: !!(flags & 4),
+            backupEligibility: !!(flags & 8),
+            backupState: !!(flags & 16),
+            //reserved2: !!(flags & 32),
+            attestedData: !!(flags & 64),
+            extensionsIncluded: !!(flags & 128)
+        },
+        signCount: new DataView(authData.slice(33, 37)).getUint32(0, false),
+        aaguid: extractAaguid(authData)
+    };
+}
+function extractRpIdHash(authData) {
+    return __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](authData.slice(0, 32));
+}
+/**
+ * Returns the AAGUID in the format "00000000-0000-0000-0000-000000000000"
+ */ function extractAaguid(authData) {
+    if (authData.byteLength < 53) return "00000000-0000-0000-0000-000000000000";
+    const buffer = authData.slice(37, 53); // 16 byte
+    const hex = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["bufferToHex"](buffer);
+    const aaguid = `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}`;
+    return aaguid; // example: "d41f5a69-b817-4144-a13c-9ebd6d9254d6"
+}
+function getAlgoName(num) {
+    switch(num){
+        case -7:
+            return "ES256";
+        case -8:
+            return "EdDSA";
+        case -257:
+            return "RS256";
+        default:
+            throw new Error(`Unknown algorithm code: ${num}`);
+    }
+}
+function parseRegistration(registrationJson) {
+    const authenticator = parseAuthenticator(registrationJson.response.authenticatorData);
+    return toRegistrationInfo(registrationJson, authenticator);
+}
+function toRegistrationInfo(registrationJson, authenticator) {
+    const aaguid = authenticator.aaguid;
+    return {
+        authenticator: {
+            aaguid,
+            counter: authenticator.signCount,
+            icon_light: 'https://webauthn.passwordless.id/authenticators/' + aaguid + '-light.png',
+            icon_dark: 'https://webauthn.passwordless.id/authenticators/' + aaguid + '-dark.png',
+            name: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$authenticatorMetadata$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["authenticatorMetadata"][aaguid] ?? 'Unknown'
+        },
+        credential: {
+            id: registrationJson.id,
+            publicKey: registrationJson.response.publicKey,
+            algorithm: getAlgoName(registrationJson.response.publicKeyAlgorithm),
+            transports: registrationJson.response.transports
+        },
+        synced: authenticator.flags.backupEligibility,
+        user: registrationJson.user,
+        userVerified: authenticator.flags.userVerified
+    };
+}
+function toAuthenticationInfo(authenticationJson, authenticator) {
+    return {
+        credentialId: authenticationJson.id,
+        userId: authenticationJson.response.userHandle,
+        counter: authenticator.signCount,
+        userVerified: authenticator.flags.userVerified,
+        authenticatorAttachment: authenticationJson.authenticatorAttachment
+    };
+}
+function parseAuthentication(authenticationJson) {
+    const authenticator = parseAuthenticator(authenticationJson.response.authenticatorData);
+    return toAuthenticationInfo(authenticationJson, authenticator);
+}
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript) <export * as parsers>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "parsers",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript)");
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/server.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "parseCryptoKey",
+    ()=>parseCryptoKey,
+    "randomChallenge",
+    ()=>randomChallenge,
+    "verifyAuthentication",
+    ()=>verifyAuthentication,
+    "verifyRegistration",
+    ()=>verifyRegistration,
+    "verifySignature",
+    ()=>verifySignature
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/index.js [app-ssr] (ecmascript) <locals>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__parsers$3e$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript) <export * as parsers>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/utils.js [app-ssr] (ecmascript)");
+;
+;
+;
+function randomChallenge() {
+    const buffer = crypto.getRandomValues(new Uint8Array(18)); // > 128 bits, a multiple of 3 bytes to have base64 encoding without padding
+    return __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](buffer);
+}
+async function isValid(validator, value) {
+    if (typeof validator === 'function') {
+        const res = validator(value);
+        if (res instanceof Promise) return await res;
+        else return res;
+    }
+    // the validator can be a single value too
+    return validator === value;
+}
+async function isNotValid(validator, value) {
+    return !await isValid(validator, value);
+}
+async function verifyRegistration(registrationJson, expected) {
+    const client = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseClient"])(registrationJson.response.clientDataJSON);
+    const authenticator = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseAuthenticator"])(registrationJson.response.authenticatorData);
+    const aaguid = authenticator.aaguid;
+    if (!aaguid) throw new Error("Unexpected error, no AAGUID.");
+    if (client.type !== "webauthn.create") throw new Error(`Unexpected ClientData type: ${client.type}`);
+    if (await isNotValid(expected.origin, client.origin)) throw new Error(`Unexpected ClientData origin: ${client.origin}`);
+    if (await isNotValid(expected.challenge, client.challenge)) throw new Error(`Unexpected ClientData challenge: ${client.challenge}`);
+    return __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__parsers$3e$__["parsers"].toRegistrationInfo(registrationJson, authenticator);
+}
+async function verifyAuthentication(authenticationJson, credential, expected) {
+    if (authenticationJson.id !== credential.id) throw new Error(`Credential ID mismatch: ${authenticationJson.id} vs ${credential.id}`);
+    const isValidSignature = await verifySignature({
+        algorithm: credential.algorithm,
+        publicKey: credential.publicKey,
+        authenticatorData: authenticationJson.response.authenticatorData,
+        clientData: authenticationJson.response.clientDataJSON,
+        signature: authenticationJson.response.signature,
+        verbose: expected.verbose
+    });
+    if (!isValidSignature) throw new Error(`Invalid signature: ${authenticationJson.response.signature}`);
+    const client = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseClient"])(authenticationJson.response.clientDataJSON);
+    const authenticator = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseAuthenticator"])(authenticationJson.response.authenticatorData);
+    if (expected.verbose) {
+        console.debug(client);
+        console.debug(authenticator);
+    }
+    if (client.type !== "webauthn.get") throw new Error(`Unexpected clientData type: ${client.type}`);
+    if (await isNotValid(expected.origin, client.origin)) throw new Error(`Unexpected ClientData origin: ${client.origin}`);
+    if (await isNotValid(expected.challenge, client.challenge)) throw new Error(`Unexpected ClientData challenge: ${client.challenge}`);
+    // this only works because we consider `rp.origin` and `rp.id` to be the same during authentication/registration
+    const rpId = expected.domain ?? new URL(client.origin).hostname;
+    const expectedRpIdHash = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](await __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["sha256"](__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBuffer"](rpId)));
+    if (authenticator.rpIdHash !== expectedRpIdHash) throw new Error(`Unexpected RpIdHash: ${authenticator.rpIdHash} vs ${expectedRpIdHash}`);
+    if (!authenticator.flags.userPresent) throw new Error(`Unexpected authenticator flags: missing userPresent`);
+    if (!authenticator.flags.userVerified && expected.userVerified) throw new Error(`Unexpected authenticator flags: missing userVerified`);
+    if (expected.counter && authenticator.signCount <= expected.counter) throw new Error(`Unexpected authenticator counter: ${authenticator.signCount} (should be > ${expected.counter})`);
+    return (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toAuthenticationInfo"])(authenticationJson, authenticator);
+}
+// https://w3c.github.io/webauthn/#sctn-public-key-easy
+// https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+/*
+User agents MUST be able to return a non-null value for getPublicKey() when the credential public key has a COSEAlgorithmIdentifier value of:
+
+-7 (ES256), where kty is 2 (with uncompressed points) and crv is 1 (P-256).
+
+-257 (RS256).
+
+-8 (EdDSA), where crv is 6 (Ed25519).
+*/ function getAlgoParams(algorithm) {
+    switch(algorithm){
+        case 'RS256':
+            return {
+                name: 'RSASSA-PKCS1-v1_5',
+                hash: 'SHA-256'
+            };
+        case 'ES256':
+            return {
+                name: 'ECDSA',
+                namedCurve: 'P-256',
+                hash: 'SHA-256'
+            };
+        // case 'EdDSA': Not supported by browsers
+        default:
+            throw new Error(`Unknown or unsupported crypto algorithm: ${algorithm}. Only 'RS256' and 'ES256' are supported.`);
+    }
+}
+async function parseCryptoKey(algorithm, publicKey) {
+    const algoParams = getAlgoParams(algorithm);
+    const buffer = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](publicKey);
+    return crypto.subtle.importKey('spki', buffer, algoParams, false, [
+        'verify'
+    ]);
+}
+async function verifySignature({ algorithm, publicKey, authenticatorData, clientData, signature, verbose }) {
+    let cryptoKey = await parseCryptoKey(algorithm, publicKey);
+    if (verbose) {
+        console.debug(cryptoKey);
+    }
+    let clientHash = await __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["sha256"](__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](clientData));
+    // during "login", the authenticatorData is exactly 37 bytes
+    let comboBuffer = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["concatenateBuffers"](__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](authenticatorData), clientHash);
+    if (verbose) {
+        console.debug('Algorithm: ' + algorithm);
+        console.debug('Public key: ' + publicKey);
+        console.debug('Data: ' + __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toBase64url"](comboBuffer));
+        console.debug('Signature: ' + signature);
+    }
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify
+    let signatureBuffer = __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["parseBase64url"](signature);
+    if (algorithm == 'ES256') signatureBuffer = convertASN1toRaw(signatureBuffer);
+    const algoParams = getAlgoParams(algorithm);
+    const isValid = await crypto.subtle.verify(algoParams, cryptoKey, signatureBuffer, comboBuffer);
+    return isValid;
+}
+function convertASN1toRaw(signatureBuffer) {
+    // Convert signature from ASN.1 sequence to "raw" format
+    const signature = new Uint8Array(signatureBuffer);
+    const rStart = signature[4] === 0 ? 5 : 4;
+    const rEnd = rStart + 32;
+    const sStart = signature[rEnd + 2] === 0 ? rEnd + 3 : rEnd + 2;
+    const r = signature.slice(rStart, rEnd);
+    const s = signature.slice(sStart);
+    return new Uint8Array([
+        ...r,
+        ...s
+    ]);
+}
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/index.js [app-ssr] (ecmascript) <locals>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/client.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$server$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/server.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/utils.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$authenticatorMetadata$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/authenticatorMetadata.js [app-ssr] (ecmascript)");
+;
+;
+;
+;
+;
+;
+const webauthn = {
+    client: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__,
+    server: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$server$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__,
+    parsers: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__,
+    utils: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$utils$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__,
+    authenticatorMetadata: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$authenticatorMetadata$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["authenticatorMetadata"]
+};
+const __TURBOPACK__default__export__ = webauthn;
+}),
+"[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/client.js [app-ssr] (ecmascript) <export * as client>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "client",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/client.js [app-ssr] (ecmascript)");
+}),
+"[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/utils/text-decoder.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "cachedTextDecoder",
+    ()=>cachedTextDecoder
+]);
+let textDecoder;
+function cachedTextDecoder() {
+    if (!textDecoder) {
+        textDecoder = new TextDecoder();
+    }
+    return textDecoder;
+} //# sourceMappingURL=text-decoder.js.map
+}),
+"[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/utils/uint8-array.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "areUint8ArraysEqual",
+    ()=>areUint8ArraysEqual,
+    "base64ToString",
+    ()=>base64ToString,
+    "base64ToUint8Array",
+    ()=>base64ToUint8Array,
+    "base64UrlToBase64",
+    ()=>base64UrlToBase64,
+    "compareUint8Arrays",
+    ()=>compareUint8Arrays,
+    "concatUint8Arrays",
+    ()=>concatUint8Arrays,
+    "isUint8Array",
+    ()=>isUint8Array,
+    "uint8ArrayToBase64",
+    ()=>uint8ArrayToBase64
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$text$2d$decoder$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/utils/text-decoder.js [app-ssr] (ecmascript)");
+;
+const uint8ArrayStringified = "[object Uint8Array]";
+/**
+ * Throw a `TypeError` if the given value is not an instance of `Uint8Array`.
+ * @example
+ * ```ts
+ * import {assertUint8Array} from 'uint8array-extras';
+ *
+ * try {
+ * assertUint8Array(new ArrayBuffer(10)); // Throws a TypeError
+ * } catch (error) {
+ * console.error(error.message);
+ * }
+ * ```
+ */ function assertUint8Array(value) {
+    if (!isUint8Array(value)) {
+        throw new TypeError(`Expected \`Uint8Array\`, got \`${typeof value}\``);
+    }
+}
+function isUint8Array(value) {
+    if (!value) {
+        return false;
+    }
+    if (value.constructor === Uint8Array) {
+        return true;
+    }
+    return Object.prototype.toString.call(value) === uint8ArrayStringified;
+}
+function areUint8ArraysEqual(a, b) {
+    assertUint8Array(a);
+    assertUint8Array(b);
+    if (a === b) {
+        return true;
+    }
+    if (a.length !== b.length) {
+        return false;
+    }
+    for(let index = 0; index < a.length; index++){
+        if (a[index] !== b[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+/**
+ * Convert a `Uint8Array` (containing a UTF-8 string) to a string.
+ *
+ * Replacement for [`Buffer#toString()`](https://nodejs.org/api/buffer.html#buftostringencoding-start-end).
+ * @example
+ * ```ts
+ * import {uint8ArrayToString} from 'uint8array-extras';
+ *
+ * const byteArray = new Uint8Array([72, 101, 108, 108, 111]);
+ *
+ * console.log(uint8ArrayToString(byteArray));
+ * //=> 'Hello'
+ * ```
+ */ function uint8ArrayToString(array) {
+    assertUint8Array(array);
+    return (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$text$2d$decoder$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["cachedTextDecoder"])().decode(array);
+}
+function assertString(value) {
+    if (typeof value !== "string") {
+        throw new TypeError(`Expected \`string\`, got \`${typeof value}\``);
+    }
+}
+function base64UrlToBase64(base64url) {
+    // Replace Base64URL characters with Base64 characters
+    let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    // Add padding if necessary
+    const padding = base64.length % 4;
+    if (padding !== 0) {
+        base64 += "=".repeat(4 - padding);
+    }
+    return base64;
+}
+function base64ToUint8Array(base64String) {
+    assertString(base64String);
+    return Uint8Array.from(globalThis.atob(base64UrlToBase64(base64String)), // biome-ignore lint/style/noNonNullAssertion: we know that the code points exist
+    (x)=>x.codePointAt(0));
+}
+function base64ToString(base64String) {
+    assertString(base64String);
+    return uint8ArrayToString(base64ToUint8Array(base64String));
+}
+function base64ToBase64Url(base64) {
+    return base64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+// Reference: https://phuoc.ng/collection/this-vs-that/concat-vs-push/
+const MAX_BLOCK_SIZE = 65_535;
+function uint8ArrayToBase64(array, { urlSafe = false } = {}) {
+    assertUint8Array(array);
+    let base64;
+    if (array.length < MAX_BLOCK_SIZE) {
+        // Required as `btoa` and `atob` don't properly support Unicode: https://developer.mozilla.org/en-US/docs/Glossary/Base64#the_unicode_problem
+        // @ts-expect-error - TS doesn't know about `String#fromCodePoint`
+        base64 = globalThis.btoa(String.fromCodePoint.apply(this, array));
+    } else {
+        base64 = "";
+        for (const value of array){
+            base64 += String.fromCodePoint(value);
+        }
+        base64 = globalThis.btoa(base64);
+    }
+    return urlSafe ? base64ToBase64Url(base64) : base64;
+}
+function concatUint8Arrays(arrays, totalLength) {
+    if (arrays.length === 0) {
+        return new Uint8Array(0);
+    }
+    const calculatedTotalLength = totalLength ?? arrays.reduce((accumulator, currentValue)=>accumulator + currentValue.length, 0);
+    const returnValue = new Uint8Array(calculatedTotalLength);
+    let offset = 0;
+    for (const array of arrays){
+        assertUint8Array(array);
+        returnValue.set(array, offset);
+        offset += array.length;
+    }
+    return returnValue;
+}
+function compareUint8Arrays(a, b) {
+    assertUint8Array(a);
+    assertUint8Array(b);
+    const length = Math.min(a.length, b.length);
+    for(let index = 0; index < length; index++){
+        // biome-ignore lint/style/noNonNullAssertion: we check the length above so the index is always in bounds
+        const diff = a[index] - b[index];
+        if (diff !== 0) {
+            return Math.sign(diff);
+        }
+    }
+    // At this point, all the compared elements are equal.
+    // The shorter array should come first if the arrays are of different lengths.
+    return Math.sign(a.length - b.length);
+} //# sourceMappingURL=uint8-array.js.map
+}),
+"[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/wallets/in-app/core/constants/settings.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * @internal
+ */ __turbopack_context__.s([
+    "AUTH_TOKEN_LOCAL_STORAGE_NAME",
+    ()=>AUTH_TOKEN_LOCAL_STORAGE_NAME,
+    "DEVICE_SHARE_LOCAL_STORAGE_NAME",
+    ()=>DEVICE_SHARE_LOCAL_STORAGE_NAME,
+    "GUEST_SESSION_LOCAL_STORAGE_NAME",
+    ()=>GUEST_SESSION_LOCAL_STORAGE_NAME,
+    "IN_APP_WALLET_PATH",
+    ()=>IN_APP_WALLET_PATH,
+    "PASSKEY_CREDENTIAL_ID_LOCAL_STORAGE_NAME",
+    ()=>PASSKEY_CREDENTIAL_ID_LOCAL_STORAGE_NAME,
+    "WALLET_CONNECT_SESSIONS_LOCAL_STORAGE_NAME",
+    ()=>WALLET_CONNECT_SESSIONS_LOCAL_STORAGE_NAME,
+    "WALLET_USER_DETAILS_LOCAL_STORAGE_NAME",
+    ()=>WALLET_USER_DETAILS_LOCAL_STORAGE_NAME,
+    "WALLET_USER_ID_LOCAL_STORAGE_NAME",
+    ()=>WALLET_USER_ID_LOCAL_STORAGE_NAME
+]);
+const IN_APP_WALLET_PATH = "/sdk/2022-08-12/embedded-wallet";
+const WALLET_USER_DETAILS_LOCAL_STORAGE_NAME = (key)=>`thirdwebEwsWalletUserDetails-${key}`;
+const WALLET_USER_ID_LOCAL_STORAGE_NAME = (cliekeytId)=>`thirdwebEwsWalletUserId-${cliekeytId}`;
+/**
+ * @internal
+ */ const AUTH_TOKEN_LOCAL_STORAGE_PREFIX = "walletToken";
+const AUTH_TOKEN_LOCAL_STORAGE_NAME = (key)=>{
+    return `${AUTH_TOKEN_LOCAL_STORAGE_PREFIX}-${key}`;
+};
+const PASSKEY_CREDENTIAL_ID_LOCAL_STORAGE_NAME = (key)=>{
+    return `passkey-credential-id-${key}`;
+};
+/**
+ * @internal
+ */ const DEVICE_SHARE_LOCAL_STORAGE_PREFIX = "a";
+const DEVICE_SHARE_LOCAL_STORAGE_NAME = (key, userId)=>`${DEVICE_SHARE_LOCAL_STORAGE_PREFIX}-${key}-${userId}`;
+const WALLET_CONNECT_SESSIONS_LOCAL_STORAGE_NAME = (key)=>`walletConnectSessions-${key}`;
+const GUEST_SESSION_LOCAL_STORAGE_NAME = (key)=>`thirdweb_guest_session_id_${key}`; //# sourceMappingURL=settings.js.map
+}),
+"[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/wallets/in-app/core/authentication/client-scoped-storage.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "ClientScopedStorage",
+    ()=>ClientScopedStorage
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/wallets/in-app/core/constants/settings.js [app-ssr] (ecmascript)");
+;
+const data = new Map();
+class ClientScopedStorage {
+    /**
+     * @internal
+     */ constructor({ storage, clientId, ecosystem }){
+        Object.defineProperty(this, "key", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "storage", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "ecosystem", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.storage = storage;
+        this.key = getLocalStorageKey(clientId, ecosystem?.id);
+        this.ecosystem = ecosystem;
+    }
+    async getItem(key) {
+        if (this.storage) {
+            return this.storage.getItem(key);
+        }
+        return data.get(key) ?? null;
+    }
+    async setItem(key, value) {
+        if (this.storage) {
+            return this.storage.setItem(key, value);
+        }
+        data.set(key, value);
+    }
+    async removeItem(key) {
+        const item = await this.getItem(key);
+        if (this.storage && item) {
+            this.storage.removeItem(key);
+            return true;
+        }
+        return false;
+    }
+    /**
+     * @internal
+     */ async getWalletConnectSessions() {
+        return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["WALLET_CONNECT_SESSIONS_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async saveWalletConnectSessions(stringifiedSessions) {
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["WALLET_CONNECT_SESSIONS_LOCAL_STORAGE_NAME"])(this.key), stringifiedSessions);
+    }
+    /**
+     * @internal
+     */ async savePasskeyCredentialId(id) {
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PASSKEY_CREDENTIAL_ID_LOCAL_STORAGE_NAME"])(this.key), id);
+    }
+    /**
+     * @internal
+     */ async getPasskeyCredentialId() {
+        return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["PASSKEY_CREDENTIAL_ID_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async saveAuthCookie(cookie) {
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AUTH_TOKEN_LOCAL_STORAGE_NAME"])(this.key), cookie);
+    }
+    /**
+     * @internal
+     */ async getAuthCookie() {
+        return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AUTH_TOKEN_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async removeAuthCookie() {
+        return this.removeItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AUTH_TOKEN_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async saveDeviceShare(share, userId) {
+        await this.saveWalletUserId(userId);
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DEVICE_SHARE_LOCAL_STORAGE_NAME"])(this.key, userId), share);
+    }
+    /**
+     * @internal
+     */ async getDeviceShare() {
+        const userId = await this.getWalletUserId();
+        if (userId) {
+            return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DEVICE_SHARE_LOCAL_STORAGE_NAME"])(this.key, userId));
+        }
+        return null;
+    }
+    /**
+     * @internal
+     */ async removeDeviceShare() {
+        const userId = await this.getWalletUserId();
+        if (userId) {
+            return this.removeItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DEVICE_SHARE_LOCAL_STORAGE_NAME"])(this.key, userId));
+        }
+        return false;
+    }
+    /**
+     * @internal
+     */ async getWalletUserId() {
+        return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["WALLET_USER_ID_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async saveWalletUserId(userId) {
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["WALLET_USER_ID_LOCAL_STORAGE_NAME"])(this.key), userId);
+    }
+    /**
+     * @internal
+     */ async removeWalletUserId() {
+        return this.removeItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["WALLET_USER_ID_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async getGuestSessionId() {
+        return this.getItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["GUEST_SESSION_LOCAL_STORAGE_NAME"])(this.key));
+    }
+    /**
+     * @internal
+     */ async saveGuestSessionId(sessionId) {
+        await this.setItem((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$constants$2f$settings$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["GUEST_SESSION_LOCAL_STORAGE_NAME"])(this.key), sessionId);
+    }
+}
+const getLocalStorageKey = (clientId, ecosystemId)=>{
+    return `${clientId}${ecosystemId ? `-${ecosystemId}` : ""}`;
+}; //# sourceMappingURL=client-scoped-storage.js.map
+}),
+"[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/wallets/in-app/web/lib/auth/passkeys.js [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "PasskeyWebClient",
+    ()=>PasskeyWebClient,
+    "hasStoredPasskey",
+    ()=>hasStoredPasskey
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/index.js [app-ssr] (ecmascript) <locals>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__client$3e$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/client.js [app-ssr] (ecmascript) <export * as client>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__parsers$3e$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/@passwordless-id/webauthn/dist/esm/parsers.js [app-ssr] (ecmascript) <export * as parsers>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$storage$2f$webStorage$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/utils/storage/webStorage.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$uint8$2d$array$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/utils/uint8-array.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$authentication$2f$client$2d$scoped$2d$storage$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/wallets/in-app/core/authentication/client-scoped-storage.js [app-ssr] (ecmascript)");
+;
+;
+;
+;
+class PasskeyWebClient {
+    isAvailable() {
+        return __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__client$3e$__["client"].isAvailable();
+    }
+    async register(args) {
+        const { name, challenge, rp } = args;
+        const registration = await __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__client$3e$__["client"].register({
+            attestation: true,
+            challenge,
+            domain: rp.id,
+            user: name,
+            userVerification: "required"
+        });
+        const clientDataB64 = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$uint8$2d$array$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["base64UrlToBase64"])(registration.response.clientDataJSON);
+        const clientDataParsed = JSON.parse((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$uint8$2d$array$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["base64ToString"])(clientDataB64));
+        return {
+            authenticatorData: registration.response.authenticatorData,
+            clientData: registration.response.clientDataJSON,
+            credential: {
+                algorithm: __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$parsers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__parsers$3e$__["parsers"].getAlgoName(registration.response.publicKeyAlgorithm),
+                publicKey: registration.response.publicKey
+            },
+            credentialId: registration.id,
+            origin: clientDataParsed.origin
+        };
+    }
+    async authenticate(args) {
+        const { credentialId, challenge, rp } = args;
+        const result = await __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f40$passwordless$2d$id$2f$webauthn$2f$dist$2f$esm$2f$client$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__client$3e$__["client"].authenticate({
+            allowCredentials: credentialId ? [
+                credentialId
+            ] : [],
+            challenge,
+            domain: rp.id,
+            userVerification: "required"
+        });
+        const clientDataB64 = (0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$uint8$2d$array$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["base64UrlToBase64"])(result.response.clientDataJSON);
+        const clientDataParsed = JSON.parse((0, __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$uint8$2d$array$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["base64ToString"])(clientDataB64));
+        return {
+            authenticatorData: result.response.authenticatorData,
+            clientData: result.response.clientDataJSON,
+            credentialId: result.id,
+            origin: clientDataParsed.origin,
+            signature: result.response.signature
+        };
+    }
+}
+async function hasStoredPasskey(client, ecosystemId, storage) {
+    const clientStorage = new __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$wallets$2f$in$2d$app$2f$core$2f$authentication$2f$client$2d$scoped$2d$storage$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["ClientScopedStorage"]({
+        clientId: client.clientId,
+        ecosystem: ecosystemId ? {
+            id: ecosystemId
+        } : undefined,
+        storage: storage ?? __TURBOPACK__imported__module__$5b$project$5d2f$Desktop$2f$frontend$2f$node_modules$2f$thirdweb$2f$dist$2f$esm$2f$utils$2f$storage$2f$webStorage$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["webLocalStorage"]
+    });
+    const credId = await clientStorage.getPasskeyCredentialId();
+    return !!credId;
+} //# sourceMappingURL=passkeys.js.map
+}),
+];
+
+//# sourceMappingURL=1b50e_0dd3fab9._.js.map

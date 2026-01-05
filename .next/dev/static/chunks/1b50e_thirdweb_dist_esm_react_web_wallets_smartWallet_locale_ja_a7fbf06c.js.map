@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/react/web/wallets/smartWallet/locale/ja.js","sources":["file:///Users/srthck/Desktop/frontend/node_modules/thirdweb/src/react/web/wallets/smartWallet/locale/ja.ts"],"sourcesContent":["import type { SmartWalletLocale } from \"./types.js\";\n\nconst smartWalletLocale: SmartWalletLocale = {\n  connecting: \"スマートアカウントに接続中\",\n  failedToConnect: \"スマートアカウントへの接続に失敗しました\",\n  wrongNetworkScreen: {\n    failedToSwitch: \"ネットワークの切り替えに失敗しました\",\n    subtitle: \"ウォレットが必要なネットワークに接続されていません\",\n    title: \"ネットワークが違います\",\n  },\n};\nexport default smartWalletLocale;\n"],"names":[],"mappings":";;;;AAEA,MAAM,iBAAiB,GAAsB;IAC3C,UAAU,EAAE,eAAe;IAC3B,eAAe,EAAE,sBAAsB;IACvC,kBAAkB,EAAE;QAClB,cAAc,EAAE,oBAAoB;QACpC,QAAQ,EAAE,2BAA2B;QACrC,KAAK,EAAE,aAAa;KACrB;CACF,CAAC;uCACa,iBAAiB,CAAC"}}]
+}

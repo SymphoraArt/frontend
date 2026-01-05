@@ -42,6 +42,7 @@ import {
   Sparkles,
   List,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -1198,7 +1199,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   return (
     <TooltipProvider>
       {/* Desktop View */}
-      <div className="hidden md:flex lg:grid h-full w-full overflow-y-hidden md:overflow-x-auto lg:overflow-x-hidden md:snap-x md:snap-mandatory md:gap-4 lg:gap-4 grid-cols-1 lg:grid-cols-[clamp(220px,18vw,280px)_minmax(0,1fr)_clamp(260px,22vw,340px)_clamp(260px,24vw,360px)]">
+      <div className="hidden md:flex lg:grid h-full w-full overflow-y-hidden md:overflow-x-auto lg:overflow-x-hidden md:snap-x md:snap-mandatory md:gap-4 lg:gap-4 grid-cols-1 lg:grid-cols-[clamp(220px,18vw,280px)_minmax(0,1fr)_minmax(0,clamp(260px,22vw,340px))_minmax(0,clamp(260px,24vw,360px))]">
         <div className="min-w-0 h-full overflow-hidden md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink">
           <PromptSettingsPanel
             settings={settingsData}
@@ -1419,7 +1420,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         </Card>
 
         {promptType === "paid-prompt" && (
-          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink">
+          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 w-full md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-full lg:max-w-full lg:shrink" style={{ contain: 'inline-size' }}>
             <CardHeader className="pb-2 px-4 shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-sm">Variables</CardTitle>
@@ -1450,8 +1451,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 min-h-0 px-4 pb-4">
-              <ScrollArea className="h-full pr-2">
+            <CardContent className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
+              <ScrollArea className="h-full pr-2 w-full">
                 {variables.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-10">
                     No variables yet.
@@ -1459,65 +1460,70 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     Select text or use [Name]
                   </p>
                 ) : (
-                  <Accordion
-                    type="multiple"
-                    value={openVariables}
-                    onValueChange={setOpenVariables}
-                  >
+                  <div className="space-y-2" style={{ contain: 'inline-size' }}>
                     {variables.map((variable) => (
-                      <AccordionItem
+                      <div
                         key={variable.id}
-                        value={variable.id}
                         id={`variable-${variable.id}`}
+                        className="border rounded-lg p-3 overflow-hidden"
                       >
-                        <AccordionTrigger
-                          className={
-                            selectedVariableId === variable.id
-                              ? "text-primary"
-                              : undefined
-                          }
+                        <div 
+                          className="flex items-center justify-between gap-2 cursor-pointer"
+                          onClick={() => {
+                            if (openVariables.includes(variable.id)) {
+                              setOpenVariables(openVariables.filter(id => id !== variable.id));
+                            } else {
+                              setOpenVariables([...openVariables, variable.id]);
+                            }
+                          }}
                           data-testid={`accordion-trigger-${variable.id}`}
                         >
-                          <div className="flex items-center gap-2 flex-1">
-                            <span className="text-sm font-semibold font-sans text-foreground">
+                          <div className="flex items-center gap-2 min-w-0 flex-1" style={{ overflow: 'hidden' }}>
+                            <span 
+                              className={`text-sm font-semibold font-sans ${selectedVariableId === variable.id ? 'text-primary' : 'text-foreground'}`}
+                              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            >
                               {variable.label}
                             </span>
                             <Badge
                               variant="secondary"
-                              className="text-xs font-medium font-sans bg-muted text-foreground border border-border"
+                              className="text-xs font-medium font-sans bg-muted text-foreground border border-border shrink-0"
                             >
                               {variable.type}
                             </Badge>
                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-2 space-y-2">
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1">
-                              <Label className="text-xs">Label</Label>
-                              <Input
-                                value={variable.label}
-                                onChange={(e) =>
-                                  updateVariable(variable.id, {
-                                    label: e.target.value,
-                                  })
-                                }
-                                className="h-8 text-sm mt-1"
-                                placeholder="Label"
+                          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openVariables.includes(variable.id) ? 'rotate-180' : ''}`} />
+                        </div>
+                        
+                        {openVariables.includes(variable.id) && (
+                          <div className="pt-3 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <div style={{ flex: '1 1 0', width: 0, minWidth: 0 }}>
+                                <Label className="text-xs">Label</Label>
+                                <Input
+                                  value={variable.label}
+                                  onChange={(e) =>
+                                    updateVariable(variable.id, {
+                                      label: e.target.value,
+                                    })
+                                  }
+                                  className="h-8 text-sm mt-1"
+                                  placeholder="Label"
+                                  disabled={isShowcase}
+                                  data-testid={`input-label-${variable.id}`}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 mt-6 shrink-0"
+                                onClick={() => deleteVariable(variable.id)}
                                 disabled={isShowcase}
-                                data-testid={`input-label-${variable.id}`}
-                              />
+                                data-testid={`button-delete-${variable.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 mt-6"
-                              onClick={() => deleteVariable(variable.id)}
-                              disabled={isShowcase}
-                              data-testid={`button-delete-${variable.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
 
                           <div className="space-y-1">
                             <Label className="text-xs">Internal Name</Label>
@@ -1851,10 +1857,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           >
                             Done
                           </Button>
-                        </AccordionContent>
-                      </AccordionItem>
+                        </div>
+                        )}
+                      </div>
                     ))}
-                  </Accordion>
+                  </div>
                 )}
               </ScrollArea>
             </CardContent>

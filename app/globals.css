@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Fix for grid children overflowing their columns */
+.lg\:grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Force inputs to respect container width */
+input,
+textarea {
+  max-width: 100%;
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0, 0, 0, 0.1);
