@@ -99,60 +99,49 @@ export function getConfig(): EnvironmentConfig {
     
     if (isBuildTime) {
       // Create a minimal config for build time
-      // Use zod's safeParse with defaults
+      // Ensure all secrets meet minimum length requirements
       const buildDefaults = {
-        DATABASE_URL: 'postgresql://localhost:5432/aigency',
-        GOOGLE_GEMINI_API_KEY: 'build-time-placeholder',
-        THIRDWEB_SECRET_KEY: 'build-time-placeholder',
-        TREASURY_ADDRESS: '0x0000000000000000000000000000000000000000',
-        JWT_SECRET: 'build-time-placeholder-jwt-secret-min-32-chars-long',
-        SESSION_SECRET: 'build-time-placeholder-session-secret-min-32-chars',
-        ...process.env,
+        ...process.env, // Start with env vars
+        // Override with safe defaults for any missing/invalid values
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://localhost:5432/aigency',
+        GOOGLE_GEMINI_API_KEY: process.env.GOOGLE_GEMINI_API_KEY || 'build-time-placeholder-key-min-length',
+        THIRDWEB_SECRET_KEY: process.env.THIRDWEB_SECRET_KEY || 'build-time-placeholder-key-min-length',
+        TREASURY_ADDRESS: process.env.TREASURY_ADDRESS || '0x0000000000000000000000000000000000000000',
+        JWT_SECRET: process.env.JWT_SECRET || 'build-time-placeholder-jwt-secret-minimum-32-characters-long',
+        SESSION_SECRET: process.env.SESSION_SECRET || 'build-time-placeholder-session-secret-minimum-32-characters',
       };
-      
+
       const result = envSchema.safeParse(buildDefaults);
       if (result.success) {
         _config = result.data;
       } else {
-        // Fallback to minimal valid config with proper types
-        // Parse with zod to get transformed values, but catch errors
-        try {
-          _config = envSchema.parse({
-            DATABASE_URL: 'postgresql://localhost:5432/aigency',
-            GOOGLE_GEMINI_API_KEY: 'build-time-placeholder',
-            THIRDWEB_SECRET_KEY: 'build-time-placeholder',
-            TREASURY_ADDRESS: '0x0000000000000000000000000000000000000000',
-            JWT_SECRET: 'build-time-placeholder-jwt-secret-min-32-chars-long',
-            SESSION_SECRET: 'build-time-placeholder-session-secret-min-32-chars',
-            ...process.env,
-          });
-        } catch {
-          // If parsing still fails, use a type-safe fallback
-          // This should rarely happen, but ensures build doesn't fail
-          _config = envSchema.parse({
-            DATABASE_URL: process.env.DATABASE_URL || 'postgresql://localhost:5432/aigency',
-            GOOGLE_GEMINI_API_KEY: process.env.GOOGLE_GEMINI_API_KEY || 'build-time-placeholder',
-            THIRDWEB_SECRET_KEY: process.env.THIRDWEB_SECRET_KEY || 'build-time-placeholder',
-            TREASURY_ADDRESS: process.env.TREASURY_ADDRESS || '0x0000000000000000000000000000000000000000',
-            JWT_SECRET: process.env.JWT_SECRET || 'build-time-placeholder-jwt-secret-min-32-chars-long',
-            SESSION_SECRET: process.env.SESSION_SECRET || 'build-time-placeholder-session-secret-min-32-chars',
-            NODE_ENV: process.env.NODE_ENV || 'production',
-            PORT: process.env.PORT || '5000',
-            NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-            LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-            RATE_LIMIT_REQUESTS: process.env.RATE_LIMIT_REQUESTS || '100',
-            RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW || '15',
-            RATE_LIMIT_GENERATIONS: process.env.RATE_LIMIT_GENERATIONS || '10',
-            RATE_LIMIT_UPLOADS: process.env.RATE_LIMIT_UPLOADS || '50',
-            ENABLE_IPFS_STORAGE: process.env.ENABLE_IPFS_STORAGE || 'false',
-            ENABLE_LUKSO_PROFILES: process.env.ENABLE_LUKSO_PROFILES || 'true',
-            ENABLE_PAYMENTS: process.env.ENABLE_PAYMENTS || 'false',
-            ENABLE_ANALYTICS: process.env.ENABLE_ANALYTICS || 'false',
-            GEMINI_RATE_LIMIT_REQUESTS: process.env.GEMINI_RATE_LIMIT_REQUESTS || '50',
-            GEMINI_RATE_LIMIT_WINDOW: process.env.GEMINI_RATE_LIMIT_WINDOW || '60',
-            CORS_ORIGINS: process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5000',
-          });
-        }
+        // Log validation errors during build for debugging
+        console.warn('Build-time environment validation failed, using safe defaults:', result.error.issues);
+
+        // Use completely safe fallback configuration
+        _config = envSchema.parse({
+          DATABASE_URL: 'postgresql://localhost:5432/aigency',
+          GOOGLE_GEMINI_API_KEY: 'build-time-placeholder-key-minimum-length-requirement',
+          THIRDWEB_SECRET_KEY: 'build-time-placeholder-key-minimum-length-requirement',
+          TREASURY_ADDRESS: '0x0000000000000000000000000000000000000000',
+          JWT_SECRET: 'build-time-placeholder-jwt-secret-minimum-32-characters-long',
+          SESSION_SECRET: 'build-time-placeholder-session-secret-minimum-32-characters',
+          NODE_ENV: 'production',
+          PORT: '5000',
+          NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000',
+          LOG_LEVEL: 'info',
+          RATE_LIMIT_REQUESTS: '100',
+          RATE_LIMIT_WINDOW: '15',
+          RATE_LIMIT_GENERATIONS: '10',
+          RATE_LIMIT_UPLOADS: '50',
+          ENABLE_IPFS_STORAGE: 'false',
+          ENABLE_LUKSO_PROFILES: 'true',
+          ENABLE_PAYMENTS: 'false',
+          ENABLE_ANALYTICS: 'false',
+          GEMINI_RATE_LIMIT_REQUESTS: '50',
+          GEMINI_RATE_LIMIT_WINDOW: '60',
+          CORS_ORIGINS: 'http://localhost:3000,http://localhost:5000',
+        });
       }
     } else {
       _config = validateEnvironment();
