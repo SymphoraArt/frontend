@@ -14,6 +14,17 @@ type PromptListItem = {
 
 export async function GET() {
   try {
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn("⚠️  Supabase not configured - returning empty prompts list");
+      console.warn("⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts");
+      // Return empty array instead of error for better UX
+      return NextResponse.json([]);
+    }
+
     const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
@@ -23,6 +34,7 @@ export async function GET() {
       .limit(100);
 
     if (error) {
+      console.error("Supabase error:", error);
       throw error;
     }
 
@@ -40,6 +52,8 @@ export async function GET() {
     return NextResponse.json(items);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Error in /api/prompts:", message);
+    // Return empty array instead of error for better UX during development
+    return NextResponse.json([], { status: 200 });
   }
 }

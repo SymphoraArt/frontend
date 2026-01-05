@@ -10,7 +10,7 @@
  * Maintains 100% backward compatibility with existing USDC flows.
  */
 
-import { type ChainKey } from "../../shared/payment-config";
+import { type ChainKey } from "../shared/payment-config";
 import { X402PaymentEngine, type PaymentRequest, type PaymentResult } from "./x402-engine";
 import { MultiTokenPaymentEngine, type TokenPaymentRequest } from "./multi-token-engine";
 import { CrossChainPaymentAggregator, type UnifiedPaymentRequest } from "./cross-chain-aggregator";
@@ -18,7 +18,7 @@ import { tokenRegistry } from "./token-registry";
 import { priceOracle } from "./price-oracle";
 import { tokenRiskEngine } from "./token-risk-engine";
 import { chainSelector } from "./chain-selector";
-import { log } from "./app";
+import { log } from "./logger";
 
 /**
  * Payment system mode

@@ -50,6 +50,26 @@ import { apiRequest } from "@/lib/queryClient";
 import PromptSettingsPanel from "./PromptSettingsPanel";
 import { usePrivy } from "@privy-io/react-auth";
 import { addCreation, getUserKeyFromPrivyUser } from "@/lib/creations";
+import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
+import { useBestPaymentChain } from "@/hooks/useWalletBalance";
+import type { ChainKey } from "@/shared/payment-config";
+
+// Safe wrapper for usePrivy to handle cases where Privy is not available
+function useSafePrivy() {
+  try {
+    return usePrivy();
+  } catch (error) {
+    // Privy is not available, return default values
+    console.warn("Privy not available in PromptEditor, using fallback auth state");
+    return {
+      ready: true, // Allow components to work even when Privy fails
+      authenticated: false,
+      user: null,
+      login: () => console.warn("Login not available"),
+      logout: () => console.warn("Logout not available"),
+    };
+  }
+}
 
 type VariableType =
   | "text"
@@ -100,7 +120,11 @@ interface PromptEditorProps {
 }
 
 export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
-  const { user } = usePrivy();
+  const { user } = useSafePrivy();
+  const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
+  const { chainKey: bestChain } = useBestPaymentChain();
+  const [selectedChain, setSelectedChain] = useState<ChainKey>(bestChain || 'base-sepolia');
+  
   const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -772,10 +796,15 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     setGeneratedImage(null);
 
     try {
-      const response = await apiRequest("POST", "/api/generate-image", {
+      // Use X402 payment hook for image generation
+      const data = await generateImageWithPayment(
+        {
         prompt: previewText,
-      });
-      const data = await response.json();
+          resolution: '2K', // Default resolution
+        },
+        selectedChain
+      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+      
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromPrivyUser(user);
       if (userKey && data?.imageUrl) {
@@ -804,11 +833,22 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         description: "Your image was generated successfully.",
       });
     } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      // Check if it's a payment/wallet error
+      if (errorMessage?.includes('Wallet not connected') || errorMessage?.includes('wallet')) {
+        toast({
+          title: "Wallet Connection Required",
+          description: "Please connect your wallet to generate images. Click the wallet icon in the navbar.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else {
       toast({
         title: "Generation Failed",
-        description: getErrorMessage(error) || "Error generating image.",
+          description: errorMessage || "Error generating image.",
         variant: "destructive",
       });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -822,10 +862,15 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     setGeneratedImage(null);
 
     try {
-      const response = await apiRequest("POST", "/api/generate-image", {
+      // Use X402 payment hook for image generation
+      const data = await generateImageWithPayment(
+        {
         prompt: previewText,
-      });
-      const data = await response.json();
+          resolution: '2K', // Default resolution
+        },
+        selectedChain
+      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+      
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromPrivyUser(user);
       if (userKey && data?.imageUrl) {
@@ -854,11 +899,22 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         description: "Your image was generated successfully.",
       });
     } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      // Check if it's a payment/wallet error
+      if (errorMessage?.includes('Wallet not connected') || errorMessage?.includes('wallet')) {
+        toast({
+          title: "Wallet Connection Required",
+          description: "Please connect your wallet to generate images. Click the wallet icon in the navbar.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else {
       toast({
         title: "Generation Failed",
-        description: getErrorMessage(error) || "Error generating image.",
+          description: errorMessage || "Error generating image.",
         variant: "destructive",
       });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -1839,11 +1895,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               <div className="space-y-2">
                 <Button
                   onClick={handleGenerate}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isPaymentPending}
                   className="w-full"
                   data-testid="button-generate"
                 >
-                  {isGenerating ? "Generating..." : "Generate"}
+                  {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
                 </Button>
                 <Button
                   variant="outline"
@@ -2641,9 +2697,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={proceedWithGenerate}
+              disabled={isGenerating || isPaymentPending}
               data-testid="button-proceed-generate"
             >
-              Generate
+              {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

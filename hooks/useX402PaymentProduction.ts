@@ -16,11 +16,33 @@
  * const image = await generateImage({ prompt: 'A cat', resolution: '2K' }, 'base-sepolia');
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFetchWithPayment } from "thirdweb/react";
 import { useActiveAccount } from "thirdweb/react";
 import { thirdwebClient } from "../lib/thirdweb-client";
-import { type ChainKey } from "../lib/payment-config";
+import { type ChainKey, PAYMENT_CHAINS } from "../lib/payment-config";
+import { getContract, readContract } from "thirdweb";
+import { defineChain } from "thirdweb/chains";
+
+/**
+ * ERC-20 ABI (minimal for balance checking)
+ */
+const ERC20_ABI = [
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 export interface ImageGenerationSettings {
   prompt: string;
@@ -58,7 +80,7 @@ export function useX402PaymentProduction() {
   const account = useActiveAccount();
 
   const { fetchWithPayment, isPending } = useFetchWithPayment(thirdwebClient, {
-    maxValue: 10_000_000n, // Maximum 10 USDC (6 decimals)
+    maxValue: BigInt(10000000), // Maximum 10 USDC (6 decimals)
     parseAs: "json",
     theme: "dark",
     uiEnabled: true,
@@ -150,15 +172,79 @@ export function useX402PaymentProduction() {
 
 /**
  * Helper hook to check if user can make payments
- * (Has wallet connected via Privy/Thirdweb)
+ * Checks wallet connection AND USDC balance on specified chain
  */
-export function usePaymentReady() {
+export function usePaymentReady(chain: ChainKey = 'base-sepolia', requiredAmount: number = 0) {
   const account = useSafeActiveAccount();
+  const [balance, setBalance] = useState<bigint | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [decimals, setDecimals] = useState<number>(6); // USDC default
+
+  useEffect(() => {
+    if (!account?.address || requiredAmount === 0) {
+      setBalance(null);
+      return;
+    }
+
+    const checkBalance = async () => {
+      setIsChecking(true);
+      try {
+        const chainConfig = PAYMENT_CHAINS[chain];
+        const thirdwebChain = defineChain({
+          id: chainConfig.id,
+          rpc: chainConfig.rpcUrl,
+        });
+
+        const contract = getContract({
+          client: thirdwebClient,
+          chain: thirdwebChain,
+          address: chainConfig.usdc,
+          abi: ERC20_ABI,
+        });
+
+        // Fetch balance and decimals in parallel
+        const [balanceResult, decimalsResult] = await Promise.all([
+          readContract({
+            contract,
+            method: 'balanceOf',
+            params: [account.address as `0x${string}`],
+          }),
+          readContract({
+            contract,
+            method: 'decimals',
+            params: [],
+          }),
+        ]);
+
+        setBalance(balanceResult);
+        setDecimals(Number(decimalsResult));
+      } catch (error) {
+        console.error('Failed to check USDC balance:', error);
+        setBalance(null);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkBalance();
+  }, [account?.address, chain, requiredAmount]);
+
+  // Convert balance to USD for comparison
+  const balanceUsd = balance !== null
+    ? Number(balance) / Math.pow(10, decimals)
+    : 0;
+
+  const shortfall = requiredAmount > 0 && balance !== null
+    ? Math.max(0, requiredAmount - balanceUsd)
+    : 0;
 
   return {
-    isReady: !!account,
+    isReady: !!account && (requiredAmount === 0 || balanceUsd >= requiredAmount),
     needsConnection: !account,
-    needsFunding: false, // TODO: Check USDC balance in next hook
+    needsFunding: balance !== null && balanceUsd < requiredAmount,
     walletAddress: account?.address,
+    balance: balanceUsd,
+    shortfall,
+    isChecking,
   };
 }

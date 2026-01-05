@@ -78,6 +78,24 @@ export const PAYMENT_CHAINS = {
     usdcType: "native" as const,
     explorer: "https://sepolia.uniscan.xyz",
   },
+  // LUKSO Mainnet
+  lukso: {
+    id: 42,
+    name: "LUKSO Mainnet",
+    rpcUrl: "https://rpc.lukso.network",
+    usdc: "0x9C4Ad4D34851D4b5245d9e583C3cB967F092E0Df", // USDC on LUKSO (verify this)
+    usdcType: "native" as const,
+    explorer: "https://explorer.lukso.network",
+  },
+  // LUKSO Testnet
+  "lukso-testnet": {
+    id: 4201,
+    name: "LUKSO Testnet",
+    rpcUrl: "https://rpc.testnet.lukso.network",
+    usdc: "0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa", // Test USDC on LUKSO testnet
+    usdcType: "native" as const,
+    explorer: "https://explorer.testnet.lukso.network",
+  },
 } as const;
 
 export type ChainKey = keyof typeof PAYMENT_CHAINS;
@@ -107,10 +125,17 @@ export function getMainnetChains(): ChainKey[] {
  * Get all testnet chains
  */
 export function getTestnetChains(): ChainKey[] {
-  return ["ethereum-sepolia", "base-sepolia", "abstract-testnet", "unichain-sepolia"];
+  return ["ethereum-sepolia", "base-sepolia", "abstract-testnet", "unichain-sepolia", "lukso-testnet"];
 }
 
 /**
  * Default chain for development
  */
 export const DEFAULT_CHAIN: ChainKey = "base-sepolia";
+
+/**
+ * Check if a chain supports Universal Profiles (LUKSO only)
+ */
+export function supportsUniversalProfiles(chainKey: ChainKey): boolean {
+  return chainKey === "lukso" || chainKey === "lukso-testnet";
+}

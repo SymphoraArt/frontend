@@ -51,24 +51,25 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
 
   try {
     const body = (await request.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-    
+
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
     // Determine price based on resolution
-    const prices: Record<string, string> = {
-      '1K': '$0.05',
-      '2K': '$0.10',
-      '4K': '$0.25',
-    };
+  const prices: Record<string, string> = {
+    '1K': '$0.05',
+    '2K': '$0.10',
+    '4K': '$0.25',
+  };
     const price = prices[body.resolution || '2K'] || '$0.10';
 
     const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
@@ -79,9 +80,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Construct full URL for X402 payment (requires absolute URL)
+    // Use NEXT_PUBLIC_APP_URL if available, otherwise construct from request
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    
+    if (!baseUrl) {
+      // Fallback: construct from request URL
+      const protocol = requestUrl.protocol || 'http:';
+      const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
+      baseUrl = `${protocol}//${host}`;
+    }
+    
+    // Ensure baseUrl doesn't end with slash
+    baseUrl = baseUrl.replace(/\/$/, '');
+    
+    const resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
+    
+    // Validate URL format
+    try {
+      const testUrl = new URL(resourceUrl);
+      if (!testUrl.protocol || !testUrl.host) {
+        throw new Error('Invalid URL: missing protocol or host');
+      }
+    } catch (urlError) {
+      console.error('❌ Invalid resourceUrl constructed:', resourceUrl);
+      console.error('❌ URL construction error:', urlError);
+      return NextResponse.json(
+        { error: 'Failed to construct payment URL', details: urlError instanceof Error ? urlError.message : String(urlError) },
+        { status: 500 }
+      );
+    }
+    
+    console.log('💳 X402 Payment Request:', {
+      resourceUrl,
+      method: 'POST',
+      chain,
+      price,
+      hasPaymentHeader: !!paymentHeader,
+      serverWallet: serverWalletAddress?.slice(0, 10) + '...',
+    });
+
     // Process payment first (X402)
     const paymentResult = await paymentEngine.settle({
-      resourceUrl: '/api/generate-image',
+      resourceUrl: resourceUrl,
       method: 'POST',
       paymentHeader: paymentHeader || undefined,
       chainKey: chain,
@@ -89,6 +130,13 @@ export async function POST(request: NextRequest) {
       description: `Generate ${body.resolution || '2K'} image`,
       payToAddress: serverWalletAddress,
       category: 'image-generation',
+    });
+
+    console.log('💳 X402 Payment Result:', {
+      success: paymentResult.success,
+      status: paymentResult.status,
+      hasMetadata: !!paymentResult.metadata,
+      txHash: paymentResult.metadata?.txHash,
     });
 
     // If payment not successful, return payment response

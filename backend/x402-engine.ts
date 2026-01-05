@@ -6,8 +6,8 @@
 
 import { settlePayment, decodePayment } from "thirdweb/x402";
 import { thirdwebFacilitator } from "./facilitator";
-import { PAYMENT_CHAINS, type ChainKey } from "../../shared/payment-config";
-import { log } from "./app";
+import { PAYMENT_CHAINS, type ChainKey } from "../shared/payment-config";
+import { log } from "./logger";
 
 /**
  * Payment configuration constants
@@ -219,6 +219,15 @@ export class X402PaymentEngine {
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Log detailed error information for debugging
+        const errorDetails = error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+        } : { message: String(error) };
+        
+        log(`❌ Payment error on attempt ${attempt}: ${JSON.stringify(errorDetails, null, 2)}`, 'payment-engine');
 
         // Check if error is transient and we should retry
         if (isTransientError(lastError) && attempt < RETRY_CONFIG.maxAttempts) {

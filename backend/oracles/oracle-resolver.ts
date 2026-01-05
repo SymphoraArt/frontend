@@ -14,7 +14,7 @@
 import { type ChainKey } from "../../shared/payment-config";
 import { chainlinkOracle, type ChainlinkPriceResult, ChainlinkOracleError } from "./chainlink-oracle";
 import { uniswapTwapOracle, type TwapPriceResult, UniswapOracleError } from "./uniswap-twap-oracle";
-import { log } from "../app";
+import { log } from "../logger";
 
 /**
  * Price source used for resolution

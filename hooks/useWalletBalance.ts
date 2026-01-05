@@ -78,17 +78,17 @@ export function usePaymentBalance(chainKey: ChainKey): BalanceInfo {
 
   // Convert balance from wei to human-readable (USDC has 6 decimals)
   const displayBalance = balance?.displayValue || "0";
-  const rawBalance = balance?.value || 0n;
+  const rawBalance = balance?.value || BigInt(0);
 
   // Minimum transaction is 0.01 USDC = 10000 wei (6 decimals)
-  const MIN_BALANCE = 10_000n;
+  const MIN_BALANCE = BigInt(10000);
 
   return {
     balance: rawBalance,
     displayBalance,
     symbol,
     isLoading,
-    hasBalance: rawBalance > 0n,
+    hasBalance: rawBalance > BigInt(0),
     hasSufficientBalance: rawBalance >= MIN_BALANCE,
     chain: chainKey,
   };
@@ -110,15 +110,15 @@ export function useMultiChainBalances(chains: ChainKey[]) {
 
   const isAnyLoading = Object.values(balances).some(b => b.isLoading);
   const totalBalance = Object.values(balances).reduce(
-    (sum, b) => sum + (b.balance || 0n),
-    0n
+    (sum, b) => sum + (b.balance || BigInt(0)),
+    BigInt(0)
   );
 
   return {
     balances,
     isLoading: isAnyLoading,
     totalBalance,
-    hasAnyBalance: totalBalance > 0n,
+    hasAnyBalance: totalBalance > BigInt(0),
   };
 }
 

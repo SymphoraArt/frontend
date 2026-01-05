@@ -26,12 +26,33 @@ export function useNavbarVisibility() {
   return useContext(NavbarContext);
 }
 
+// Safe wrapper for usePrivy to handle cases where Privy is not available
+function useSafePrivy() {
+  try {
+    return usePrivy();
+  } catch (error) {
+    // Privy is not available, return default values that enable login
+    console.warn("Privy not available, using fallback auth state (login enabled)");
+    return {
+      ready: true, // Set to true so login button is enabled
+      authenticated: false,
+      user: null,
+      login: () => console.warn("Login not available - Privy failed to initialize"),
+      logout: () => console.warn("Logout not available"),
+    };
+  }
+}
+
 export default function Navbar({
   username = "Artist",
   onSearch,
 }: NavbarProps) {
-  const { ready, authenticated, user, login, logout } = usePrivy();
-  const disableLogin = !ready || (ready && authenticated);
+  const privyResult = useSafePrivy();
+  const { ready, authenticated, user, login, logout } = privyResult;
+
+  // Special handling: if Privy is not ready but available, still allow login attempts
+  // This handles cases where wallet extensions cause initialization issues
+  const disableLogin = authenticated; // Only disable if already authenticated
   const router = useRouter();
   const [showNav, setShowNav] = useState(true);
   const lastScrollYRef = useRef(0);

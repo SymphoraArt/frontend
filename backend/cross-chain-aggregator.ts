@@ -10,11 +10,11 @@
  * Preserves backward compatibility - existing USDC flows work unchanged.
  */
 
-import { type ChainKey } from "../../shared/payment-config";
+import { type ChainKey } from "../shared/payment-config";
 import { X402PaymentEngine, type PaymentRequest, type PaymentResult } from "./x402-engine";
 import { chainSelector, type ChainSelectionCriteria } from "./chain-selector";
 import { tokenRegistry } from "./token-registry";
-import { log } from "./app";
+import { log } from "./logger";
 
 /**
  * Unified payment request across chains
@@ -206,11 +206,6 @@ export class CrossChainPaymentAggregator {
   /**
    * Get unified balance across all chains
    *
-   * Note: This is a placeholder implementation. In production, you would:
-   * - Query actual token balances from each chain
-   * - Use the user's wallet address
-   * - Fetch real-time prices for USD conversion
-   *
    * @param userId - User identifier (wallet address)
    * @returns Unified balance across all chains
    */
@@ -226,21 +221,113 @@ export class CrossChainPaymentAggregator {
       return cached;
     }
 
-    // TODO: Implement actual balance fetching from chains
-    // For now, return placeholder data
-    const breakdownByChain: Record<ChainKey, ChainBalance> = {} as any;
+    log(`Fetching cross-chain balances for ${userId}`, 'aggregator');
+
+    // Import dependencies
+    const { createThirdwebClient, getContract, readContract } = await import('thirdweb');
+    const { defineChain } = await import('thirdweb/chains');
+    const { PAYMENT_CHAINS } = await import('../shared/payment-config');
+
+    const client = createThirdwebClient({
+      secretKey: process.env.THIRDWEB_SECRET_KEY || '',
+    });
+
+    const ERC20_ABI = [
+      {
+        inputs: [{ name: 'account', type: 'address' }],
+        name: 'balanceOf',
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [],
+        name: 'decimals',
+        outputs: [{ name: '', type: 'uint8' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ] as const;
+
+    const breakdownByChain: Partial<Record<ChainKey, ChainBalance>> = {};
     let totalBalanceUsd = 0;
 
-    log(`Balance aggregation not yet implemented for user ${userId}`, 'aggregator');
+    // Fetch balances from all chains in parallel
+    const chainKeys = Object.keys(PAYMENT_CHAINS) as ChainKey[];
+    const balancePromises = chainKeys.map(async (chainKey) => {
+      try {
+        const chainConfig = PAYMENT_CHAINS[chainKey];
+        const thirdwebChain = defineChain({
+          id: chainConfig.id,
+          rpc: chainConfig.rpcUrl,
+        });
+
+        const contract = getContract({
+          client,
+          chain: thirdwebChain,
+          address: chainConfig.usdc,
+          abi: ERC20_ABI,
+        });
+
+        // Fetch balance and decimals in parallel
+        const [balance, decimals] = await Promise.all([
+          readContract({
+            contract,
+            method: 'balanceOf',
+            params: [userId as `0x${string}`],
+          }),
+          readContract({
+            contract,
+            method: 'decimals',
+            params: [],
+          }),
+        ]);
+
+        const balanceUsd = Number(balance) / Math.pow(10, Number(decimals));
+
+        const chainBalance: ChainBalance = {
+          chain: chainKey,
+          tokens: [
+            {
+              symbol: 'USDC',
+              address: chainConfig.usdc,
+              balance: balance.toString(),
+              balanceUsd,
+              decimals: Number(decimals),
+            },
+          ],
+          totalUsd: balanceUsd,
+          pendingUsd: 0, // Would query pending transactions
+          availableUsd: balanceUsd,
+        };
+
+        return { chainKey, chainBalance, balanceUsd };
+      } catch (error) {
+        log(`Failed to fetch balance on ${chainKey}: ${error}`, 'aggregator');
+        return null;
+      }
+    });
+
+    const results = await Promise.all(balancePromises);
+
+    // Aggregate results
+    for (const result of results) {
+      if (result) {
+        breakdownByChain[result.chainKey] = result.chainBalance;
+        totalBalanceUsd += result.balanceUsd;
+      }
+    }
 
     const balance: UnifiedBalance = {
       totalBalanceUsd,
-      breakdownByChain,
+      breakdownByChain: breakdownByChain as Record<ChainKey, ChainBalance>,
       timestamp: new Date(),
     };
 
     // Cache result
     this.balanceCache.set(userId, balance);
+
+    log(`Total balance for ${userId}: $${totalBalanceUsd.toFixed(2)} across ${Object.keys(breakdownByChain).length} chains`, 'aggregator');
 
     return balance;
   }
@@ -460,12 +547,9 @@ export class CrossChainPaymentAggregator {
     route: PaymentRoute,
     result: PaymentResult
   ): void {
-    // TODO: Implement actual analytics emission
-    // Would send to analytics service, metrics aggregator, etc.
-
     const analyticsData = {
       timestamp: new Date().toISOString(),
-      success: result.success,
+      success: result.status,
       chain: route.chain,
       tokenSymbol: route.tokenSymbol,
       priceUsd: parseFloat(request.price.replace('$', '')),
@@ -473,9 +557,32 @@ export class CrossChainPaymentAggregator {
       confirmationSeconds: route.estimatedConfirmationSeconds,
       category: request.category,
       userAddress: request.userAddress,
+      txHash: result.metadata?.txHash,
+      error: result.error,
     };
 
-    log(`Analytics: ${JSON.stringify(analyticsData)}`, 'aggregator');
+    // Log to console (in production, send to analytics service)
+    log(
+      `📊 Payment Analytics: ${result.success ? 'SUCCESS' : 'FAILED'} | ${route.chain} | ${route.tokenSymbol} | $${analyticsData.priceUsd}`,
+      'aggregator'
+    );
+
+    // In production, you would send this to:
+    // - Google Analytics / Mixpanel / Amplitude
+    // - Custom metrics backend
+    // - Blockchain indexer
+    // - MongoDB for historical analysis
+
+    // Example: Send to custom analytics endpoint
+    if (process.env.ANALYTICS_ENDPOINT) {
+      fetch(process.env.ANALYTICS_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(analyticsData),
+      }).catch((error) => {
+        log(`Failed to send analytics: ${error}`, 'aggregator');
+      });
+    }
   }
 
   /**

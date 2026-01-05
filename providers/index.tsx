@@ -6,6 +6,16 @@ import { useState } from "react";
 import { getQueryFn } from "@/lib/queryClient";
 import PrivyWalletProvider from "./PrivyProvider";
 import { ThirdwebProvider } from "./ThirdwebProvider";
+import { usePrivyThirdwebAdapter } from "@/hooks/usePrivyThirdwebAdapter";
+
+/**
+ * Internal component that mounts the Privy → Thirdweb wallet bridge
+ * MUST be inside both PrivyProvider and ThirdwebProvider contexts
+ */
+function WalletBridge({ children }: { children: React.ReactNode }) {
+  usePrivyThirdwebAdapter();
+  return <>{children}</>;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -30,7 +40,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyWalletProvider>
       <QueryClientProvider client={queryClient}>
         <ThirdwebProvider>
-          <TooltipProvider>{children}</TooltipProvider>
+          <WalletBridge>
+            <TooltipProvider>{children}</TooltipProvider>
+          </WalletBridge>
         </ThirdwebProvider>
       </QueryClientProvider>
     </PrivyWalletProvider>

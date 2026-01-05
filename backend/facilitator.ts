@@ -5,7 +5,7 @@
 
 import { createThirdwebClient } from "thirdweb";
 import { facilitator } from "thirdweb/x402";
-import { log } from "./app";
+import { log } from "./logger";
 
 // Validate required environment variables
 if (!process.env.THIRDWEB_SECRET_KEY) {

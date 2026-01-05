@@ -20,6 +20,26 @@ export function getSupabaseServerClient() {
   return getSupabaseAdminClient();
 }
 
+/**
+ * Safe wrapper that checks if Supabase is configured before creating client
+ * Returns null if Supabase is not configured (for graceful degradation)
+ */
+export function getSupabaseServerClientSafe() {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+
+  try {
+    return getSupabaseAdminClient();
+  } catch (error) {
+    console.warn("Failed to create Supabase client:", error);
+    return null;
+  }
+}
+
 export function getSupabaseUserClientFromRequest(req: Request) {
   const url = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY;

@@ -11,9 +11,9 @@
  * Selection is explainable (returns reasoning metadata).
  */
 
-import { PAYMENT_CHAINS, type ChainKey, getMainnetChains, getTestnetChains } from "../../shared/payment-config";
+import { PAYMENT_CHAINS, type ChainKey, getMainnetChains, getTestnetChains } from "../shared/payment-config";
 import { tokenRegistry } from "./token-registry";
-import { log } from "./app";
+import { log } from "./logger";
 
 /**
  * Chain selection criteria and weights
@@ -215,6 +215,20 @@ const ESTIMATED_CHAIN_METRICS: Record<ChainKey, ChainMetrics> = {
     avgConfirmationTime: 2,
     congestionLevel: 0.1,
     successRate: 0.96,
+    lastUpdated: new Date(),
+  },
+  lukso: {
+    avgGasPrice: 0.5,
+    avgConfirmationTime: 5,
+    congestionLevel: 0.2,
+    successRate: 0.97,
+    lastUpdated: new Date(),
+  },
+  "lukso-testnet": {
+    avgGasPrice: 0.1,
+    avgConfirmationTime: 3,
+    congestionLevel: 0.1,
+    successRate: 0.95,
     lastUpdated: new Date(),
   },
 };

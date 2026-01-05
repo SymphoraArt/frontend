@@ -13,11 +13,11 @@
  */
 
 import { X402PaymentEngine, type PaymentRequest, type PaymentResult, type PaymentMetadata } from "./x402-engine";
-import { type ChainKey } from "../../shared/payment-config";
+import { type ChainKey } from "../shared/payment-config";
 import { tokenRegistry, type TokenRegistryEntry } from "./token-registry";
 import { oracleResolver, type ResolvedPrice } from "./oracles/oracle-resolver";
 import { tokenRiskEngine, type RiskAssessment } from "./token-risk-engine";
-import { log } from "./app";
+import { log } from "./logger";
 
 /**
  * Token-specific payment request
@@ -260,7 +260,7 @@ export class MultiTokenPaymentEngine extends X402PaymentEngine {
 
       const baseResult = await super.settle(request as PaymentRequest);
 
-      // Enhance metadata with token information
+      // Always enhance metadata with token information for consistent typing
       if (baseResult.success && baseResult.metadata) {
         const enhancedMetadata: TokenPaymentMetadata = {
           ...baseResult.metadata,
@@ -278,32 +278,72 @@ export class MultiTokenPaymentEngine extends X402PaymentEngine {
         return {
           ...baseResult,
           metadata: enhancedMetadata,
-        };
+        } as TokenPaymentResult;
       }
 
-      return baseResult;
+      // For unsuccessful payments, cast to TokenPaymentResult type
+      return baseResult as TokenPaymentResult;
     }
 
     // For non-stablecoin tokens, we need custom settlement logic
-    // This would involve:
-    // 1. Converting USD amount to token amount using oracle price
-    // 2. Applying slippage bounds
-    // 3. Executing token transfer with X402
-    // 4. Verifying settlement with price bounds
-
-    // TODO: Implement full non-stablecoin settlement
-    // For now, return error indicating this is not yet implemented
     log(
-      `❌ Non-stablecoin settlement not yet implemented for ${tokenSymbol}`,
+      `Processing non-stablecoin settlement for ${tokenSymbol}`,
       'multi-token-engine'
     );
 
-    return {
-      success: false,
-      status: 501,
-      headers: {},
-      error: `Non-stablecoin payments (${tokenSymbol}) are not yet fully implemented. Please use USDC or USDC.e.`,
+    // Create a modified request with adjusted price for the non-stablecoin token
+    // The X402 payment will use the token amount calculated from oracle price
+
+    // Convert token amount to price string format that X402 expects
+    // X402 expects the price in the token's native units
+    const tokenPriceString = `$${tokenAmountWithSlippage.toFixed(token.decimals)}`;
+
+    const modifiedRequest: PaymentRequest = {
+      ...request,
+      price: tokenPriceString, // Use token amount instead of USD amount
     };
+
+    log(
+      `Executing non-stablecoin payment: ${tokenAmountWithSlippage.toFixed(token.decimals)} ${tokenSymbol} for $${priceUsd} USD`,
+      'multi-token-engine'
+    );
+
+    // Execute payment through base engine
+    const baseResult = await super.settle(modifiedRequest);
+
+    // Enhance metadata with token conversion information
+    if (baseResult.success && baseResult.metadata) {
+      const enhancedMetadata: TokenPaymentMetadata = {
+        ...baseResult.metadata,
+        tokenSymbol,
+        tokenAddress,
+        priceUsdAtExecution: resolvedPrice.priceUsd,
+        priceConfidence: resolvedPrice.confidence,
+        tokenAmount: tokenAmountWithSlippage.toFixed(token.decimals),
+        riskScore: riskAssessment?.riskScore || 0,
+        riskLevel: riskAssessment?.riskLevel || "UNKNOWN",
+        slippagePercent,
+        riskAssessed: !skipRiskAssessment,
+      };
+
+      log(
+        `✅ Non-stablecoin payment successful: ${tokenAmountWithSlippage.toFixed(token.decimals)} ${tokenSymbol}`,
+        'multi-token-engine'
+      );
+
+      return {
+        ...baseResult,
+        metadata: enhancedMetadata,
+      } as TokenPaymentResult;
+    }
+
+    // Payment failed - return with token metadata
+    log(
+      `❌ Non-stablecoin payment failed: ${baseResult.error}`,
+      'multi-token-engine'
+    );
+
+    return baseResult as TokenPaymentResult;
   }
 
   /**
@@ -384,8 +424,53 @@ export class MultiTokenPaymentEngine extends X402PaymentEngine {
       blockExplorer: baseQuote.blockExplorer,
       priceConfidence: resolvedPrice.confidence,
       riskLevel: token.riskLevel,
-      estimatedGasCostUsd: 0.5, // Placeholder - would calculate from gas price
+      estimatedGasCostUsd: await this.estimateGasCost(chainKey, tokenSymbol),
     };
+  }
+
+  /**
+   * Estimate gas cost for a payment
+   *
+   * @param chainKey - Chain for the payment
+   * @param tokenSymbol - Token being used
+   * @returns Estimated gas cost in USD
+   */
+  private async estimateGasCost(chainKey: ChainKey, tokenSymbol: string): Promise<number> {
+    try {
+      // Import chain selector for gas price data
+      const { chainSelector } = await import('./chain-selector');
+      const { PAYMENT_CHAINS } = await import('../shared/payment-config');
+
+      const chainMetrics = chainSelector.getChainMetrics(chainKey);
+      const chainConfig = PAYMENT_CHAINS[chainKey];
+
+      // Estimated gas units for ERC-20 transfer + X402 overhead
+      const estimatedGasUnits = 150000; // ~150k gas for safe estimate
+
+      // Calculate gas cost in native token
+      const gasCostGwei = chainMetrics.avgGasPrice * estimatedGasUnits;
+      const gasCostNative = gasCostGwei / 1e9; // Convert Gwei to ETH/native token
+
+      // Estimate native token price in USD
+      // For simplicity, use a conservative ETH price estimate
+      // In production, would use oracle for native token price
+      let nativeTokenPriceUsd = 3000; // Default to ETH price
+
+      // Adjust for L2s (usually cheaper gas but same ETH price)
+      if (chainKey.includes('base') || chainKey.includes('abstract') || chainKey.includes('unichain')) {
+        // L2s use ETH but with much cheaper gas
+        nativeTokenPriceUsd = 3000;
+      }
+
+      const gasCostUsd = gasCostNative * nativeTokenPriceUsd;
+
+      // Return conservative estimate (minimum $0.01)
+      return Math.max(0.01, gasCostUsd);
+    } catch (error) {
+      log(`Failed to estimate gas cost: ${error}`, 'multi-token-engine');
+      // Return safe fallback estimate
+      return 0.50;
+    }
   }
 
   /**
