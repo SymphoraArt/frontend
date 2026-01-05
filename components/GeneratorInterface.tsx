@@ -50,6 +50,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Loader2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -645,6 +647,9 @@ export default function GeneratorInterface({
                   {promptVariables.length > 0 &&
                     promptVariables.map((variable, index) => {
                       const varName = variable.name || variable.id;
+                      const varType = variable.type || "text";
+                      const currentValue = variableValues[varName];
+                      
                       return (
                         <div
                           key={
@@ -654,15 +659,18 @@ export default function GeneratorInterface({
                         >
                           <Label className="text-md text-foreground">
                             {variable.label}
+                            {variable.required && <span className="text-destructive ml-1">*</span>}
                           </Label>
                           {variable.description && (
                             <p className="text-xs text-muted-foreground">
                               {variable.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-2">
+                          
+                          {/* TEXT input */}
+                          {varType === "text" && (
                             <Input
-                              value={variableValues[varName] || ""}
+                              value={currentValue || ""}
                               onChange={(e) =>
                                 setVariableValues((prev) => ({
                                   ...prev,
@@ -671,59 +679,180 @@ export default function GeneratorInterface({
                               }
                               placeholder={
                                 variable.defaultValue
-                                  ? (variable.defaultValue as string)
+                                  ? String(variable.defaultValue)
                                   : `Enter ${variable.label.toLowerCase()}...`
                               }
-                              className="h-8 text-xs flex-1"
+                              className="h-8 text-xs"
                               data-testid={`input-variable-${variable.id}`}
                             />
-                            {variable.allowReferenceImage && (
-                              <>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  ref={(el) => {
-                                    fileInputRefs.current[varName] = el;
-                                  }}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file)
-                                      handleReferenceImageUpload(varName, file);
-                                  }}
-                                  data-testid={`input-file-${variable.id}`}
-                                />
-                                {referenceImages[varName] ? (
-                                  <div className="relative w-8 h-8 rounded-md overflow-hidden border border-border group shrink-0">
-                                    <img
-                                      src={referenceImages[varName]}
-                                      alt="Reference"
-                                      className="w-full h-full object-cover"
+                          )}
+                          
+                          {/* SLIDER input */}
+                          {varType === "slider" && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                  {variable.min ?? 0}
+                                </span>
+                                <span className="text-sm font-mono text-foreground">
+                                  {currentValue || variable.defaultValue || variable.min || 0}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {variable.max ?? 100}
+                                </span>
+                              </div>
+                              <Slider
+                                value={[Number(currentValue || variable.defaultValue || variable.min || 0)]}
+                                onValueChange={([val]) =>
+                                  setVariableValues((prev) => ({
+                                    ...prev,
+                                    [varName]: String(val),
+                                  }))
+                                }
+                                min={variable.min ?? 0}
+                                max={variable.max ?? 100}
+                                step={1}
+                                className="w-full"
+                                data-testid={`slider-variable-${variable.id}`}
+                              />
+                            </div>
+                          )}
+                          
+                          {/* SINGLE-SELECT dropdown */}
+                          {varType === "single-select" && variable.options && (
+                            <Select
+                              value={currentValue || String(variable.defaultValue || "")}
+                              onValueChange={(val) =>
+                                setVariableValues((prev) => ({
+                                  ...prev,
+                                  [varName]: val,
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs" data-testid={`select-variable-${variable.id}`}>
+                                <SelectValue placeholder={`Select ${variable.label.toLowerCase()}...`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {variable.options.map((opt, optIdx) => (
+                                  <SelectItem 
+                                    key={optIdx} 
+                                    value={opt.promptValue}
+                                    className="text-xs"
+                                  >
+                                    {opt.visibleName || opt.promptValue}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          
+                          {/* MULTI-SELECT checkboxes */}
+                          {varType === "multi-select" && variable.options && (
+                            <div className="space-y-2 pl-1">
+                              {variable.options.map((opt, optIdx) => {
+                                const optValue = opt.promptValue;
+                                const selectedValues = (currentValue || "").split(",").filter(Boolean);
+                                const isChecked = selectedValues.includes(optValue);
+                                
+                                return (
+                                  <div key={optIdx} className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`${varName}-${optIdx}`}
+                                      checked={isChecked}
+                                      onCheckedChange={(checked) => {
+                                        const newValues = checked
+                                          ? [...selectedValues, optValue]
+                                          : selectedValues.filter((v) => v !== optValue);
+                                        setVariableValues((prev) => ({
+                                          ...prev,
+                                          [varName]: newValues.join(","),
+                                        }));
+                                      }}
+                                      data-testid={`checkbox-${variable.id}-${optIdx}`}
                                     />
-                                    <button
-                                      onClick={() =>
-                                        removeReferenceImage(varName)
-                                      }
-                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                      data-testid={`button-remove-ref-${variable.id}`}
+                                    <label
+                                      htmlFor={`${varName}-${optIdx}`}
+                                      className="text-xs text-foreground cursor-pointer"
                                     >
-                                      <X className="h-3 w-3 text-white" />
-                                    </button>
+                                      {opt.visibleName || opt.promptValue}
+                                    </label>
                                   </div>
-                                ) : (
+                                );
+                              })}
+                            </div>
+                          )}
+                          
+                          {/* CHECKBOX toggle */}
+                          {varType === "checkbox" && (
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={varName}
+                                checked={currentValue === "true" || currentValue === "1"}
+                                onCheckedChange={(checked) =>
+                                  setVariableValues((prev) => ({
+                                    ...prev,
+                                    [varName]: checked ? "true" : "false",
+                                  }))
+                                }
+                                data-testid={`checkbox-variable-${variable.id}`}
+                              />
+                              <label
+                                htmlFor={varName}
+                                className="text-xs text-foreground cursor-pointer"
+                              >
+                                {variable.defaultValue ? "Enabled" : "Enable this option"}
+                              </label>
+                            </div>
+                          )}
+                          
+                          {/* Reference image upload (for any type) */}
+                          {variable.allowReferenceImage && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={(el) => {
+                                  fileInputRefs.current[varName] = el;
+                                }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file)
+                                    handleReferenceImageUpload(varName, file);
+                                }}
+                                data-testid={`input-file-${variable.id}`}
+                              />
+                              {referenceImages[varName] ? (
+                                <div className="relative w-8 h-8 rounded-md overflow-hidden border border-border group shrink-0">
+                                  <img
+                                    src={referenceImages[varName]}
+                                    alt="Reference"
+                                    className="w-full h-full object-cover"
+                                  />
                                   <button
                                     onClick={() =>
-                                      fileInputRefs.current[varName]?.click()
+                                      removeReferenceImage(varName)
                                     }
-                                    className="w-8 h-8 rounded-md border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center shrink-0 transition-colors"
-                                    data-testid={`button-add-ref-${variable.id}`}
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                    data-testid={`button-remove-ref-${variable.id}`}
                                   >
-                                    <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <X className="h-3 w-3 text-white" />
                                   </button>
-                                )}
-                              </>
-                            )}
-                          </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    fileInputRefs.current[varName]?.click()
+                                  }
+                                  className="w-8 h-8 rounded-md border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center shrink-0 transition-colors"
+                                  data-testid={`button-add-ref-${variable.id}`}
+                                >
+                                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              )}
+                              <span className="text-xs text-muted-foreground">Add reference</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
