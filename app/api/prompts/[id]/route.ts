@@ -37,7 +37,41 @@ export async function GET(
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ prompt });
+    // Fetch variables for this prompt
+    const { data: variables, error: varsError } = await supabase
+      .from("variables")
+      .select("*")
+      .eq("prompt_id", id)
+      .order("position", { ascending: true });
+
+    if (varsError) throw varsError;
+
+    // Map variables to expected format
+    const mappedVariables = (variables || []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      label: v.label,
+      description: v.description || "",
+      type: v.type,
+      defaultValue: v.default_value,
+      required: v.required || false,
+      position: v.position || 0,
+      min: v.min,
+      max: v.max,
+      options: v.options,
+      allowReferenceImage: false,
+    }));
+
+    // Return prompt with nested promptData.variables for GeneratorInterface compatibility
+    return NextResponse.json({
+      prompt: {
+        ...prompt,
+        _id: prompt.id,
+        promptData: {
+          variables: mappedVariables,
+        },
+      },
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: message }, { status: 500 });

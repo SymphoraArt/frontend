@@ -56,7 +56,8 @@ type VariableType =
   | "checkbox"
   | "multi-select"
   | "single-select"
-  | "slider";
+  | "slider"
+  | "radio";
 type PromptType = "showcase" | "free-prompt" | "paid-prompt";
 
 interface PromptSettings {
