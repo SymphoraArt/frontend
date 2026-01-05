@@ -1,5 +1,5 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*", "app/**/*", "backend/**/*"],
+  "include": ["client/src/**/*", "shared/**/*", "server/**/*", "app/**/*", "backend/**/*", "components/**/*", "hooks/**/*", "lib/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
@@ -17,6 +17,9 @@
     "types": ["node", "vite/client", "react", "react-dom"],
     "paths": {
       "@/*": ["./client/src/*", "./app/*"],
+      "@/components/*": ["./components/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/lib/*": ["./lib/*"],
       "@/backend/*": ["./backend/*"],
       "@/shared/*": ["./shared/*"],
       "@shared/*": ["./shared/*"]
