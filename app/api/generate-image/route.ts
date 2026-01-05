@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { paymentEngine } from "@/backend/x402-engine";
-import type { ChainKey } from "@/shared/payment-config";
 
 type GenerateImageBody = {
   prompt?: string;
@@ -51,10 +49,6 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
-  const paymentHeader = request.headers.get('X-Payment');
-
   try {
     const body = (await request.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -63,44 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    // Determine price based on resolution
-    const prices: Record<string, string> = {
-      '1K': '$0.05',
-      '2K': '$0.10',
-      '4K': '$0.25',
-    };
-    const price = prices[body.resolution || '2K'] || '$0.10';
-
-    const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
-    if (!serverWalletAddress) {
-      return NextResponse.json(
-        { error: 'SERVER_WALLET_ADDRESS is not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Process payment first (X402)
-    const paymentResult = await paymentEngine.settle({
-      resourceUrl: '/api/generate-image',
-      method: 'POST',
-      paymentHeader: paymentHeader || undefined,
-      chainKey: chain,
-      price,
-      description: `Generate ${body.resolution || '2K'} image`,
-      payToAddress: serverWalletAddress,
-      category: 'image-generation',
-    });
-
-    // If payment not successful, return payment response
-    if (!paymentResult.success) {
-      return NextResponse.json(
-        paymentResult.body || { error: 'Payment required' },
-        { status: paymentResult.status, headers: paymentResult.headers }
-      );
-    }
-
-    // Payment successful - proceed with image generation
-    // (optional) enhance prompt via text Gemini key, then use Pollinations
+    // (optional) enhance prompt via Gemini key, then use Pollinations
     let enhancedPrompt = prompt;
     let usedGemini = false;
     try {
@@ -127,20 +84,12 @@ export async function POST(request: NextRequest) {
       enhancedPrompt
     )}?width=1024&height=1024&nologo=true`;
 
-    // Return image with payment metadata and headers
-    return NextResponse.json(
-      {
-        imageUrl,
-        prompt: enhancedPrompt,
-        provider: "pollinations",
-        usedGemini,
-        metadata: paymentResult.metadata,
-      },
-      {
-        status: 200,
-        headers: paymentResult.headers,
-      }
-    );
+    return NextResponse.json({
+      imageUrl,
+      prompt: enhancedPrompt,
+      provider: "pollinations",
+      usedGemini,
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Generate image error:", message);

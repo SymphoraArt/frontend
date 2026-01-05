@@ -1,25 +1,64 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*", "app/**/*", "backend/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "include": [
+    "client/src/**/*",
+    "shared/**/*",
+    "server/**/*",
+    "app/**/*",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "**/*.test.ts",
+    "backend/**/*"
+  ],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
     "module": "ESNext",
     "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
-    "jsx": "preserve",
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable"
+    ],
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "baseUrl": ".",
-    "types": ["node", "vite/client", "react", "react-dom"],
+    "types": [
+      "node",
+      "vite/client",
+      "react",
+      "react-dom"
+    ],
     "paths": {
-      "@/*": ["./client/src/*", "./app/*"],
-      "@/backend/*": ["./backend/*"],
-      "@/shared/*": ["./shared/*"],
-      "@shared/*": ["./shared/*"]
-    }
+      "@/*": [
+        "./*"
+      ],
+      "@/backend/*": [
+        "./backend/*"
+      ],
+      "@/shared/*": [
+        "./shared/*"
+      ],
+      "@shared/*": [
+        "./shared/*"
+      ]
+    },
+    "target": "ES2020",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   }
 }
