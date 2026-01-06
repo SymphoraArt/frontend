@@ -12,7 +12,7 @@ process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
 process.env.GOOGLE_GEMINI_API_KEY = 'test-key'; // Will fail but tests infrastructure
 
-import { processGeneration, getGenerationStats } from '../services/generation-processor.js';
+import { processGeneration, getGenerationStats } from '../services/generation-processor';
 
 async function testProcessingPipeline() {
   console.log('🔧 Testing Processing Pipeline Infrastructure...\n');
@@ -38,7 +38,7 @@ async function testProcessingPipeline() {
     // Test 2: Service integration
     console.log('\n2️⃣ Testing service integration...');
 
-    const services = await import('../services/index.js');
+    const services = await import('../services/index');
     const requiredFunctions = [
       'generateWithRateLimit',
       'generateWithRetryAndCircuitBreaker',
@@ -62,7 +62,7 @@ async function testProcessingPipeline() {
     // Test 3: Background worker
     console.log('\n3️⃣ Testing background worker...');
 
-    const { startGenerationWorker, getWorkerStatus } = await import('../workers/generation-worker.js');
+    const { startGenerationWorker, getWorkerStatus } = await import('../workers/generation-worker');
 
     if (typeof startGenerationWorker === 'function' && typeof getWorkerStatus === 'function') {
       console.log('✅ Background worker functions imported successfully');
