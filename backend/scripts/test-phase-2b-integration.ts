@@ -78,12 +78,15 @@ async function testProcessingPipeline() {
     console.log('\n4️⃣ Testing Vercel Blob integration...');
 
     // This will test if the import works (actual upload requires API key)
+    // Using eval to avoid static type checking during build (test script only)
     try {
-      await import('@vercel/blob');
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+      const blobModule = await eval('import("@vercel/blob")');
       console.log('✅ @vercel/blob package available');
       console.log('ℹ️ Actual upload testing requires BLOB_READ_WRITE_TOKEN');
-    } catch (error) {
-      console.log('❌ @vercel/blob package not available');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`❌ @vercel/blob package not available: ${errorMessage}`);
     }
 
     // Test 5: Generation processor logic (without actual processing)
