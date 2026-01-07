@@ -6,11 +6,28 @@ type GenerateImageBody = {
   prompt?: string;
   aspectRatio?: string;
   resolution?: string;
+  useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
 };
 
-async function maybeEnhancePrompt(prompt: string): Promise<string> {
+/**
+ * Enhance prompt using Gemini API and track token usage
+ * Returns enhanced prompt and token usage for pricing
+ */
+async function enhancePromptWithGemini(prompt: string): Promise<{
+  enhancedPrompt: string;
+  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
+}> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return prompt;
+  if (!key) {
+    return {
+      enhancedPrompt: prompt,
+      tokensUsed: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
     key
@@ -43,11 +60,29 @@ async function maybeEnhancePrompt(prompt: string): Promise<string> {
     candidates?: Array<{
       content?: { parts?: Array<{ text?: unknown }> };
     }>;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+    };
   };
+  
   const data = (await res.json()) as GeminiResponse;
   const text: unknown = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (typeof text !== "string" || !text.trim()) return prompt;
-  return text.trim();
+  const enhancedPrompt = typeof text === "string" && text.trim() ? text.trim() : prompt;
+  
+  // Extract token usage
+  const usage = data.usageMetadata || {};
+  const inputTokens = usage.promptTokenCount || 0;
+  const outputTokens = usage.candidatesTokenCount || 0;
+  const tokensUsed = usage.totalTokenCount || (inputTokens + outputTokens);
+
+  return {
+    enhancedPrompt,
+    tokensUsed,
+    inputTokens,
+    outputTokens,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -64,14 +99,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    // Determine price based on resolution
-  const prices: Record<string, string> = {
-    '1K': '$0.05',
-    '2K': '$0.10',
-    '4K': '$0.25',
-  };
-    const price = prices[body.resolution || '2K'] || '$0.10';
-
     const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
     if (!serverWalletAddress) {
       return NextResponse.json(
@@ -81,19 +108,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Construct full URL for X402 payment (requires absolute URL)
-    // Use NEXT_PUBLIC_APP_URL if available, otherwise construct from request
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     
     if (!baseUrl) {
-      // Fallback: construct from request URL
       const protocol = requestUrl.protocol || 'http:';
       const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
       baseUrl = `${protocol}//${host}`;
     }
     
-    // Ensure baseUrl doesn't end with slash
     baseUrl = baseUrl.replace(/\/$/, '');
-    
     const resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
     
     // Validate URL format
@@ -104,39 +127,149 @@ export async function POST(request: NextRequest) {
       }
     } catch (urlError) {
       console.error('❌ Invalid resourceUrl constructed:', resourceUrl);
-      console.error('❌ URL construction error:', urlError);
       return NextResponse.json(
         { error: 'Failed to construct payment URL', details: urlError instanceof Error ? urlError.message : String(urlError) },
         { status: 500 }
       );
     }
+
+    // Determine if we should use upto payment scheme
+    // Use upto if: Gemini is enabled AND user requested it OR it's the default
+    const useUpto = body.useUptoPayment !== false && Boolean(process.env.GEMINI_API_KEY);
     
+    // Pricing configuration
+    const prices: Record<string, string> = {
+      '1K': '$0.05',
+      '2K': '$0.10',
+      '4K': '$0.25',
+    };
+    const basePrice = prices[body.resolution || '2K'] || '$0.10';
+
+    // For upto scheme: max price is base price + 50% buffer for Gemini tokens
+    // Min price is base price (for Pollinations image generation)
+    const maxPrice = useUpto 
+      ? `$${(parseFloat(basePrice.replace('$', '')) * 1.5).toFixed(2)}`
+      : basePrice;
+    const minPrice = basePrice;
+
+    // Gemini pricing: $0.00001 per token (very affordable)
+    const GEMINI_PRICE_PER_TOKEN = 0.00001;
+
     console.log('💳 X402 Payment Request:', {
       resourceUrl,
       method: 'POST',
       chain,
-      price,
+      scheme: useUpto ? 'upto' : 'exact',
+      price: useUpto ? `${minPrice} - ${maxPrice}` : basePrice,
       hasPaymentHeader: !!paymentHeader,
       serverWallet: serverWalletAddress?.slice(0, 10) + '...',
     });
 
-    // Process payment first (X402)
-    const paymentResult = await paymentEngine.settle({
-      resourceUrl: resourceUrl,
-      method: 'POST',
-      paymentHeader: paymentHeader || undefined,
-      chainKey: chain,
-      price,
-      description: `Generate ${body.resolution || '2K'} image`,
-      payToAddress: serverWalletAddress,
-      category: 'image-generation',
-    });
+    let paymentResult;
+    let enhancedPrompt = prompt;
+    let usedGemini = false;
+    let geminiTokens = 0;
+
+    if (useUpto) {
+      // Use upto payment scheme: verify first, do work, then settle with actual price
+      paymentResult = await paymentEngine.settleWithUpto(
+        {
+          resourceUrl: resourceUrl,
+          method: 'POST',
+          paymentHeader: paymentHeader || undefined,
+          chainKey: chain,
+          scheme: 'upto',
+          maxPrice: maxPrice,
+          minPrice: minPrice,
+          description: `Generate ${body.resolution || '2K'} image with AI enhancement`,
+          payToAddress: serverWalletAddress,
+          category: 'image-generation',
+        },
+        async () => {
+          // This callback does the expensive work and returns actual price
+          try {
+            // Enhance prompt with Gemini
+            const geminiResult = await enhancePromptWithGemini(prompt);
+            enhancedPrompt = geminiResult.enhancedPrompt;
+            geminiTokens = geminiResult.tokensUsed;
+            usedGemini = geminiTokens > 0;
+
+            // Calculate actual price: base price + Gemini token cost
+            const geminiCost = geminiTokens * GEMINI_PRICE_PER_TOKEN;
+            const basePriceUsd = parseFloat(basePrice.replace('$', ''));
+            const actualPriceUsd = basePriceUsd + geminiCost;
+            const actualPrice = `$${actualPriceUsd.toFixed(4)}`;
+
+            console.log('💰 Gemini token usage:', {
+              tokens: geminiTokens,
+              inputTokens: geminiResult.inputTokens,
+              outputTokens: geminiResult.outputTokens,
+              geminiCost: `$${geminiCost.toFixed(4)}`,
+              basePrice,
+              actualPrice,
+            });
+
+            return {
+              actualPrice,
+              metadata: {
+                geminiTokens,
+                geminiInputTokens: geminiResult.inputTokens,
+                geminiOutputTokens: geminiResult.outputTokens,
+                geminiCost: `$${geminiCost.toFixed(4)}`,
+                basePrice,
+              },
+            };
+          } catch (error) {
+            // If Gemini fails, fall back to base price
+            console.error('⚠️ Gemini enhancement failed, using base price:', error);
+            enhancedPrompt = prompt;
+            usedGemini = false;
+            return {
+              actualPrice: basePrice,
+              metadata: {
+                geminiError: error instanceof Error ? error.message : String(error),
+              },
+            };
+          }
+        }
+      );
+    } else {
+      // Use exact payment scheme (original behavior)
+      paymentResult = await paymentEngine.settle({
+        resourceUrl: resourceUrl,
+        method: 'POST',
+        paymentHeader: paymentHeader || undefined,
+        chainKey: chain,
+        price: basePrice,
+        description: `Generate ${body.resolution || '2K'} image`,
+        payToAddress: serverWalletAddress,
+        category: 'image-generation',
+      });
+
+      // If payment successful, enhance prompt (but don't track tokens for pricing)
+      if (paymentResult.success) {
+        try {
+          const geminiResult = await enhancePromptWithGemini(prompt);
+          if (geminiResult.enhancedPrompt !== prompt) {
+            enhancedPrompt = geminiResult.enhancedPrompt;
+            usedGemini = true;
+            geminiTokens = geminiResult.tokensUsed;
+          }
+        } catch {
+          // Gemini enhancement failed, use original prompt
+          enhancedPrompt = prompt;
+          usedGemini = false;
+        }
+      }
+    }
 
     console.log('💳 X402 Payment Result:', {
       success: paymentResult.success,
       status: paymentResult.status,
+      scheme: useUpto ? 'upto' : 'exact',
       hasMetadata: !!paymentResult.metadata,
       txHash: paymentResult.metadata?.txHash,
+      actualPrice: paymentResult.metadata?.actualPrice,
     });
 
     // If payment not successful, return payment response
@@ -145,21 +278,6 @@ export async function POST(request: NextRequest) {
         paymentResult.body || { error: 'Payment required' },
         { status: paymentResult.status, headers: paymentResult.headers }
       );
-    }
-
-    // Payment successful - proceed with image generation
-    // (optional) enhance prompt via text Gemini key, then use Pollinations
-    let enhancedPrompt = prompt;
-    let usedGemini = false;
-    try {
-      const maybe = await maybeEnhancePrompt(prompt);
-      if (maybe && maybe !== prompt) {
-        enhancedPrompt = maybe;
-        usedGemini = Boolean(process.env.GEMINI_API_KEY);
-      }
-    } catch {
-      enhancedPrompt = prompt;
-      usedGemini = false;
     }
 
     // Add aspect ratio and resolution to prompt if provided
@@ -182,7 +300,16 @@ export async function POST(request: NextRequest) {
         prompt: enhancedPrompt,
         provider: "pollinations",
         usedGemini,
-        metadata: paymentResult.metadata,
+        geminiTokens: usedGemini ? geminiTokens : undefined,
+        paymentScheme: useUpto ? 'upto' : 'exact',
+        metadata: {
+          ...paymentResult.metadata,
+          ...(useUpto && {
+            maxPrice,
+            minPrice,
+            actualPrice: paymentResult.metadata?.actualPrice,
+          }),
+        },
       },
       {
         status: 200,
