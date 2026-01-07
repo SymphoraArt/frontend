@@ -24,10 +24,11 @@ export async function GET(req: Request) {
     }
 
     const { limit = 50, offset = 0 } = queryValidation.data;
-    const userId = searchParams.get("userId");
+    // Support both userKey (legacy) and userId
+    const userId = searchParams.get("userId") || searchParams.get("userKey");
 
     if (!userId) {
-      return createErrorResponse('userId is required', 400);
+      return createErrorResponse('userId or userKey is required', 400);
     }
 
     const supabase = getSupabaseServerClient();
