@@ -6,8 +6,8 @@
  * Tests the complete Gemini integration with the generation processor
  */
 
-import { generateWithRateLimit } from '../services/index.js';
-import { processGeneration } from '../services/generation-processor.js';
+import { generateWithRateLimit } from '../services/index';
+import { processGeneration } from '../services/generation-processor';
 
 // Test Gemini integration directly
 async function testGeminiIntegration() {
@@ -55,7 +55,7 @@ async function testGeminiIntegration() {
     // Test 3: Service exports
     console.log('\n3️⃣ Testing service exports...');
 
-    const services = await import('../services/index.js');
+    const services = await import('../services/index');
     const expectedExports = [
       'generateWithRateLimit',
       'generateWithRetryAndCircuitBreaker',

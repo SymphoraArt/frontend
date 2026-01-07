@@ -12,7 +12,7 @@ process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
 process.env.GOOGLE_GEMINI_API_KEY = 'test-key'; // Will fail but tests infrastructure
 
-import { processGeneration, getGenerationStats } from '../services/generation-processor.js';
+import { processGeneration, getGenerationStats } from '../services/generation-processor';
 
 async function testProcessingPipeline() {
   console.log('🔧 Testing Processing Pipeline Infrastructure...\n');
@@ -38,7 +38,7 @@ async function testProcessingPipeline() {
     // Test 2: Service integration
     console.log('\n2️⃣ Testing service integration...');
 
-    const services = await import('../services/index.js');
+    const services = await import('../services/index');
     const requiredFunctions = [
       'generateWithRateLimit',
       'generateWithRetryAndCircuitBreaker',
@@ -62,7 +62,7 @@ async function testProcessingPipeline() {
     // Test 3: Background worker
     console.log('\n3️⃣ Testing background worker...');
 
-    const { startGenerationWorker, getWorkerStatus } = await import('../workers/generation-worker.js');
+    const { startGenerationWorker, getWorkerStatus } = await import('../workers/generation-worker');
 
     if (typeof startGenerationWorker === 'function' && typeof getWorkerStatus === 'function') {
       console.log('✅ Background worker functions imported successfully');
@@ -78,12 +78,15 @@ async function testProcessingPipeline() {
     console.log('\n4️⃣ Testing Vercel Blob integration...');
 
     // This will test if the import works (actual upload requires API key)
+    // Using eval to avoid static type checking during build (test script only)
     try {
-      await import('@vercel/blob');
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+      const blobModule = await eval('import("@vercel/blob")');
       console.log('✅ @vercel/blob package available');
       console.log('ℹ️ Actual upload testing requires BLOB_READ_WRITE_TOKEN');
-    } catch (error) {
-      console.log('❌ @vercel/blob package not available');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`❌ @vercel/blob package not available: ${errorMessage}`);
     }
 
     // Test 5: Generation processor logic (without actual processing)

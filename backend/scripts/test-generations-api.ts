@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { encryptPrompt } from '../encryption.js';
+import { encryptPrompt } from '../encryption';
 
 /**
  * Simple test script to verify the generations API works
@@ -13,7 +13,7 @@ async function testGenerationsAPI() {
     console.log('1️⃣ Testing variable substitution...');
 
     // Import the service dynamically to avoid module issues
-    const { testUtils } = await import('../services/variable-substitution.js');
+    const { testUtils } = await import('../services/variable-substitution');
 
     // Test the core formatting logic
     const formatTest = testUtils.formatVariableValue(['red', 'blue']);
@@ -53,7 +53,7 @@ async function testGenerationsAPI() {
     // Test 3: Validation schemas
     console.log('\n3️⃣ Testing validation schemas...');
 
-    const { createGenerationSchema } = await import('../../app/middleware/validation.js');
+    const { createGenerationSchema } = await import('../../app/middleware/validation');
 
     const validData = {
       userId: 'test-user',
