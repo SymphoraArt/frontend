@@ -3,6 +3,7 @@
 import FilterBar from "@/components/FilterBar";
 import ArtworkGrid, { type ArtworkItem } from "@/components/ArtworkGrid";
 import CompactPromptCreator from "@/components/CompactPromptCreator";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { Prompt, Artist } from "../shared/schema";
@@ -68,11 +69,19 @@ export default function Gallery() {
             No prompts available yet
           </p>
           <p
-            className="text-foreground/60 text-sm"
+            className="text-foreground/60 text-sm mb-6"
             data-testid="text-empty-hint"
           >
             Be the first to create and release a prompt!
           </p>
+          <Button
+            onClick={() => router.push("/editor")}
+            size="lg"
+            className="gap-2"
+            data-testid="button-create-prompt-cta"
+          >
+            Create Your First Prompt
+          </Button>
         </main>
       </div>
     );

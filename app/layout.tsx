@@ -7,7 +7,6 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
-import "@radix-ui/themes/styles.css";
 import { Providers } from "../providers";
 import Navbar from "@/components/Navbar";
 import ThemeSync from "@/components/ThemeSync";

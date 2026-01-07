@@ -14,7 +14,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Flex } from "@radix-ui/themes";
 
 interface NavbarProps {
   username?: string;
@@ -146,7 +145,7 @@ export default function Navbar({
                 </span>
               </div>
 
-              <Flex gap="2">
+              <div className="flex gap-2">
                 <Button
                   variant={pathname === "/showcase" ? "secondary" : "ghost"}
                   size="sm"
@@ -157,7 +156,7 @@ export default function Navbar({
                   <Eye className="h-4 w-4" />
                   <span className="hidden sm:inline">Showroom</span>
                 </Button>
-              </Flex>
+              </div>
             </div>
 
             <div className="hidden md:flex flex-1 max-w-md lg:max-w-xl">
@@ -173,7 +172,7 @@ export default function Navbar({
               </div>
             </div>
 
-            <Flex align="center" gap="2">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -187,7 +186,7 @@ export default function Navbar({
                   <Moon className="h-4 w-4" />
                 )}
               </Button>
-              <Flex gap="2">
+              <div className="flex gap-2">
                 {authenticated && (
                   <Button
                     variant="default"
@@ -264,8 +263,8 @@ export default function Navbar({
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </Flex>
-            </Flex>
+              </div>
+            </div>
           </div>
         </div>
       </div>

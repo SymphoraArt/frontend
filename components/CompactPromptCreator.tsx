@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
+import QuickVariableCreator from "./QuickVariableCreator";
 
 type VariableType = "text" | "checkbox" | "slider" | "single-select" | "multi-select";
 
@@ -217,6 +218,7 @@ export default function CompactPromptCreator() {
   const [templateSearch, setTemplateSearch] = useState("");
   const [showPaidOnly, setShowPaidOnly] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Extract variables from [name] / [name=value] / [name:type=value|...] syntax
@@ -336,6 +338,68 @@ export default function CompactPromptCreator() {
     setPromptText(newPrompt);
     setSelectedText("");
     setSelectionPosition(null);
+  };
+
+  // Create variable from QuickVariableCreator
+  const createQuickVariable = ({
+    name,
+    type,
+    defaultValue,
+    options,
+  }: {
+    name: string;
+    type: "text" | "number" | "select";
+    defaultValue: string;
+    options?: string[];
+  }) => {
+    // Check if variable already exists in prompt
+    if (promptText.includes(`[${name}]`)) {
+      return; // Variable already exists
+    }
+
+    // Build bracket token based on type
+    let bracketToken = `[${name}`;
+    
+    if (type === "select" && options && options.length > 0) {
+      // Format: [name:single=value|opts=a,b,c]
+      bracketToken = `[${name}:single=${defaultValue}|opts=${options.join(",")}]`;
+    } else if (type === "number") {
+      // Format: [name:slider=value|min=0|max=100]
+      bracketToken = `[${name}:slider=${defaultValue}|min=0|max=100]`;
+    } else if (defaultValue) {
+      // Format: [name=value]
+      bracketToken = `[${name}=${defaultValue}]`;
+    } else {
+      // Format: [name]
+      bracketToken = `[${name}]`;
+    }
+
+    // Insert at cursor position or end
+    const currentPos =
+      textareaRef.current?.selectionStart ?? promptText.length;
+    const newPrompt =
+      promptText.substring(0, currentPos) +
+      (promptText.length > 0 && currentPos > 0 && promptText[currentPos - 1] !== " "
+        ? " "
+        : "") +
+      bracketToken +
+      " " +
+      promptText.substring(currentPos);
+    setPromptText(newPrompt);
+
+    // Focus and move cursor after the variable
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos =
+          currentPos +
+          bracketToken.length +
+          (promptText.length > 0 && currentPos > 0 && promptText[currentPos - 1] !== " "
+            ? 2
+            : 1);
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 100);
   };
 
   // Add template description to prompt
@@ -702,6 +766,16 @@ export default function CompactPromptCreator() {
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs gap-1 text-muted-foreground"
+                onClick={() => setQuickVarCreatorOpen(true)}
+                data-testid="button-quick-add-variable-compact"
+              >
+                <Plus className="h-3 w-3" />
+                Variable
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1 text-muted-foreground"
                 onClick={fillExampleValues}
                 data-testid="button-fill-example"
               >
@@ -831,6 +905,13 @@ export default function CompactPromptCreator() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <QuickVariableCreator
+        open={quickVarCreatorOpen}
+        onOpenChange={setQuickVarCreatorOpen}
+        onCreate={createQuickVariable}
+        insertPosition={textareaRef.current?.selectionStart}
+      />
     </>
   );
 }

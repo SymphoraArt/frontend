@@ -49,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import PromptSettingsPanel from "./PromptSettingsPanel";
+import QuickVariableCreator from "./QuickVariableCreator";
 import { usePrivy } from "@privy-io/react-auth";
 import { addCreation, getUserKeyFromPrivyUser } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
@@ -171,6 +172,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     selectedText: string;
     selectionRange: { start: number; end: number } | null;
   }>({ open: false, varName: "", selectedText: "", selectionRange: null });
+  const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
@@ -460,6 +462,100 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       // No existing variable - create new one directly
       performVariableCreation(varName, selectedText, selectionRange, false);
     }
+  };
+
+  const createQuickVariable = ({
+    name,
+    type,
+    defaultValue,
+    options,
+  }: {
+    name: string;
+    type: "text" | "number" | "select";
+    defaultValue: string;
+    options?: string[];
+  }) => {
+    // Check if variable name already exists
+    if (variables.some((v) => v.name === name)) {
+      toast({
+        title: "Variable already exists",
+        description: `A variable named "${name}" already exists. Please choose a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Convert QuickVariableCreator type to PromptEditor VariableType
+    let variableType: VariableType = "text";
+    if (type === "number") {
+      variableType = "slider"; // Use slider for numbers
+    } else if (type === "select") {
+      variableType = "single-select";
+    }
+
+    // Convert options array to SelectOption format
+    const selectOptions: SelectOption[] | undefined =
+      type === "select" && options
+        ? options.map((opt) => ({
+            visibleName: opt,
+            promptValue: opt,
+          }))
+        : undefined;
+
+    // Create variable in PromptEditor format
+    const newVariable: Variable = {
+      id: name,
+      name: name,
+      label: name,
+      description: "",
+      type: variableType,
+      defaultValue:
+        type === "number" ? Number(defaultValue) || 0 : defaultValue,
+      options: selectOptions,
+      required: false,
+      position: variables.length,
+      min: type === "number" ? 0 : undefined,
+      max: type === "number" ? 100 : undefined,
+    };
+
+    setVariables([...variables, newVariable]);
+    setOpenVariables([name]);
+
+    // Add variable placeholder to prompt
+    const varPlaceholder = `[${name}]`;
+    const currentPos =
+      textareaRef.current?.selectionStart ??
+      caretPosition ??
+      prompt.length;
+    const newPrompt =
+      prompt.substring(0, currentPos) +
+      (prompt.length > 0 && currentPos > 0 && prompt[currentPos - 1] !== " "
+        ? " "
+        : "") +
+      varPlaceholder +
+      " " +
+      prompt.substring(currentPos);
+    setPrompt(newPrompt);
+    setCaretPosition(currentPos + varPlaceholder.length + 1);
+
+    // Focus and move cursor after the variable
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos =
+          currentPos +
+          varPlaceholder.length +
+          (prompt.length > 0 && currentPos > 0 && prompt[currentPos - 1] !== " "
+            ? 2
+            : 1);
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 100);
+
+    toast({
+      title: "Variable Created",
+      description: `Variable "${name}" was added to the prompt.`,
+    });
   };
 
   const downloadGeneratedImage = async () => {
@@ -1212,30 +1308,41 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             <CardTitle className="text-base">Prompt Editor</CardTitle>
             <div className="flex items-center gap-2">
               {promptType === "paid-prompt" && (
-                <Button
-                  onClick={() => {
-                    const createdId = createNewEmptyVariable(caretPosition);
-                    if (createdId) {
-                      setSelectedVariableId(createdId);
-                      setOpenVariables([createdId]);
-                      const element = document.getElementById(
-                        `variable-${createdId}`
-                      );
-                      if (element) {
-                        element.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        });
+                <>
+                  <Button
+                    onClick={() => setQuickVarCreatorOpen(true)}
+                    size="sm"
+                    variant="outline"
+                    data-testid="button-quick-add-variable-desktop"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Quick Add
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const createdId = createNewEmptyVariable(caretPosition);
+                      if (createdId) {
+                        setSelectedVariableId(createdId);
+                        setOpenVariables([createdId]);
+                        const element = document.getElementById(
+                          `variable-${createdId}`
+                        );
+                        if (element) {
+                          element.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                          });
+                        }
                       }
-                    }
-                  }}
-                  size="sm"
-                  variant="default"
-                  data-testid="button-add-variable-desktop"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add
-                </Button>
+                    }}
+                    size="sm"
+                    variant="default"
+                    data-testid="button-add-variable-desktop"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add
+                  </Button>
+                </>
               )}
             </div>
           </CardHeader>
@@ -2838,6 +2945,13 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QuickVariableCreator
+        open={quickVarCreatorOpen}
+        onOpenChange={setQuickVarCreatorOpen}
+        onCreate={createQuickVariable}
+        insertPosition={caretPosition}
+      />
     </TooltipProvider>
   );
 }

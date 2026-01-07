@@ -4,6 +4,10 @@ import { storage } from "./storage";
 import { insertPromptSchema, insertVariableSchema, insertArtistSchema, insertArtworkSchema } from "@shared/schema";
 import { generateImage } from "./gemini";
 
+// Import generation routes and worker
+import generationsRouter from './routes/generations.js';
+import { startGenerationWorker } from './workers/generation-worker.js';
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prompts", async (req, res) => {
     try {
@@ -273,6 +277,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to delete artwork" });
     }
   });
+
+  // Register generation routes
+  app.use('/api', generationsRouter);
+
+  // Start background generation worker
+  if (process.env.START_GENERATION_WORKER !== 'false') {
+    startGenerationWorker();
+  }
 
   const httpServer = createServer(app);
 
