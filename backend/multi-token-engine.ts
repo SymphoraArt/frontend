@@ -149,8 +149,10 @@ export class MultiTokenPaymentEngine extends X402PaymentEngine {
       };
     }
 
-    // Parse USD amount from price string
-    const priceUsd = parseFloat(request.price.replace('$', ''));
+    // Parse USD amount from price string or ERC20 format
+    const priceUsd = typeof request.price === 'string' 
+      ? parseFloat(request.price.replace('$', ''))
+      : parseFloat(request.price.amount) / Math.pow(10, request.price.asset.decimals || 18); // Convert from base units
 
     // Validate payment amount against token bounds
     const amountValidation = tokenRegistry.validatePaymentAmount(tokenSymbol, priceUsd);
