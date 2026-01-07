@@ -4,7 +4,7 @@
  * Production-ready with retry logic and comprehensive error handling
  */
 
-import { settlePayment, decodePayment } from "thirdweb/x402";
+import { settlePayment, verifyPayment, decodePayment } from "thirdweb/x402";
 import { thirdwebFacilitator } from "./facilitator";
 import { PAYMENT_CHAINS, type ChainKey } from "../shared/payment-config";
 import { log } from "./logger";
@@ -21,15 +21,39 @@ const PAYMENT_CONFIG = {
   }
 } as const;
 
+/**
+ * Price format: USD string or ERC20 token specification
+ */
+export type PriceFormat = 
+  | string // USD string (e.g., "$0.10") - defaults to USDC
+  | {
+      amount: string; // Amount in base units (e.g., "1000000" for 1 USDC with 6 decimals)
+      asset: {
+        address: string; // ERC20 token address
+        decimals?: number; // Optional decimals (defaults to token's native decimals)
+      };
+    };
+
 export interface PaymentRequest {
   resourceUrl: string;
   method: string;
   paymentHeader?: string;
   chainKey: ChainKey;
-  price: string;
+  price: PriceFormat; // Supports both USD strings and ERC20 format
   description: string;
   payToAddress: string;
   category?: string;
+}
+
+/**
+ * Upto payment scheme request
+ * Allows dynamic pricing based on actual usage
+ */
+export interface UptoPaymentRequest extends Omit<PaymentRequest, 'price'> {
+  scheme: "upto";
+  maxPrice: PriceFormat; // Maximum amount user authorizes (USD string or ERC20)
+  minPrice: PriceFormat; // Minimum amount that must be paid (USD string or ERC20)
+  actualPrice?: PriceFormat; // Actual price after work is done (calculated dynamically)
 }
 
 export interface PaymentResult {
@@ -50,6 +74,11 @@ export interface PaymentMetadata {
   category?: string;
   timestamp: string;
   payTo: string;
+  // Upto payment scheme metadata (optional)
+  maxPrice?: string;
+  minPrice?: string;
+  actualPrice?: string;
+  workMetadata?: Record<string, any>;
 }
 
 export interface PaymentQuote {
@@ -155,7 +184,22 @@ export class X402PaymentEngine {
       };
     }
 
-    log(`⚡ Processing payment: ${request.description} (${request.price}) on ${config.name}`, 'payment-engine');
+    // Format price for settlePayment (supports both USD string and ERC20 format)
+    const priceConfig = typeof request.price === 'string' 
+      ? request.price 
+      : {
+          amount: request.price.amount,
+          asset: {
+            address: request.price.asset.address as `0x${string}`,
+            ...(request.price.asset.decimals !== undefined && { decimals: request.price.asset.decimals }),
+          },
+        };
+
+    const priceDisplay = typeof request.price === 'string' 
+      ? request.price 
+      : `${request.price.amount} tokens at ${request.price.asset.address}`;
+
+    log(`⚡ Processing payment: ${request.description} (${priceDisplay}) on ${config.name}`, 'payment-engine');
 
     // Attempt settlement with retry logic
     let lastError: Error | null = null;
@@ -175,7 +219,7 @@ export class X402PaymentEngine {
             name: config.name,
             rpc: config.rpcUrl,
           },
-          price: request.price,
+          price: priceConfig,
           facilitator: thirdwebFacilitator,
           routeConfig: {
             description: request.description,
@@ -190,7 +234,7 @@ export class X402PaymentEngine {
             txHash: result.responseHeaders['x-payment-receipt'],
             chainId: config.id,
             chainName: config.name,
-            price: request.price,
+            price: typeof request.price === 'string' ? request.price : `${request.price.amount} @ ${request.price.asset.address}`,
             description: request.description,
             category: request.category,
             timestamp: new Date().toISOString(),
@@ -263,12 +307,447 @@ export class X402PaymentEngine {
   }
 
   /**
-   * Verify payment without settlement
-   * Used for optional payment verification or audit trails
-   *
+   * Settle payment with upto scheme (dynamic pricing)
+   * 
+   * Flow:
+   * 1. Verify payment is valid for maximum amount
+   * 2. Do the expensive work (e.g., call AI API)
+   * 3. Calculate actual price based on usage
+   * 4. Settle payment with actual price
+   * 
+   * This is perfect for AI APIs that charge based on token usage.
+   * 
+   * @param request - Upto payment request with max/min prices
+   * @param workCallback - Async function that does the work and returns actual price
+   * @returns Payment result with actual settled price
+   */
+  async settleWithUpto(
+    request: UptoPaymentRequest,
+    workCallback: () => Promise<{ actualPrice: PriceFormat; metadata?: Record<string, any> }>
+  ): Promise<PaymentResult> {
+    const chainConfig = PAYMENT_CHAINS[request.chainKey];
+
+    // Validate chain configuration
+    if (!chainConfig) {
+      log(`❌ Invalid chain: ${request.chainKey}`, 'payment-engine');
+      return {
+        success: false,
+        status: 400,
+        headers: {},
+        error: `Unsupported chain: ${request.chainKey}. Supported chains: ${Object.keys(PAYMENT_CHAINS).join(', ')}`
+      };
+    }
+
+    const config = chainConfig as typeof PAYMENT_CHAINS[keyof typeof PAYMENT_CHAINS];
+
+    // Validate USDC address
+    if (!config.usdc || config.usdc.length < 10) {
+      log(`❌ USDC not configured for chain: ${request.chainKey}`, 'payment-engine');
+      return {
+        success: false,
+        status: 500,
+        headers: {},
+        error: `USDC token address not configured for ${config.name}`
+      };
+    }
+
+    // Validate wallet address
+    if (!request.payToAddress || request.payToAddress.length !== 42 || !request.payToAddress.startsWith('0x')) {
+      log(`❌ Invalid payTo address: ${request.payToAddress}`, 'payment-engine');
+      return {
+        success: false,
+        status: 500,
+        headers: {},
+        error: 'Invalid server wallet address configuration'
+      };
+    }
+
+    // Format prices for verifyPayment (supports both USD string and ERC20 format)
+    const maxPriceConfig = typeof request.maxPrice === 'string' 
+      ? request.maxPrice 
+      : {
+          amount: request.maxPrice.amount,
+          asset: {
+            address: request.maxPrice.asset.address as `0x${string}`,
+            ...(request.maxPrice.asset.decimals !== undefined && { decimals: request.maxPrice.asset.decimals }),
+          },
+        };
+    
+    const minPriceConfig = typeof request.minPrice === 'string' 
+      ? request.minPrice 
+      : {
+          amount: request.minPrice.amount,
+          asset: {
+            address: request.minPrice.asset.address as `0x${string}`,
+            ...(request.minPrice.asset.decimals !== undefined && { decimals: request.minPrice.asset.decimals }),
+          },
+        };
+
+    const maxPriceDisplay = typeof request.maxPrice === 'string' 
+      ? request.maxPrice 
+      : `${request.maxPrice.amount} @ ${request.maxPrice.asset.address}`;
+    const minPriceDisplay = typeof request.minPrice === 'string' 
+      ? request.minPrice 
+      : `${request.minPrice.amount} @ ${request.minPrice.asset.address}`;
+
+    log(`⚡ Processing upto payment: ${request.description} (max: ${maxPriceDisplay}, min: ${minPriceDisplay}) on ${config.name}`, 'payment-engine');
+
+    // Step 1: Verify payment is valid for maximum amount
+    let verifyResult;
+    let attempt = 0;
+
+    while (attempt < RETRY_CONFIG.maxAttempts) {
+      attempt++;
+
+      try {
+        verifyResult = await verifyPayment({
+          resourceUrl: request.resourceUrl,
+          method: request.method,
+          paymentData: request.paymentHeader,
+          payTo: request.payToAddress,
+          network: {
+            id: config.id,
+            name: config.name,
+            rpc: config.rpcUrl,
+          },
+          scheme: "upto",
+          price: maxPriceConfig,
+          minPrice: minPriceConfig,
+          facilitator: thirdwebFacilitator,
+          routeConfig: {
+            description: request.description,
+            mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+            maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+          },
+        });
+
+        if (verifyResult.status === 200) {
+          break; // Verification successful
+        }
+
+        // Verification failed - return payment required response
+        log(`⚠️  Payment verification failed: ${request.description}`, 'payment-engine');
+        return {
+          success: false,
+          status: verifyResult.status,
+          headers: verifyResult.responseHeaders,
+          body: verifyResult.responseBody,
+        };
+
+      } catch (error) {
+        const lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (isTransientError(lastError) && attempt < RETRY_CONFIG.maxAttempts) {
+          const delayMs = Math.min(
+            RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1),
+            RETRY_CONFIG.maxDelayMs
+          );
+          log(`⚠️  Transient error on verify attempt ${attempt}: ${lastError.message}. Retrying...`, 'payment-engine');
+          await delay(delayMs);
+          continue;
+        }
+
+        log(`❌ Payment verification failed after ${attempt} attempts: ${lastError.message}`, 'payment-engine');
+        return {
+          success: false,
+          status: 500,
+          headers: {},
+          error: `Payment verification failed: ${lastError.message}`,
+        };
+      }
+    }
+
+    if (!verifyResult || verifyResult.status !== 200) {
+      return {
+        success: false,
+        status: 500,
+        headers: {},
+        error: 'Payment verification failed',
+      };
+    }
+
+    // Step 2: Do the expensive work and get actual price
+    log(`✅ Payment verified for max amount. Doing work...`, 'payment-engine');
+    
+    let workResult;
+    try {
+      workResult = await workCallback();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`❌ Work callback failed: ${errorMessage}`, 'payment-engine');
+      return {
+        success: false,
+        status: 500,
+        headers: {},
+        error: `Work execution failed: ${errorMessage}`,
+      };
+    }
+
+    const actualPrice = workResult.actualPrice;
+    
+    // Validate actual price is within bounds
+    // For USD strings, parse and compare
+    // For ERC20 format, compare amounts directly (must be same token)
+    let finalPrice: PriceFormat;
+    
+    if (typeof request.maxPrice === 'string' && typeof request.minPrice === 'string' && typeof actualPrice === 'string') {
+      // All USD strings - compare numerically
+      const actualPriceUsd = parseFloat(actualPrice.replace('$', ''));
+      const minPriceUsd = parseFloat(request.minPrice.replace('$', ''));
+      const maxPriceUsd = parseFloat(request.maxPrice.replace('$', ''));
+
+      if (actualPriceUsd < minPriceUsd) {
+        log(`⚠️  Actual price ${actualPrice} is below minimum ${request.minPrice}. Using minimum.`, 'payment-engine');
+        finalPrice = request.minPrice;
+      } else if (actualPriceUsd > maxPriceUsd) {
+        log(`⚠️  Actual price ${actualPrice} exceeds maximum ${request.maxPrice}. Using maximum.`, 'payment-engine');
+        finalPrice = request.maxPrice;
+      } else {
+        finalPrice = actualPrice;
+      }
+    } else if (typeof request.maxPrice === 'object' && typeof request.minPrice === 'object' && typeof actualPrice === 'object') {
+      // All ERC20 format - compare amounts (must be same token)
+      if (request.maxPrice.asset.address !== request.minPrice.asset.address || 
+          request.maxPrice.asset.address !== actualPrice.asset.address) {
+        log(`❌ Token mismatch in upto payment. All prices must use the same token.`, 'payment-engine');
+        return {
+          success: false,
+          status: 400,
+          headers: {},
+          error: 'Token mismatch: max, min, and actual prices must use the same ERC20 token',
+        };
+      }
+      
+      const actualAmount = BigInt(actualPrice.amount);
+      const minAmount = BigInt(request.minPrice.amount);
+      const maxAmount = BigInt(request.maxPrice.amount);
+
+      if (actualAmount < minAmount) {
+        log(`⚠️  Actual amount ${actualPrice.amount} is below minimum ${request.minPrice.amount}. Using minimum.`, 'payment-engine');
+        finalPrice = request.minPrice;
+      } else if (actualAmount > maxAmount) {
+        log(`⚠️  Actual amount ${actualPrice.amount} exceeds maximum ${request.maxPrice.amount}. Using maximum.`, 'payment-engine');
+        finalPrice = request.maxPrice;
+      } else {
+        finalPrice = actualPrice;
+      }
+    } else {
+      log(`❌ Price format mismatch in upto payment. All prices must use the same format.`, 'payment-engine');
+      return {
+        success: false,
+        status: 400,
+        headers: {},
+        error: 'Price format mismatch: max, min, and actual prices must all be USD strings or all ERC20 format',
+      };
+    }
+
+    const finalPriceDisplay = typeof finalPrice === 'string' 
+      ? finalPrice 
+      : `${finalPrice.amount} @ ${finalPrice.asset.address}`;
+    const maxPriceDisplayFinal = typeof request.maxPrice === 'string' 
+      ? request.maxPrice 
+      : `${request.maxPrice.amount} @ ${request.maxPrice.asset.address}`;
+
+    log(`💰 Settling payment with actual price: ${finalPriceDisplay} (was authorized for max: ${maxPriceDisplayFinal})`, 'payment-engine');
+
+    // Step 3: Settle payment with actual price
+    attempt = 0;
+    while (attempt < RETRY_CONFIG.maxAttempts) {
+      attempt++;
+
+      try {
+        // Format final price for settlePayment
+        const finalPriceConfig = typeof finalPrice === 'string' 
+          ? finalPrice 
+          : {
+              amount: finalPrice.amount,
+              asset: {
+                address: finalPrice.asset.address as `0x${string}`,
+                ...(finalPrice.asset.decimals !== undefined && { decimals: finalPrice.asset.decimals }),
+              },
+            };
+
+        const settleResult = await settlePayment({
+          resourceUrl: request.resourceUrl,
+          method: request.method,
+          paymentData: request.paymentHeader,
+          payTo: request.payToAddress,
+          network: {
+            id: config.id,
+            name: config.name,
+            rpc: config.rpcUrl,
+          },
+          price: finalPriceConfig,
+          facilitator: thirdwebFacilitator,
+          routeConfig: {
+            description: request.description,
+            mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+            maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+          },
+        });
+
+        if (settleResult.status === 200) {
+          const priceDisplay = typeof finalPrice === 'string' 
+            ? finalPrice 
+            : `${finalPrice.amount} @ ${finalPrice.asset.address}`;
+          const maxPriceDisplay = typeof request.maxPrice === 'string' 
+            ? request.maxPrice 
+            : `${request.maxPrice.amount} @ ${request.maxPrice.asset.address}`;
+
+          const metadata: PaymentMetadata = {
+            txHash: settleResult.responseHeaders['x-payment-receipt'],
+            chainId: config.id,
+            chainName: config.name,
+            price: priceDisplay,
+            description: request.description,
+            category: request.category,
+            timestamp: new Date().toISOString(),
+            payTo: request.payToAddress,
+          };
+
+          log(`✅ Upto payment settled successfully: ${metadata.txHash || 'N/A'} (actual: ${priceDisplay}, max: ${maxPriceDisplay})`, 'payment-engine');
+
+          return {
+            success: true,
+            status: 200,
+            headers: settleResult.responseHeaders,
+            metadata: {
+              ...metadata,
+              ...(workResult.metadata && { workMetadata: workResult.metadata }),
+              maxPrice: maxPriceDisplay,
+              minPrice: typeof request.minPrice === 'string' ? request.minPrice : `${request.minPrice.amount} @ ${request.minPrice.asset.address}`,
+              actualPrice: priceDisplay,
+            },
+          };
+        }
+
+        log(`⚠️  Settlement status ${settleResult.status}: ${request.description}`, 'payment-engine');
+        return {
+          success: false,
+          status: settleResult.status,
+          headers: settleResult.responseHeaders,
+          body: settleResult.responseBody,
+        };
+
+      } catch (error) {
+        const lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (isTransientError(lastError) && attempt < RETRY_CONFIG.maxAttempts) {
+          const delayMs = Math.min(
+            RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1),
+            RETRY_CONFIG.maxDelayMs
+          );
+          log(`⚠️  Transient error on settle attempt ${attempt}: ${lastError.message}. Retrying...`, 'payment-engine');
+          await delay(delayMs);
+          continue;
+        }
+
+        log(`❌ Payment settlement failed after ${attempt} attempts: ${lastError.message}`, 'payment-engine');
+        return {
+          success: false,
+          status: 500,
+          headers: {},
+          error: `Payment settlement failed: ${lastError.message}`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      status: 500,
+      headers: {},
+      error: 'Payment settlement failed after all retries',
+    };
+  }
+
+  /**
+   * Verify payment without settlement (using official verifyPayment API)
+   * This is the official Thirdweb verifyPayment function that checks:
+   * - Allowance is valid and greater than min price
+   * - Balance is valid and greater than min price
+   * - Payment is still valid (not expired)
+   * 
+   * @param request - Payment request to verify
+   * @returns Verification result with status and headers
+   */
+  async verifyPaymentOfficial(request: PaymentRequest & { scheme?: "exact" | "upto"; minPrice?: PriceFormat }): Promise<{ status: number; responseHeaders: Record<string, string>; responseBody?: any }> {
+    const chainConfig = PAYMENT_CHAINS[request.chainKey];
+
+    if (!chainConfig) {
+      throw new Error(`Unsupported chain: ${request.chainKey}`);
+    }
+
+    const config = chainConfig as typeof PAYMENT_CHAINS[keyof typeof PAYMENT_CHAINS];
+
+    // Format price for verifyPayment (supports both USD string and ERC20 format)
+    const priceConfig = typeof request.price === 'string' 
+      ? request.price 
+      : {
+          amount: request.price.amount,
+          asset: {
+            address: request.price.asset.address as `0x${string}`,
+            ...(request.price.asset.decimals !== undefined && { decimals: request.price.asset.decimals }),
+          },
+        };
+
+    const verifyArgs: any = {
+      resourceUrl: request.resourceUrl,
+      method: request.method,
+      paymentData: request.paymentHeader,
+      payTo: request.payToAddress,
+      network: {
+        id: config.id,
+        name: config.name,
+        rpc: config.rpcUrl,
+      },
+      price: priceConfig,
+      facilitator: thirdwebFacilitator,
+      routeConfig: {
+        description: request.description,
+        mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+        maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+      },
+    };
+
+    if (request.scheme === "upto" && request.minPrice) {
+      verifyArgs.scheme = "upto";
+      const minPriceConfig = typeof request.minPrice === 'string' 
+        ? request.minPrice 
+        : {
+            amount: request.minPrice.amount,
+            asset: {
+              address: request.minPrice.asset.address as `0x${string}`,
+              ...(request.minPrice.asset.decimals !== undefined && { decimals: request.minPrice.asset.decimals }),
+            },
+          };
+      verifyArgs.minPrice = minPriceConfig;
+    }
+
+    const verifyResult = await verifyPayment(verifyArgs);
+    
+    // Convert verifyPayment result to expected format
+    return {
+      status: verifyResult.status,
+      responseHeaders: verifyResult.status === 200 
+        ? { 'x-payment-verified': 'true' }
+        : {},
+      responseBody: verifyResult.status !== 200 ? verifyResult : undefined,
+    };
+  }
+
+  /**
+   * Verify payment without settlement (legacy method - decodes only)
+   * 
+   * @deprecated This method only decodes the payment structure and does not check
+   * allowance, balance, or expiration. Use `verifyPaymentOfficial()` for full validation
+   * that checks allowance, balance, and expiration using the official Thirdweb API.
+   * 
+   * This method is retained for backward compatibility but should not be used for
+   * payment authorization decisions.
+   * 
    * @param paymentHeader - X-Payment header value
    * @param chainKey - Chain to verify on
-   * @returns Verification result
+   * @returns Verification result (structural only, not authorization)
    */
   async verify(paymentHeader: string, chainKey: ChainKey): Promise<VerificationResult> {
     if (!paymentHeader) {
