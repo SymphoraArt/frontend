@@ -63,7 +63,7 @@ export default function MyGalleryPage() {
             ? (json as any).items 
             : [];
         
-        const mapped: StoredCreation[] = generations.map((g) => {
+        const mapped: StoredCreation[] = generations.map((g: SupabaseGeneration) => {
           // Get image URL - support both single image_url and array image_urls
           const imageUrl = g.image_urls && g.image_urls.length > 0
             ? g.image_urls[0]
