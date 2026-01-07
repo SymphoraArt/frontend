@@ -4,6 +4,7 @@ import FilterBar from "@/components/FilterBar";
 import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import CompactPromptCreator from "@/components/CompactPromptCreator";
+import ShowroomUploadZone from "@/components/ShowroomUploadZone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 
@@ -152,6 +153,7 @@ export default function Showcase() {
           </p>
         </main>
         <CompactPromptCreator />
+        <ShowroomUploadZone />
       </div>
     );
   }
@@ -188,6 +190,7 @@ export default function Showcase() {
         </div>
       </main>
       <CompactPromptCreator />
+      <ShowroomUploadZone />
     </div>
   );
 }
