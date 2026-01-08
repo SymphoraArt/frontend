@@ -84,6 +84,8 @@ export function useX402PaymentProduction() {
     parseAs: "json",
     theme: "dark",
     uiEnabled: true,
+    // Add timeout configuration for wallet operations
+    // This helps with MetaMask signature requests that might take longer
   });
 
   /**
@@ -99,8 +101,15 @@ export function useX402PaymentProduction() {
     }
 
     try {
+      // Construct absolute URL for x402 payment (required by the protocol)
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      
+      const url = `${baseUrl}/api/prompts/${promptId}/content?chain=${chain}`;
+      
       const result = await fetchWithPayment(
-        `/api/prompts/${promptId}/content?chain=${chain}`,
+        url,
         {
           method: 'GET',
           headers: {
@@ -132,8 +141,17 @@ export function useX402PaymentProduction() {
     }
 
     try {
+      // Construct absolute URL for x402 payment (required by the protocol)
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      
+      const url = `${baseUrl}/api/generate-image?chain=${chain}`;
+      
+      console.log('📡 Calling fetchWithPayment with URL:', url);
+      
       const result = await fetchWithPayment(
-        `/api/generate-image?chain=${chain}`,
+        url,
         {
           method: 'POST',
           headers: {
@@ -143,9 +161,10 @@ export function useX402PaymentProduction() {
         }
       );
 
+      console.log('✅ fetchWithPayment result:', result);
       return result;
     } catch (error) {
-      console.error('Failed to generate image:', error);
+      console.error('❌ Failed to generate image:', error);
       throw error;
     }
   };
