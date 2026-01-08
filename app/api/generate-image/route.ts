@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
+import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
+import type { ImageGenerationRequest } from "@/backend/services/types";
 
 type GenerateImageBody = {
   prompt?: string;
@@ -135,7 +137,9 @@ export async function POST(request: NextRequest) {
 
     // Determine if we should use upto payment scheme
     // Use upto if: Gemini is enabled AND user requested it OR it's the default
-    const useUpto = body.useUptoPayment !== false && Boolean(process.env.GEMINI_API_KEY);
+    // Check for both GEMINI_API_KEY and GOOGLE_GEMINI_API_KEY for compatibility
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY);
+    const useUpto = body.useUptoPayment !== false && hasGeminiKey;
     
     // Pricing configuration
     const prices: Record<string, string> = {
@@ -280,27 +284,83 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add aspect ratio and resolution to prompt if provided
-    if (body.aspectRatio) {
-      enhancedPrompt += ` (aspect ratio: ${body.aspectRatio})`;
-    }
-    if (body.resolution) {
-      enhancedPrompt += ` (resolution: ${body.resolution})`;
+    // Generate image using Gemini Nano Banana Pro
+    console.log('🎨 Generating image with Gemini...');
+    
+    // Map resolution to Gemini image size (1K, 2K, 4K)
+    const resolution = body.resolution || '2K';
+    const imageSize = resolution === '1K' ? '1K' : resolution === '4K' ? '4K' : '2K';
+    
+    // Map aspect ratio
+    const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+    
+    // Use Gemini 3 Pro Image Preview (Nano Banana Pro) for high-quality generation
+    const geminiRequest: ImageGenerationRequest = {
+      prompt: enhancedPrompt,
+      aspectRatio,
+      numImages: 1,
+      modelVersion: 'gemini-3-pro-image-preview', // Nano Banana Pro
+      imageSize: imageSize as '1K' | '2K' | '4K',
+    };
+
+    const geminiResult = await generateImagesWithGemini(geminiRequest);
+
+    if (!geminiResult.success || !geminiResult.imageBuffers || geminiResult.imageBuffers.length === 0) {
+      console.error('❌ Gemini image generation failed:', geminiResult.error);
+      return NextResponse.json(
+        { 
+          error: geminiResult.error || 'Image generation failed',
+          retryable: geminiResult.retryable,
+        },
+        { status: 500 }
+      );
     }
 
-    // Generate image using Pollinations API
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-      enhancedPrompt
-    )}?width=1024&height=1024&nologo=true`;
+    // Upload image buffer to Vercel Blob storage
+    let imageUrl: string;
+    try {
+      const { put } = await import('@vercel/blob');
+      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+      
+      if (!blobToken) {
+        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not set, using data URL fallback');
+        // Fallback to data URL if blob storage not configured
+        const base64 = geminiResult.imageBuffers[0].toString('base64');
+        imageUrl = `data:image/png;base64,${base64}`;
+      } else {
+        // Create unique filename
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(2, 9);
+        const filename = `generations/${timestamp}_${randomSuffix}.png`;
+
+        // Upload to Vercel Blob
+        const { url } = await put(filename, geminiResult.imageBuffers[0], {
+          access: 'public',
+          contentType: 'image/png',
+          addRandomSuffix: false,
+        });
+
+        imageUrl = url;
+        console.log(`✅ Image uploaded to blob storage: ${url}`);
+      }
+    } catch (uploadError: any) {
+      console.error('❌ Failed to upload image to blob storage:', uploadError);
+      // Fallback to data URL if upload fails
+      const base64 = geminiResult.imageBuffers[0].toString('base64');
+      imageUrl = `data:image/png;base64,${base64}`;
+      console.warn('⚠️ Using data URL fallback due to upload error');
+    }
 
     // Return image with payment metadata and headers
     return NextResponse.json(
       {
         imageUrl,
         prompt: enhancedPrompt,
-        provider: "pollinations",
+        provider: "gemini",
+        model: geminiResult.metadata?.model || 'gemini-3-pro-image-preview',
         usedGemini,
         geminiTokens: usedGemini ? geminiTokens : undefined,
+        generationTime: geminiResult.generationTime,
         paymentScheme: useUpto ? 'upto' : 'exact',
         metadata: {
           ...paymentResult.metadata,
@@ -309,6 +369,7 @@ export async function POST(request: NextRequest) {
             minPrice,
             actualPrice: paymentResult.metadata?.actualPrice,
           }),
+          geminiMetadata: geminiResult.metadata,
         },
       },
       {
