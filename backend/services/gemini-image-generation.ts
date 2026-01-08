@@ -17,7 +17,7 @@
  * - Unlimited daily quota
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 
 // Initialize Gemini AI client
@@ -25,11 +25,12 @@ let ai: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI {
   if (!ai) {
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    // Support both GEMINI_API_KEY and GOOGLE_GEMINI_API_KEY for compatibility
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       throw new Error(
-        'GOOGLE_GEMINI_API_KEY environment variable is not set. ' +
+        'GOOGLE_GEMINI_API_KEY or GEMINI_API_KEY environment variable is not set. ' +
         'Get your API key from https://aistudio.google.com/apikey'
       );
     }
@@ -83,6 +84,7 @@ export async function generateImagesWithGemini(
 
     // 4. Build generation config
     const config: any = {
+      responseModalities: [Modality.IMAGE], // Request image output
       imageConfig: {
         aspectRatio: request.aspectRatio || '1:1',
       }
@@ -102,9 +104,19 @@ export async function generateImagesWithGemini(
     console.log(`[Gemini] Prompt: ${request.prompt.substring(0, 100)}...`);
 
     // 5. Generate image
+    // Contents must be an array with role and parts structure
     const response = await client.models.generateContent({
       model,
-      contents: request.prompt,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: request.prompt
+            }
+          ]
+        }
+      ],
       config
     });
 
