@@ -80,6 +80,24 @@ export default function RootLayout({
               // Theme initialization
               try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}
               
+              // Clear old Privy wallet state to prevent "Wallet with id privy not found" errors
+              try{
+                var keysToRemove=[];
+                for(var i=0;i<localStorage.length;i++){
+                  var key=localStorage.key(i);
+                  if(key&&(key.includes('thirdweb')||key.includes('wallet')||key.includes('privy')||key.includes('activeWallet')||key.includes('connectedWallet'))){
+                    try{
+                      var value=localStorage.getItem(key);
+                      if(value&&(value.includes('privy')||value.includes('"id":"privy"'))){
+                        keysToRemove.push(key);
+                      }
+                    }catch(e){keysToRemove.push(key);}
+                  }
+                }
+                keysToRemove.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
+                if(keysToRemove.length>0){console.log('🧹 Cleared '+keysToRemove.length+' old Privy wallet state entries');}
+              }catch(e){}
+              
               // Suppress Ambire wallet extension errors (non-critical)
               if(typeof window!=='undefined'){
                 const originalError=console.error;
@@ -87,8 +105,10 @@ export default function RootLayout({
                   const msg=args.join(' ');
                   if(msg.includes('resource.clone is not a function')||
                      msg.includes('ambire-inpage.js')||
-                     msg.includes('Unexpected end of input')){
-                    // Suppress Ambire errors - they don't affect functionality
+                     msg.includes('Unexpected end of input')||
+                     msg.includes('Wallet with id privy not found')||
+                     msg.includes('Error auto connecting wallet')){
+                    // Suppress non-critical errors - they don't affect functionality
                     return;
                   }
                   originalError.apply(console,args);
