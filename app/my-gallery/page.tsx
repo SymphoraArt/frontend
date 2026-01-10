@@ -1,11 +1,11 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import { useEffect, useMemo, useState } from "react";
 import {
   clearCreations,
-  getUserKeyFromPrivyUser,
+  getUserKeyFromAccount,
   listCreations,
   removeCreation,
   subscribeCreations,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/creations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConnectWallet } from "@/components/ConnectWallet";
 
 type SupabaseGeneration = {
   id: string;
@@ -28,8 +29,9 @@ type SupabaseGeneration = {
 };
 
 export default function MyGalleryPage() {
-  const { ready, authenticated, user, login } = usePrivy();
-  const userKey = useMemo(() => getUserKeyFromPrivyUser(user), [user]);
+  const account = useActiveAccount();
+  const authenticated = !!account;
+  const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
   const [items, setItems] = useState<StoredCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -118,19 +120,6 @@ export default function MyGalleryPage() {
     removeCreation(userKey, id);
   };
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-background pt-16">
-        <Navbar />
-        <main className="w-full px-6 lg:px-8 py-6">
-          <p className="text-muted-foreground" data-testid="text-loading">
-            Loading...
-          </p>
-        </main>
-      </div>
-    );
-  }
-
   if (!authenticated || !userKey) {
     return (
       <div className="min-h-screen bg-background pt-16">
@@ -142,11 +131,9 @@ export default function MyGalleryPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Log in to view your private creations.
+                Connect your wallet to view your private creations.
               </p>
-              <Button onClick={login} data-testid="button-login-my-gallery">
-                Log in
-              </Button>
+              <ConnectWallet />
             </CardContent>
           </Card>
         </main>
