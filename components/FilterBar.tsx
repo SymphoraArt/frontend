@@ -26,6 +26,9 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
+    // Guard against SSR
+    if (typeof window === 'undefined') return;
+
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
