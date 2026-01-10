@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getUserKeyFromPrivyUser } from "@/lib/creations";
-import { usePrivy } from "@privy-io/react-auth";
+import { getUserKeyFromAccount } from "@/lib/creations";
+import { useActiveAccount } from "thirdweb/react";
 
 interface UploadPreview {
   file: File;
@@ -17,7 +17,8 @@ interface UploadPreview {
 }
 
 export default function ShowroomUploadZone() {
-  const { user, authenticated } = usePrivy();
+  const account = useActiveAccount();
+  const authenticated = !!account;
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [uploads, setUploads] = useState<UploadPreview[]>([]);
@@ -26,7 +27,7 @@ export default function ShowroomUploadZone() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
-  const userKey = user ? getUserKeyFromPrivyUser(user) : null;
+  const userKey = getUserKeyFromAccount(account);
 
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
