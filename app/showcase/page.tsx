@@ -3,16 +3,33 @@
 import FilterBar from "@/components/FilterBar";
 import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
-import CompactPromptCreator from "@/components/CompactPromptCreator";
-import ShowroomUploadZone from "@/components/ShowroomUploadZone";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
+
+// Dynamically import components that use browser-only hooks to prevent SSR errors
+const CompactPromptCreator = dynamic(
+  () => import("@/components/CompactPromptCreator"),
+  { ssr: false }
+);
+
+const ShowroomUploadZone = dynamic(
+  () => import("@/components/ShowroomUploadZone"),
+  { ssr: false }
+);
 
 export default function Showcase() {
   const router = useRouter();
   const PAGE_SIZE = 12;
   const [cursor, setCursor] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Prevent SSR issues by only rendering after mount
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const {
     data: promptsData,
@@ -28,6 +45,7 @@ export default function Showcase() {
       if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
       return res.json();
     },
+    enabled: isMounted, // Only run query after mounting
   });
 
   const [allPrompts, setAllPrompts] = useState<any[]>([]);
@@ -67,6 +85,7 @@ export default function Showcase() {
         return res.ok ? (await res.json()).user : null;
       },
       staleTime: 5 * 60 * 1000,
+      enabled: isMounted && creatorIds.length > 0, // Only run after mounting
     })),
   });
 
@@ -129,7 +148,8 @@ export default function Showcase() {
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, promptsData?.nextCursor]);
 
-  if (isLoading && allPrompts.length === 0) {
+  // Show loading state during SSR and initial mount
+  if (!isMounted || (isLoading && allPrompts.length === 0)) {
     return (
       <div className="min-h-screen bg-background pt-16">
         <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
