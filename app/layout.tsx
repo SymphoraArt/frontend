@@ -66,6 +66,9 @@ export const metadata: Metadata = {
   },
 };
 
+// Force dynamic rendering to prevent static generation issues with client components
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: Readonly<{
