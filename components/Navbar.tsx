@@ -32,13 +32,62 @@ export function useNavbarVisibility() {
   return useContext(NavbarContext);
 }
 
+// Safe wrapper for useActiveAccount that handles missing provider
+function useSafeActiveAccount() {
+  try {
+    return useActiveAccount();
+  } catch (error) {
+    // Provider not available yet (SSR or initial render)
+    return null;
+  }
+}
+
+// Safe wrapper for useActiveWallet that handles missing provider
+function useSafeActiveWallet() {
+  try {
+    return useActiveWallet();
+  } catch (error) {
+    // Provider not available yet (SSR or initial render)
+    return null;
+  }
+}
+
+// Safe wrapper for useWalletInfo that handles missing provider
+function useSafeWalletInfo() {
+  try {
+    return useWalletInfo();
+  } catch (error) {
+    // Provider not available yet (SSR or initial render)
+    return {
+      address: null,
+      shortAddress: null,
+      type: "none" as const,
+      authMethod: "unknown" as const,
+      isConnected: false,
+      isInAppWallet: false,
+      isExternalWallet: false,
+      walletId: null,
+      chain: { id: null, name: null },
+      security: {
+        isSmartAccount: false,
+        isValidWallet: false,
+        isSecureConnection: false,
+        warnings: [],
+      },
+      displayName: "Not Connected",
+      icon: "🔌",
+      description: "No wallet connected",
+    };
+  }
+}
+
 export default function Navbar({
   username = "Artist",
   onSearch,
 }: NavbarProps) {
-  const account = useActiveAccount();
-  const wallet = useActiveWallet();
-  const walletInfo = useWalletInfo();
+  const account = useSafeActiveAccount();
+  const wallet = useSafeActiveWallet();
+  const walletInfo = useSafeWalletInfo();
   const authenticated = !!account && walletInfo.isConnected;
   const router = useRouter();
   const { toast } = useToast();
