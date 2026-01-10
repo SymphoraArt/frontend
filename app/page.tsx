@@ -5,21 +5,31 @@ import ArtworkGrid, { type ArtworkItem } from "@/components/ArtworkGrid";
 import CompactPromptCreator from "@/components/CompactPromptCreator";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Prompt, Artist } from "../shared/schema";
 
 export default function Gallery() {
   const router = useRouter();
+  
+  // Prevent SSR issues by only running queries after mount
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const { data: promptsData, isLoading: promptsLoading } = useQuery<{
     items: Prompt[];
     nextCursor: string | null;
   }>({
     queryKey: ["/api/prompts"],
+    enabled: isMounted, // Only run after mounting
   });
 
   const { data: artists = [] } = useQuery<Artist[]>({
     queryKey: ["/api/artists"],
+    enabled: isMounted, // Only run after mounting
   });
 
   const prompts = promptsData?.items ?? [];
@@ -47,7 +57,8 @@ export default function Gallery() {
       };
     });
 
-  if (promptsLoading) {
+  // Show loading state during SSR and initial mount
+  if (!isMounted || promptsLoading) {
     return (
       <div className="min-h-screen bg-background pt-16">
         <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
