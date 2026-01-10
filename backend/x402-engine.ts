@@ -4,7 +4,7 @@
  * Production-ready with retry logic and comprehensive error handling
  */
 
-import { settlePayment, verifyPayment, decodePayment } from "thirdweb/x402";
+import { settlePayment, verifyPayment } from "thirdweb/x402";
 import { thirdwebFacilitator } from "./facilitator";
 import { PAYMENT_CHAINS, type ChainKey } from "../shared/payment-config";
 import { log } from "./logger";
@@ -201,6 +201,111 @@ export class X402PaymentEngine {
 
     log(`⚡ Processing payment: ${request.description} (${priceDisplay}) on ${config.name}`, 'payment-engine');
 
+    // If no payment header, use settlePayment to get proper 402 response format
+    if (!request.paymentHeader) {
+      try {
+        const checkResult = await settlePayment({
+          resourceUrl: request.resourceUrl,
+          method: request.method,
+          paymentData: undefined,
+          payTo: request.payToAddress,
+          network: {
+            id: config.id,
+            name: config.name,
+            rpc: config.rpcUrl,
+          },
+          price: priceConfig,
+          facilitator: thirdwebFacilitator,
+          routeConfig: {
+            description: request.description,
+            mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+            maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+          },
+        });
+
+        // Return the 402 response in the format expected by fetchWithPayment
+        // fetchWithPayment expects { x402Version, accepts: RequestedPaymentRequirements[] }
+        log(`💳 Payment required (402): ${request.description}`, 'payment-engine');
+
+        // settlePayment should return the proper 402 response format with responseBody containing accepts array
+        // Use it directly if it exists and has the correct structure
+        if (checkResult.status === 402 && 'responseBody' in checkResult && checkResult.responseBody) {
+          const responseBody = checkResult.responseBody;
+          
+          // Verify it has the required accepts array
+          if (responseBody && typeof responseBody === 'object' && 'accepts' in responseBody && Array.isArray(responseBody.accepts)) {
+            log(`✅ Using responseBody from settlePayment with ${responseBody.accepts.length} payment options`, 'payment-engine');
+            return {
+              success: false,
+              status: checkResult.status,
+              headers: checkResult.responseHeaders,
+              body: responseBody,
+            };
+          }
+        }
+
+        // Fallback: construct response manually if settlePayment didn't return proper format
+        log(`⚠️  Constructing 402 response manually (settlePayment didn't return proper format)`, 'payment-engine');
+        
+        // Convert price to base units (USDC has 6 decimals)
+        const priceUsd = typeof request.price === 'string' 
+          ? parseFloat(request.price.replace('$', '')) 
+          : parseFloat(request.price.amount) / Math.pow(10, request.price.asset.decimals || 6);
+        
+        const maxAmountRequired = Math.ceil(priceUsd * Math.pow(10, 6)).toString(); // USDC base units
+
+        return {
+          success: false,
+          status: 402,
+          headers: checkResult.responseHeaders || {},
+          body: {
+            x402Version: 1,
+            error: 'Payment required',
+            accepts: [
+              {
+                maxAmountRequired,
+                resource: request.resourceUrl,
+                description: request.description,
+                mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+                network: `eip155:${config.id}`, // CAIP-2 format
+                scheme: 'exact',
+                payTo: request.payToAddress,
+                maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+                asset: config.usdc,
+              }
+            ],
+          },
+        };
+      } catch (error) {
+        const lastError = error instanceof Error ? error : new Error(String(error));
+        log(`❌ Payment check failed: ${lastError.message}`, 'payment-engine');
+        return {
+          success: false,
+          status: 402,
+          headers: {},
+          body: {
+            x402Version: 1,
+            accepts: [
+              {
+                maxAmountRequired: typeof request.price === 'string'
+                  ? (parseFloat(request.price.replace('$', '')) * Math.pow(10, 6)).toString() // Convert to USDC base units (6 decimals)
+                  : request.price.amount,
+                resource: request.resourceUrl,
+                description: request.description,
+                mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+                network: `eip155:${config.id}`, // CAIP-2 format
+                scheme: 'exact',
+                payTo: request.payToAddress,
+                maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+                asset: config.usdc,
+              }
+            ],
+            error: 'Payment required',
+          },
+        };
+      }
+    }
+
     // Attempt settlement with retry logic
     let lastError: Error | null = null;
     let attempt = 0;
@@ -392,7 +497,114 @@ export class X402PaymentEngine {
 
     log(`⚡ Processing upto payment: ${request.description} (max: ${maxPriceDisplay}, min: ${minPriceDisplay}) on ${config.name}`, 'payment-engine');
 
-    // Step 1: Verify payment is valid for maximum amount
+    // Step 1: If no payment header, use settlePayment to get proper 402 response format
+    if (!request.paymentHeader) {
+      try {
+        const checkResult = await settlePayment({
+          resourceUrl: request.resourceUrl,
+          method: request.method,
+          paymentData: undefined,
+          payTo: request.payToAddress,
+          network: {
+            id: config.id,
+            name: config.name,
+            rpc: config.rpcUrl,
+          },
+          // IMPORTANT: Must include scheme and minPrice to match verification params
+          scheme: "upto",
+          price: maxPriceConfig,
+          minPrice: minPriceConfig,
+          facilitator: thirdwebFacilitator,
+          routeConfig: {
+            description: request.description,
+            mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+            maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+          },
+        });
+
+        // Return the 402 response in the format expected by fetchWithPayment
+        // fetchWithPayment expects { x402Version, accepts: RequestedPaymentRequirements[] }
+        log(`💳 Payment required (402): ${request.description}`, 'payment-engine');
+
+        // settlePayment should return the proper 402 response format with responseBody containing accepts array
+        // Use it directly if it exists and has the correct structure
+        if (checkResult.status === 402 && 'responseBody' in checkResult && checkResult.responseBody) {
+          const responseBody = checkResult.responseBody;
+          
+          // Verify it has the required accepts array
+          if (responseBody && typeof responseBody === 'object' && 'accepts' in responseBody && Array.isArray(responseBody.accepts)) {
+            log(`✅ Using responseBody from settlePayment with ${responseBody.accepts.length} payment options`, 'payment-engine');
+            return {
+              success: false,
+              status: checkResult.status,
+              headers: checkResult.responseHeaders,
+              body: responseBody,
+            };
+          }
+        }
+
+        // Fallback: construct response manually if settlePayment didn't return proper format
+        log(`⚠️  Constructing 402 response manually (settlePayment didn't return proper format)`, 'payment-engine');
+        
+        // Convert prices to base units (USDC has 6 decimals)
+        const maxPriceUsd = typeof request.maxPrice === 'string' 
+          ? parseFloat(request.maxPrice.replace('$', '')) 
+          : parseFloat(request.maxPrice.amount) / Math.pow(10, request.maxPrice.asset.decimals || 6);
+        const minPriceUsd = typeof request.minPrice === 'string' 
+          ? parseFloat(request.minPrice.replace('$', '')) 
+          : parseFloat(request.minPrice.amount) / Math.pow(10, request.minPrice.asset.decimals || 6);
+        
+        const maxAmountRequired = Math.ceil(maxPriceUsd * Math.pow(10, 6)).toString(); // USDC base units
+        const minAmountRequired = Math.floor(minPriceUsd * Math.pow(10, 6)).toString(); // USDC base units
+
+        return {
+          success: false,
+          status: 402,
+          headers: checkResult.responseHeaders || {},
+          body: {
+            x402Version: 1,
+            error: 'Payment required',
+            accepts: [
+              {
+                maxAmountRequired,
+                minAmountRequired,
+                resource: request.resourceUrl,
+                description: request.description,
+                mimeType: PAYMENT_CONFIG.mimeTypes.prompt,
+                network: `eip155:${config.id}`, // CAIP-2 format
+                scheme: 'upto',
+                payTo: request.payToAddress,
+                maxTimeoutSeconds: PAYMENT_CONFIG.maxTimeoutSeconds,
+                asset: config.usdc,
+              }
+            ],
+          },
+        };
+      } catch (error) {
+        const lastError = error instanceof Error ? error : new Error(String(error));
+        log(`❌ Payment check failed: ${lastError.message}`, 'payment-engine');
+        return {
+          success: false,
+          status: 402,
+          headers: {},
+          body: { error: 'Payment required' },
+        };
+      }
+    }
+
+    // Step 2: For "upto" scheme, we do the work FIRST then settle with actual price
+    // We use verifyPayment to check the authorization WITHOUT consuming it
+    // Then we do the work and call settlePayment ONCE with the actual price
+    
+    log(`🔍 Verifying payment authorization (without settling):`, 'payment-engine');
+    log(`  - scheme: upto`, 'payment-engine');
+    log(`  - maxPrice: ${JSON.stringify(maxPriceConfig)}`, 'payment-engine');
+    log(`  - minPrice: ${JSON.stringify(minPriceConfig)}`, 'payment-engine');
+    log(`  - payTo: ${request.payToAddress}`, 'payment-engine');
+    log(`  - network: ${config.name} (${config.id})`, 'payment-engine');
+    log(`  - paymentHeader length: ${request.paymentHeader?.length || 0} chars`, 'payment-engine');
+
+    // Use verifyPayment to check authorization is valid WITHOUT executing the transfer
     let verifyResult;
     let attempt = 0;
 
@@ -425,8 +637,17 @@ export class X402PaymentEngine {
           break; // Verification successful
         }
 
-        // Verification failed - return payment required response
-        log(`⚠️  Payment verification failed: ${request.description}`, 'payment-engine');
+        // Verification returned non-200 status
+        log(`💳 Payment verification returned status ${verifyResult.status}: ${request.description}`, 'payment-engine');
+        
+        // Log detailed error information for debugging
+        if (verifyResult.responseBody) {
+          log(`❌ Verification error details: ${JSON.stringify(verifyResult.responseBody, null, 2)}`, 'payment-engine');
+        }
+        if (verifyResult.responseHeaders) {
+          log(`📋 Response headers: ${JSON.stringify(verifyResult.responseHeaders, null, 2)}`, 'payment-engine');
+        }
+        
         return {
           success: false,
           status: verifyResult.status,
@@ -466,8 +687,8 @@ export class X402PaymentEngine {
       };
     }
 
-    // Step 2: Do the expensive work and get actual price
-    log(`✅ Payment verified for max amount. Doing work...`, 'payment-engine');
+    // Step 3: Do the expensive work and get actual price
+    log(`✅ Payment authorization verified. Doing work...`, 'payment-engine');
     
     let workResult;
     try {
@@ -577,7 +798,10 @@ export class X402PaymentEngine {
             name: config.name,
             rpc: config.rpcUrl,
           },
+          // IMPORTANT: Must include scheme and minPrice to match verification params
+          scheme: "upto",
           price: finalPriceConfig,
+          minPrice: minPriceConfig,
           facilitator: thirdwebFacilitator,
           routeConfig: {
             description: request.description,
@@ -772,20 +996,12 @@ export class X402PaymentEngine {
     const config = chainConfig as typeof PAYMENT_CHAINS[keyof typeof PAYMENT_CHAINS];
 
     try {
-      // Decode the payment header to verify its structure and validity
-      const decodedPayment = decodePayment(paymentHeader);
-
-      // Basic validation - check if the payment has required fields
-      const verified = !!(
-        decodedPayment &&
-        typeof decodedPayment === 'object' &&
-        'amount' in decodedPayment &&
-        'tokenAddress' in decodedPayment &&
-        'chainId' in decodedPayment
-      );
+      // Basic validation - check if payment header exists and is not empty
+      // The X402 SDK functions will handle full validation
+      const verified = !!(paymentHeader && paymentHeader.trim().length > 0);
 
       log(
-        `${verified ? '✅' : '❌'} Payment verification: ${verified}`,
+        `${verified ? '✅' : '❌'} Payment header validation: ${verified}`,
         'payment-engine'
       );
 

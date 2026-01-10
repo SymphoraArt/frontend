@@ -21,9 +21,23 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
+/**
+ * Get user key from Thirdweb account
+ */
+export function getUserKeyFromAccount(account: { address: string } | null | undefined): string | null {
+  if (!account?.address) return null;
+  return account.address;
+}
+
+/**
+ * @deprecated Use getUserKeyFromAccount instead
+ * Kept for backward compatibility during migration
+ */
 export function getUserKeyFromPrivyUser(user: unknown): string | null {
   const u = user as any;
   if (!u) return null;
+  // Try to extract wallet address if it's a Thirdweb account-like object
+  if (u.address) return u.address;
   return (
     u.id ||
     u.userId ||

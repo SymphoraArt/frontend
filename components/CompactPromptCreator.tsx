@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Zap,
@@ -33,6 +35,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import QuickVariableCreator from "./QuickVariableCreator";
+import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
+import { useToast } from "@/hooks/use-toast";
+import { useActiveAccount } from "thirdweb/react";
+import { ConnectWallet } from "@/components/ConnectWallet";
 
 type VariableType = "text" | "checkbox" | "slider" | "single-select" | "multi-select";
 
@@ -219,7 +225,14 @@ export default function CompactPromptCreator() {
   const [showPaidOnly, setShowPaidOnly] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { generateImage, isPending, getPaymentStatus } = useX402PaymentProduction();
+  const account = useActiveAccount();
+  const authenticated = !!account;
+  const { toast } = useToast();
 
   // Extract variables from [name] / [name=value] / [name:type=value|...] syntax
   useEffect(() => {
@@ -419,6 +432,91 @@ export default function CompactPromptCreator() {
 
   const adjustImageCount = (delta: number) => {
     setImageCount((prev) => Math.max(1, Math.min(4, prev + delta)));
+  };
+
+  // Handle image generation
+  const handleGenerateImage = async () => {
+    if (!promptText.trim()) {
+      toast({
+        title: "Prompt required",
+        description: "Please enter a prompt to generate an image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check authentication and wallet connection
+    if (!authenticated || !account) {
+      toast({
+        title: "Wallet required",
+        description: "Please connect your wallet to generate images.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const paymentStatus = getPaymentStatus();
+    if (!paymentStatus.isConnected) {
+      toast({
+        title: "Wallet connection issue",
+        description: "Your wallet is connected but not ready for payments. Please wait a moment or try refreshing the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      // Prepare the prompt by replacing variables with their current values
+      let processedPrompt = promptText;
+      variables.forEach(variable => {
+        if (variable.currentValue) {
+          const regex = new RegExp(`\\[${variable.name}(?:[^\\]]*)\\]`, 'g');
+          processedPrompt = processedPrompt.replace(regex, variable.currentValue);
+        }
+      });
+
+      const result = await generateImage({
+        prompt: processedPrompt,
+        aspectRatio: dimension,
+        resolution: resolution as '1K' | '2K' | '4K',
+      }) as any;
+
+      if (result?.imageUrl) {
+        setGeneratedImage(result.imageUrl);
+        toast({
+          title: "Image generated successfully!",
+          description: `Generated with Gemini (${result.generationTime || 'unknown'}ms)`,
+        });
+      } else {
+        throw new Error("No image URL returned");
+      }
+    } catch (error) {
+      console.error('Generation error:', error);
+      
+      // Check for wallet timeout errors
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isWalletTimeout = errorMessage.includes('Wallet timeout') || 
+                              errorMessage.includes('walletTimeout') ||
+                              errorMessage.includes('timeout');
+      
+      if (isWalletTimeout) {
+        toast({
+          title: "MetaMask Signature Required",
+          description: "Please check your MetaMask extension and approve the signature request. Make sure MetaMask is unlocked and the popup is visible.",
+          variant: "destructive",
+          duration: 8000, // Longer duration for important message
+        });
+      } else {
+        toast({
+          title: "Generation failed",
+          description: errorMessage || "Failed to generate image. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -783,15 +881,58 @@ export default function CompactPromptCreator() {
                 example
               </Button>
 
+              {!authenticated && (
+                <ConnectWallet />
+              )}
+
               <Button
                 size="sm"
                 className="h-8 px-6 bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleGenerateImage}
+                disabled={isGenerating || isPending || !authenticated || !account}
                 data-testid="button-generate"
               >
-                Generate
+                {isGenerating || isPending 
+                  ? "Generating..." 
+                  : !authenticated 
+                    ? "Connect Wallet" 
+                    : "Generate"}
               </Button>
             </div>
           </div>
+
+          {/* Generated Image Display */}
+          {generatedImage && (
+            <div className="px-4 pb-4">
+              <div className="rounded-xl border border-border bg-background p-4">
+                <div className="text-sm font-semibold text-foreground mb-3">Generated Image</div>
+                <div className="flex justify-center">
+                  <img
+                    src={generatedImage}
+                    alt="Generated image"
+                    className="max-w-full max-h-96 rounded-lg shadow-lg"
+                    onError={(e) => {
+                      console.error('Failed to load generated image:', generatedImage);
+                      toast({
+                        title: "Image load failed",
+                        description: "The generated image could not be displayed.",
+                        variant: "destructive",
+                      });
+                    }}
+                  />
+                </div>
+                <div className="flex justify-center mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGeneratedImage(null)}
+                  >
+                    Clear Image
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
         )}
       </div>

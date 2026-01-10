@@ -1,23 +1,13 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ConnectWallet } from "@/components/ConnectWallet";
 
 export default function SettingsPage() {
-  const { ready, authenticated, login } = usePrivy();
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-background pt-16">
-        <Navbar />
-        <main className="w-full px-6 lg:px-8 py-6">
-          <p className="text-muted-foreground">Loading...</p>
-        </main>
-      </div>
-    );
-  }
+  const account = useActiveAccount();
+  const authenticated = !!account;
 
   if (!authenticated) {
     return (
@@ -30,9 +20,9 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Log in to manage your account settings.
+                Connect your wallet to manage your account settings.
               </p>
-              <Button onClick={login}>Log in</Button>
+              <ConnectWallet />
             </CardContent>
           </Card>
         </main>

@@ -1,5 +1,49 @@
 @import "tailwindcss";
 
+/* ConnectWallet Button - Theme-aware styling */
+.connect-wallet-button,
+button.connect-wallet-button,
+.tw-connect-wallet.connect-wallet-button {
+  width: 100% !important;
+  min-height: 36px !important;
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  border: 1px solid hsl(var(--primary-border)) !important;
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  box-shadow: var(--shadow-sm) !important;
+  cursor: pointer !important;
+  transition: color 0.2s ease-out, background-color 0.2s ease-out, border-color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.2s ease-out !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.connect-wallet-button:hover,
+button.connect-wallet-button:hover,
+.tw-connect-wallet.connect-wallet-button:hover {
+  background-color: hsl(var(--primary) / 0.95) !important;
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-1px) !important;
+}
+
+.connect-wallet-button:active,
+button.connect-wallet-button:active,
+.tw-connect-wallet.connect-wallet-button:active {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transform: translateY(0) scale(0.98) !important;
+}
+
+.connect-wallet-button:focus-visible,
+button.connect-wallet-button:focus-visible,
+.tw-connect-wallet.connect-wallet-button:focus-visible {
+  outline: 2px solid hsl(var(--ring)) !important;
+  outline-offset: 2px !important;
+}
+
 /* Fix for grid children overflowing their columns */
 .lg\:grid > * {
   min-width: 0;

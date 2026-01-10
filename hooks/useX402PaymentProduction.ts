@@ -84,8 +84,12 @@ export function useX402PaymentProduction() {
     parseAs: "json",
     theme: "dark",
     uiEnabled: true,
-    // Add timeout configuration for wallet operations
-    // This helps with MetaMask signature requests that might take longer
+    // Customize wallet funding modal for insufficient balance
+    fundWalletOptions: {
+      title: "Add Funds to Continue",
+      description: "Top up your wallet with USDC to complete this transaction",
+    },
+    // Note: connectOptions not needed - wallets are already connected via hybrid wallet system
   });
 
   /**

@@ -50,28 +50,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import PromptSettingsPanel from "./PromptSettingsPanel";
 import QuickVariableCreator from "./QuickVariableCreator";
-import { usePrivy } from "@privy-io/react-auth";
-import { addCreation, getUserKeyFromPrivyUser } from "@/lib/creations";
+import { useActiveAccount } from "thirdweb/react";
+import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
 
-// Safe wrapper for usePrivy to handle cases where Privy is not available
-function useSafePrivy() {
-  try {
-    return usePrivy();
-  } catch (error) {
-    // Privy is not available, return default values
-    console.warn("Privy not available in PromptEditor, using fallback auth state");
-    return {
-      ready: true, // Allow components to work even when Privy fails
-      authenticated: false,
-      user: null,
-      login: () => console.warn("Login not available"),
-      logout: () => console.warn("Logout not available"),
-    };
-  }
-}
 
 type VariableType =
   | "text"
@@ -122,7 +106,7 @@ interface PromptEditorProps {
 }
 
 export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
-  const { user } = useSafePrivy();
+  const account = useActiveAccount();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain, setSelectedChain] = useState<ChainKey>(bestChain || 'base-sepolia');
@@ -903,7 +887,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
       
       setGeneratedImage(data.imageUrl);
-      const userKey = getUserKeyFromPrivyUser(user);
+      const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
           await apiRequest("POST", "/api/generations", {
@@ -969,7 +953,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
       
       setGeneratedImage(data.imageUrl);
-      const userKey = getUserKeyFromPrivyUser(user);
+      const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
           await apiRequest("POST", "/api/generations", {
