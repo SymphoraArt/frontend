@@ -78,6 +78,7 @@ export interface IStorage {
   getAllArtists(): Promise<Artist[]>;
   createArtist(artist: InsertArtist): Promise<Artist>;
   updateArtist(id: string, artist: Partial<InsertArtist>): Promise<Artist | undefined>;
+  deleteArtist(id: string): Promise<boolean>;
 
   getArtwork(id: string): Promise<Artwork | undefined>;
   getArtworksByArtistId(artistId: string): Promise<Artwork[]>;
@@ -413,6 +414,19 @@ export class DatabaseStorage implements IStorage {
       return toSchemaType<Artist>(result);
     } catch {
       return undefined;
+    }
+  }
+
+  async deleteArtist(id: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      const result = await db.collection(COLLECTIONS.ARTISTS).deleteOne({
+        _id: new ObjectId(id)
+      });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
     }
   }
 
