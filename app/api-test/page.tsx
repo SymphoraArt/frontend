@@ -1,6 +1,9 @@
 // app/api-test/page.tsx
 "use client";
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 import React, { useMemo, useState } from "react";
 
 type Json = any;
