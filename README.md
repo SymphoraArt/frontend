@@ -23,13 +23,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # Encryption (required for prompt content)
 FIELD_ENCRYPTION_KEY_B64=your-32-byte-base64-key
 
-# Privy Auth (optional)
-NEXT_PUBLIC_PRIVY_CLIENT_ID=
-NEXT_PUBLIC_PRIVY_APP_ID=
-
-# Thirdweb (optional)
-NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
-THIRDWEB_SECRET_KEY=
+# Thirdweb (required for wallet connection and payments)
+NEXT_PUBLIC_THIRDWEB_CLIENT_ID=your_thirdweb_client_id
+THIRDWEB_SECRET_KEY=your_thirdweb_secret_key
 
 # Gemini (optional - for prompt enhancement)
 GEMINI_API_KEY=
@@ -130,7 +126,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - **Framework**: Next.js 16 (App Router)
 - **Database**: Supabase (PostgreSQL)
-- **Auth**: Privy (optional)
+- **Auth & Wallets**: Thirdweb (In-App Wallets with email, Google, phone, passkeys)
 - **Styling**: Tailwind CSS 4
 - **UI**: Radix UI + shadcn/ui
 - **Image Generation**: Pollinations API + Gemini (optional enhancement)
