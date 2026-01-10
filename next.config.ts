@@ -42,11 +42,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   
-  // Experimental features for better ESM support
-  experimental: {
-    // Enable server components external packages
-    serverComponentsExternalPackages: ['thirdweb'],
-  },
+  // Server external packages (moved from experimental in Next.js 16)
+  serverExternalPackages: ['thirdweb'],
 };
 
 export default nextConfig;
