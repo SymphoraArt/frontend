@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/react/web/wallets/smartWallet/locale/vi.js","sources":["file:///Users/srthck/Desktop/frontend/node_modules/thirdweb/src/react/web/wallets/smartWallet/locale/vi.ts"],"sourcesContent":["import type { SmartWalletLocale } from \"./types.js\";\n\nconst smartWalletLocalVi: SmartWalletLocale = {\n  connecting: \"Đang kết nối Tài Khoản Thông Minh\",\n  failedToConnect: \"Kết nối Tài Khoản Thông Minh thất bại\",\n  wrongNetworkScreen: {\n    failedToSwitch: \"Chuyển mạng lưới thất bại\",\n    subtitle: \"Vui lòng chuyển sang mạng lưới được yêu cầu\",\n    title: \"Sai mạng lưới\",\n  },\n};\n\nexport default smartWalletLocalVi;\n"],"names":[],"mappings":";;;;AAEA,MAAM,kBAAkB,GAAsB;IAC5C,UAAU,EAAE,mCAAmC;IAC/C,eAAe,EAAE,uCAAuC;IACxD,kBAAkB,EAAE;QAClB,cAAc,EAAE,2BAA2B;QAC3C,QAAQ,EAAE,6CAA6C;QACvD,KAAK,EAAE,eAAe;KACvB;CACF,CAAC;uCAEa,kBAAkB,CAAC"}}]
+}

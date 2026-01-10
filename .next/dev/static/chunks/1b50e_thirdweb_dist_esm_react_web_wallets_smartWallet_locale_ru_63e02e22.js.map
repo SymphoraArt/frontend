@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/react/web/wallets/smartWallet/locale/ru.js","sources":["file:///Users/srthck/Desktop/frontend/node_modules/thirdweb/src/react/web/wallets/smartWallet/locale/ru.ts"],"sourcesContent":["import type { SmartWalletLocale } from \"./types.js\";\n\nconst smartWalletLocalRu: SmartWalletLocale = {\n  connecting: \"Подключение к смарт-аккаунту\",\n  failedToConnect: \"Не удалось подключиться к смарт-аккаунту\",\n  wrongNetworkScreen: {\n    failedToSwitch: \"Не удалось сменить сеть\",\n    subtitle: \"Ваш кошелек не подключен к нужной сети\",\n    title: \"Неверная сеть\",\n  },\n};\n\nexport default smartWalletLocalRu;\n"],"names":[],"mappings":";;;;AAEA,MAAM,kBAAkB,GAAsB;IAC5C,UAAU,EAAE,8BAA8B;IAC1C,eAAe,EAAE,0CAA0C;IAC3D,kBAAkB,EAAE;QAClB,cAAc,EAAE,yBAAyB;QACzC,QAAQ,EAAE,wCAAwC;QAClD,KAAK,EAAE,eAAe;KACvB;CACF,CAAC;uCAEa,kBAAkB,CAAC"}}]
+}
