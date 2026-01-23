@@ -1,0 +1,36 @@
+node_modules
+dist
+.next
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Keys / certs
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Secret config
+secrets.yml
+secrets.yaml
+credentials.json
+service-account*.json
+
+# Documentation files - ignore all .md files except README.md
+*.md
+!README.md

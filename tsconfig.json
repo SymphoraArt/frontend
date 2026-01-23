@@ -1,0 +1,86 @@
+{
+  "include": [
+    "client/src/**/*",
+    "shared/**/*",
+    "server/**/*",
+    "app/**/*",
+    "backend/**/*",
+    "!backend/scripts/**/*",
+    "components/**/*",
+    "hooks/**/*",
+    "lib/**/*",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "**/*.test.ts",
+    "backend/scripts/**/*",
+    "backend/app.ts",
+    "backend/routes.ts",
+    "backend/index-dev.ts",
+    "backend/index-prod.ts",
+    "backend/price-oracle-complex.ts",
+    "backend/oracles/chainlink-oracle.ts",
+    "backend/oracles/uniswap-twap-oracle.ts",
+    "backend/oracles/oracle-resolver.ts"
+  ],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "noEmit": true,
+    "module": "ESNext",
+    "strict": true,
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable"
+    ],
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "types": [
+      "node",
+      "react",
+      "react-dom"
+    ],
+    "paths": {
+      "@/*": [
+        "./client/src/*",
+        "./app/*"
+      ],
+      "@/components/*": [
+        "./components/*"
+      ],
+      "@/hooks/*": [
+        "./hooks/*"
+      ],
+      "@/lib/*": [
+        "./lib/*"
+      ],
+      "@/backend/*": [
+        "./backend/*"
+      ],
+      "@/shared/*": [
+        "./shared/*"
+      ],
+      "@shared/*": [
+        "./shared/*"
+      ]
+    },
+    "target": "ES2017",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  }
+}
