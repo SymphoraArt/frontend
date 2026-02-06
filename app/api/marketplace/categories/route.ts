@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const categories = await storage.getCategories();
 
     // Transform to API response format
-    const formattedCategories = categories.map(category => ({
+    const formattedCategories = categories.map((category: any) => ({
       id: category.id,
       name: category.name,
       description: category.description,

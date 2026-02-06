@@ -33,11 +33,20 @@ export interface AggregatedPrice {
   /** Final USD price per token */
   priceUsd: number;
 
+  /** Whether the price is safe for settlement */
+  isSafe: boolean;
+
+  /** Reason if price is unsafe */
+  unsafeReason?: string;
+
   /** Confidence score (0-1) */
   confidence: number;
 
   /** Sources used for aggregation */
   sources: string[];
+
+  /** Individual quotes used to build the result */
+  quotes: PriceQuote[];
 
   /** Timestamp of aggregation */
   timestamp: number;
@@ -119,8 +128,16 @@ export class PriceOracle {
 
     return {
       priceUsd: 1.0, // Stablecoins are pegged to $1.00
+      isSafe: true,
+      unsafeReason: undefined,
       confidence: 1.0, // 100% confidence for hardcoded stable prices
       sources: ['manual'],
+      quotes: [{
+        priceUsd: 1.0,
+        source: 'manual',
+        confidence: 1.0,
+        timestamp: now,
+      }],
       timestamp: now,
       isStale: false,
       deviation: 0.0,
@@ -133,8 +150,11 @@ export class PriceOracle {
   private createUnsafePrice(reason: string): AggregatedPrice {
     return {
       priceUsd: 0,
+      isSafe: false,
+      unsafeReason: reason,
       confidence: 0,
       sources: [],
+      quotes: [],
       timestamp: Date.now(),
       isStale: true,
       deviation: 0,

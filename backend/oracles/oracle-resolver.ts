@@ -383,7 +383,8 @@ export class OracleResolver {
    * Check if token is a stablecoin
    */
   private isStablecoin(tokenSymbol: string): boolean {
-    return this.config.stablecoins.includes(tokenSymbol.toUpperCase());
+    const sym = tokenSymbol.toUpperCase();
+    return this.config.stablecoins.some((s) => s.toUpperCase() === sym);
   }
 
   /**

@@ -10,12 +10,16 @@ interface PromptCardProps {
   id: string;
   title: string;
   artist: string;
-  price: number;
-  isFree: boolean;
+  price?: number; // whole USDC
+  priceUsdCents?: number; // cents
+  isFree?: boolean;
+  isListed?: boolean;
+  licenseType?: string;
+  totalSales?: number;
   rating: number;
   downloads: number;
   thumbnail: string;
-  category: string;
+  category?: string;
   onClick?: () => void;
 }
 
@@ -24,6 +28,7 @@ export default function PromptCard({
   title,
   artist,
   price,
+  priceUsdCents,
   isFree,
   rating,
   downloads,
@@ -32,6 +37,8 @@ export default function PromptCard({
   onClick,
 }: PromptCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const resolvedPrice = priceUsdCents !== undefined ? priceUsdCents / 100 : (price ?? 0);
+  const resolvedIsFree = isFree !== undefined ? isFree : resolvedPrice === 0;
 
   return (
     <Card
@@ -58,11 +65,11 @@ export default function PromptCard({
         </div>
 
         <Badge
-          variant={isFree ? "secondary" : "default"}
+          variant={resolvedIsFree ? "secondary" : "default"}
           className="absolute top-2 right-2 backdrop-blur-sm text-xs"
           data-testid={`badge-price-${id}`}
         >
-          {isFree ? "FREE" : `${price} USDC`}
+          {resolvedIsFree ? "FREE" : `${resolvedPrice} USDC`}
         </Badge>
 
         {isHovered && (

@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
 
     // Filter tags that match the query
     const matchingTags = popularTags
-      .filter(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
       .slice(0, resultLimit / 2); // Reserve half for tags
 
     // Get categories for suggestions
     const categories = await storage.getCategories();
     const matchingCategories = categories
-      .filter(cat => cat.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter((cat: any) => cat.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .slice(0, Math.max(2, resultLimit / 4)); // Reserve some for categories
 
     // Create suggestions array
@@ -54,13 +54,13 @@ export async function GET(request: NextRequest) {
     
     const suggestions: Suggestion[] = [
       // Exact matches first
-      ...matchingTags.map(tag => ({
+      ...matchingTags.map((tag: string) => ({
         type: 'tag' as const,
         value: tag,
         label: `Tag: ${tag}`,
         count: 0, // Could be populated with actual counts
       })),
-      ...matchingCategories.map(cat => ({
+      ...matchingCategories.map((cat: any) => ({
         type: 'category' as const,
         value: cat.id,
         label: `Category: ${cat.name}`,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         "nature photography",
         "product shot",
         "architecture",
-      ].filter(search =>
+      ].filter((search: string) =>
         search.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !suggestions.some(s => s.label.toLowerCase().includes(search.toLowerCase()))
       );

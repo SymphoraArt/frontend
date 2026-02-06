@@ -18,14 +18,14 @@ describe('Variable Substitution Service', () => {
   describe('substituteVariables', () => {
     it('should successfully substitute text variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'A [color] [object] in the sky';
       const variableValues = [
         { variableName: 'color', value: 'red' },
         { variableName: 'object', value: 'balloon' }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -33,22 +33,18 @@ describe('Variable Substitution Service', () => {
       // Assert
       expect(result.success).toBe(true);
       expect(result.finalPrompt).toBe('A red balloon in the sky');
-      expect(mockDecryptPrompt).toHaveBeenCalledWith({
-        encryptedContent: encryptedPrompt,
-        iv: '',
-        authTag: ''
-      });
+      expect(mockDecryptPrompt).toHaveBeenCalledWith(encryptedPrompt);
     });
 
     it('should handle multi-select variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'Include: [features]';
       const variableValues = [
         { variableName: 'features', value: ['headlights', 'spoiler', 'rims'] }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -60,13 +56,13 @@ describe('Variable Substitution Service', () => {
 
     it('should handle boolean variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'Include background: [includeBg]';
       const variableValues = [
         { variableName: 'includeBg', value: true }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -78,13 +74,13 @@ describe('Variable Substitution Service', () => {
 
     it('should handle false boolean variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'Include background: [includeBg]';
       const variableValues = [
         { variableName: 'includeBg', value: false }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -96,13 +92,13 @@ describe('Variable Substitution Service', () => {
 
     it('should handle number variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'Intensity: [intensity]';
       const variableValues = [
         { variableName: 'intensity', value: 75 }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -114,13 +110,13 @@ describe('Variable Substitution Service', () => {
 
     it('should handle multiple instances of the same variable', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'The [color] car is [color]';
       const variableValues = [
         { variableName: 'color', value: 'red' }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -132,14 +128,14 @@ describe('Variable Substitution Service', () => {
 
     it('should detect unreplaced variables', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'A [color] [object] in the sky';
       const variableValues = [
         { variableName: 'color', value: 'red' }
         // Missing 'object' variable
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues);
@@ -151,10 +147,10 @@ describe('Variable Substitution Service', () => {
 
     it('should handle empty variable values array', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'A simple prompt without variables';
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, []);
@@ -166,10 +162,10 @@ describe('Variable Substitution Service', () => {
 
     it('should handle decryption errors', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const decryptionError = new Error('Decryption failed');
 
-      mockDecryptPrompt.mockRejectedValue(decryptionError);
+      mockDecryptPrompt.mockImplementation(() => { throw decryptionError; });
 
       // Act
       const result = await substituteVariables(encryptedPrompt, []);
@@ -181,14 +177,14 @@ describe('Variable Substitution Service', () => {
 
     it('should validate required variables when definitions provided', async () => {
       // Arrange
-      const encryptedPrompt = 'encrypted-template';
+      const encryptedPrompt = { encryptedContent: 'encrypted-template', iv: 'iv', authTag: 'authTag' };
       const template = 'A [color] car';
       const variableValues: any[] = [];
       const variableDefinitions = [
         { name: 'color', type: 'text', required: true }
       ];
 
-      mockDecryptPrompt.mockResolvedValue(template);
+      mockDecryptPrompt.mockReturnValue(template);
 
       // Act
       const result = await substituteVariables(encryptedPrompt, variableValues, variableDefinitions);

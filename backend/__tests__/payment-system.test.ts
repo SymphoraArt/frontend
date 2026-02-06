@@ -10,7 +10,7 @@
  * - Price oracle safety
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { X402PaymentEngine } from '../x402-engine';
 import { MultiTokenPaymentEngine } from '../multi-token-engine';
 import { CrossChainPaymentAggregator } from '../cross-chain-aggregator';

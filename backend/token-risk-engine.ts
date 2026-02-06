@@ -169,7 +169,8 @@ export class TokenRiskEngine {
     // Validate payment amount against token bounds
     const amountValidation = tokenRegistry.validatePaymentAmount(symbol, amountUsd);
     if (!amountValidation.valid) {
-      return this.createBlockedAssessment(amountValidation.reason || "Invalid payment amount");
+      const reason = amountValidation.reason || "Invalid payment amount";
+      return this.createBlockedAssessment(`Invalid payment amount: ${reason}`);
     }
 
     // Assess individual risk factors
@@ -245,9 +246,17 @@ export class TokenRiskEngine {
     // Fallback: Assume sufficient liquidity for registered tokens
     const tokenMinLiquidity = token.liquidity.minLiquidityUsd;
 
+    // Use risk level as a proxy for liquidity risk (hackathon simplification)
+    const scoreMap: Record<string, { score: number; level: "low" | "medium" | "high" | "critical" }> = {
+      "LOW": { score: 10, level: "low" },
+      "MEDIUM": { score: 35, level: "medium" },
+      "HIGH": { score: 70, level: "high" },
+    };
+    const proxy = scoreMap[token.riskLevel] || { score: 90, level: "critical" as const };
+
     return {
-      score: 10, // Low risk - tokens in registry are assumed to have sufficient liquidity
-      level: "low",
+      score: proxy.score,
+      level: proxy.level,
       details: `Token registered with minimum liquidity: $${tokenMinLiquidity.toLocaleString()}`,
       blocking: false,
     };

@@ -53,6 +53,7 @@
     "bottleneck": "^2.19.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "ethers": "^6.16.0",
     "lucide-react": "^0.562.0",
     "mongodb": "^6.0.0",
     "mongoose": "^8.0.0",
@@ -60,9 +61,11 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.69.0",
+    "recharts": "^3.7.0",
     "tailwind-merge": "^3.4.0",
     "thirdweb": "^5.116.1",
-    "zod": "^4.3.4"
+    "zod": "^4.3.4",
+    "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

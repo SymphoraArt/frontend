@@ -87,6 +87,18 @@ export interface IStorage {
   getAllPrompts(): Promise<Prompt[]>;
   getPublicPrompts(): Promise<Prompt[]>;
   getMarketplacePrompts(): Promise<Prompt[]>; // Prompts listed for sale (price > 0)
+  // Marketplace search helpers used by Next.js API routes
+  searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<any[]>;
+  getAllListedPrompts(limit: number, cursor?: string): Promise<any[]>;
+  getPopularTags(limit: number): Promise<string[]>;
+  getCategories(): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    promptCount?: number;
+    featured?: boolean;
+  }>>;
   getPromptsByArtistId(artistId: string): Promise<Prompt[]>;
   createPrompt(promptData: { content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>): Promise<Prompt>;
   updatePrompt(id: string, promptData: Partial<{ content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>>): Promise<Prompt | undefined>;
@@ -137,7 +149,7 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // ==================== Users ====================
+  // Users 
   async getUser(id: string): Promise<User | undefined> {
     const db = getDatabase();
     if (!db) return undefined;
@@ -260,6 +272,104 @@ export class DatabaseStorage implements IStorage {
       .sort({ createdAt: -1 })
       .toArray();
     return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
+  // Marketplace Search Helpers 
+  async searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<any[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const mongoQuery: any = { ...(query || {}) };
+
+    // Cursor pagination (best-effort): assumes cursor is a Mongo ObjectId string
+    if (cursor) {
+      try {
+        const dir = Object.values(sort || {})[0] === 1 ? 1 : -1;
+        mongoQuery._id = dir === 1
+          ? { $gt: new ObjectId(cursor) }
+          : { $lt: new ObjectId(cursor) };
+      } catch {
+        // ignore invalid 
+      }
+    }
+
+    const projection: any = {};
+    if (mongoQuery.$text) {
+      // If text search is used, allow returning a score when sorting by it
+      projection.score = { $meta: "textScore" };
+    }
+
+    const cursorQuery = db.collection(COLLECTIONS.PROMPTS).find(mongoQuery, {
+      projection: Object.keys(projection).length > 0 ? projection : undefined,
+    });
+
+    if (sort && Object.keys(sort).length > 0) cursorQuery.sort(sort);
+    cursorQuery.limit(Math.max(1, limit));
+
+    const docs = await cursorQuery.toArray();
+    return docs.map((d: any) => toSchemaType<any>(d));
+  }
+
+  async getAllListedPrompts(limit: number, cursor?: string): Promise<any[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const mongoQuery: any = {
+      $or: [
+        { isListed: true, listingStatus: 'active' },
+        // Backward compatible fallback: treat any paid prompt as "listed"
+        { price: { $gt: 0 } },
+      ],
+    };
+
+    if (cursor) {
+      try {
+        mongoQuery._id = { $lt: new ObjectId(cursor) };
+      } catch {
+        // ignore invalid cursor
+      }
+    }
+
+    const docs = await db.collection(COLLECTIONS.PROMPTS)
+      .find(mongoQuery)
+      .sort({ createdAt: -1 })
+      .limit(Math.max(1, limit))
+      .toArray();
+
+    return docs.map((d: any) => toSchemaType<any>(d));
+  }
+
+  async getPopularTags(limit: number): Promise<string[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const rows = await db.collection(COLLECTIONS.PROMPTS).aggregate([
+      { $match: { tags: { $exists: true, $type: "array", $ne: [] } } },
+      { $unwind: "$tags" },
+      { $group: { _id: "$tags", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: Math.max(1, limit) },
+    ]).toArray();
+
+    return rows.map((r: any) => String(r._id));
+  }
+
+  async getCategories(): Promise<Array<{ id: string; name: string; description?: string; icon?: string; promptCount?: number; featured?: boolean }>> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const rows = await db.collection(COLLECTIONS.PROMPTS).aggregate([
+      { $match: { category: { $exists: true, $nin: [null, ""] } } },
+      { $group: { _id: "$category", promptCount: { $sum: 1 } } },
+      { $sort: { promptCount: -1 } },
+    ]).toArray();
+
+    return rows.map((r: any) => ({
+      id: String(r._id),
+      name: String(r._id),
+      promptCount: r.promptCount || 0,
+      featured: false,
+    }));
   }
 
   async getPromptsByArtistId(artistId: string): Promise<Prompt[]> {

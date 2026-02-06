@@ -493,7 +493,11 @@ export default function CompactPromptCreator() {
         if (account) {
           try {
             const userKey = getUserKeyFromAccount(account);
-            await addCreation(userKey, {
+            if (!userKey) {
+              throw new Error("Missing userKey for account");
+            }
+            addCreation(userKey, {
+              id: `${Date.now()}`,
               imageUrl: result.imageUrl,
               prompt: processedPrompt,
               createdAt: new Date().toISOString(),

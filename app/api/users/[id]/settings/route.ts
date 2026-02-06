@@ -220,11 +220,18 @@ export async function PUT(
       );
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       settings: {
         ...getDefaultSettings(),
-        ...(data.preferences as UserSettings || {}),
+        ...((data.preferences as UserSettings) || {}),
         displayName: data.display_name || "",
       },
     });

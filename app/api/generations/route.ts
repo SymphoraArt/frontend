@@ -72,6 +72,8 @@ export async function POST(req: Request) {
       userId,
       promptId,
       encryptedPrompt,
+      iv,
+      authTag,
       variableValues,
       settings,
       transactionHash
@@ -79,7 +81,11 @@ export async function POST(req: Request) {
 
     // 2. Substitute variables
     const substitution = await substituteVariables(
-      encryptedPrompt,
+      {
+        encryptedContent: encryptedPrompt,
+        iv: iv || "",
+        authTag: authTag || "",
+      },
       variableValues,
       [] // TODO: Fetch variable definitions from prompts table when available
     );
@@ -96,6 +102,8 @@ export async function POST(req: Request) {
       user_id: userId,
       prompt_id: promptId,
       final_prompt: encryptedFinalPrompt.encryptedContent,
+      final_prompt_iv: encryptedFinalPrompt.iv,
+      final_prompt_auth_tag: encryptedFinalPrompt.authTag,
       variable_values: variableValues,
       settings: settings,
       transaction_hash: transactionHash || null,

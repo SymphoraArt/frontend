@@ -10,7 +10,7 @@
  * - Backward compatibility
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { OracleResolver } from '../oracles/oracle-resolver';
 import { ChainlinkOracle, ChainlinkOracleError, ChainlinkErrorCode } from '../oracles/chainlink-oracle';
 import { UniswapTwapOracle, UniswapOracleError, UniswapErrorCode } from '../oracles/uniswap-twap-oracle';

@@ -73,7 +73,8 @@ export default function SettingsPage() {
 
   // Load settings from API when wallet is connected
   useEffect(() => {
-    if (!account?.address) {
+    const address = account?.address;
+    if (!address) {
       setLoading(false);
       // Fallback to localStorage for theme
       if (typeof window !== "undefined") {
@@ -86,7 +87,7 @@ export default function SettingsPage() {
     async function loadSettings() {
       try {
         setLoading(true);
-        const response = await fetch(`/api/users/${account.address}/settings`, {
+        const response = await fetch(`/api/users/${address}/settings`, {
           headers: { "Content-Type": "application/json" },
         });
 
