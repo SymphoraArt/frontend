@@ -43,7 +43,11 @@ router.post('/generations', async (req: Request, res: Response) => {
 
     // 2. Substitute variables
     const substitution = await substituteVariables(
-      encryptedPrompt,
+      {
+        encryptedContent: encryptedPrompt,
+        iv,
+        authTag
+      },
       variableValues || [],
       [] // TODO: Fetch variable definitions from database when available
     );
@@ -63,6 +67,8 @@ router.post('/generations', async (req: Request, res: Response) => {
       userId,
       promptId,
       finalPrompt: encryptedFinalPrompt.encryptedContent,
+      finalPromptIv: encryptedFinalPrompt.iv,
+      finalPromptAuthTag: encryptedFinalPrompt.authTag,
       variableValues: variableValues || [],
       settings: settings || {},
       status: 'payment_verified', // For testing, assume payment is verified
@@ -153,8 +159,8 @@ router.get('/generations/:id', async (req: Request, res: Response) => {
       try {
         const decryptedPrompt = decryptPrompt({
           encryptedContent: data.final_prompt,
-          iv: '', // TODO: Store and retrieve from database
-          authTag: '' // TODO: Store and retrieve from database
+          iv: data.final_prompt_iv,
+          authTag: data.final_prompt_auth_tag
         });
         response.finalPrompt = decryptedPrompt;
       } catch (error: any) {

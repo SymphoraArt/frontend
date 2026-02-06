@@ -23,19 +23,26 @@ export function log(message: string, source = "express") {
 
 export const app = express();
 
-declare module 'http' {
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody: unknown;
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: false }));
 
-app.use('/generated-images', express.static(nodePath.join(process.cwd(), 'attached_assets', 'generated_images')));
+app.use(
+  "/generated-images",
+  express.static(
+    nodePath.join(process.cwd(), "attached_assets", "generated_images"),
+  ),
+);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -88,7 +95,7 @@ export default async function runApp(
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });

@@ -1,12 +1,17 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPromptSchema, insertVariableSchema, insertArtistSchema, insertArtworkSchema } from "@shared/schema";
+import {
+  insertPromptSchema,
+  insertVariableSchema,
+  insertArtistSchema,
+  insertArtworkSchema,
+} from "@shared/schema";
 import { generateImage } from "./gemini";
 
 // Import generation routes and worker
-import generationsRouter from './routes/generations.js';
-import { startGenerationWorker } from './workers/generation-worker.js';
+import generationsRouter from "./routes/generations.js";
+import { startGenerationWorker } from "./workers/generation-worker.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/prompts", async (req, res) => {
@@ -44,7 +49,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/prompts/:id/content", async (req, res) => {
     try {
-      const promptWithContent = await storage.getPromptWithDecryptedContent(req.params.id);
+      const promptWithContent = await storage.getPromptWithDecryptedContent(
+        req.params.id,
+      );
       if (!promptWithContent) {
         return res.status(404).json({ error: "Prompt not found" });
       }
@@ -58,10 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/prompts", async (req, res) => {
     try {
       const { content, encryptedContent, iv, authTag, ...rest } = req.body;
-      if (!content || typeof content !== 'string') {
+      if (!content || typeof content !== "string") {
         return res.status(400).json({ error: "Content is required" });
       }
-      if (!rest.title || typeof rest.title !== 'string') {
+      if (!rest.title || typeof rest.title !== "string") {
         return res.status(400).json({ error: "Title is required" });
       }
       const prompt = await storage.createPrompt({ content, ...rest });
@@ -101,7 +108,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/prompts/:promptId/variables", async (req, res) => {
     try {
-      const variables = await storage.getVariablesByPromptId(req.params.promptId);
+      const variables = await storage.getVariablesByPromptId(
+        req.params.promptId,
+      );
       res.json(variables);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch variables" });
@@ -145,7 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt } = req.body;
-      if (!prompt || typeof prompt !== 'string') {
+      if (!prompt || typeof prompt !== "string") {
         return res.status(400).json({ error: "Prompt is required" });
       }
 
@@ -153,7 +162,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ imageUrl: imageDataUrl });
     } catch (error: any) {
       console.error("Image generation error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate image" });
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to generate image" });
     }
   });
 
@@ -278,11 +289,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Load image document with variable values and variable definitions for UI.
+  // Frontend uses variableDefinitions[].type to render: multi-select → checkboxes, single-select/grouped/radio → radio buttons.
+  app.get("/api/images/:id", async (req, res) => {
+    try {
+      const image = await storage.getGeneratedImage(req.params.id);
+      if (!image) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+      const variableDefinitions = await storage.getVariablesByPromptId(image.promptId);
+      const comments = await storage.getCommentsByImageId(req.params.id);
+      // Do not expose encrypted prompt; only what the UI needs.
+      const { encryptedPrompt, encryptedPromptIv, encryptedPromptAuthTag, ...safeImage } = image;
+      const definitions = variableDefinitions
+        .map((v) => ({
+          id: v.id,
+          name: v.name,
+          label: v.label,
+          type: v.type,
+          options: v.options,
+          position: v.position,
+          required: v.required,
+          defaultValue: v.defaultValue,
+          min: v.min,
+          max: v.max,
+          step: v.step,
+          placeholder: v.placeholder,
+        }))
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      res.json({
+        image: {
+          ...safeImage,
+          createdAt: (safeImage as any).createdAt,
+        },
+        variableValues: image.variableValues ?? [],
+        variableDefinitions: definitions,
+        comments,
+      });
+    } catch (error) {
+      console.error("Get image error:", error);
+      res.status(500).json({ error: "Failed to fetch image" });
+    }
+  });
+
+  app.get("/api/images/:id/comments", async (req, res) => {
+    try {
+      const comments = await storage.getCommentsByImageId(req.params.id);
+      res.json(comments);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch comments" });
+    }
+  });
+
+  // Display all prompts listed for sale (price > 0)
+  app.get("/api/marketplace/prompts", async (req, res) => {
+    try {
+      const prompts = await storage.getMarketplacePrompts();
+      // Remove encrypted content from response for security
+      const safePrompts = prompts.map((p) => {
+        const { encryptedContent, iv, authTag, ...safe } = p;
+        return safe;
+      });
+      res.json({ prompts: safePrompts, total: safePrompts.length });
+    } catch (error) {
+      console.error("Marketplace prompts error:", error);
+      res.status(500).json({ error: "Failed to fetch marketplace prompts" });
+    }
+  });
+
+  // Display all images published to showroom
+  app.get("/api/gallery/showroom", async (req, res) => {
+    try {
+      const images = await storage.getShowroomImages();
+      // Remove encrypted prompt fields from response
+      const safeImages = images.map((img) => {
+        const { encryptedPrompt, encryptedPromptIv, encryptedPromptAuthTag, ...safe } = img;
+        return safe;
+      });
+      res.json({ images: safeImages, total: safeImages.length });
+    } catch (error) {
+      console.error("Showroom images error:", error);
+      res.status(500).json({ error: "Failed to fetch showroom images" });
+    }
+  });
+
+  // Display all images created by a specific user
+  app.get("/api/users/:userId/gallery", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const images = await storage.getGeneratedImagesByUserId(userId);
+      // Remove encrypted prompt fields from response
+      const safeImages = images.map((img) => {
+        const { encryptedPrompt, encryptedPromptIv, encryptedPromptAuthTag, ...safe } = img;
+        return safe;
+      });
+      res.json({ images: safeImages, total: safeImages.length });
+    } catch (error) {
+      console.error("User gallery error:", error);
+      res.status(500).json({ error: "Failed to fetch user gallery" });
+    }
+  });
+
   // Register generation routes
-  app.use('/api', generationsRouter);
+  app.use("/api", generationsRouter);
 
   // Start background generation worker
-  if (process.env.START_GENERATION_WORKER !== 'false') {
+  if (process.env.START_GENERATION_WORKER !== "false") {
     startGenerationWorker();
   }
 

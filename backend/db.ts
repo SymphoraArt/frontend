@@ -65,6 +65,37 @@ async function createIndexes(): Promise<void> {
   if (!db) return;
 
   try {
+    // App collections: core prompt/image data
+    const usersCollection = db.collection('users');
+    await usersCollection.createIndex({ username: 1 }, { unique: true, sparse: true });
+
+    const artistsCollection = db.collection('artists');
+    await artistsCollection.createIndex({ username: 1 }, { unique: true, sparse: true });
+
+    const promptsCollection = db.collection('prompts');
+    // Used by /api/prompts/by-slug/:slug (and avoids full scans)
+    await promptsCollection.createIndex({ slug: 1 }, { sparse: true });
+    // Common listing/filtering patterns
+    await promptsCollection.createIndex({ createdAt: -1 });
+    await promptsCollection.createIndex({ artistId: 1, createdAt: -1 });
+    await promptsCollection.createIndex({ price: 1, createdAt: -1 });
+    await promptsCollection.createIndex({ category: 1, createdAt: -1 });
+    await promptsCollection.createIndex({ tags: 1 });
+
+    const variablesCollection = db.collection('variables');
+    await variablesCollection.createIndex({ promptId: 1, position: 1 });
+
+    const artworksCollection = db.collection('artworks');
+    await artworksCollection.createIndex({ artistId: 1, createdAt: -1 });
+    await artworksCollection.createIndex({ isPublic: 1, createdAt: -1 });
+
+    const generatedVariationsCollection = db.collection('generated_variations');
+    await generatedVariationsCollection.createIndex({ artworkId: 1, createdAt: -1 });
+    await generatedVariationsCollection.createIndex({ userId: 1, createdAt: -1 });
+
+    const artworkCommentsCollection = db.collection('artwork_comments');
+    await artworkCommentsCollection.createIndex({ artworkId: 1, createdAt: -1 });
+
     // Payments collection indexes
     const paymentsCollection = db.collection('payments');
     await paymentsCollection.createIndex({ txHash: 1 }, { unique: true, sparse: true });
@@ -81,6 +112,27 @@ async function createIndexes(): Promise<void> {
     const riskHistoryCollection = db.collection('risk_history');
     await riskHistoryCollection.createIndex({ tokenSymbol: 1, chainKey: 1, timestamp: -1 });
     await riskHistoryCollection.createIndex({ timestamp: -1 });
+
+    // Generated images (creator, prompt, showroom)
+    const generatedImagesCollection = db.collection('generated_images');
+    await generatedImagesCollection.createIndex({ creatorId: 1, createdAt: -1 });
+    await generatedImagesCollection.createIndex({ promptId: 1, createdAt: -1 });
+    await generatedImagesCollection.createIndex({ showroomPublished: 1, createdAt: -1 });
+    await generatedImagesCollection.createIndex({ createdAt: -1 });
+
+    // Image comments
+    const imageCommentsCollection = db.collection('image_comments');
+    await imageCommentsCollection.createIndex({ imageId: 1, createdAt: -1 });
+
+    // Image likes (one like per user per image)
+    const imageLikesCollection = db.collection('image_likes');
+    await imageLikesCollection.createIndex({ imageId: 1, userId: 1 }, { unique: true });
+    await imageLikesCollection.createIndex({ imageId: 1 });
+
+    // Image ratings (one rating per user per image)
+    const imageRatingsCollection = db.collection('image_ratings');
+    await imageRatingsCollection.createIndex({ imageId: 1, userId: 1 }, { unique: true });
+    await imageRatingsCollection.createIndex({ imageId: 1 });
 
     console.log('✅ Database indexes created');
   } catch (error) {

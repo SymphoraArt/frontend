@@ -1,4 +1,4 @@
-import { decryptPrompt } from '../encryption';
+import { decryptPrompt, type EncryptedData } from '../encryption';
 import type { VariableValue } from '../database/schema';
 
 export interface SubstitutionResult {
@@ -16,17 +16,13 @@ export interface SubstitutionResult {
  * @returns Decrypted prompt with all variables substituted
  */
 export async function substituteVariables(
-  encryptedPrompt: string,
+  encryptedPrompt: EncryptedData,
   variableValues: VariableValue[],
   variableDefinitions: any[] = []
 ): Promise<SubstitutionResult> {
   try {
     // 1. Decrypt the prompt template
-    const promptTemplate = decryptPrompt({
-      encryptedContent: encryptedPrompt,
-      iv: '', // Will need to be passed from database
-      authTag: '' // Will need to be passed from database
-    });
+    const promptTemplate = decryptPrompt(encryptedPrompt);
 
     // 2. Validate all required variables are provided
     const validation = validateVariables(variableValues, variableDefinitions);

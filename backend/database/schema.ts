@@ -32,6 +32,8 @@ export const generationSchema = z.object({
   userId: z.string(),
   promptId: z.string().uuid(),
   finalPrompt: z.string(), // Encrypted final prompt after variable substitution
+  finalPromptIv: z.string().optional(),
+  finalPromptAuthTag: z.string().optional(),
   variableValues: z.array(variableValueSchema),
   settings: generationSettingsSchema,
   transactionHash: z.string().optional(),
@@ -48,6 +50,7 @@ export const generationSchema = z.object({
 
 export const insertGenerationSchema = generationSchema.omit({
   id: true,
+  // These timestamp fields are filled by the database
   createdAt: true,
   updatedAt: true,
   completedAt: true

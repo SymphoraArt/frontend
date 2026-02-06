@@ -13,10 +13,30 @@ import {
   type InsertGeneratedVariation,
   type ArtworkComment,
   type InsertArtworkComment,
+  type GeneratedImage,
+  type InsertGeneratedImage,
+  type ImageComment,
+  type InsertImageComment,
+  type ImageLike,
+  type InsertImageLike,
+  type ImageRating,
+  type InsertImageRating,
 } from "@shared/schema";
 import { getDb } from "./db";
 import { ObjectId, Db } from "mongodb";
 import { encryptPrompt, decryptPrompt } from "./encryption";
+
+function normalizeSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function escapeRegex(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 const COLLECTIONS = {
   USERS: 'users',
@@ -26,6 +46,10 @@ const COLLECTIONS = {
   ARTWORKS: 'artworks',
   GENERATED_VARIATIONS: 'generated_variations',
   ARTWORK_COMMENTS: 'artwork_comments',
+  GENERATED_IMAGES: 'generated_images',
+  IMAGE_COMMENTS: 'image_comments',
+  IMAGE_LIKES: 'image_likes',
+  IMAGE_RATINGS: 'image_ratings',
 } as const;
 
 // Helper to get database instance (returns null if not connected)
@@ -62,6 +86,7 @@ export interface IStorage {
   getPromptWithDecryptedContent(id: string): Promise<(Prompt & { decryptedContent: string }) | undefined>;
   getAllPrompts(): Promise<Prompt[]>;
   getPublicPrompts(): Promise<Prompt[]>;
+  getMarketplacePrompts(): Promise<Prompt[]>; // Prompts listed for sale (price > 0)
   getPromptsByArtistId(artistId: string): Promise<Prompt[]>;
   createPrompt(promptData: { content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>): Promise<Prompt>;
   updatePrompt(id: string, promptData: Partial<{ content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>>): Promise<Prompt | undefined>;
@@ -93,6 +118,22 @@ export interface IStorage {
 
   getCommentsByArtworkId(artworkId: string): Promise<ArtworkComment[]>;
   createComment(comment: InsertArtworkComment): Promise<ArtworkComment>;
+
+  getGeneratedImage(id: string): Promise<GeneratedImage | undefined>;
+  getGeneratedImagesByUserId(creatorId: string): Promise<GeneratedImage[]>;
+  getGeneratedImagesByPromptId(promptId: string): Promise<GeneratedImage[]>;
+  getShowroomImages(): Promise<GeneratedImage[]>;
+  createGeneratedImage(data: InsertGeneratedImage): Promise<GeneratedImage>;
+  updateGeneratedImage(id: string, data: Partial<InsertGeneratedImage>): Promise<GeneratedImage | undefined>;
+
+  getCommentsByImageId(imageId: string): Promise<ImageComment[]>;
+  createImageComment(comment: InsertImageComment): Promise<ImageComment>;
+
+  getImageLikeCount(imageId: string): Promise<number>;
+  likeImage(imageId: string, userId: string): Promise<boolean>;
+  unlikeImage(imageId: string, userId: string): Promise<boolean>;
+
+  rateImage(imageId: string, userId: string, rating: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -156,19 +197,23 @@ export class DatabaseStorage implements IStorage {
   async getPromptBySlug(slug: string): Promise<Prompt | undefined> {
     const db = getDatabase();
     if (!db) return undefined;
-    const normalizedSlug = slug.toLowerCase().replace(/-/g, ' ');
-    const allPrompts = await db.collection(COLLECTIONS.PROMPTS)
-      .find({})
-      .toArray();
+    const normalized = normalizeSlug(slug);
 
-    const prompt = allPrompts.find((p: any) => {
-      const title = (p.title as string).toLowerCase();
-      return title === normalizedSlug ||
-        title.replace(/\s+/g, '-') === slug.toLowerCase();
+    // Fast path: indexed lookup by stored slug
+    const bySlug = await db.collection(COLLECTIONS.PROMPTS).findOne({ slug: normalized });
+    if (bySlug) return toSchemaType<Prompt>(bySlug);
+
+    // Backward compatibility: older documents may not have `slug` field yet.
+    // Try a case-insensitive match on title or "title-as-slug".
+    const byTitle = await db.collection(COLLECTIONS.PROMPTS).findOne({
+      $or: [
+        { title: { $regex: new RegExp(`^${escapeRegex(normalized.replace(/-/g, " "))}$`, "i") } },
+        { title: { $regex: new RegExp(`^${escapeRegex(slug.replace(/-/g, " "))}$`, "i") } },
+      ],
     });
+    if (byTitle) return toSchemaType<Prompt>(byTitle);
 
-    if (!prompt) return undefined;
-    return toSchemaType<Prompt>(prompt);
+    return undefined;
   }
 
   async getPromptWithDecryptedContent(id: string): Promise<(Prompt & { decryptedContent: string }) | undefined> {
@@ -206,6 +251,17 @@ export class DatabaseStorage implements IStorage {
     return prompts.map((p: any) => toSchemaType<Prompt>(p));
   }
 
+  async getMarketplacePrompts(): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    // Marketplace prompts: price > 0 (listed for sale)
+    const prompts = await db.collection(COLLECTIONS.PROMPTS)
+      .find({ price: { $gt: 0 } })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
   async getPromptsByArtistId(artistId: string): Promise<Prompt[]> {
     const db = getDatabase();
     if (!db) return [];
@@ -219,12 +275,14 @@ export class DatabaseStorage implements IStorage {
   async createPrompt(promptData: { content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>): Promise<Prompt> {
     const { content, ...rest } = promptData;
     const encrypted = encryptPrompt(content);
+    const slug = rest.title ? normalizeSlug(rest.title) : undefined;
 
     const db = getDatabase();
     if (!db) {
       return {
         id: new ObjectId().toString(),
         ...rest,
+        slug,
         encryptedContent: encrypted.encryptedContent,
         iv: encrypted.iv,
         authTag: encrypted.authTag,
@@ -234,6 +292,7 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db.collection(COLLECTIONS.PROMPTS).insertOne({
       ...rest,
+      slug,
       encryptedContent: encrypted.encryptedContent,
       iv: encrypted.iv,
       authTag: encrypted.authTag,
@@ -253,6 +312,10 @@ export class DatabaseStorage implements IStorage {
     const { content, ...rest } = promptData;
 
     let updateData: any = { ...rest };
+
+    if (rest.title !== undefined && typeof rest.title === "string") {
+      updateData.slug = normalizeSlug(rest.title);
+    }
 
     if (content !== undefined) {
       const encrypted = encryptPrompt(content);
@@ -584,6 +647,184 @@ export class DatabaseStorage implements IStorage {
     });
     if (!comment) throw new Error('Failed to create comment');
     return toSchemaType<ArtworkComment>(comment);
+  }
+
+  // ==================== Generated Images ====================
+  async getGeneratedImage(id: string): Promise<GeneratedImage | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const doc = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!doc) return undefined;
+      return toSchemaType<GeneratedImage>(doc);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getGeneratedImagesByUserId(creatorId: string): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ creatorId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async getGeneratedImagesByPromptId(promptId: string): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ promptId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async getShowroomImages(): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ showroomPublished: true })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async createGeneratedImage(data: InsertGeneratedImage): Promise<GeneratedImage> {
+    const db = getDatabase();
+    const now = new Date();
+    const createdAt = now.toISOString();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...data,
+        createdAt,
+      } as GeneratedImage;
+    }
+    const result = await db.collection(COLLECTIONS.GENERATED_IMAGES).insertOne({
+      ...data,
+      createdAt: now,
+    });
+    const doc = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOne({
+      _id: result.insertedId
+    });
+    if (!doc) throw new Error('Failed to create generated image');
+    return toSchemaType<GeneratedImage>(doc);
+  }
+
+  async updateGeneratedImage(id: string, data: Partial<InsertGeneratedImage>): Promise<GeneratedImage | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const result = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: data },
+        { returnDocument: 'after' }
+      );
+      if (!result) return undefined;
+      return toSchemaType<GeneratedImage>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  // ==================== Image Comments ====================
+  async getCommentsByImageId(imageId: string): Promise<ImageComment[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.IMAGE_COMMENTS)
+      .find({ imageId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((c: any) => toSchemaType<ImageComment>(c));
+  }
+
+  async createImageComment(insertComment: InsertImageComment): Promise<ImageComment> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertComment,
+        createdAt: new Date().toISOString(),
+      } as ImageComment;
+    }
+    const result = await db.collection(COLLECTIONS.IMAGE_COMMENTS).insertOne({
+      ...insertComment,
+      createdAt: new Date(),
+    });
+    const doc = await db.collection(COLLECTIONS.IMAGE_COMMENTS).findOne({
+      _id: result.insertedId
+    });
+    if (!doc) throw new Error('Failed to create image comment');
+    return toSchemaType<ImageComment>(doc);
+  }
+
+  // ==================== Image Likes ====================
+  async getImageLikeCount(imageId: string): Promise<number> {
+    const db = getDatabase();
+    if (!db) return 0;
+    return db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+  }
+
+  async likeImage(imageId: string, userId: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      await db.collection(COLLECTIONS.IMAGE_LIKES).updateOne(
+        { imageId, userId },
+        { $setOnInsert: { imageId, userId, createdAt: new Date() } },
+        { upsert: true }
+      );
+      const count = await db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+      await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+        { _id: new ObjectId(imageId) },
+        { $set: { likes: count } }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async unlikeImage(imageId: string, userId: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      await db.collection(COLLECTIONS.IMAGE_LIKES).deleteOne({ imageId, userId });
+      const count = await db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+      await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+        { _id: new ObjectId(imageId) },
+        { $set: { likes: count } }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== Image Ratings ====================
+  async rateImage(imageId: string, userId: string, rating: number): Promise<void> {
+    const db = getDatabase();
+    if (!db) return;
+    await db.collection(COLLECTIONS.IMAGE_RATINGS).updateOne(
+      { imageId, userId },
+      { $set: { rating }, $setOnInsert: { imageId, userId, createdAt: new Date() } },
+      { upsert: true }
+    );
+    const ratings = await db.collection(COLLECTIONS.IMAGE_RATINGS)
+      .find({ imageId })
+      .toArray();
+    const count = ratings.length;
+    const sum = ratings.reduce((s: number, r: any) => s + (r.rating || 0), 0);
+    const ratingAverage = count > 0 ? sum / count : 0;
+    await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+      { _id: new ObjectId(imageId) },
+      { $set: { ratingAverage, ratingCount: count } }
+    );
   }
 }
 

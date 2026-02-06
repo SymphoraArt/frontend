@@ -16,6 +16,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export const promptSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(1),
+  slug: z.string().optional(),
   encryptedContent: z.string(),
   iv: z.string(),
   authTag: z.string(),
@@ -153,3 +154,69 @@ export const insertArtworkCommentSchema = artworkCommentSchema.omit({
 
 export type ArtworkComment = z.infer<typeof artworkCommentSchema>;
 export type InsertArtworkComment = z.infer<typeof insertArtworkCommentSchema>;
+
+// ==================== Generated Images (from AI generation) ====================
+export const generatedImageSchema = z.object({
+  id: z.string().optional(),
+  creatorId: z.string().min(1),
+  imageUrl: z.string().min(1),
+  promptId: z.string().min(1), // parent prompt ID
+  generationId: z.string().optional(), // Supabase generation id for traceability
+  encryptedPrompt: z.string(),
+  encryptedPromptIv: z.string(),
+  encryptedPromptAuthTag: z.string(),
+  variableValues: z.array(z.object({ variableName: z.string(), value: z.any() })).optional(),
+  settings: z.any().optional(),
+  likes: z.number().int().default(0),
+  ratingAverage: z.number().default(0),
+  ratingCount: z.number().int().default(0),
+  showroomPublished: z.boolean().default(false),
+  createdAt: z.string().optional(),
+});
+
+export const insertGeneratedImageSchema = generatedImageSchema.omit({ id: true, createdAt: true });
+
+export type GeneratedImage = z.infer<typeof generatedImageSchema>;
+export type InsertGeneratedImage = z.infer<typeof insertGeneratedImageSchema>;
+
+// ==================== Image Comments ====================
+export const imageCommentSchema = z.object({
+  id: z.string().optional(),
+  imageId: z.string().min(1),
+  userId: z.string().min(1),
+  username: z.string().min(1),
+  content: z.string().min(1),
+  createdAt: z.string().optional(),
+});
+
+export const insertImageCommentSchema = imageCommentSchema.omit({ id: true, createdAt: true });
+
+export type ImageComment = z.infer<typeof imageCommentSchema>;
+export type InsertImageComment = z.infer<typeof insertImageCommentSchema>;
+
+// ==================== Image Likes (for deduplication) ====================
+export const imageLikeSchema = z.object({
+  id: z.string().optional(),
+  imageId: z.string().min(1),
+  userId: z.string().min(1),
+  createdAt: z.string().optional(),
+});
+
+export const insertImageLikeSchema = imageLikeSchema.omit({ id: true, createdAt: true });
+
+export type ImageLike = z.infer<typeof imageLikeSchema>;
+export type InsertImageLike = z.infer<typeof insertImageLikeSchema>;
+
+// ==================== Image Ratings (1-5 per user) ====================
+export const imageRatingSchema = z.object({
+  id: z.string().optional(),
+  imageId: z.string().min(1),
+  userId: z.string().min(1),
+  rating: z.number().int().min(1).max(5),
+  createdAt: z.string().optional(),
+});
+
+export const insertImageRatingSchema = imageRatingSchema.omit({ id: true, createdAt: true });
+
+export type ImageRating = z.infer<typeof imageRatingSchema>;
+export type InsertImageRating = z.infer<typeof insertImageRatingSchema>;

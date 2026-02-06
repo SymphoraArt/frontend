@@ -7,6 +7,7 @@
 
 import { getSupabaseClient } from '../database/db.js';
 import { decryptPrompt } from '../encryption.js';
+import { storage } from '../storage.js';
 import {
   generateWithRetryAndCircuitBreaker,
   RETRY_CONFIGS,
@@ -111,13 +112,13 @@ export async function processGeneration(generationId: string): Promise<void> {
 
     console.log(`🔄 Updated status to 'generating' for ${generationId}`);
 
-    // 4. Decrypt final prompt
+    // 4. Decrypt final prompt (IV and authTag stored in DB for security)
     let finalPrompt: string;
     try {
-      finalPrompt = await decryptPrompt({
+      finalPrompt = decryptPrompt({
         encryptedContent: generation.final_prompt,
-        iv: '', // TODO: Store and retrieve from database
-        authTag: '' // TODO: Store and retrieve from database
+        iv: generation.final_prompt_iv ?? '',
+        authTag: generation.final_prompt_auth_tag ?? ''
       });
       console.log(`🔓 Decrypted prompt for generation ${generationId}`);
     } catch (decryptError: any) {
@@ -174,6 +175,39 @@ export async function processGeneration(generationId: string): Promise<void> {
     if (completeError) {
       console.error(`❌ Failed to mark ${generationId} as completed:`, completeError);
       throw completeError;
+    }
+
+    // 8. Create image documents in MongoDB (creator, timestamp, encrypted prompt, parent prompt, etc.)
+    const creatorId = generation.user_id;
+    const promptId = generation.prompt_id;
+    const encryptedPrompt = generation.final_prompt;
+    const encryptedPromptIv = generation.final_prompt_iv ?? '';
+    const encryptedPromptAuthTag = generation.final_prompt_auth_tag ?? '';
+    const variableValues = generation.variable_values ?? [];
+    const settings = generation.settings ?? {};
+
+    for (const imageUrl of imageUrls) {
+      try {
+        await storage.createGeneratedImage({
+          creatorId,
+          imageUrl,
+          promptId,
+          generationId,
+          encryptedPrompt,
+          encryptedPromptIv,
+          encryptedPromptAuthTag,
+          variableValues,
+          settings,
+          likes: 0,
+          ratingAverage: 0,
+          ratingCount: 0,
+          showroomPublished: false
+        });
+        console.log(`📄 Created MongoDB image document for ${imageUrl.substring(0, 50)}...`);
+      } catch (imgErr: any) {
+        console.error(`⚠️ Failed to create MongoDB image doc for generation ${generationId}:`, imgErr.message);
+        // Don't fail the whole generation; Supabase already has the URLs
+      }
     }
 
     console.log(`✅ Generation ${generationId} completed successfully with ${imageUrls.length} images`);

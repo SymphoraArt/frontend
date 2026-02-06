@@ -194,3 +194,55 @@ export interface MarketplaceFilters {
   category?: string;
   tags: string[];
 }
+
+// ==================== Image Detail API Response ====================
+/**
+ * Response shape for GET /api/images/:id
+ * Used to load image with variables for left panel UI rendering.
+ * 
+ * UI Rendering Guide:
+ * - variableDefinitions[].type === "multi-select" → Render as checkboxes
+ * - variableDefinitions[].type === "single-select" | "grouped" | "radio" → Render as radio buttons
+ * - variableDefinitions[].type === "text" → Render as text input
+ * - variableDefinitions[].type === "slider" → Render as slider (use min, max, step)
+ * - variableDefinitions[].type === "checkbox" → Render as single checkbox
+ */
+export interface ImageDetailResponse {
+  image: {
+    id: string;
+    creatorId: string;
+    imageUrl: string;
+    promptId: string;
+    generationId?: string;
+    variableValues?: Array<{ variableName: string; value: any }>;
+    settings?: any;
+    likes: number;
+    ratingAverage: number;
+    ratingCount: number;
+    showroomPublished: boolean;
+    createdAt: string;
+  };
+  variableValues: Array<{ variableName: string; value: any }>;
+  variableDefinitions: Array<{
+    id?: string;
+    name: string;
+    label: string;
+    type: string;
+    options?: Array<{ label: string; promptValue: string }>;
+    position: number;
+    required: boolean;
+    defaultValue?: any;
+    min?: number;
+    max?: number;
+    step?: number;
+    placeholder?: string;
+  }>;
+  comments: Array<{
+    id?: string;
+    imageId: string;
+    userId: string;
+    username: string;
+    content: string;
+    createdAt?: string;
+  }>;
+}
