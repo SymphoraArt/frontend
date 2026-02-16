@@ -1,0 +1,941 @@
+import {
+  type User,
+  type InsertUser,
+  type Prompt,
+  type InsertPrompt,
+  type Variable,
+  type InsertVariable,
+  type Artist,
+  type InsertArtist,
+  type Artwork,
+  type InsertArtwork,
+  type GeneratedVariation,
+  type InsertGeneratedVariation,
+  type ArtworkComment,
+  type InsertArtworkComment,
+  type GeneratedImage,
+  type InsertGeneratedImage,
+  type ImageComment,
+  type InsertImageComment,
+  type ImageLike,
+  type InsertImageLike,
+  type ImageRating,
+  type InsertImageRating,
+} from "@shared/schema";
+import { getDb } from "./db";
+import { ObjectId, Db } from "mongodb";
+import { encryptPrompt, decryptPrompt } from "./encryption";
+
+function normalizeSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function escapeRegex(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const COLLECTIONS = {
+  USERS: 'users',
+  PROMPTS: 'prompts',
+  VARIABLES: 'variables',
+  ARTISTS: 'artists',
+  ARTWORKS: 'artworks',
+  GENERATED_VARIATIONS: 'generated_variations',
+  ARTWORK_COMMENTS: 'artwork_comments',
+  GENERATED_IMAGES: 'generated_images',
+  IMAGE_COMMENTS: 'image_comments',
+  IMAGE_LIKES: 'image_likes',
+  IMAGE_RATINGS: 'image_ratings',
+} as const;
+
+// Helper to get database instance (returns null if not connected)
+function getDatabase(): Db | null {
+  return getDb();
+}
+
+// Check if running in dummy mode (no database)
+function isDummyMode(): boolean {
+  return getDatabase() === null;
+}
+
+// Type guard: ensures database is available, returns null if not
+function requireDatabase(): Db | null {
+  return getDatabase();
+}
+
+// Helper function to convert MongoDB document to schema type
+function toSchemaType<T>(doc: any): T {
+  if (!doc) return doc;
+  return {
+    ...doc,
+    _id: doc._id instanceof ObjectId ? doc._id.toString() : doc._id,
+  } as T;
+}
+
+export interface IStorage {
+  getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
+  getPrompt(id: string): Promise<(Prompt & { decryptedContent?: string }) | undefined>;
+  getPromptBySlug(slug: string): Promise<Prompt | undefined>;
+  getPromptWithDecryptedContent(id: string): Promise<(Prompt & { decryptedContent: string }) | undefined>;
+  getAllPrompts(): Promise<Prompt[]>;
+  getPublicPrompts(): Promise<Prompt[]>;
+  getMarketplacePrompts(): Promise<Prompt[]>; // Prompts listed for sale (price > 0)
+  // Marketplace search helpers used by Next.js API routes
+  searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<any[]>;
+  getAllListedPrompts(limit: number, cursor?: string): Promise<any[]>;
+  getPopularTags(limit: number): Promise<string[]>;
+  getCategories(): Promise<Array<{
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    promptCount?: number;
+    featured?: boolean;
+  }>>;
+  getPromptsByArtistId(artistId: string): Promise<Prompt[]>;
+  createPrompt(promptData: { content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>): Promise<Prompt>;
+  updatePrompt(id: string, promptData: Partial<{ content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>>): Promise<Prompt | undefined>;
+  deletePrompt(id: string): Promise<boolean>;
+
+  getVariablesByPromptId(promptId: string): Promise<Variable[]>;
+  createVariable(variable: InsertVariable): Promise<Variable>;
+  updateVariable(id: string, variable: Partial<InsertVariable>): Promise<Variable | undefined>;
+  deleteVariable(id: string): Promise<boolean>;
+  deleteVariablesByPromptId(promptId: string): Promise<void>;
+
+  getArtist(id: string): Promise<Artist | undefined>;
+  getArtistByUsername(username: string): Promise<Artist | undefined>;
+  getAllArtists(): Promise<Artist[]>;
+  createArtist(artist: InsertArtist): Promise<Artist>;
+  updateArtist(id: string, artist: Partial<InsertArtist>): Promise<Artist | undefined>;
+  deleteArtist(id: string): Promise<boolean>;
+
+  getArtwork(id: string): Promise<Artwork | undefined>;
+  getArtworksByArtistId(artistId: string): Promise<Artwork[]>;
+  getAllArtworks(): Promise<Artwork[]>;
+  getPublicArtworks(): Promise<Artwork[]>;
+  createArtwork(artwork: InsertArtwork): Promise<Artwork>;
+  updateArtwork(id: string, artwork: Partial<InsertArtwork>): Promise<Artwork | undefined>;
+  deleteArtwork(id: string): Promise<boolean>;
+
+  getVariationsByArtworkId(artworkId: string): Promise<GeneratedVariation[]>;
+  createVariation(variation: InsertGeneratedVariation): Promise<GeneratedVariation>;
+
+  getCommentsByArtworkId(artworkId: string): Promise<ArtworkComment[]>;
+  createComment(comment: InsertArtworkComment): Promise<ArtworkComment>;
+
+  getGeneratedImage(id: string): Promise<GeneratedImage | undefined>;
+  getGeneratedImagesByUserId(creatorId: string): Promise<GeneratedImage[]>;
+  getGeneratedImagesByPromptId(promptId: string): Promise<GeneratedImage[]>;
+  getShowroomImages(): Promise<GeneratedImage[]>;
+  createGeneratedImage(data: InsertGeneratedImage): Promise<GeneratedImage>;
+  updateGeneratedImage(id: string, data: Partial<InsertGeneratedImage>): Promise<GeneratedImage | undefined>;
+
+  getCommentsByImageId(imageId: string): Promise<ImageComment[]>;
+  createImageComment(comment: InsertImageComment): Promise<ImageComment>;
+
+  getImageLikeCount(imageId: string): Promise<number>;
+  likeImage(imageId: string, userId: string): Promise<boolean>;
+  unlikeImage(imageId: string, userId: string): Promise<boolean>;
+
+  rateImage(imageId: string, userId: string, rating: number): Promise<void>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // Users 
+  async getUser(id: string): Promise<User | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const user = await db.collection(COLLECTIONS.USERS).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!user) return undefined;
+      return toSchemaType<User>(user);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    const user = await db.collection(COLLECTIONS.USERS).findOne({ username });
+    if (!user) return undefined;
+    return toSchemaType<User>(user);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertUser,
+      } as User;
+    }
+    const result = await db.collection(COLLECTIONS.USERS).insertOne({
+      ...insertUser,
+      createdAt: new Date(),
+    });
+    const user = await db.collection(COLLECTIONS.USERS).findOne({
+      _id: result.insertedId
+    });
+    if (!user) throw new Error('Failed to create user');
+    return toSchemaType<User>(user);
+  }
+
+  // ==================== Prompts ====================
+  async getPrompt(id: string): Promise<Prompt | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const prompt = await db.collection(COLLECTIONS.PROMPTS).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!prompt) return undefined;
+      return toSchemaType<Prompt>(prompt);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getPromptBySlug(slug: string): Promise<Prompt | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    const normalized = normalizeSlug(slug);
+
+    // Fast path: indexed lookup by stored slug
+    const bySlug = await db.collection(COLLECTIONS.PROMPTS).findOne({ slug: normalized });
+    if (bySlug) return toSchemaType<Prompt>(bySlug);
+
+    // Backward compatibility: older documents may not have `slug` field yet.
+    // Try a case-insensitive match on title or "title-as-slug".
+    const byTitle = await db.collection(COLLECTIONS.PROMPTS).findOne({
+      $or: [
+        { title: { $regex: new RegExp(`^${escapeRegex(normalized.replace(/-/g, " "))}$`, "i") } },
+        { title: { $regex: new RegExp(`^${escapeRegex(slug.replace(/-/g, " "))}$`, "i") } },
+      ],
+    });
+    if (byTitle) return toSchemaType<Prompt>(byTitle);
+
+    return undefined;
+  }
+
+  async getPromptWithDecryptedContent(id: string): Promise<(Prompt & { decryptedContent: string }) | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    const prompt = await this.getPrompt(id);
+    if (!prompt) return undefined;
+
+    const decryptedContent = decryptPrompt({
+      encryptedContent: prompt.encryptedContent,
+      iv: prompt.iv,
+      authTag: prompt.authTag
+    });
+
+    return { ...prompt, decryptedContent };
+  }
+
+  async getAllPrompts(): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const prompts = await db.collection(COLLECTIONS.PROMPTS)
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
+  async getPublicPrompts(): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const prompts = await db.collection(COLLECTIONS.PROMPTS)
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
+  async getMarketplacePrompts(): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    // Marketplace prompts: price > 0 (listed for sale)
+    const prompts = await db.collection(COLLECTIONS.PROMPTS)
+      .find({ price: { $gt: 0 } })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
+  // Marketplace Search Helpers 
+  async searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<any[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const mongoQuery: any = { ...(query || {}) };
+
+    // Cursor pagination (best-effort): assumes cursor is a Mongo ObjectId string
+    if (cursor) {
+      try {
+        const dir = Object.values(sort || {})[0] === 1 ? 1 : -1;
+        mongoQuery._id = dir === 1
+          ? { $gt: new ObjectId(cursor) }
+          : { $lt: new ObjectId(cursor) };
+      } catch {
+        // ignore invalid 
+      }
+    }
+
+    const projection: any = {};
+    if (mongoQuery.$text) {
+      // If text search is used, allow returning a score when sorting by it
+      projection.score = { $meta: "textScore" };
+    }
+
+    const cursorQuery = db.collection(COLLECTIONS.PROMPTS).find(mongoQuery, {
+      projection: Object.keys(projection).length > 0 ? projection : undefined,
+    });
+
+    if (sort && Object.keys(sort).length > 0) cursorQuery.sort(sort);
+    cursorQuery.limit(Math.max(1, limit));
+
+    const docs = await cursorQuery.toArray();
+    return docs.map((d: any) => toSchemaType<any>(d));
+  }
+
+  async getAllListedPrompts(limit: number, cursor?: string): Promise<any[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const mongoQuery: any = {
+      $or: [
+        { isListed: true, listingStatus: 'active' },
+        // Backward compatible fallback: treat any paid prompt as "listed"
+        { price: { $gt: 0 } },
+      ],
+    };
+
+    if (cursor) {
+      try {
+        mongoQuery._id = { $lt: new ObjectId(cursor) };
+      } catch {
+        // ignore invalid cursor
+      }
+    }
+
+    const docs = await db.collection(COLLECTIONS.PROMPTS)
+      .find(mongoQuery)
+      .sort({ createdAt: -1 })
+      .limit(Math.max(1, limit))
+      .toArray();
+
+    return docs.map((d: any) => toSchemaType<any>(d));
+  }
+
+  async getPopularTags(limit: number): Promise<string[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const rows = await db.collection(COLLECTIONS.PROMPTS).aggregate([
+      { $match: { tags: { $exists: true, $type: "array", $ne: [] } } },
+      { $unwind: "$tags" },
+      { $group: { _id: "$tags", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: Math.max(1, limit) },
+    ]).toArray();
+
+    return rows.map((r: any) => String(r._id));
+  }
+
+  async getCategories(): Promise<Array<{ id: string; name: string; description?: string; icon?: string; promptCount?: number; featured?: boolean }>> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    const rows = await db.collection(COLLECTIONS.PROMPTS).aggregate([
+      { $match: { category: { $exists: true, $nin: [null, ""] } } },
+      { $group: { _id: "$category", promptCount: { $sum: 1 } } },
+      { $sort: { promptCount: -1 } },
+    ]).toArray();
+
+    return rows.map((r: any) => ({
+      id: String(r._id),
+      name: String(r._id),
+      promptCount: r.promptCount || 0,
+      featured: false,
+    }));
+  }
+
+  async getPromptsByArtistId(artistId: string): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const prompts = await db.collection(COLLECTIONS.PROMPTS)
+      .find({ artistId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return prompts.map((p: any) => toSchemaType<Prompt>(p));
+  }
+
+  async createPrompt(promptData: { content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>): Promise<Prompt> {
+    const { content, ...rest } = promptData;
+    const encrypted = encryptPrompt(content);
+    const slug = rest.title ? normalizeSlug(rest.title) : undefined;
+
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...rest,
+        slug,
+        encryptedContent: encrypted.encryptedContent,
+        iv: encrypted.iv,
+        authTag: encrypted.authTag,
+        createdAt: new Date().toISOString(),
+      } as Prompt;
+    }
+
+    const result = await db.collection(COLLECTIONS.PROMPTS).insertOne({
+      ...rest,
+      slug,
+      encryptedContent: encrypted.encryptedContent,
+      iv: encrypted.iv,
+      authTag: encrypted.authTag,
+      createdAt: new Date(),
+    });
+
+    const prompt = await db.collection(COLLECTIONS.PROMPTS).findOne({
+      _id: result.insertedId
+    });
+    if (!prompt) throw new Error('Failed to create prompt');
+    return toSchemaType<Prompt>(prompt);
+  }
+
+  async updatePrompt(id: string, promptData: Partial<{ content: string } & Omit<InsertPrompt, 'encryptedContent' | 'iv' | 'authTag'>>): Promise<Prompt | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    const { content, ...rest } = promptData;
+
+    let updateData: any = { ...rest };
+
+    if (rest.title !== undefined && typeof rest.title === "string") {
+      updateData.slug = normalizeSlug(rest.title);
+    }
+
+    if (content !== undefined) {
+      const encrypted = encryptPrompt(content);
+      updateData = {
+        ...updateData,
+        encryptedContent: encrypted.encryptedContent,
+        iv: encrypted.iv,
+        authTag: encrypted.authTag
+      };
+    }
+
+    try {
+      const result = await db.collection(COLLECTIONS.PROMPTS).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) return undefined;
+      return toSchemaType<Prompt>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async deletePrompt(id: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      const result = await db.collection(COLLECTIONS.PROMPTS).deleteOne({
+        _id: new ObjectId(id)
+      });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== Variables ====================
+  async getVariablesByPromptId(promptId: string): Promise<Variable[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const variables = await db.collection(COLLECTIONS.VARIABLES)
+      .find({ promptId })
+      .sort({ position: 1 })
+      .toArray();
+    return variables.map((v: any) => toSchemaType<Variable>(v));
+  }
+
+  async createVariable(insertVariable: InsertVariable): Promise<Variable> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertVariable,
+      } as Variable;
+    }
+    const result = await db.collection(COLLECTIONS.VARIABLES).insertOne(insertVariable);
+    const variable = await db.collection(COLLECTIONS.VARIABLES).findOne({
+      _id: result.insertedId
+    });
+    if (!variable) throw new Error('Failed to create variable');
+    return toSchemaType<Variable>(variable);
+  }
+
+  async updateVariable(id: string, update: Partial<InsertVariable>): Promise<Variable | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const result = await db.collection(COLLECTIONS.VARIABLES).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: update },
+        { returnDocument: 'after' }
+      );
+      if (!result) return undefined;
+      return toSchemaType<Variable>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async deleteVariable(id: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      const result = await db.collection(COLLECTIONS.VARIABLES).deleteOne({
+        _id: new ObjectId(id)
+      });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  async deleteVariablesByPromptId(promptId: string): Promise<void> {
+    const db = getDatabase();
+    if (!db) return;
+    await db.collection(COLLECTIONS.VARIABLES).deleteMany({ promptId });
+  }
+
+  // ==================== Artists ====================
+  async getArtist(id: string): Promise<Artist | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const artist = await db.collection(COLLECTIONS.ARTISTS).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!artist) return undefined;
+      return toSchemaType<Artist>(artist);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getArtistByUsername(username: string): Promise<Artist | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    const artist = await db.collection(COLLECTIONS.ARTISTS).findOne({ username });
+    if (!artist) return undefined;
+    return toSchemaType<Artist>(artist);
+  }
+
+  async getAllArtists(): Promise<Artist[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const artists = await db.collection(COLLECTIONS.ARTISTS)
+      .find({})
+      .toArray();
+    return artists.map((a: any) => toSchemaType<Artist>(a));
+  }
+
+  async createArtist(insertArtist: InsertArtist): Promise<Artist> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertArtist,
+      } as Artist;
+    }
+    const result = await db.collection(COLLECTIONS.ARTISTS).insertOne(insertArtist);
+    const artist = await db.collection(COLLECTIONS.ARTISTS).findOne({
+      _id: result.insertedId
+    });
+    if (!artist) throw new Error('Failed to create artist');
+    return toSchemaType<Artist>(artist);
+  }
+
+  async updateArtist(id: string, update: Partial<InsertArtist>): Promise<Artist | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const result = await db.collection(COLLECTIONS.ARTISTS).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: update },
+        { returnDocument: 'after' }
+      );
+      if (!result) return undefined;
+      return toSchemaType<Artist>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async deleteArtist(id: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      const result = await db.collection(COLLECTIONS.ARTISTS).deleteOne({
+        _id: new ObjectId(id)
+      });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== Artworks ====================
+  async getArtwork(id: string): Promise<Artwork | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const artwork = await db.collection(COLLECTIONS.ARTWORKS).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!artwork) return undefined;
+      return toSchemaType<Artwork>(artwork);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getArtworksByArtistId(artistId: string): Promise<Artwork[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const artworks = await db.collection(COLLECTIONS.ARTWORKS)
+      .find({ artistId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return artworks.map((a: any) => toSchemaType<Artwork>(a));
+  }
+
+  async getAllArtworks(): Promise<Artwork[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const artworks = await db.collection(COLLECTIONS.ARTWORKS)
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    return artworks.map((a: any) => toSchemaType<Artwork>(a));
+  }
+
+  async getPublicArtworks(): Promise<Artwork[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const artworks = await db.collection(COLLECTIONS.ARTWORKS)
+      .find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return artworks.map((a: any) => toSchemaType<Artwork>(a));
+  }
+
+  async createArtwork(insertArtwork: InsertArtwork): Promise<Artwork> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertArtwork,
+        createdAt: new Date().toISOString(),
+      } as Artwork;
+    }
+    const result = await db.collection(COLLECTIONS.ARTWORKS).insertOne({
+      ...insertArtwork,
+      createdAt: new Date(),
+    });
+    const artwork = await db.collection(COLLECTIONS.ARTWORKS).findOne({
+      _id: result.insertedId
+    });
+    if (!artwork) throw new Error('Failed to create artwork');
+    return toSchemaType<Artwork>(artwork);
+  }
+
+  async updateArtwork(id: string, update: Partial<InsertArtwork>): Promise<Artwork | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const result = await db.collection(COLLECTIONS.ARTWORKS).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: update },
+        { returnDocument: 'after' }
+      );
+      if (!result) return undefined;
+      return toSchemaType<Artwork>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async deleteArtwork(id: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      const result = await db.collection(COLLECTIONS.ARTWORKS).deleteOne({
+        _id: new ObjectId(id)
+      });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== Generated Variations ====================
+  async getVariationsByArtworkId(artworkId: string): Promise<GeneratedVariation[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const variations = await db.collection(COLLECTIONS.GENERATED_VARIATIONS)
+      .find({ artworkId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return variations.map((v: any) => toSchemaType<GeneratedVariation>(v));
+  }
+
+  async createVariation(insertVariation: InsertGeneratedVariation): Promise<GeneratedVariation> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertVariation,
+        createdAt: new Date().toISOString(),
+      } as GeneratedVariation;
+    }
+    const result = await db.collection(COLLECTIONS.GENERATED_VARIATIONS).insertOne({
+      ...insertVariation,
+      createdAt: new Date(),
+    });
+    const variation = await db.collection(COLLECTIONS.GENERATED_VARIATIONS).findOne({
+      _id: result.insertedId
+    });
+    if (!variation) throw new Error('Failed to create variation');
+    return toSchemaType<GeneratedVariation>(variation);
+  }
+
+  // ==================== Artwork Comments ====================
+  async getCommentsByArtworkId(artworkId: string): Promise<ArtworkComment[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const comments = await db.collection(COLLECTIONS.ARTWORK_COMMENTS)
+      .find({ artworkId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return comments.map((c: any) => toSchemaType<ArtworkComment>(c));
+  }
+
+  async createComment(insertComment: InsertArtworkComment): Promise<ArtworkComment> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertComment,
+        createdAt: new Date().toISOString(),
+      } as ArtworkComment;
+    }
+    const result = await db.collection(COLLECTIONS.ARTWORK_COMMENTS).insertOne({
+      ...insertComment,
+      createdAt: new Date(),
+    });
+    const comment = await db.collection(COLLECTIONS.ARTWORK_COMMENTS).findOne({
+      _id: result.insertedId
+    });
+    if (!comment) throw new Error('Failed to create comment');
+    return toSchemaType<ArtworkComment>(comment);
+  }
+
+  // ==================== Generated Images ====================
+  async getGeneratedImage(id: string): Promise<GeneratedImage | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const doc = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOne({
+        _id: new ObjectId(id)
+      });
+      if (!doc) return undefined;
+      return toSchemaType<GeneratedImage>(doc);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getGeneratedImagesByUserId(creatorId: string): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ creatorId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async getGeneratedImagesByPromptId(promptId: string): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ promptId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async getShowroomImages(): Promise<GeneratedImage[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.GENERATED_IMAGES)
+      .find({ showroomPublished: true })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((d: any) => toSchemaType<GeneratedImage>(d));
+  }
+
+  async createGeneratedImage(data: InsertGeneratedImage): Promise<GeneratedImage> {
+    const db = getDatabase();
+    const now = new Date();
+    const createdAt = now.toISOString();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...data,
+        createdAt,
+      } as GeneratedImage;
+    }
+    const result = await db.collection(COLLECTIONS.GENERATED_IMAGES).insertOne({
+      ...data,
+      createdAt: now,
+    });
+    const doc = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOne({
+      _id: result.insertedId
+    });
+    if (!doc) throw new Error('Failed to create generated image');
+    return toSchemaType<GeneratedImage>(doc);
+  }
+
+  async updateGeneratedImage(id: string, data: Partial<InsertGeneratedImage>): Promise<GeneratedImage | undefined> {
+    const db = getDatabase();
+    if (!db) return undefined;
+    try {
+      const result = await db.collection(COLLECTIONS.GENERATED_IMAGES).findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: data },
+        { returnDocument: 'after' }
+      );
+      if (!result) return undefined;
+      return toSchemaType<GeneratedImage>(result);
+    } catch {
+      return undefined;
+    }
+  }
+
+  // ==================== Image Comments ====================
+  async getCommentsByImageId(imageId: string): Promise<ImageComment[]> {
+    const db = getDatabase();
+    if (!db) return [];
+    const docs = await db.collection(COLLECTIONS.IMAGE_COMMENTS)
+      .find({ imageId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    return docs.map((c: any) => toSchemaType<ImageComment>(c));
+  }
+
+  async createImageComment(insertComment: InsertImageComment): Promise<ImageComment> {
+    const db = getDatabase();
+    if (!db) {
+      return {
+        id: new ObjectId().toString(),
+        ...insertComment,
+        createdAt: new Date().toISOString(),
+      } as ImageComment;
+    }
+    const result = await db.collection(COLLECTIONS.IMAGE_COMMENTS).insertOne({
+      ...insertComment,
+      createdAt: new Date(),
+    });
+    const doc = await db.collection(COLLECTIONS.IMAGE_COMMENTS).findOne({
+      _id: result.insertedId
+    });
+    if (!doc) throw new Error('Failed to create image comment');
+    return toSchemaType<ImageComment>(doc);
+  }
+
+  // ==================== Image Likes ====================
+  async getImageLikeCount(imageId: string): Promise<number> {
+    const db = getDatabase();
+    if (!db) return 0;
+    return db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+  }
+
+  async likeImage(imageId: string, userId: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      await db.collection(COLLECTIONS.IMAGE_LIKES).updateOne(
+        { imageId, userId },
+        { $setOnInsert: { imageId, userId, createdAt: new Date() } },
+        { upsert: true }
+      );
+      const count = await db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+      await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+        { _id: new ObjectId(imageId) },
+        { $set: { likes: count } }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async unlikeImage(imageId: string, userId: string): Promise<boolean> {
+    const db = getDatabase();
+    if (!db) return false;
+    try {
+      await db.collection(COLLECTIONS.IMAGE_LIKES).deleteOne({ imageId, userId });
+      const count = await db.collection(COLLECTIONS.IMAGE_LIKES).countDocuments({ imageId });
+      await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+        { _id: new ObjectId(imageId) },
+        { $set: { likes: count } }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== Image Ratings ====================
+  async rateImage(imageId: string, userId: string, rating: number): Promise<void> {
+    const db = getDatabase();
+    if (!db) return;
+    await db.collection(COLLECTIONS.IMAGE_RATINGS).updateOne(
+      { imageId, userId },
+      { $set: { rating }, $setOnInsert: { imageId, userId, createdAt: new Date() } },
+      { upsert: true }
+    );
+    const ratings = await db.collection(COLLECTIONS.IMAGE_RATINGS)
+      .find({ imageId })
+      .toArray();
+    const count = ratings.length;
+    const sum = ratings.reduce((s: number, r: any) => s + (r.rating || 0), 0);
+    const ratingAverage = count > 0 ? sum / count : 0;
+    await db.collection(COLLECTIONS.GENERATED_IMAGES).updateOne(
+      { _id: new ObjectId(imageId) },
+      { $set: { ratingAverage, ratingCount: count } }
+    );
+  }
+}
+
+export const storage = new DatabaseStorage();
