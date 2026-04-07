@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/backend/db-mysql";
-import { getSymphoraPromptById } from "@/backend/storage-symphora";
+import { getEnkiPromptById } from "@/backend/storage-enki";
 
 export async function GET(
   req: NextRequest,
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    const prompt = await getSymphoraPromptById(id);
+    const prompt = await getEnkiPromptById(id);
     if (!prompt) {
       return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
     }

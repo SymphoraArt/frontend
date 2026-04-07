@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Analytics tracking hook for user interactions
  */

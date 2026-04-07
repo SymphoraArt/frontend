@@ -104,11 +104,37 @@ CREATE TABLE symphora_users (
   profile JSON COMMENT 'username, displayName, bio, avatar, banner, socialLinks',
   stats JSON,
   seller_profile JSON,
+  specialty VARCHAR(20) NOT NULL DEFAULT 'normal' COMMENT 'normal (+7%%), family (+1%%), admin (0%%)',
   created_at DATETIME(3) NULL,
   updated_at DATETIME(3) NULL,
   last_active DATETIME(3) NULL,
   PRIMARY KEY (id),
   KEY idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- Table: symphora_profile
+-- Wallet-scoped profile: avatar, banner, bio (max 280 chars).
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS symphora_profile (
+  wallet VARCHAR(255) NOT NULL PRIMARY KEY,
+  avatar_url TEXT,
+  banner_url TEXT,
+  bio VARCHAR(280),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- Table: symphora_follows
+-- Follower (userKey) follows following (wallet).
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS symphora_follows (
+  follower VARCHAR(255) NOT NULL,
+  following VARCHAR(255) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (follower(191), following(191)),
+  KEY idx_follower (follower(191)),
+  KEY idx_following (following(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

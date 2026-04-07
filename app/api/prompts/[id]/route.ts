@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { connectDB } from "@/backend/db-mysql";
-import { getSymphoraPromptById } from "@/backend/storage-symphora";
+import { getEnkiPromptById } from "@/backend/storage-enki";
+import { decryptPrompt, isEncryptionConfigured } from "@/backend/encryption";
 
 type PatchBody = {
   title?: string;
@@ -13,7 +14,7 @@ type PatchBody = {
   published?: boolean;
 };
 
-/** Map Symphora variable type to editor Variable type */
+/** Map Enki variable type to editor Variable type */
 function toEditorVarType(
   t: string
 ): "text" | "checkbox" | "multi-select" | "single-select" | "slider" | "radio" {
@@ -34,11 +35,11 @@ export async function GET(
   }
 
   try {
-    // Prefer Symphora (MongoDB)
+    // Prefer MySQL (Enki / symphora_prompts table)
     await connectDB();
-    const symphora = await getSymphoraPromptById(id);
-    if (symphora) {
-      const variables = (symphora.promptData?.variables ?? []).map((v, i) => ({
+    const enkiPrompt = await getEnkiPromptById(id);
+    if (enkiPrompt) {
+      const variables = (enkiPrompt.promptData?.variables ?? []).map((v, i) => ({
         id: v.name || `var-${i}`,
         name: v.name,
         description: v.description ?? "",
@@ -55,20 +56,42 @@ export async function GET(
         allowReferenceImage: false,
         promptValue: v.type === "checkbox" ? (v.config?.checkedValue ?? "") : undefined,
       }));
+
+      let promptTextForGenerator: string | undefined;
+      if (enkiPrompt.type === "free" && isEncryptionConfigured()) {
+        try {
+          const seg = enkiPrompt.promptData?.segments?.[0]?.content as
+            | { encrypted?: string; iv?: string; authTag?: string }
+            | undefined;
+          if (seg?.encrypted && seg.iv && seg.authTag) {
+            promptTextForGenerator = decryptPrompt({
+              encryptedContent: seg.encrypted,
+              iv: seg.iv,
+              authTag: seg.authTag,
+            });
+          }
+        } catch {
+          promptTextForGenerator = undefined;
+        }
+      }
+
       return NextResponse.json({
         prompt: {
-          _id: symphora._id?.toString(),
-          id: symphora.id,
-          creator: symphora.creator,
-          type: symphora.type,
-          title: symphora.title,
-          description: symphora.description,
-          category: symphora.category,
-          aiSettings: symphora.aiSettings,
-          pricing: symphora.pricing,
-          showcaseImages: symphora.showcaseImages ?? [],
-          stats: symphora.stats,
+          _id: enkiPrompt._id?.toString(),
+          id: enkiPrompt.id,
+          creator: enkiPrompt.creator,
+          type: enkiPrompt.type,
+          title: enkiPrompt.title,
+          description: enkiPrompt.description,
+          category: enkiPrompt.category,
+          aiSettings: enkiPrompt.aiSettings,
+          pricing: enkiPrompt.pricing,
+          showcaseImages: enkiPrompt.showcaseImages ?? [],
+          stats: enkiPrompt.stats,
           promptData: { variables },
+          ...(promptTextForGenerator !== undefined
+            ? { promptTextForGenerator }
+            : {}),
         },
       });
     }

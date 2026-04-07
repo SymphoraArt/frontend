@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/backend/db-mysql";
 import {
-  likeSymphoraPrompt,
-  unlikeSymphoraPrompt,
-  hasUserLikedSymphoraPrompt,
-  getSymphoraPromptLikeCount,
-} from "@/backend/storage-symphora";
+  likeEnkiPrompt,
+  unlikeEnkiPrompt,
+  hasUserLikedEnkiPrompt,
+  getEnkiPromptLikeCount,
+} from "@/backend/storage-enki";
 
 export async function POST(
   req: NextRequest,
@@ -28,7 +28,7 @@ export async function POST(
       );
     }
 
-    const result = await likeSymphoraPrompt(id, userId);
+    const result = await likeEnkiPrompt(id, userId);
     return NextResponse.json({
       liked: result.liked,
       likesCount: result.likesCount,
@@ -58,7 +58,7 @@ export async function DELETE(
       );
     }
 
-    const result = await unlikeSymphoraPrompt(id, userId);
+    const result = await unlikeEnkiPrompt(id, userId);
     return NextResponse.json({
       liked: result.liked,
       likesCount: result.likesCount,
@@ -82,8 +82,8 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId") ?? searchParams.get("userKey");
 
-    const likesCount = await getSymphoraPromptLikeCount(id);
-    const hasLiked = userId ? await hasUserLikedSymphoraPrompt(id, userId) : false;
+    const likesCount = await getEnkiPromptLikeCount(id);
+    const hasLiked = userId ? await hasUserLikedEnkiPrompt(id, userId) : false;
 
     return NextResponse.json({ likesCount, hasLiked });
   } catch (e) {

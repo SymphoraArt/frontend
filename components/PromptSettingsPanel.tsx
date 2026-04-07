@@ -21,7 +21,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Plus } from "lucide-react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { PROMPT_CATEGORIES } from "@/lib/categories";
+import { ENHANCEMENT_OPTIONS, type EnhancementId } from "@/lib/enhancement-options";
 
 type PromptType = "showcase" | "free-prompt" | "paid-prompt";
 
@@ -36,6 +38,8 @@ interface PromptSettings {
   uploadedPhotos: string[];
   resolution: string | null;
   isFreeShowcase?: boolean;
+  /** Artist choice: prompt enhancement when users generate (Create Prompt / Marketplace). */
+  enhancement?: EnhancementId;
 }
 
 interface PromptSettingsPanelProps {
@@ -52,6 +56,31 @@ export default function PromptSettingsPanel({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const dragImageRef = useRef<HTMLDivElement | null>(null);
+  const [minApiPriceUsd, setMinApiPriceUsd] = useState<number | null>(null);
+  const [feePercent, setFeePercent] = useState<number>(7);
+
+  // Fetch min API cost per image (for paid-prompt price breakdown)
+  useEffect(() => {
+    if (settings.promptType !== "paid-prompt") {
+      setMinApiPriceUsd(null);
+      return;
+    }
+    const resolution = settings.resolution === "1K" ? "1K" : settings.resolution === "4K" ? "4K" : "2K";
+    let cancelled = false;
+    fetch("/api/estimate-generation-cost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: " ", resolution }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setMinApiPriceUsd(data.apiPriceUsd ?? null);
+        if (typeof data.feePercent === "number") setFeePercent(data.feePercent);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [settings.promptType, settings.resolution]);
 
   const maxPhotos = Math.min(settings.photoCount, 20);
   const canAddMore = settings.uploadedPhotos.length < maxPhotos;
@@ -147,17 +176,23 @@ export default function PromptSettingsPanel({
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-2 px-4">
-          <CardTitle className="text-sm">PROMPT META</CardTitle>
+          <CardTitle className="text-lg font-semibold font-serif">Prompt Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-4">
           <div className="space-y-2">
-            <Label htmlFor="title" className="text-xs">
-              Title
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="title" className="text-xs">
+                Title
+              </Label>
+              <span className="text-[10px] text-muted-foreground tabular-nums" aria-live="polite">
+                {settings.title.slice(0, 18).length}/18
+              </span>
+            </div>
             <Input
               id="title"
-              value={settings.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
+              value={settings.title.slice(0, 18)}
+              onChange={(e) => onUpdate({ title: e.target.value.slice(0, 18) })}
+              maxLength={18}
               placeholder="Give title for your prompt"
               className="h-8 text-sm"
               data-testid="input-settings-title"
@@ -267,13 +302,11 @@ export default function PromptSettingsPanel({
                 <SelectValue placeholder="select category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="art">Art</SelectItem>
-                <SelectItem value="photography">Photography</SelectItem>
-                <SelectItem value="design">Design</SelectItem>
-                <SelectItem value="illustration">Illustration</SelectItem>
-                <SelectItem value="anime">Anime</SelectItem>
-                <SelectItem value="3d">3D</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {PROMPT_CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -289,10 +322,9 @@ export default function PromptSettingsPanel({
                     <TooltipTrigger asChild>
                       <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
-                    <TooltipContent side="left" className="max-w-[240px]">
+                    <TooltipContent side="left" className="max-w-[280px]">
                       <p className="text-xs">
-                        Due to settings, minimum-price per creation is{" "}
-                        {settings.price.toFixed(4)} USD.
+                        Min. API cost (per image) + your price = what the user pays (incl. platform fee).
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -315,6 +347,22 @@ export default function PromptSettingsPanel({
                 className="h-8 text-sm"
                 data-testid="input-price"
               />
+              {(minApiPriceUsd != null || settings.price > 0) && (
+                <div className="text-[8px] leading-[1.05] text-muted-foreground space-y-0 pt-0.5 border-t border-border/50">
+                  <p className="flex flex-wrap items-baseline gap-x-0.5 gap-y-0">
+                    {minApiPriceUsd != null && (
+                      <span>Min. API (per image): ${minApiPriceUsd.toFixed(4)}</span>
+                    )}
+                    <span>·</span>
+                    <span>Your price: ${settings.price.toFixed(4)}</span>
+                  </p>
+                  <p className="text-[8px] leading-[1.05] font-medium text-foreground">
+                    Total: $
+                    {(((minApiPriceUsd ?? 0) + settings.price) * (1 + feePercent / 100)).toFixed(4)}{" "}
+                    (incl. {feePercent}% fee)
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -350,6 +398,30 @@ export default function PromptSettingsPanel({
               </TooltipContent>
             </Tooltip>
           </div>
+          {settings.promptType !== "showcase" && (
+            <div className="space-y-2">
+              <TooltipProvider>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <label className="flex items-center gap-2 cursor-pointer w-full">
+                      <Checkbox
+                        id="enhancement"
+                        checked={(settings.enhancement ?? "prompt") === "prompt"}
+                        onCheckedChange={(checked) => onUpdate({ enhancement: checked ? "prompt" : "none" })}
+                        data-testid="checkbox-enhancement"
+                      />
+                      <span className="text-xs">Prompt enhancement (for users)</span>
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[280px] text-xs">
+                    <p className="font-medium mb-1">Output:</p>
+                    <p>{ENHANCEMENT_OPTIONS.find((o) => o.value === "prompt")?.outputDescription}</p>
+                    <p className="mt-1 text-muted-foreground">Stored with the prompt (Marketplace). Cost updates in real time with Google API.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
         </CardContent>
       </Card>
 

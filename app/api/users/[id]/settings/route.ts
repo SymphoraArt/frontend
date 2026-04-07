@@ -5,29 +5,35 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { getSupabaseServerClient, getSupabaseServerClientSafe } from "@/lib/supabaseServer";
 
 interface UserSettings {
   // Profile
   displayName?: string;
   showWalletInProfile?: boolean;
   showEarningsPublicly?: boolean;
-  
+
+  // UI theme
+  theme?: "light" | "dark";
+
   // Generation defaults
   defaultModel?: string;
   defaultAspectRatio?: string;
   defaultResolution?: string;
-  
+
   // Creator settings
   defaultLicense?: string;
   autoListPrompts?: boolean;
   minimumPrice?: string;
-  
+
   // Privacy
   showPurchaseHistory?: boolean;
   showCreatedPrompts?: boolean;
   allowAnalytics?: boolean;
-  
+
+  /** User specialty: "normal" (7% fee), "family" (1% fee), "admin" (0% fee). */
+  specialty?: "normal" | "family" | "admin";
+
   // Notifications
   salesNotifications?: boolean;
   purchaseNotifications?: boolean;
@@ -47,45 +53,38 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabaseServerClient();
+    const supabase = getSupabaseServerClientSafe();
+    if (!supabase) {
+      return NextResponse.json({ settings: getDefaultSettings() });
+    }
 
-    // Try to find user by ID (could be UUID or wallet address)
-    // First try as UUID, then as wallet address if that fails
-    let { data: user, error } = await supabase
+    let user: { id: string; display_name: string | null; preferences: unknown; wallet_address?: string } | null = null;
+    let err: unknown = null;
+
+    let result = await supabase
       .from("users")
       .select("id, display_name, preferences, wallet_address")
       .eq("id", userId)
       .maybeSingle();
+    if (result.error) err = result.error;
+    else if (result.data) user = result.data;
 
-    // If not found by ID, try by wallet_address (if column exists)
-    if (!user && !error) {
-      const { data: userByWallet, error: walletError } = await supabase
+    if (!user) {
+      result = await supabase
         .from("users")
         .select("id, display_name, preferences, wallet_address")
         .eq("wallet_address", userId.toLowerCase())
         .maybeSingle();
-      
-      if (userByWallet) {
-        user = userByWallet;
-        error = null;
-      } else if (walletError) {
-        error = walletError;
-      }
+      if (result.error) err = result.error;
+      else if (result.data) user = result.data;
     }
 
-    if (error) {
-      console.error("Error fetching user settings:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch settings" },
-        { status: 500 }
-      );
+    if (err) {
+      console.error("Error fetching user settings:", err);
     }
 
     if (!user) {
-      // Return default settings if user doesn't exist
-      return NextResponse.json({
-        settings: getDefaultSettings(),
-      });
+      return NextResponse.json({ settings: getDefaultSettings() });
     }
 
     // Merge stored preferences with display_name
@@ -203,19 +202,17 @@ export async function PUT(
 
     if (error) {
       console.error("Error updating user settings:", error);
-      
-      // If user doesn't exist, try to create them
+
       if (error.code === "PGRST116" || error.message?.includes("No rows")) {
-        // User doesn't exist - this shouldn't happen if wallet is connected
-        // but we'll handle it gracefully
         return NextResponse.json(
           { error: "User not found" },
           { status: 404 }
         );
       }
 
+      const message = typeof error.message === "string" ? error.message : "Failed to update settings";
       return NextResponse.json(
-        { error: "Failed to update settings" },
+        { error: message },
         { status: 500 }
       );
     }
@@ -238,8 +235,9 @@ export async function PUT(
 
   } catch (error) {
     console.error("Error in PUT /api/users/[id]/settings:", error);
+    const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: message },
       { status: 500 }
     );
   }
@@ -250,6 +248,7 @@ function getDefaultSettings(): UserSettings {
     displayName: "",
     showWalletInProfile: true,
     showEarningsPublicly: false,
+    theme: "light",
     defaultModel: "gemini-2.0-flash-exp",
     defaultAspectRatio: "1:1",
     defaultResolution: "1024x1024",
@@ -261,5 +260,6 @@ function getDefaultSettings(): UserSettings {
     allowAnalytics: true,
     salesNotifications: true,
     purchaseNotifications: true,
+    specialty: "normal",
   };
 }

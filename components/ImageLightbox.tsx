@@ -11,9 +11,15 @@ interface ImageLightboxProps {
   isOpen: boolean;
   onClose: () => void;
   imageUrl: string;
+  /** Shown in footer; clicking footer calls onGoToSingleImage */
+  title?: string;
+  /** e.g. "12 likes · 4.5 rating · 8 generations" */
+  footerSubtitle?: string;
+  /** When set, footer is shown and clickable to go to single image view */
+  onGoToSingleImage?: () => void;
 }
 
-export default function ImageLightbox({ isOpen, onClose, imageUrl }: ImageLightboxProps) {
+export default function ImageLightbox({ isOpen, onClose, imageUrl, title, footerSubtitle, onGoToSingleImage }: ImageLightboxProps) {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
 
@@ -40,11 +46,16 @@ export default function ImageLightbox({ isOpen, onClose, imageUrl }: ImageLightb
   const handleZoomIn = () => setScale(s => Math.min(s + 0.25, 3));
   const handleZoomOut = () => setScale(s => Math.max(s - 0.25, 0.5));
   const handleRotate = () => setRotation(r => r + 90);
+  /** Click on image: toggle between fullscreen (1) and zoomed in (2) */
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setScale(s => (s === 1 ? 2 : 1));
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-[95vw] max-h-[95vh] w-auto h-auto p-0 bg-black border-none overflow-hidden"
+        className="!fixed !inset-0 !left-0 !top-0 !right-0 !bottom-0 w-screen h-screen max-w-none max-h-none !translate-x-0 !translate-y-0 p-0 bg-black/95 border-none overflow-hidden rounded-none [&>button]:hidden"
         aria-describedby={undefined}
         data-testid="lightbox-container"
       >
@@ -95,7 +106,8 @@ export default function ImageLightbox({ isOpen, onClose, imageUrl }: ImageLightb
         </div>
 
         <div
-          className="flex items-center justify-center w-full h-full min-h-[60vh] cursor-zoom-out"
+          className="absolute inset-0 flex items-center justify-center cursor-zoom-out"
+          style={{ paddingBottom: onGoToSingleImage ? "80px" : 0 }}
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -104,15 +116,37 @@ export default function ImageLightbox({ isOpen, onClose, imageUrl }: ImageLightb
             <img
               src={imageUrl}
               alt="Fullscreen view"
-              className="max-w-full max-h-[95vh] object-contain transition-transform duration-200 select-none"
+              className="max-w-full max-h-full w-auto h-auto object-contain transition-transform duration-200 select-none cursor-zoom-in"
               style={{
                 transform: `scale(${scale}) rotate(${rotation}deg)`,
+                maxHeight: onGoToSingleImage ? "calc(100vh - 80px)" : "100vh",
+                maxWidth: "100vw",
               }}
               draggable={false}
+              onClick={handleImageClick}
               data-testid="lightbox-image"
             />
           )}
         </div>
+
+        {onGoToSingleImage && (title || footerSubtitle) && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              onClose();
+              onGoToSingleImage();
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (onClose(), onGoToSingleImage())}
+            className="absolute bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur px-4 py-3 cursor-pointer hover:bg-black/90 transition-colors border-t border-white/10"
+            data-testid="lightbox-footer"
+          >
+            {title && <p className="font-semibold text-white truncate">{title}</p>}
+            {footerSubtitle && (
+              <p className="text-sm text-white/80 mt-0.5">{footerSubtitle}</p>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

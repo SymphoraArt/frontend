@@ -22,6 +22,8 @@ export const createGenerationSchema = z.object({
     additionalParams: z.record(z.string(), z.any()).optional(),
   }).optional().default({}),
   transactionHash: z.string().optional(),
+  /** Free prompts only: user-edited prompt text (not persisted on prompt record). Server accepts only when prompt type is `free`. */
+  finalPromptOverride: z.string().min(1).max(100_000).optional(),
 });
 
 // Generation update schema
@@ -36,6 +38,7 @@ export const updateGenerationSchema = z.object({
 export const getGenerationsQuerySchema = z.object({
   limit: z.string().transform(val => Math.min(parseInt(val) || 50, 100)).optional(),
   offset: z.string().transform(val => Math.max(parseInt(val) || 0, 0)).optional(),
+  promptId: z.string().min(1).optional(),
 });
 
 /**

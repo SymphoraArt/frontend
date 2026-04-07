@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/backend/db-mysql";
-import { getSymphoraGenerationsByUser } from "@/backend/storage-symphora";
+import { getEnkiGenerationsByUser } from "@/backend/storage-enki";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     }
 
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100);
-    const generations = await getSymphoraGenerationsByUser(userKey, limit);
+    const generations = await getEnkiGenerationsByUser(userKey, limit);
 
     return NextResponse.json({
       generations: generations.map((g) => ({

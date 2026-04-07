@@ -1,5 +1,5 @@
 /**
- * Symphora storage – prompts, generations, users, likes.
+ * Enki storage – prompts, generations, users, likes.
  * Uses MySQL (Phase 2 will use MongoDB for scalability).
  * Same encryption and variable handling: prompt content stored encrypted; variables as in schema.
  */
@@ -7,20 +7,20 @@
 import { getPool } from "./db-mysql";
 import type { RowDataPacket } from "mysql2/promise";
 import {
-  type SymphoraPrompt,
+  type EnkiPrompt,
   type PromptType,
   type PromptVariable,
-  type SymphoraGeneration,
-} from "./symphora-schema";
+  type EnkiGeneration,
+} from "./enki-schema";
 import { encryptPrompt } from "./encryption";
 
 /** Prompt with string id (MySQL); _id has toString() for API compatibility. */
-export type SymphoraPromptWithId = Omit<SymphoraPrompt, "_id"> & {
+export type EnkiPromptWithId = Omit<EnkiPrompt, "_id"> & {
   _id: { toString: () => string };
   id: string;
 };
 /** Generation with string id (MySQL). */
-export type SymphoraGenerationWithId = Omit<SymphoraGeneration, "_id"> & {
+export type EnkiGenerationWithId = Omit<EnkiGeneration, "_id"> & {
   _id: { toString: () => string };
   id: string;
 };
@@ -30,6 +30,8 @@ const TABLES = {
   GENERATIONS: "symphora_generations",
   PROMPT_LIKES: "symphora_prompt_likes",
   USERS: "symphora_users",
+  PROFILE: "symphora_profile",
+  FOLLOWS: "symphora_follows",
 } as const;
 
 function getDatabase() {
@@ -42,7 +44,7 @@ function parseId(id: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-/** Id-like object for API compatibility (symphora._id?.toString() === symphora.id). */
+/** Id-like object for API compatibility (prompt._id?.toString() === prompt.id). */
 function toIdLike(id: number): { toString: () => string } {
   return { toString: () => String(id) };
 }
@@ -65,7 +67,7 @@ interface PromptRow extends RowDataPacket {
   is_featured: number;
 }
 
-function rowToPrompt(row: PromptRow): SymphoraPromptWithId {
+function rowToPrompt(row: PromptRow): EnkiPromptWithId {
   const idStr = String(row.id);
   return {
     _id: toIdLike(row.id),
@@ -87,7 +89,7 @@ function rowToPrompt(row: PromptRow): SymphoraPromptWithId {
   };
 }
 
-/** Map editor variable type to Symphora type */
+/** Map editor variable type to Enki type */
 function mapVarType(
   t: string
 ): "text" | "multiselect" | "singleselect" | "slider" | "checkbox" {
@@ -97,8 +99,8 @@ function mapVarType(
   return "text";
 }
 
-/** Build Symphora prompt from editor payload (on Release). Prompt content is always stored encrypted. */
-export function buildSymphoraPromptFromEditor(params: {
+/** Build Enki prompt from editor payload (on Release). Prompt content is always stored encrypted. */
+export function buildEnkiPromptFromEditor(params: {
   creator: string;
   title: string;
   content: string;
@@ -120,7 +122,9 @@ export function buildSymphoraPromptFromEditor(params: {
     options?: Array<{ visibleName?: string; promptValue: string }> | null;
   }>;
   generatedImageUrl?: string | null;
-}): Omit<SymphoraPrompt, "_id"> {
+  /** Artist choice: use prompt enhancement when users generate (default true). */
+  usePromptEnhancement?: boolean;
+}): Omit<EnkiPrompt, "_id"> {
   const type: PromptType =
     params.promptType === "showcase"
       ? "showcase"
@@ -202,6 +206,7 @@ export function buildSymphoraPromptFromEditor(params: {
     aiSettings: {
       aspectRatio: params.aspectRatio ?? undefined,
       includeText: false,
+      usePromptEnhancement: params.usePromptEnhancement !== false,
     },
     promptData: { segments, variables },
     pricing: type === "paid" ? { pricePerGeneration: params.price } : undefined,
@@ -214,9 +219,9 @@ export function buildSymphoraPromptFromEditor(params: {
   };
 }
 
-export async function createSymphoraPrompt(
-  data: Omit<SymphoraPrompt, "_id">
-): Promise<SymphoraPromptWithId> {
+export async function createEnkiPrompt(
+  data: Omit<EnkiPrompt, "_id">
+): Promise<EnkiPromptWithId> {
   const pool = getDatabase();
   if (!pool) throw new Error("MySQL not connected");
 
@@ -250,10 +255,10 @@ export async function createSymphoraPrompt(
   return rowToPrompt(row);
 }
 
-export async function updateSymphoraPrompt(
+export async function updateEnkiPrompt(
   id: string,
-  data: Omit<SymphoraPrompt, "_id">
-): Promise<SymphoraPromptWithId | null> {
+  data: Omit<EnkiPrompt, "_id">
+): Promise<EnkiPromptWithId | null> {
   const pool = getDatabase();
   if (!pool) return null;
   const pid = parseId(id);
@@ -280,12 +285,12 @@ export async function updateSymphoraPrompt(
       pid,
     ]
   );
-  return getSymphoraPromptById(id);
+  return getEnkiPromptById(id);
 }
 
-export async function getSymphoraPromptById(
+export async function getEnkiPromptById(
   id: string
-): Promise<SymphoraPromptWithId | null> {
+): Promise<EnkiPromptWithId | null> {
   const pool = getDatabase();
   if (!pool) return null;
   const pid = parseId(id);
@@ -297,10 +302,10 @@ export async function getSymphoraPromptById(
 }
 
 /** Check if a prompt with the same creator and title already exists (for duplicate detection). */
-export async function getSymphoraPromptByCreatorAndTitle(
+export async function getEnkiPromptByCreatorAndTitle(
   creator: string,
   title: string
-): Promise<SymphoraPromptWithId | null> {
+): Promise<EnkiPromptWithId | null> {
   const pool = getDatabase();
   if (!pool) return null;
   const [rows] = await pool.execute<PromptRow[]>(
@@ -312,16 +317,25 @@ export async function getSymphoraPromptByCreatorAndTitle(
   return rowToPrompt(row);
 }
 
-export async function getSymphoraPromptsForMarketplace(params: {
+export async function getEnkiPromptsForMarketplace(params: {
   limit: number;
   cursor?: string;
   category?: string;
-}): Promise<SymphoraPromptWithId[]> {
+  /** When set, only prompts from these creator wallets are returned */
+  followList?: string[];
+}): Promise<EnkiPromptWithId[]> {
   const pool = getDatabase();
   if (!pool) return [];
 
+  if (params.followList && params.followList.length === 0) return [];
+
   const conditions: string[] = ["type IN ('paid', 'free')"];
   const values: (string | number)[] = [];
+  if (params.followList && params.followList.length > 0) {
+    const placeholders = params.followList.map(() => "?").join(", ");
+    conditions.push(`creator IN (${placeholders})`);
+    values.push(...params.followList.map(normWallet));
+  }
   if (params.category) {
     conditions.push("category = ?");
     values.push(params.category);
@@ -341,19 +355,33 @@ export async function getSymphoraPromptsForMarketplace(params: {
   return list.map((r) => rowToPrompt(r));
 }
 
-export async function getSymphoraPromptsForShowroom(params: {
+export async function getEnkiPromptsForShowroom(params: {
   limit: number;
   cursor?: string;
   category?: string;
-}): Promise<SymphoraPromptWithId[]> {
+  /** When set, only prompts from these creator wallets are returned */
+  followList?: string[];
+}): Promise<EnkiPromptWithId[]> {
   const pool = getDatabase();
   if (!pool) return [];
 
+  if (params.followList && params.followList.length === 0) return [];
+
   const conditions: string[] = ["type = 'showcase'"];
   const values: (string | number)[] = [];
+  if (params.followList && params.followList.length > 0) {
+    const placeholders = params.followList.map(() => "?").join(", ");
+    conditions.push(`creator IN (${placeholders})`);
+    values.push(...params.followList.map(normWallet));
+  }
   if (params.category) {
     conditions.push("category = ?");
     values.push(params.category);
+  }
+  const cursorId = params.cursor ? parseId(params.cursor) : null;
+  if (cursorId !== null) {
+    conditions.push("id < ?");
+    values.push(cursorId);
   }
   const where = conditions.join(" AND ");
   values.push(params.limit);
@@ -365,9 +393,9 @@ export async function getSymphoraPromptsForShowroom(params: {
   return list.map((r) => rowToPrompt(r));
 }
 
-export async function getSymphoraPromptsByCreator(
+export async function getEnkiPromptsByCreator(
   creatorWallet: string
-): Promise<SymphoraPromptWithId[]> {
+): Promise<EnkiPromptWithId[]> {
   const pool = getDatabase();
   if (!pool) return [];
 
@@ -391,7 +419,7 @@ async function getPromptStatsLikes(pool: Awaited<ReturnType<typeof getPool>>, pr
   return Number(stats?.likes ?? 0) || 0;
 }
 
-export async function likeSymphoraPrompt(
+export async function likeEnkiPrompt(
   promptId: string,
   userId: string
 ): Promise<{ liked: boolean; likesCount: number }> {
@@ -424,7 +452,7 @@ export async function likeSymphoraPrompt(
   return { liked: true, likesCount: newLikes };
 }
 
-export async function unlikeSymphoraPrompt(
+export async function unlikeEnkiPrompt(
   promptId: string,
   userId: string
 ): Promise<{ liked: boolean; likesCount: number }> {
@@ -454,7 +482,7 @@ export async function unlikeSymphoraPrompt(
   return { liked: false, likesCount: newLikes };
 }
 
-export async function getSymphoraPromptLikeCount(promptId: string): Promise<number> {
+export async function getEnkiPromptLikeCount(promptId: string): Promise<number> {
   const pool = getDatabase();
   if (!pool) return 0;
   const pid = parseId(promptId);
@@ -462,7 +490,7 @@ export async function getSymphoraPromptLikeCount(promptId: string): Promise<numb
   return getPromptStatsLikes(pool, pid);
 }
 
-export async function hasUserLikedSymphoraPrompt(promptId: string, userId: string): Promise<boolean> {
+export async function hasUserLikedEnkiPrompt(promptId: string, userId: string): Promise<boolean> {
   const pool = getDatabase();
   if (!pool) return false;
   const pid = parseId(promptId);
@@ -494,7 +522,7 @@ interface GenRow extends RowDataPacket {
   completed_at: Date | null;
 }
 
-function rowToGeneration(row: GenRow): SymphoraGenerationWithId {
+function rowToGeneration(row: GenRow): EnkiGenerationWithId {
   return {
     _id: toIdLike(row.id),
     id: String(row.id),
@@ -506,7 +534,7 @@ function rowToGeneration(row: GenRow): SymphoraGenerationWithId {
     generatedImage: row.generated_image ? JSON.parse(row.generated_image) : undefined,
     usedSettings: row.used_settings ? JSON.parse(row.used_settings) : undefined,
     transaction: row.transaction_data ? JSON.parse(row.transaction_data) : undefined,
-    status: row.status as SymphoraGeneration["status"],
+    status: row.status as EnkiGeneration["status"],
     error: row.error_data ? JSON.parse(row.error_data) : undefined,
     isPrivate: Boolean(row.is_private),
     likes: row.likes,
@@ -516,7 +544,7 @@ function rowToGeneration(row: GenRow): SymphoraGenerationWithId {
   };
 }
 
-export async function createSymphoraGeneration(params: {
+export async function createEnkiGeneration(params: {
   user: string;
   prompt: string;
   variableValues?: { variableName: string; value: unknown }[];
@@ -524,7 +552,7 @@ export async function createSymphoraGeneration(params: {
   generatedImage?: { url: string; thumbnail?: string };
   usedSettings?: { aspectRatio?: string; includeText?: boolean };
   status?: "pending" | "processing" | "completed" | "failed";
-}): Promise<SymphoraGenerationWithId> {
+}): Promise<EnkiGenerationWithId> {
   const pool = getDatabase();
   if (!pool) throw new Error("MySQL not connected");
   const pid = parseId(params.prompt);
@@ -556,10 +584,10 @@ export async function createSymphoraGeneration(params: {
   return rowToGeneration(row);
 }
 
-export async function getSymphoraGenerationsByUser(
+export async function getEnkiGenerationsByUser(
   userWallet: string,
   limit = 50
-): Promise<SymphoraGenerationWithId[]> {
+): Promise<EnkiGenerationWithId[]> {
   const pool = getDatabase();
   if (!pool) return [];
 
@@ -571,9 +599,9 @@ export async function getSymphoraGenerationsByUser(
   return list.map((r) => rowToGeneration(r));
 }
 
-export async function getSymphoraGenerationById(
+export async function getEnkiGenerationById(
   id: string
-): Promise<SymphoraGenerationWithId | null> {
+): Promise<EnkiGenerationWithId | null> {
   const pool = getDatabase();
   if (!pool) return null;
   const gid = parseId(id);
@@ -584,12 +612,12 @@ export async function getSymphoraGenerationById(
   return rowToGeneration(row);
 }
 
-export async function updateSymphoraGeneration(
+export async function updateEnkiGeneration(
   id: string,
   update: Partial<{
-    generatedImage: SymphoraGeneration["generatedImage"];
-    status: SymphoraGeneration["status"];
-    error: SymphoraGeneration["error"];
+    generatedImage: EnkiGeneration["generatedImage"];
+    status: EnkiGeneration["status"];
+    error: EnkiGeneration["error"];
     completedAt: Date;
   }>
 ): Promise<boolean> {
@@ -621,4 +649,133 @@ export async function updateSymphoraGeneration(
   const [res] = await pool.execute(`UPDATE ${TABLES.GENERATIONS} SET ${set.join(", ")} WHERE id = ?`, values);
   const affected = "affectedRows" in res ? (res as { affectedRows: number }).affectedRows : 0;
   return affected > 0;
+}
+
+// ---- Profile (avatar, banner, bio by wallet) ----
+export type EnkiProfile = {
+  wallet: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  bio: string | null;
+  updatedAt: Date;
+};
+
+export async function getEnkiProfileByWallet(wallet: string): Promise<EnkiProfile | null> {
+  const pool = getDatabase();
+  if (!pool) return null;
+  const normalized = wallet.trim().toLowerCase();
+  if (!normalized) return null;
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT wallet, avatar_url, banner_url, bio, updated_at FROM ${TABLES.PROFILE} WHERE wallet = ?`,
+    [normalized]
+  );
+  const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  if (!row) return null;
+  return {
+    wallet: String(row.wallet),
+    avatarUrl: row.avatar_url != null ? String(row.avatar_url) : null,
+    bannerUrl: row.banner_url != null ? String(row.banner_url) : null,
+    bio: row.bio != null ? String(row.bio) : null,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function upsertEnkiProfile(
+  wallet: string,
+  update: { avatarUrl?: string | null; bannerUrl?: string | null; bio?: string | null }
+): Promise<EnkiProfile> {
+  const pool = getDatabase();
+  if (!pool) throw new Error("MySQL not connected");
+  const normalized = wallet.trim().toLowerCase();
+  if (!normalized) throw new Error("Wallet is required");
+
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT wallet, avatar_url, banner_url, bio, updated_at FROM ${TABLES.PROFILE} WHERE wallet = ?`,
+    [normalized]
+  );
+  const existing = Array.isArray(rows) && rows[0] ? rows[0] : null;
+
+  const avatarUrl = update.avatarUrl !== undefined ? (update.avatarUrl || null) : (existing?.avatar_url ?? null);
+  const bannerUrl = update.bannerUrl !== undefined ? (update.bannerUrl || null) : (existing?.banner_url ?? null);
+  const bio = update.bio !== undefined ? (update.bio?.slice(0, 280) || null) : (existing?.bio ?? null);
+
+  if (existing) {
+    await pool.execute(
+      `UPDATE ${TABLES.PROFILE} SET avatar_url = ?, banner_url = ?, bio = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE wallet = ?`,
+      [avatarUrl, bannerUrl, bio, normalized]
+    );
+  } else {
+    await pool.execute(
+      `INSERT INTO ${TABLES.PROFILE} (wallet, avatar_url, banner_url, bio) VALUES (?, ?, ?, ?)`,
+      [normalized, avatarUrl, bannerUrl, bio]
+    );
+  }
+
+  const [after] = await pool.execute<RowDataPacket[]>(
+    `SELECT wallet, avatar_url, banner_url, bio, updated_at FROM ${TABLES.PROFILE} WHERE wallet = ?`,
+    [normalized]
+  );
+  const row = Array.isArray(after) && after[0] ? after[0] : null;
+  if (!row) throw new Error("Failed to read profile after upsert");
+  return {
+    wallet: String(row.wallet),
+    avatarUrl: row.avatar_url != null ? String(row.avatar_url) : null,
+    bannerUrl: row.banner_url != null ? String(row.banner_url) : null,
+    bio: row.bio != null ? String(row.bio) : null,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ---- Follows ----
+function normWallet(w: string): string {
+  return w.trim().toLowerCase();
+}
+
+export async function getEnkiFollowedWallets(followerWallet: string): Promise<string[]> {
+  const pool = getDatabase();
+  if (!pool) return [];
+  const follower = normWallet(followerWallet);
+  if (!follower) return [];
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT following FROM ${TABLES.FOLLOWS} WHERE follower = ?`,
+    [follower]
+  );
+  return (Array.isArray(rows) ? rows : []).map((r) => String(r.following));
+}
+
+export async function addEnkiFollow(followerWallet: string, followingWallet: string): Promise<void> {
+  const pool = getDatabase();
+  if (!pool) throw new Error("MySQL not connected");
+  const follower = normWallet(followerWallet);
+  const following = normWallet(followingWallet);
+  if (!follower || !following || follower === following) return;
+  await pool.execute(
+    `INSERT IGNORE INTO ${TABLES.FOLLOWS} (follower, following) VALUES (?, ?)`,
+    [follower, following]
+  );
+}
+
+export async function removeEnkiFollow(followerWallet: string, followingWallet: string): Promise<void> {
+  const pool = getDatabase();
+  if (!pool) return;
+  const follower = normWallet(followerWallet);
+  const following = normWallet(followingWallet);
+  if (!follower || !following) return;
+  await pool.execute(`DELETE FROM ${TABLES.FOLLOWS} WHERE follower = ? AND following = ?`, [
+    follower,
+    following,
+  ]);
+}
+
+export async function isEnkiFollowing(followerWallet: string, followingWallet: string): Promise<boolean> {
+  const pool = getDatabase();
+  if (!pool) return false;
+  const follower = normWallet(followerWallet);
+  const following = normWallet(followingWallet);
+  if (!follower || !following) return false;
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 1 FROM ${TABLES.FOLLOWS} WHERE follower = ? AND following = ? LIMIT 1`,
+    [follower, following]
+  );
+  return Array.isArray(rows) && rows.length > 0;
 }

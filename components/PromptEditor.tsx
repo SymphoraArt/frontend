@@ -48,8 +48,19 @@ import {
   ChevronDown,
   HelpCircle,
   Pencil,
+  Loader2,
+  AlertTriangle,
+  SlidersHorizontal,
 } from "lucide-react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import ImageLightbox from "./ImageLightbox";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -61,6 +72,7 @@ import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import { thirdwebClient, defaultChain } from "@/lib/thirdweb";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
+import { pickDefaultForVariable } from "@/lib/ai-defaults-map";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
@@ -86,6 +98,7 @@ interface PromptSettings {
   uploadedPhotos: string[];
   resolution: string | null;
   isFreeShowcase?: boolean;
+  enhancement?: "none" | "prompt";
 }
 
 interface SelectOption {
@@ -108,10 +121,49 @@ export interface Variable {
   defaultOptionIndex?: number;
   /** For checkbox: text inserted at variable position when checked. Not shown publicly. */
   promptValue?: string;
+  /** Placeholder variable name from plain [text] — user should rename; shown with red outline */
+  needsNameAttention?: boolean;
+}
+
+function generateUniqueFieldName(used: Set<string>): string {
+  for (let i = 1; i < 100000; i++) {
+    const n = `Field${i}`;
+    if (!used.has(n)) {
+      used.add(n);
+      return n;
+    }
+  }
+  const fallback = `Field_${Math.random().toString(36).slice(2, 10)}`;
+  used.add(fallback);
+  return fallback;
+}
+
+function variableHasNonEmptyDefault(v: Variable): boolean {
+  switch (v.type) {
+    case "text":
+      return String(v.defaultValue ?? "").trim() !== "";
+    case "checkbox":
+      return v.defaultValue === true || v.defaultValue === "true";
+    case "multi-select":
+      return Array.isArray(v.defaultValue) && v.defaultValue.length > 0;
+    case "single-select": {
+      // Only count as "has default" if user picked a non-first option (index 0 is the implicit default).
+      return typeof v.defaultOptionIndex === "number" && v.defaultOptionIndex > 0;
+    }
+    case "slider": {
+      const n = Number(v.defaultValue);
+      const lo = v.min ?? 0;
+      return !Number.isNaN(n) && n !== lo;
+    }
+    default:
+      return false;
+  }
 }
 
 interface PromptEditorProps {
   onBack?: () => void;
+  /** When set, load this prompt on mount (e.g. from /editor?promptId=...) */
+  initialPromptId?: string | null;
 }
 
 const connectModalWallets = [
@@ -129,11 +181,52 @@ const connectModalWallets = [
   createWallet("com.okex.wallet"),
 ];
 
-export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
+/** Tiny … animation over each default field while Values / DeepSeek runs */
+function BlitzDefaultFieldShell({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {loading && (
+        <div
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/35"
+          aria-hidden
+        >
+          <span className="inline-flex items-center gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="h-1 w-1 rounded-full bg-primary/75 animate-bounce"
+                style={{ animationDelay: `${i * 120}ms` }}
+              />
+            ))}
+          </span>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+export default function PromptEditor({ onBack, initialPromptId }: PromptEditorProps = {}) {
   const router = useRouter();
   const account = useActiveAccount();
+  const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
   const { connect } = useConnectModal();
-  const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
+  const { data: userSettings } = useQuery<{ settings: { minimumPrice?: string } }>({
+    queryKey: [userKey ? `/api/users/${encodeURIComponent(userKey)}/settings` : ""],
+    enabled: !!userKey,
+  });
+  const hasAppliedDefaultPriceRef = useRef(false);
+  const {
+    generateImage: generateImageWithPayment,
+    fetchWithPayment,
+    isPending: isPaymentPending,
+  } = useX402PaymentProduction();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain, setSelectedChain] = useState<ChainKey>(bestChain || 'base-sepolia');
   
@@ -178,11 +271,34 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [estimateCost, setEstimateCost] = useState<number | null>(null);
+
+  type GenerationItem = {
+    id: string;
+    imageUrl: string | null;
+    variableValues: Record<string, string | number | boolean | string[]>;
+    aspectRatio: string;
+    status: "pending" | "completed" | "failed";
+  };
+  const [generations, setGenerations] = useState<GenerationItem[]>([]);
+  const [selectedGenerationIds, setSelectedGenerationIds] = useState<Set<string>>(new Set());
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
+  const [promptChangeDialog, setPromptChangeDialog] = useState<{
+    open: boolean;
+    revertValue?: string;
+    invalidGenerationIds?: string[];
+    onConfirm: () => void;
+    onRevert?: () => void;
+  }>({ open: false, onConfirm: () => {} });
+
   const [unsavedVariableDialog, setUnsavedVariableDialog] = useState(false);
   const [showLoginRequiredDialog, setShowLoginRequiredDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [variableToDelete, setVariableToDelete] = useState<string | null>(null);
   const [openVariables, setOpenVariables] = useState<string[]>([]);
+  const [variablesMode, setVariablesMode] = useState<"simple" | "complex">("simple");
+  const [blitzLoading, setBlitzLoading] = useState(false);
+  const [blitzOverwriteOpen, setBlitzOverwriteOpen] = useState(false);
   const [newOptionInput, setNewOptionInput] = useState<Record<string, string>>(
     {}
   );
@@ -198,6 +314,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
   const [resolution, setResolution] = useState<string | null>(null);
   const [isFreeShowcase, setIsFreeShowcase] = useState(false);
+  const [enhancement, setEnhancement] = useState<"none" | "prompt">("prompt");
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [buttonPosition, setButtonPosition] = useState<{
     top: number;
@@ -212,6 +329,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const desktopPromptOverlayRef = useRef<HTMLDivElement>(null);
+  const mobilePromptOverlayRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const isShowcase = promptType === "showcase";
@@ -653,7 +772,16 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     setSelectionRange(null);
 
     if (existingVariable && !createNew) {
-      // Link to existing variable
+      const trimmedOriginal = originalText.trim();
+      if (trimmedOriginal) {
+        setVariables((prev) =>
+          prev.map((v) =>
+            v.id === existingVariable.id
+              ? { ...v, defaultValue: trimmedOriginal }
+              : v
+          )
+        );
+      }
       toast({
         title: "Variable Linked",
         description: `Existing variable "${varName}" was inserted.`,
@@ -738,13 +866,18 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   };
 
   useEffect(() => {
+    if (promptType === "free-prompt") return;
     const timeoutId = setTimeout(() => {
-      // Get all unique variable names from the prompt
-      const regex = /\[([^\]]+)\]/g;
+      // Get all unique variable candidates from [], {} and ()
+      const tokenRegex = /\[([^\]]+)\]|\{([^}]+)\}|\(([^)]+)\)/g;
       const uniqueVarNames = new Set<string>();
+      const rawTokenMap = new Map<string, string>();
       let match;
-      while ((match = regex.exec(prompt)) !== null) {
-        uniqueVarNames.add(match[1]);
+      while ((match = tokenRegex.exec(prompt)) !== null) {
+        const rawInner = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+        if (!rawInner) continue;
+        uniqueVarNames.add(rawInner);
+        if (!rawTokenMap.has(rawInner)) rawTokenMap.set(rawInner, match[0]);
       }
 
       setVariables((prev) => {
@@ -754,19 +887,128 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         const newVars: Variable[] = [];
         const replacements: { raw: string; trimmed: string }[] = [];
         uniqueVarNames.forEach((varName) => {
-          const trimmed = varName.trim().replace(/[\[\]]/g, "");
-          if (!trimmed || existingNames.has(trimmed) || existingNames.has(varName)) return;
-          existingNames.add(trimmed);
+          const raw = varName.trim();
+          const normalizeVariableName = (value: string) =>
+            value
+              .replace(/[\[\]()]/g, "")
+              .replace(/\s+/g, " ")
+              // Remove trailing separators used between name and examples
+              // while keeping valid internal separators like MACRO_NAME / MACRO-NAME.
+              .replace(/[\s\-–—:;,.\/|]+$/, "")
+              .trim();
+
+          // 1) Detect quoted choice lists: ["A", "B", ...] → multi-select
+          const quotedOptions = Array.from(
+            raw.matchAll(/"([^"]+)"/g),
+            (m) => (m[1] ?? "").trim()
+          ).filter(Boolean);
+          const hasQuotedChoiceList = quotedOptions.length >= 2;
+          const normalizedOptions = Array.from(new Set(quotedOptions)).map((opt) => ({
+            visibleName: opt,
+            promptValue: opt,
+          }));
+
+          // Plain [free text] without structured patterns: full text → default, auto FieldN name
+          const nestedEarly = raw.match(/^(.*?)\s*[\(\[\{]\s*(.*?)\s*[\)\]\}]\s*$/);
+          const egEarly = raw.match(/^(.*?)(?:[-–—]*\s*)?\b(e\.g\.)\b(.*)$/i);
+          const capsEarly = raw.match(/^([A-Z0-9][A-Z0-9\s_\-\/]*)/);
+          const isPlainBracket =
+            !hasQuotedChoiceList &&
+            !nestedEarly &&
+            !egEarly &&
+            !capsEarly;
+
+          if (isPlainBracket) {
+            if (existingNames.has(varName)) return;
+            const finalName = generateUniqueFieldName(existingNames);
+            newVars.push({
+              id: finalName,
+              name: finalName,
+              description: "",
+              type: "text",
+              defaultValue: raw,
+              required: true,
+              position: existingVars.length + newVars.length,
+              needsNameAttention: true,
+            });
+            const rawToken = rawTokenMap.get(varName) ?? `[${varName}]`;
+            if (rawToken !== `[${finalName}]`) {
+              replacements.push({ raw: varName, trimmed: finalName });
+            }
+            return;
+          }
+
+          // 2) Extract base variable name for patterns like:
+          // [MACRO MEDIUM - e.g., stream of liquid gold, plume of smoke, silk ribbon]
+          // "e.g." and any text outside the name → description (optional). Default value stays empty.
+          let suggestedName = "";
+          let extractedDescription = "";
+
+          if (!hasQuotedChoiceList) {
+            // Nested bracket pattern: OUTER_TEXT (inner), OUTER_TEXT [inner], OUTER_TEXT {inner}
+            const nestedMatch = raw.match(/^(.*?)\s*[\(\[\{]\s*(.*?)\s*[\)\]\}]\s*$/);
+            if (nestedMatch) {
+              const namePart = nestedMatch[1] ?? "";
+              suggestedName = normalizeVariableName(namePart);
+              extractedDescription = (nestedMatch[2] ?? "").trim();
+            } else {
+              const egMatch = raw.match(/^(.*?)(?:[-–—]*\s*)?\b(e\.g\.)\b(.*)$/i);
+              if (egMatch) {
+                const namePart = egMatch[1] ?? "";
+                suggestedName = normalizeVariableName(namePart);
+                extractedDescription = raw.slice(namePart.length).trim();
+              } else {
+                // Fallback: leading ALL CAPS words form the name, rest is description (not default)
+                const nameMatch = raw.match(/^([A-Z0-9][A-Z0-9\s_\-\/]*)/);
+                if (nameMatch) {
+                  const namePart = nameMatch[1] ?? "";
+                  suggestedName = normalizeVariableName(namePart);
+                  const rest = raw.slice(nameMatch[0].length).trim();
+                  if (rest) {
+                    extractedDescription = rest.replace(/^[-–—:\s]+/, "").trim();
+                  }
+                }
+              }
+            }
+          }
+
+          const baseNameFromLabel = hasQuotedChoiceList
+            ? raw
+                .replace(/"[^"]*"/g, "")
+                .replace(/[\[\]]/g, "")
+                .replace(/[,;:]+/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+            : suggestedName;
+
+          const trimmedName = (baseNameFromLabel || raw)
+            .trim()
+            .replace(/[\[\]]/g, "");
+          const normalizedName = normalizeVariableName(trimmedName);
+
+          const fallbackName = normalizedOptions[0]?.visibleName ?? "";
+          const finalName = normalizedName || fallbackName;
+
+          if (!finalName || existingNames.has(finalName) || existingNames.has(varName)) return;
+          existingNames.add(finalName);
+
+          const initialDefault: string | string[] = hasQuotedChoiceList ? [] : "";
+
           newVars.push({
-            id: trimmed,
-            name: trimmed,
-            description: "",
-            type: "text",
-            defaultValue: "",
+            id: finalName,
+            name: finalName,
+            description: extractedDescription,
+            type: hasQuotedChoiceList ? "multi-select" : "text",
+            defaultValue: initialDefault,
+            options: hasQuotedChoiceList ? normalizedOptions : undefined,
             required: true,
             position: existingVars.length + newVars.length,
           });
-          if (varName !== trimmed) replacements.push({ raw: varName, trimmed });
+
+          const rawToken = rawTokenMap.get(varName) ?? `[${varName}]`;
+          if (rawToken !== `[${finalName}]`) {
+            replacements.push({ raw: varName, trimmed: finalName });
+          }
         });
 
         if (newVars.length > 0) {
@@ -774,7 +1016,12 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           if (replacements.length > 0) {
             let newPrompt = prompt;
             replacements.forEach(({ raw, trimmed }) => {
-              newPrompt = newPrompt.split(`[${raw}]`).join(`[${trimmed}]`);
+              const escapedRaw = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const rawSquare = `\\[${escapedRaw}\\]`;
+              const rawCurly = `\\{${escapedRaw}\\}`;
+              const rawRound = `\\(${escapedRaw}\\)`;
+              const rx = new RegExp(`${rawSquare}|${rawCurly}|${rawRound}`, "g");
+              newPrompt = newPrompt.replace(rx, `[${trimmed}]`);
             });
             setPrompt(newPrompt);
           }
@@ -785,7 +1032,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [prompt]);
+  }, [prompt, promptType]);
 
   // Update button position when selection changes
   useEffect(() => {
@@ -800,12 +1047,22 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     if (!textarea) return;
 
     const handleScroll = () => {
+      // Keep highlighted overlay in sync with the real textarea scroll position.
+      if (desktopPromptOverlayRef.current) {
+        desktopPromptOverlayRef.current.scrollTop = textarea.scrollTop;
+        desktopPromptOverlayRef.current.scrollLeft = textarea.scrollLeft;
+      }
+      if (mobilePromptOverlayRef.current) {
+        mobilePromptOverlayRef.current.scrollTop = textarea.scrollTop;
+        mobilePromptOverlayRef.current.scrollLeft = textarea.scrollLeft;
+      }
       if (selectionRange) {
         updateButtonPosition();
       }
     };
 
     textarea.addEventListener("scroll", handleScroll);
+    handleScroll();
     return () => textarea.removeEventListener("scroll", handleScroll);
   }, [selectionRange, updateButtonPosition]);
 
@@ -875,7 +1132,9 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         // Update the variable ID as well since it's based on name
         setVariables(
           variables.map((v) =>
-            v.id === varId ? { ...v, ...updates, id: newName } : v
+            v.id === varId
+              ? { ...v, ...updates, id: newName, needsNameAttention: false }
+              : v
           )
         );
         // Keep the variable accordion open after rename (openVariables uses variable id)
@@ -885,7 +1144,12 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     }
 
     setVariables(
-      variables.map((v) => (v.id === varId ? { ...v, ...updates } : v))
+      variables.map((v) => {
+        if (v.id !== varId) return v;
+        const next = { ...v, ...updates } as Variable;
+        if (updates.name !== undefined) next.needsNameAttention = false;
+        return next;
+      })
     );
   };
 
@@ -932,17 +1196,24 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     if (!variable || !variable.options) return;
 
     const newOptions = [...variable.options];
-    newOptions[index] = { ...newOptions[index], [field]: value };
+    if (field === "promptValue") {
+      const prev = newOptions[index];
+      const pv = value;
+      const visEmpty = !prev.visibleName?.trim();
+      newOptions[index] = {
+        ...prev,
+        promptValue: pv,
+        ...(visEmpty && pv.trim() ? { visibleName: pv.trim() } : {}),
+      };
+    } else {
+      newOptions[index] = { ...newOptions[index], [field]: value };
+    }
     updateVariable(varId, { options: newOptions });
   };
 
   const handleGenerate = async () => {
     if (!account) {
       setShowLoginRequiredDialog(true);
-      return;
-    }
-    if (openVariables.length > 0) {
-      setUnsavedVariableDialog(true);
       return;
     }
 
@@ -956,19 +1227,35 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       return;
     }
 
+    const variableValues = getCurrentVariableValues();
+    const aspectRatioVal = aspectRatio || "16:9";
+    const newId = `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const newItem: GenerationItem = {
+      id: newId,
+      imageUrl: null,
+      variableValues: { ...variableValues },
+      aspectRatio: aspectRatioVal,
+      status: "pending",
+    };
+    setGenerations((prev) => [newItem, ...prev]);
     setIsGenerating(true);
-    setGeneratedImage(null);
 
     try {
-      // Use X402 payment hook for image generation
       const data = await generateImageWithPayment(
         {
-        prompt: previewText,
-          resolution: '2K', // Default resolution
+          prompt: previewText,
+          resolution: "2K",
+          aspectRatio: aspectRatioVal,
+          useEnhancement: enhancement === "prompt",
         },
         selectedChain
       ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
-      
+
+      setGenerations((prev) =>
+        prev.map((g) =>
+          g.id === newId ? { ...g, imageUrl: data.imageUrl, status: "completed" as const } : g
+        )
+      );
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
@@ -978,28 +1265,27 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             prompt: previewText,
             imageUrl: String(data.imageUrl),
             provider: typeof data.provider === "string" ? data.provider : "unknown",
-            meta: {
-              usedGemini: Boolean(data.usedGemini ?? false),
-            },
+            meta: { usedGemini: Boolean(data.usedGemini ?? false) },
           });
         } catch {
-          // ignore persistence error; local fallback below
+          // ignore
         }
         addCreation(userKey, {
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          id: newId,
           imageUrl: data.imageUrl,
           prompt: previewText,
           createdAt: new Date().toISOString(),
+          status: "completed",
+          source: "prompt_editor",
         });
       }
-      toast({
-        title: "Generation Complete",
-        description: "Your image was generated successfully.",
-      });
+      toast({ title: "Generation Complete", description: "Your image was generated successfully." });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      // Fallback if wallet was disconnected during generation
-      if (errorMessage?.includes('Wallet not connected') || errorMessage?.includes('wallet')) {
+      setGenerations((prev) =>
+        prev.map((g) => (g.id === newId ? { ...g, status: "failed" as const } : g))
+      );
+      if (errorMessage?.includes("Wallet not connected") || errorMessage?.includes("wallet")) {
         setShowLoginRequiredDialog(true);
       } else {
         toast({
@@ -1021,19 +1307,34 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       return;
     }
     const previewText = renderPreviewWithDefaults();
+    const variableValues = getCurrentVariableValues();
+    const aspectRatioVal = aspectRatio || "16:9";
+    const newId = `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const newItem: GenerationItem = {
+      id: newId,
+      imageUrl: null,
+      variableValues: { ...variableValues },
+      aspectRatio: aspectRatioVal,
+      status: "pending",
+    };
+    setGenerations((prev) => [newItem, ...prev]);
     setIsGenerating(true);
-    setGeneratedImage(null);
 
     try {
-      // Use X402 payment hook for image generation
       const data = await generateImageWithPayment(
         {
-        prompt: previewText,
-          resolution: '2K', // Default resolution
+          prompt: previewText,
+          resolution: "2K",
+          aspectRatio: aspectRatioVal,
+          useEnhancement: enhancement === "prompt",
         },
         selectedChain
       ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
-      
+      setGenerations((prev) =>
+        prev.map((g) =>
+          g.id === newId ? { ...g, imageUrl: data.imageUrl, status: "completed" as const } : g
+        )
+      );
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
@@ -1043,27 +1344,27 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             prompt: previewText,
             imageUrl: String(data.imageUrl),
             provider: typeof data.provider === "string" ? data.provider : "unknown",
-            meta: {
-              usedGemini: Boolean(data.usedGemini ?? false),
-            },
+            meta: { usedGemini: Boolean(data.usedGemini ?? false) },
           });
         } catch {
-          // ignore persistence error; local fallback below
+          // ignore
         }
         addCreation(userKey, {
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          id: newId,
           imageUrl: data.imageUrl,
           prompt: previewText,
           createdAt: new Date().toISOString(),
+          status: "completed",
+          source: "prompt_editor",
         });
       }
-      toast({
-        title: "Generation Complete",
-        description: "Your image was generated successfully.",
-      });
+      toast({ title: "Generation Complete", description: "Your image was generated successfully." });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      if (errorMessage?.includes('Wallet not connected') || errorMessage?.includes('wallet')) {
+      setGenerations((prev) =>
+        prev.map((g) => (g.id === newId ? { ...g, status: "failed" as const } : g))
+      );
+      if (errorMessage?.includes("Wallet not connected") || errorMessage?.includes("wallet")) {
         setShowLoginRequiredDialog(true);
       } else {
         toast({
@@ -1096,65 +1397,74 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         uploadedPhotos,
         resolution,
         isFreeShowcase,
-        generatedImageUrl: generatedImage ?? null,
-        variables: variables
-          .filter((variable) => {
-            if (variable.type !== "multi-select" && variable.type !== "single-select") return true;
-            const opts = variable.options ?? [];
-            const draft = newOptionInput[variable.id]?.trim();
-            const draftParts = draft ? draft.split("|||").map((p) => p.trim()) : [];
-            const hasDraft =
-              draftParts.length >= 2 &&
-              (draftParts[0] !== "" || draftParts[1] !== "");
-            const nonEmpty = opts.filter(
-              (opt) =>
-                (opt.visibleName?.trim() ?? "") !== "" ||
-                (opt.promptValue?.trim() ?? "") !== ""
-            );
-            return nonEmpty.length > 0 || hasDraft;
-          })
-          .map((variable) => {
-            const isSelect =
-              variable.type === "multi-select" || variable.type === "single-select";
-            let options: { visibleName: string; promptValue: string }[] | null =
-              isSelect && variable.options
-                ? variable.options.filter(
+        usePromptEnhancement: enhancement === "prompt",
+        generatedImageUrl: (() => {
+          const completed = generations.filter((g) => g.status === "completed" && g.imageUrl);
+          const selected = completed.filter((g) => selectedGenerationIds.has(g.id));
+          const forRelease = selected.length > 0 ? selected : completed;
+          return forRelease[0]?.imageUrl ?? generatedImage ?? null;
+        })(),
+        variables:
+          promptType === "free-prompt"
+            ? []
+            : variables
+                .filter((variable) => {
+                  if (variable.type !== "multi-select" && variable.type !== "single-select") return true;
+                  const opts = variable.options ?? [];
+                  const draft = newOptionInput[variable.id]?.trim();
+                  const draftParts = draft ? draft.split("|||").map((p) => p.trim()) : [];
+                  const hasDraft =
+                    draftParts.length >= 2 &&
+                    (draftParts[0] !== "" || draftParts[1] !== "");
+                  const nonEmpty = opts.filter(
                     (opt) =>
                       (opt.visibleName?.trim() ?? "") !== "" ||
                       (opt.promptValue?.trim() ?? "") !== ""
-                  )
-                : variable.options ?? null;
-            // Include the current "Add option" draft so the last option is saved when clicking Save
-            if (isSelect) {
-              const draft = newOptionInput[variable.id]?.trim();
-              if (draft) {
-                const parts = draft.split("|||");
-                const visibleName = parts[0]?.trim() ?? "";
-                const promptValue = parts[1]?.trim() ?? "";
-                if (visibleName !== "" || promptValue !== "") {
-                  options = [...(options ?? []), { visibleName, promptValue }];
-                }
-              }
-            }
-            return {
-              name: variable.name,
-              description: variable.description ?? "",
-              type: variable.type,
-              defaultValue: variable.defaultValue,
-              required: variable.required,
-              position: variable.position,
-              min: variable.min ?? null,
-              max: variable.max ?? null,
-              options,
-              promptValue:
-                variable.type === "checkbox"
-                  ? (variable.promptValue ?? "")
-                  : undefined,
-            };
-          }),
+                  );
+                  return nonEmpty.length > 0 || hasDraft;
+                })
+                .map((variable) => {
+                  const isSelect =
+                    variable.type === "multi-select" || variable.type === "single-select";
+                  let options: { visibleName: string; promptValue: string }[] | null =
+                    isSelect && variable.options
+                      ? variable.options.filter(
+                          (opt) =>
+                            (opt.visibleName?.trim() ?? "") !== "" ||
+                            (opt.promptValue?.trim() ?? "") !== ""
+                        )
+                      : variable.options ?? null;
+                  // Include the current "Add option" draft so the last option is saved when clicking Save
+                  if (isSelect) {
+                    const draft = newOptionInput[variable.id]?.trim();
+                    if (draft) {
+                      const parts = draft.split("|||");
+                      const visibleName = parts[0]?.trim() ?? "";
+                      const promptValue = parts[1]?.trim() ?? "";
+                      if (visibleName !== "" || promptValue !== "") {
+                        options = [...(options ?? []), { visibleName, promptValue }];
+                      }
+                    }
+                  }
+                  return {
+                    name: variable.name,
+                    description: variable.description ?? "",
+                    type: variable.type,
+                    defaultValue: variable.defaultValue,
+                    required: variable.required,
+                    position: variable.position,
+                    min: variable.min ?? null,
+                    max: variable.max ?? null,
+                    options,
+                    promptValue:
+                      variable.type === "checkbox"
+                        ? (variable.promptValue ?? "")
+                        : undefined,
+                  };
+                }),
       };
 
-      const response = await apiRequest("POST", "/api/symphora/prompts", payload);
+      const response = await apiRequest("POST", "/api/enki/prompts", payload);
       const savedPrompt: unknown = await response.json();
 
       if (!response.ok) {
@@ -1279,7 +1589,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         : [];
 
       setCurrentPromptId(promptId);
-      setPromptTitle(String(data.title ?? ""));
+      setPromptTitle(String(data.title ?? "").slice(0, 18));
       setPrompt(String(data.content ?? ""));
       setCategory(typeof data.category === "string" ? data.category : "");
       setAiModel(typeof data.aiModel === "string" ? data.aiModel : "gemini");
@@ -1365,6 +1675,28 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     }
   };
 
+  useEffect(() => {
+    if (initialPromptId?.trim()) {
+      loadPrompt(initialPromptId.trim());
+    }
+  }, [initialPromptId]);
+
+  // Default USD price for new prompts: Minimum Price from DB (user settings) or localStorage fallback
+  useEffect(() => {
+    if (initialPromptId?.trim() || hasAppliedDefaultPriceRef.current) return;
+
+    const fromApi = userSettings?.settings?.minimumPrice;
+    const fromStorage = typeof window !== "undefined" ? localStorage.getItem("minimumPrice") : null;
+    const minPriceStr = fromApi ?? fromStorage ?? null;
+    if (minPriceStr == null) return;
+
+    const minPrice = parseFloat(minPriceStr);
+    if (!Number.isNaN(minPrice) && minPrice >= 0) {
+      setPrice(minPrice);
+      hasAppliedDefaultPriceRef.current = true;
+    }
+  }, [initialPromptId, userSettings?.settings?.minimumPrice]);
+
   const settingsData: PromptSettings = {
     title: promptTitle,
     category,
@@ -1376,21 +1708,30 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     uploadedPhotos,
     resolution,
     isFreeShowcase,
+    enhancement: enhancement as "none" | "prompt",
   };
 
   const handleSettingsUpdate = (updates: Partial<PromptSettings>) => {
-    if (updates.title !== undefined) setPromptTitle(updates.title);
+    if (updates.title !== undefined) setPromptTitle(updates.title.slice(0, 18));
     if (updates.category !== undefined) setCategory(updates.category);
     if (updates.aiModel !== undefined) setAiModel(updates.aiModel);
     if (updates.price !== undefined) setPrice(updates.price);
     if (updates.aspectRatio !== undefined) setAspectRatio(updates.aspectRatio);
     if (updates.photoCount !== undefined) setPhotoCount(updates.photoCount);
-    if (updates.promptType !== undefined) setPromptType(updates.promptType);
+    if (updates.promptType !== undefined) {
+      setPromptType(updates.promptType);
+      if (updates.promptType === "free-prompt") {
+        setVariables([]);
+        setOpenVariables([]);
+        setShowVariableEditor(false);
+      }
+    }
     if (updates.uploadedPhotos !== undefined)
       setUploadedPhotos(updates.uploadedPhotos);
     if (updates.resolution !== undefined) setResolution(updates.resolution);
     if (updates.isFreeShowcase !== undefined)
       setIsFreeShowcase(updates.isFreeShowcase);
+    if (updates.enhancement !== undefined) setEnhancement(updates.enhancement as "none" | "prompt");
   };
 
   const renderPreviewWithDefaults = () => {
@@ -1423,6 +1764,306 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
     return previewText;
   };
+
+  useEffect(() => {
+    const previewText = renderPreviewWithDefaults();
+    if (!previewText?.trim()) {
+      setEstimateCost(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/estimate-generation-cost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: previewText,
+        resolution: "2K",
+        useEnhancement: enhancement === "prompt",
+        userId: userKey ?? undefined,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data || data.totalUsd == null) return;
+        setEstimateCost(data.totalUsd);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [prompt, variables, enhancement, userKey]);
+
+  // Normalize variables that look like a quoted list into multi-select options:
+  // e.g. Variable Name: `"Istanbul", "Paris", "Rome"` →
+  // type = multi-select, options = [{visibleName:"Istanbul",promptValue:"Istanbul"}, ...]
+  useEffect(() => {
+    setVariables((prev) => {
+      let changed = false;
+      const next = prev.map((v) => {
+        const hasOptions = Array.isArray(v.options) && v.options.length > 0;
+        if (
+          hasOptions ||
+          v.type === "slider" ||
+          v.type === "radio" ||
+          v.type === "checkbox"
+        ) {
+          return v;
+        }
+
+        const name = v.name ?? "";
+        const quoted = Array.from(name.matchAll(/"([^"]+)"/g))
+          .map((m) => (m[1] ?? "").trim())
+          .filter(Boolean);
+        if (quoted.length < 2) return v;
+
+        const uniqueOptions = Array.from(new Set(quoted)).map((opt) => ({
+          visibleName: opt,
+          promptValue: opt,
+        }));
+        if (uniqueOptions.length === 0) return v;
+
+        changed = true;
+        return {
+          ...v,
+          type: "multi-select" as VariableType,
+          defaultValue: [],
+          options: uniqueOptions,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [variables.length]);
+
+  const applyBlitzDefaults = useCallback(
+    (defaults: Record<string, string>) => {
+      setVariables((prev) =>
+        prev.map((v) => {
+            const inferred = pickDefaultForVariable(defaults, v);
+            if (typeof inferred !== "string") return v;
+          const value = inferred.trim();
+          if (!value) return v;
+
+          if (v.type === "multi-select" && Array.isArray(v.options) && v.options.length > 0) {
+            const tokens = value
+              .split(/[;,/|]/)
+              .map((t) => t.trim())
+              .filter(Boolean);
+            const picked = v.options
+              .map((o) => o.promptValue)
+              .filter((opt) =>
+                tokens.some((t) => t.toLowerCase() === opt.toLowerCase())
+              );
+            if (picked.length === 0) return v;
+            return { ...v, defaultValue: Array.from(new Set(picked)) };
+          }
+
+          if (v.type === "single-select" && Array.isArray(v.options) && v.options.length > 0) {
+            const idx = v.options.findIndex(
+              (o) => o.promptValue.toLowerCase() === value.toLowerCase()
+            );
+            if (idx < 0) return v;
+            return { ...v, defaultOptionIndex: idx };
+          }
+
+          return { ...v, defaultValue: value };
+        })
+      );
+    },
+    []
+  );
+
+  const executeBlitzDefaults = useCallback(async () => {
+    if (!userKey) {
+      toast({
+        title: "Wallet required",
+        description: "Connect your wallet to use Values.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const baseUrl =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${baseUrl}/api/variable-defaults?chain=${encodeURIComponent(selectedChain)}`;
+    const body = JSON.stringify({
+      userId: userKey,
+      prompt,
+      variables: variables.map((v) => ({
+        name: v.name,
+        type: v.type,
+        options: v.options ?? [],
+      })),
+    });
+
+    setBlitzLoading(true);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        credentials: "include",
+      });
+
+      let data: {
+        defaults?: Record<string, string>;
+        blitzRemaining?: number;
+        blitzPaid?: boolean;
+        error?: string;
+      };
+
+      if (res.ok) {
+        data = await res.json();
+      } else if (res.status === 402) {
+        data = (await fetchWithPayment(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        })) as typeof data;
+      } else {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || `Request failed (${res.status})`);
+      }
+
+      const defaults = (data?.defaults ?? {}) as Record<string, string>;
+      if (data.error && !Object.keys(defaults).length) {
+        throw new Error(data.error);
+      }
+
+      applyBlitzDefaults(defaults);
+
+      const remaining =
+        typeof data.blitzRemaining === "number" ? data.blitzRemaining : undefined;
+      const paid = data.blitzPaid === true;
+      toast({
+        title: paid ? "Values (paid)" : "Values",
+        description:
+          remaining !== undefined
+            ? paid
+              ? "Defaults applied. Free uses reset tomorrow at UTC midnight."
+              : `${remaining} free run${remaining === 1 ? "" : "s"} left today.`
+            : "Defaults applied.",
+      });
+    } catch (e) {
+      toast({
+        title: "Values failed",
+        description: getErrorMessage(e),
+        variant: "destructive",
+      });
+    } finally {
+      setBlitzLoading(false);
+    }
+  }, [
+    prompt,
+    variables,
+    userKey,
+    selectedChain,
+    fetchWithPayment,
+    toast,
+    applyBlitzDefaults,
+  ]);
+
+  const requestBlitzDefaults = useCallback(() => {
+    if (!prompt.trim() || variables.length === 0) {
+      toast({
+        title: "Nothing to fill",
+        description: "Add a prompt and at least one variable first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!/\[[^\]]+\]/.test(prompt)) {
+      toast({
+        title: "No placeholders",
+        description: "Use [VariableName] in the prompt first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!userKey) {
+      setShowLoginRequiredDialog(true);
+      toast({
+        title: "Wallet required",
+        description: "Connect your wallet for the free daily quota (7 runs) and optional paid runs with USDC.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (variables.some(variableHasNonEmptyDefault)) {
+      setBlitzOverwriteOpen(true);
+      return;
+    }
+    void executeBlitzDefaults();
+  }, [prompt, variables, userKey, toast, executeBlitzDefaults]);
+
+  const getCurrentVariableValues = useCallback((): Record<string, string | number | boolean | string[]> => {
+    const out: Record<string, string | number | boolean | string[]> = {};
+    variables.forEach((v) => {
+      const name = v.name || v.id;
+      if (v.type === "checkbox") {
+        out[name] = v.defaultValue === true || v.defaultValue === "true" || v.defaultValue === "1";
+      } else if (v.type === "multi-select" && Array.isArray(v.defaultValue)) {
+        out[name] = v.defaultValue;
+      } else if (v.type === "single-select" && v.options?.length) {
+        const idx = v.defaultOptionIndex ?? 0;
+        const opt = v.options[idx];
+        out[name] = opt?.promptValue ?? "";
+      } else {
+        out[name] = (v.defaultValue as string | number) ?? "";
+      }
+    });
+    return out;
+  }, [variables]);
+
+  const generationIsValid = useCallback(
+    (gen: GenerationItem): boolean => {
+      for (const v of variables) {
+        const name = v.name || v.id;
+        const val = gen.variableValues[name];
+        if (val === undefined) continue;
+        if (v.type === "multi-select" || v.type === "single-select") {
+          const opts = v.options ?? [];
+          const validValues = new Set(opts.map((o) => o.promptValue));
+          if (v.type === "single-select") {
+            if (!validValues.has(String(val))) return false;
+          } else {
+            const arr = Array.isArray(val) ? val : [val];
+            if (arr.some((x) => !validValues.has(String(x)))) return false;
+          }
+        } else if (v.type === "slider") {
+          const n = Number(val);
+          const min = v.min ?? 0;
+          const max = v.max ?? 100;
+          if (Number.isNaN(n) || n < min || n > max) return false;
+        }
+      }
+      return true;
+    },
+    [variables]
+  );
+
+  const invalidGenerationIdsList = useCallback(() => {
+    return generations.filter((g) => !generationIsValid(g)).map((g) => g.id);
+  }, [generations, generationIsValid]);
+
+  useEffect(() => {
+    const inv = invalidGenerationIdsList();
+    if (inv.length === 0) return;
+    setPromptChangeDialog((prev) => {
+      if (prev.revertValue !== undefined) return prev;
+      return {
+        ...prev,
+        open: true,
+        invalidGenerationIds: inv,
+        onConfirm: () => {
+          setGenerations((p) => p.filter((g) => !inv.includes(g.id)));
+          setSelectedGenerationIds((p) => {
+            const next = new Set(p);
+            inv.forEach((id) => next.delete(id));
+            return next;
+          });
+          setPromptChangeDialog((p) => ({ ...p, open: false }));
+        },
+      };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when variable definitions change
+  }, [variables]);
 
   const [mobileTab, setMobileTab] = useState<
     "settings" | "editor" | "generation"
@@ -1468,57 +2109,18 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
   return (
     <TooltipProvider>
-      {/* Desktop View */}
-      <div className="hidden md:flex lg:grid h-full w-full overflow-y-hidden md:overflow-x-auto lg:overflow-x-hidden md:snap-x md:snap-mandatory md:gap-4 lg:gap-4 grid-cols-1 lg:grid-cols-[clamp(220px,18vw,280px)_minmax(0,1fr)_minmax(0,clamp(260px,22vw,340px))_minmax(0,clamp(260px,24vw,360px))]">
-        <div className="min-w-0 h-full overflow-hidden md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink">
-          <PromptSettingsPanel
-            settings={settingsData}
-            onUpdate={handleSettingsUpdate}
-          />
-        </div>
-
-        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[760px] lg:w-auto lg:max-w-none lg:shrink">
-          <CardHeader className="pb-2 px-4 shrink-0 flex flex-row items-center justify-between gap-2 space-y-0">
-            <CardTitle className="text-base">Prompt Editor</CardTitle>
-            <div className="flex items-center gap-2">
-              {promptType === "paid-prompt" && (
-                <>
-                  <Button
-                    onClick={() => setQuickVarCreatorOpen(true)}
-                    size="sm"
-                    variant="outline"
-                    data-testid="button-quick-add-variable-desktop"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Quick Add
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      const createdId = createNewEmptyVariable(caretPosition);
-                      if (createdId) {
-                        setSelectedVariableId(createdId);
-                        setOpenVariables([createdId]);
-                        const element = document.getElementById(
-                          `variable-${createdId}`
-                        );
-                        if (element) {
-                          element.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          });
-                        }
-                      }
-                    }}
-                    size="sm"
-                    variant="default"
-                    data-testid="button-add-variable-desktop"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add
-                  </Button>
-                </>
-              )}
-            </div>
+      {/* Desktop View: left = Prompt Settings (30%) + Prompt Editor (70%), right = Variables + Generation (equal) */}
+      <div className="hidden md:grid h-full w-full overflow-hidden grid-cols-[1fr_1fr] gap-4 p-4">
+        <div className="grid grid-cols-[3fr_7fr] gap-4 min-h-0 overflow-hidden min-w-0">
+          <div className="min-h-0 min-w-0 overflow-hidden">
+            <PromptSettingsPanel
+              settings={settingsData}
+              onUpdate={handleSettingsUpdate}
+            />
+          </div>
+          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0">
+          <CardHeader className="pb-2 px-4 shrink-0">
+            <CardTitle className="text-lg font-semibold font-serif">Prompt Editor</CardTitle>
           </CardHeader>
 
           <CardContent className="flex-1 min-h-0 flex flex-col gap-2 px-4 pb-4">
@@ -1529,6 +2131,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               style={{ resize: "vertical", overflow: "hidden" }}
             >
               <div
+                ref={desktopPromptOverlayRef}
                 className="absolute inset-0 font-mono text-sm whitespace-pre-wrap pointer-events-none overflow-hidden select-none text-foreground"
                 style={{
                   wordBreak: "break-word",
@@ -1536,6 +2139,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   padding: "8px 12px",
                   lineHeight: "1.625",
                   boxSizing: "border-box",
+                  overflow: "auto",
                 }}
               >
                 {prompt.split(/(\[[^\]]+\])/).map((part, index) => {
@@ -1550,7 +2154,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           <Tooltip delayDuration={200}>
                             <TooltipTrigger asChild>
                               <span
-                                className="select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25"
+                                className={
+                                  variable.needsNameAttention
+                                    ? "select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25 rounded-sm ring-2 ring-destructive ring-offset-1 ring-offset-background"
+                                    : "select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25"
+                                }
                                 onClick={(e) => {
                                   e.preventDefault();
                                   setSelectedVariableId(variable.id);
@@ -1573,6 +2181,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="text-xs">
+                                {variable.needsNameAttention && (
+                                  <span className="block text-destructive font-medium mb-1">
+                                    Rename this placeholder variable.
+                                  </span>
+                                )}
                                 Default Value: {String(variable.defaultValue || "Not set")}
                               </p>
                             </TooltipContent>
@@ -1593,7 +2206,25 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               <Textarea
                 ref={textareaRef}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (generations.length > 0 && !promptChangeDialog.open) {
+                    setPromptChangeDialog({
+                      open: true,
+                      revertValue: prompt,
+                      onConfirm: () => {
+                        setGenerations([]);
+                        setSelectedGenerationIds(new Set());
+                        setPromptChangeDialog((p) => ({ ...p, open: false }));
+                      },
+                      onRevert: () => {
+                        setPrompt(prompt);
+                        setPromptChangeDialog((p) => ({ ...p, open: false }));
+                      },
+                    });
+                  }
+                  setPrompt(next);
+                }}
                 onSelect={(e) => {
                   setCaretPosition(e.currentTarget.selectionStart);
                   handleTextSelection();
@@ -1649,7 +2280,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     }
                   }, 0);
                 }}
-                className="absolute inset-0 font-mono text-sm bg-transparent text-transparent caret-foreground z-[1] selection:bg-primary/30 whitespace-pre-wrap overflow-hidden border-0 shadow-none ring-0 focus:ring-0 focus:outline-none focus-visible:ring-0 rounded-none"
+                className="absolute inset-0 font-mono text-sm bg-transparent text-transparent caret-foreground z-[1] selection:bg-primary/30 whitespace-pre-wrap overflow-auto border-0 shadow-none ring-0 focus:ring-0 focus:outline-none focus-visible:ring-0 rounded-none"
                 style={{
                   wordBreak: "break-word",
                   overflowWrap: "anywhere",
@@ -1665,7 +2296,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   }
                   handleTextSelection();
                 }}
-                placeholder="Write your prompt here... Use [VariableName] for variables"
+                placeholder={
+                  promptType === "paid-prompt"
+                    ? "Write your prompt here... Use [VariableName] for variables"
+                    : "Write your full prompt here..."
+                }
                 data-testid="textarea-prompt"
               />
 
@@ -1709,37 +2344,120 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             </div>
           </CardContent>
         </Card>
+        </div>
 
+        <div className={`grid gap-4 min-h-0 overflow-hidden min-w-0 ${promptType === "paid-prompt" ? "grid-cols-2" : "grid-cols-1"}`}>
         {promptType === "paid-prompt" && (
-          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 w-full md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-full lg:max-w-full lg:shrink" style={{ contain: 'inline-size' }}>
+          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0" style={{ contain: 'inline-size' }}>
             <CardHeader className="pb-2 px-4 shrink-0">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm">Variables</CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const createdId = createNewEmptyVariable(caretPosition);
-                    if (createdId) {
-                      setSelectedVariableId(createdId);
-                      setOpenVariables([createdId]);
-                      const element = document.getElementById(
-                        `variable-${createdId}`
-                      );
-                      if (element) {
-                        element.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        });
-                      }
-                    }
-                  }}
-                  disabled={isShowcase}
-                  data-testid="button-add-variable-inspector"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add
-                </Button>
+                <div className="flex items-center gap-2 shrink-0 min-w-0">
+                  <CardTitle className="text-lg font-semibold font-serif shrink-0">Variables</CardTitle>
+                  <div className="flex rounded-md border border-border p-0.5 bg-muted/50 shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setVariablesMode("simple")}
+                          className={`p-1.5 rounded transition-colors ${variablesMode === "simple" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                          data-testid="variables-mode-simple"
+                          aria-label="Simple mode: quick default values"
+                        >
+                          <List className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        Simple: one default value per variable
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setVariablesMode("complex")}
+                          className={`p-1.5 rounded transition-colors ${variablesMode === "complex" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                          data-testid="variables-mode-complex"
+                          aria-label="Complex mode: full variable editor"
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        Complex: types, options, and advanced settings
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {promptType === "paid-prompt" &&
+                    variables.length > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 px-2 gap-1 min-w-[5.5rem]"
+                            onClick={() => void requestBlitzDefaults()}
+                            disabled={isShowcase || blitzLoading}
+                            data-testid="button-blitz-defaults"
+                            aria-label="Values: AI-filled defaults"
+                            aria-busy={blitzLoading}
+                          >
+                            {blitzLoading ? (
+                              <>
+                                <Loader2
+                                  className="h-3.5 w-3.5 animate-spin shrink-0"
+                                  aria-hidden
+                                />
+                                <span className="text-xs font-medium">…</span>
+                              </>
+                            ) : (
+                              <>
+                                <span
+                                  className="font-mono text-xs leading-none select-none"
+                                  aria-hidden
+                                >
+                                  {"\u26A1"}
+                                </span>
+                                <span className="text-xs font-medium">Values</span>
+                              </>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">
+                          Fill defaults with AI (7 free per day, paid with USDC)
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  {promptType === "paid-prompt" && variablesMode === "complex" && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                      onClick={() => {
+                        const createdId = createNewEmptyVariable(caretPosition);
+                        if (createdId) {
+                          setSelectedVariableId(createdId);
+                          setOpenVariables([createdId]);
+                          const element = document.getElementById(
+                            `variable-${createdId}`
+                          );
+                          if (element) {
+                            element.scrollIntoView({
+                              behavior: "smooth",
+                              block: "center",
+                            });
+                          }
+                        }
+                      }}
+                      disabled={isShowcase}
+                      data-testid="button-add-variable-inspector"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
@@ -1750,13 +2468,48 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     <br />
                     Select text or use [Name]
                   </p>
+                ) : variablesMode === "simple" ? (
+                  <div className="space-y-3">
+                    {variables.map((variable) => {
+                      const varName = variable.name || variable.id;
+                      const currentVal = variable.defaultValue;
+                      const strVal = currentVal === undefined || currentVal === null ? "" : typeof currentVal === "object" ? JSON.stringify(currentVal) : String(currentVal);
+                      return (
+                        <div
+                          key={variable.id}
+                          className={`space-y-1.5 rounded-md ${
+                            variable.needsNameAttention
+                              ? "ring-2 ring-destructive p-2 -m-0.5"
+                              : ""
+                          }`}
+                        >
+                          <Label className="text-sm font-medium">{varName}</Label>
+                          <BlitzDefaultFieldShell loading={blitzLoading}>
+                            <Input
+                              value={strVal}
+                              onChange={(e) =>
+                                updateVariable(variable.id, {
+                                  defaultValue: e.target.value,
+                                })
+                              }
+                              placeholder={`Value for ${varName}...`}
+                              className="h-8 text-sm"
+                              data-testid={`input-free-var-${variable.id}`}
+                            />
+                          </BlitzDefaultFieldShell>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="space-y-2" style={{ contain: 'inline-size' }}>
                     {variables.map((variable) => (
                       <div
                         key={variable.id}
                         id={`variable-${variable.id}`}
-                        className="border rounded-lg p-3 overflow-hidden"
+                        className={`border rounded-lg p-3 overflow-hidden ${
+                          variable.needsNameAttention ? "ring-2 ring-destructive" : ""
+                        }`}
                       >
                         <div 
                           className="flex items-center justify-between gap-2 cursor-pointer select-none"
@@ -1847,6 +2600,24 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                               </Button>
                             </div>
 
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Description{" "}
+                              <span className="text-muted-foreground font-normal">(optional)</span>
+                            </Label>
+                            <Textarea
+                              value={variable.description}
+                              onChange={(e) => {
+                                updateVariable(variable.id, {
+                                  description: e.target.value,
+                                });
+                              }}
+                              placeholder="Optional hint for users (e.g. examples stay here, not in default value)"
+                              className="min-h-[52px] text-sm resize-y"
+                              disabled={isShowcase}
+                              data-testid={`input-description-desktop-${variable.id}`}
+                            />
+                          </div>
 
                           <div className="space-y-1">
                             <Label className="text-xs">Type</Label>
@@ -1926,42 +2697,46 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                           {variable.type === "text" && (
                             <div className="space-y-1">
                               <Label className="text-xs">Default Value</Label>
-                              <Textarea
-                                value={(variable.defaultValue as string) || ""}
-                                onChange={(e) =>
-                                  updateVariable(variable.id, {
-                                    defaultValue: e.target.value,
-                                  })
-                                }
-                                placeholder="Default Value"
-                                className="min-h-10 text-sm resize-y"
-                                disabled={isShowcase}
-                                data-testid={`input-default-${variable.id}`}
-                              />
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
+                                <Textarea
+                                  value={(variable.defaultValue as string) || ""}
+                                  onChange={(e) =>
+                                    updateVariable(variable.id, {
+                                      defaultValue: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Default Value"
+                                  className="min-h-10 text-sm resize-y"
+                                  disabled={isShowcase}
+                                  data-testid={`input-default-${variable.id}`}
+                                />
+                              </BlitzDefaultFieldShell>
                             </div>
                           )}
 
                           {variable.type === "checkbox" && (
                             <>
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`checkbox-${variable.id}`}
-                                  checked={Boolean(variable.defaultValue)}
-                                  onCheckedChange={(checked) =>
-                                    updateVariable(variable.id, {
-                                      defaultValue: checked,
-                                    })
-                                  }
-                                  disabled={isShowcase}
-                                  data-testid={`checkbox-default-${variable.id}`}
-                                />
-                                <Label
-                                  htmlFor={`checkbox-${variable.id}`}
-                                  className="text-sm"
-                                >
-                                  Active by default
-                                </Label>
-                              </div>
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`checkbox-${variable.id}`}
+                                    checked={Boolean(variable.defaultValue)}
+                                    onCheckedChange={(checked) =>
+                                      updateVariable(variable.id, {
+                                        defaultValue: checked,
+                                      })
+                                    }
+                                    disabled={isShowcase}
+                                    data-testid={`checkbox-default-${variable.id}`}
+                                  />
+                                  <Label
+                                    htmlFor={`checkbox-${variable.id}`}
+                                    className="text-sm"
+                                  >
+                                    Active by default
+                                  </Label>
+                                </div>
+                              </BlitzDefaultFieldShell>
                               <div className="space-y-1.5">
                                 <div className="flex items-center gap-1.5">
                                   <Label className="text-xs">Prompt value</Label>
@@ -1992,6 +2767,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
                           {(variable.type === "multi-select" ||
                             variable.type === "single-select") && (
+                            <BlitzDefaultFieldShell loading={blitzLoading}>
                             <div className="space-y-2">
                               <Label className="text-xs">Default</Label>
                               <div className="space-y-2">
@@ -2130,6 +2906,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                 </Card>
                               </div>
                             </div>
+                            </BlitzDefaultFieldShell>
                           )}
 
                           {variable.type === "slider" && (
@@ -2166,6 +2943,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   />
                                 </div>
                               </div>
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
                               <div>
                                 <Label className="text-xs">
                                   Default: {variable.defaultValue as number}
@@ -2184,6 +2962,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   data-testid={`slider-default-${variable.id}`}
                                 />
                               </div>
+                              </BlitzDefaultFieldShell>
                             </div>
                           )}
 
@@ -2212,37 +2991,117 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           </Card>
         )}
 
-        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink">
-          <CardHeader className="pb-2 px-4 shrink-0">
-            <CardTitle className="text-sm">Generation</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0 flex flex-col gap-3 px-4 pb-4">
-            {generatedImage ? (
-              <div className="flex-1 flex flex-col">
-                <img
-                  src={generatedImage}
-                  alt="Generated by Gemini"
-                  className="w-full h-auto rounded-md border"
-                  data-testid="generated-image"
-                />
-                <Button
-                  variant="outline"
-                  onClick={downloadGeneratedImage}
-                  className="w-full mt-2"
-                  data-testid="button-download-image"
-                >
-                  Save Image
-                </Button>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-center text-muted-foreground text-sm">
-                No generated image yet.
-                <br />
-                Click Generate to create one.
-              </div>
+        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0">
+          <CardHeader className="pb-2 px-4 shrink-0 flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-lg font-semibold font-serif">Generation</CardTitle>
+            {selectedGenerationIds.size > 0 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  setGenerations((prev) => prev.filter((g) => !selectedGenerationIds.has(g.id)));
+                  setSelectedGenerationIds(new Set());
+                }}
+                title="Delete selected"
+                data-testid="button-delete-selected-generations"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             )}
+          </CardHeader>
+          <CardContent className="flex-1 min-h-0 flex flex-col gap-3 px-4 pb-4 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2">
+                {generations.map((gen) => {
+                  const ar = gen.aspectRatio || "16:9";
+                  const parts = ar.split(":").map(Number);
+                  const w = parts[0] || 16;
+                  const h = parts[1] || 9;
+                  const paddingBottom = `${(h / w) * 100}%`;
+                  return (
+                    <div
+                      key={gen.id}
+                      className="relative rounded-md border bg-muted/30 overflow-hidden group"
+                      style={{ paddingBottom }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {gen.status === "pending" ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        ) : gen.imageUrl ? (
+                          <>
+                            <img
+                              src={gen.imageUrl}
+                              alt="Generated"
+                              className="w-full h-full object-contain cursor-pointer"
+                              onClick={() => setLightboxImageUrl(gen.imageUrl)}
+                              data-testid={`generated-image-${gen.id}`}
+                            />
+                            <div
+                              className="absolute top-0 left-0 right-0 h-8 flex items-center justify-center bg-gradient-to-b from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                variables.forEach((v) => {
+                                  const name = v.name || v.id;
+                                  const val = gen.variableValues[name];
+                                  if (val === undefined) return;
+                                  updateVariable(v.id, { defaultValue: val });
+                                });
+                              }}
+                              title="Apply these variable values to Variables"
+                              data-testid={`apply-vars-${gen.id}`}
+                            >
+                              <ArrowLeft className="h-5 w-5 text-white" />
+                            </div>
+                            <div
+                              className="absolute top-1 right-1 z-10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Checkbox
+                                checked={selectedGenerationIds.has(gen.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedGenerationIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(gen.id);
+                                    else next.delete(gen.id);
+                                    return next;
+                                  });
+                                }}
+                                data-testid={`checkbox-generation-${gen.id}`}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-muted-foreground">Failed</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute top-0 right-0 z-10 h-5 w-5 min-w-5 rounded-full bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground border-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGenerations((prev) => prev.filter((g) => g.id !== gen.id));
+                                setSelectedGenerationIds((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(gen.id);
+                                  return next;
+                                });
+                              }}
+                              data-testid={`button-remove-failed-${gen.id}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-            <div className="sticky bottom-0 pt-3 bg-background/80 backdrop-blur border-t border-border/50">
+            <div className="sticky bottom-0 pt-3 bg-background/80 backdrop-blur border-t border-border/50 shrink-0">
               <div className="space-y-2">
                 <Button
                   onClick={handleGenerate}
@@ -2250,26 +3109,56 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   className="w-full"
                   data-testid="button-generate"
                 >
-                  {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
+                  {isGenerating ? (isPaymentPending ? "Processing Payment..." : "Generating...") : "Generate"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSubmit}
-                  disabled={
-                    isGenerating ||
-                    savePromptMutation.isPending ||
-                    generatedImage === null
-                  }
-                  className="w-full"
-                  data-testid="button-submit"
-                >
-                  {savePromptMutation.isPending ? "Releasing..." : "Release"}
-                </Button>
+                {estimateCost != null && (
+                  <p className="text-xs text-muted-foreground text-center">Estimated cost: ${estimateCost.toFixed(4)}</p>
+                )}
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const completed = generations.filter((g) => g.status === "completed" && g.imageUrl);
+                    const selected = completed.filter((g) => selectedGenerationIds.has(g.id));
+                    const countForRelease = selected.length > 0 ? selected.length : completed.length;
+                    const showWarning = countForRelease > 0 && countForRelease < 4;
+                    return showWarning ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="shrink-0 rounded border border-amber-500/80 bg-amber-500/10 p-1 flex items-center justify-center">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          At least 4 images are recommended to build trust in the quality of the images, which increases the likelihood of generations.
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null;
+                  })()}
+                  <Button
+                    variant="outline"
+                    onClick={handleSubmit}
+                    disabled={
+                      isGenerating ||
+                      savePromptMutation.isPending ||
+                      !generations.some((g) => g.status === "completed")
+                    }
+                    className="flex-1 min-w-0"
+                    data-testid="button-submit"
+                  >
+                    {savePromptMutation.isPending ? "Releasing..." : "Release"}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
+
+      <ImageLightbox
+        isOpen={!!lightboxImageUrl}
+        onClose={() => setLightboxImageUrl(null)}
+        imageUrl={lightboxImageUrl || ""}
+      />
 
       {/* Mobile View */}
       <div
@@ -2312,7 +3201,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
         {mobileTab === "editor" && (
           <div className="flex flex-col w-full max-w-full overflow-x-hidden">
-            {/* Sticky Toolbar with Variables Button */}
+            {/* Sticky Toolbar with Variables Button (paid prompts only) */}
+            {promptType === "paid-prompt" && (
             <div className="sticky top-0 z-10 bg-background border-b px-3 py-2 flex items-center justify-end w-full max-w-full shrink-0">
               <Button
                 onClick={() => {
@@ -2328,6 +3218,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                 Variables
               </Button>
             </div>
+            )}
 
             {/* Scrollable Content */}
             <div className="px-3 pt-3 pb-3 w-full max-w-full overflow-x-hidden">
@@ -2336,6 +3227,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                 onClick={() => textareaRef.current?.focus()}
               >
                 <div
+                  ref={mobilePromptOverlayRef}
                   className="absolute inset-0 font-mono text-sm whitespace-pre-wrap pointer-events-none overflow-hidden select-none text-foreground"
                   style={{
                     wordBreak: "break-word",
@@ -2343,6 +3235,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     padding: "8px 12px",
                     lineHeight: "1.625",
                     boxSizing: "border-box",
+                    overflow: "auto",
                   }}
                 >
                   {prompt.split(/(\[[^\]]+\])/).map((part, index) => {
@@ -2361,7 +3254,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                             <Tooltip delayDuration={200}>
                               <TooltipTrigger asChild>
                                 <span
-                                  className="select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25"
+                                  className={
+                                    variable.needsNameAttention
+                                      ? "select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25 rounded-sm ring-2 ring-destructive ring-offset-1 ring-offset-background"
+                                      : "select-none cursor-pointer pointer-events-auto inline font-mono font-medium bg-primary/20 text-primary hover:bg-primary/25"
+                                  }
                                   onClick={(e) => {
                                     e.preventDefault();
                                     setEditingVariableId(variable.id);
@@ -2375,6 +3272,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="text-xs">
+                                  {variable.needsNameAttention && (
+                                    <span className="block text-destructive font-medium mb-1">
+                                      Rename this placeholder variable.
+                                    </span>
+                                  )}
                                   Default Value: {String(variable.defaultValue || "Not set")}
                                 </p>
                               </TooltipContent>
@@ -2451,8 +3353,12 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                       }
                     }
                   }}
-                  placeholder="Write your prompt... Select text to create variables or use [VariableName] syntax."
-                  className="absolute inset-0 w-full font-mono text-sm resize-none bg-transparent text-transparent caret-white focus:outline-none focus:ring-0 border-0 shadow-none ring-0 focus-visible:ring-0 rounded-none whitespace-pre-wrap overflow-hidden selection:bg-primary/20"
+                  placeholder={
+                    promptType === "paid-prompt"
+                      ? "Write your prompt... Select text to create variables or use [VariableName] syntax."
+                      : "Write your full prompt here..."
+                  }
+                  className="absolute inset-0 w-full font-mono text-sm resize-none bg-transparent text-transparent caret-white focus:outline-none focus:ring-0 border-0 shadow-none ring-0 focus-visible:ring-0 rounded-none whitespace-pre-wrap overflow-auto selection:bg-primary/20"
                   style={{
                     wordBreak: "break-word",
                     overflowWrap: "anywhere",
@@ -2463,7 +3369,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                   }}
                   data-testid="textarea-prompt"
                 />
-                {selectedText && selectionRange && buttonPosition && (
+                {promptType === "paid-prompt" &&
+                  selectedText &&
+                  selectionRange &&
+                  buttonPosition && (
                   <Button
                     onClick={createVariableFromSelection}
                     variant="secondary"
@@ -2511,6 +3420,9 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               >
                 {isGenerating ? "Generating..." : "Generate"}
               </Button>
+              {estimateCost != null && (
+                <p className="text-xs text-muted-foreground text-center w-full">Estimated cost: ${estimateCost.toFixed(4)}</p>
+              )}
               <Button
                 variant="outline"
                 onClick={handleSubmit}
@@ -2564,22 +3476,82 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         {/* Variable Editor Overlay (Mobile) */}
         {showVariableEditor && (
           <div className="fixed inset-0 bg-background z-50 flex flex-col overflow-hidden">
-            <div className="shrink-0 flex items-center justify-between p-4 border-b w-full max-w-full overflow-x-hidden">
-              <h2 className="text-lg font-semibold text-foreground">
+            <div className="shrink-0 flex items-center justify-between gap-2 p-4 border-b w-full max-w-full overflow-x-hidden">
+              <h2 className="text-lg font-semibold text-foreground shrink-0">
                 Variables
               </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setShowVariableEditor(false);
-                  setEditingVariableId(null);
-                }}
-                className="text-foreground"
-                data-testid="button-close-variables"
-              >
-                <X className="h-6 w-6" />
-              </Button>
+              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                <div className="flex rounded-md border border-border p-0.5 bg-muted/50">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setVariablesMode("simple")}
+                        className={`p-1.5 rounded transition-colors ${variablesMode === "simple" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                        aria-label="Simple mode: quick default values"
+                      >
+                        <List className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      Simple: one default value per variable
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setVariablesMode("complex")}
+                        className={`p-1.5 rounded transition-colors ${variablesMode === "complex" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                        aria-label="Complex mode: full variable editor"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      Complex: types, options, and advanced settings
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                {promptType === "paid-prompt" &&
+                  variables.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="px-2 gap-0.5 h-8 min-w-[5.25rem]"
+                      onClick={() => void requestBlitzDefaults()}
+                      disabled={isShowcase || blitzLoading}
+                      aria-label="Values"
+                      aria-busy={blitzLoading}
+                    >
+                      {blitzLoading ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                          <span className="text-xs font-medium">…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-mono text-xs" aria-hidden>
+                            {"\u26A1"}
+                          </span>
+                          <span className="text-xs font-medium">Values</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setShowVariableEditor(false);
+                    setEditingVariableId(null);
+                  }}
+                  className="text-foreground shrink-0"
+                  data-testid="button-close-variables"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="flex-1 w-full max-w-full overflow-x-hidden">
@@ -2590,6 +3562,39 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                     <br />
                     Select text or use [Name]
                   </p>
+                ) : variablesMode === "simple" ? (
+                  <div className="space-y-3">
+                    {variables.map((variable) => {
+                      const varName = variable.name || variable.id;
+                      const currentVal = variable.defaultValue;
+                      const strVal = currentVal === undefined || currentVal === null ? "" : typeof currentVal === "object" ? JSON.stringify(currentVal) : String(currentVal);
+                      return (
+                        <div
+                          key={variable.id}
+                          className={`space-y-1.5 rounded-md ${
+                            variable.needsNameAttention
+                              ? "ring-2 ring-destructive p-2 -m-0.5"
+                              : ""
+                          }`}
+                        >
+                          <Label className="text-sm font-medium text-foreground">{varName}</Label>
+                          <BlitzDefaultFieldShell loading={blitzLoading}>
+                            <Input
+                              value={strVal}
+                              onChange={(e) =>
+                                updateVariable(variable.id, {
+                                  defaultValue: e.target.value,
+                                })
+                              }
+                              placeholder={`Value for ${varName}...`}
+                              className="h-8 text-sm text-foreground"
+                              data-testid={`input-free-var-mobile-${variable.id}`}
+                            />
+                          </BlitzDefaultFieldShell>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <Accordion
                     type="multiple"
@@ -2603,6 +3608,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                         key={variable.id}
                         value={variable.id}
                         id={`variable-${variable.id}`}
+                        className={
+                          variable.needsNameAttention
+                            ? "rounded-lg ring-2 ring-destructive border-destructive/40 px-1 -mx-0.5"
+                            : undefined
+                        }
                       >
                         <AccordionTrigger
                           className="hover-elevate px-2 rounded select-none cursor-pointer"
@@ -2665,15 +3675,18 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                             )}
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-xs text-foreground">Description</Label>
+                            <Label className="text-xs text-foreground">
+                              Description{" "}
+                              <span className="text-muted-foreground font-normal">(optional)</span>
+                            </Label>
                             <Textarea
                               value={variable.description}
-                              onChange={(e) =>
+                              onChange={(e) => {
                                 updateVariable(variable.id, {
                                   description: e.target.value,
-                                })
-                              }
-                              placeholder="Add description..."
+                                });
+                              }}
+                              placeholder="Optional hint for users (e.g. examples stay here, not in default value)"
                               className="min-h-[60px] text-sm text-foreground"
                               disabled={promptType === "showcase"}
                               data-testid={`input-description-${variable.id}`}
@@ -2718,42 +3731,46 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                               <Label className="text-xs text-white">
                                 Default Value
                               </Label>
-                              <Textarea
-                                value={variable.defaultValue as string}
-                                onChange={(e) =>
-                                  updateVariable(variable.id, {
-                                    defaultValue: e.target.value,
-                                  })
-                                }
-                                placeholder="Default Value"
-                                className="min-h-[80px] text-sm"
-                                disabled={promptType === "showcase"}
-                                data-testid={`input-default-${variable.id}`}
-                              />
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
+                                <Textarea
+                                  value={variable.defaultValue as string}
+                                  onChange={(e) =>
+                                    updateVariable(variable.id, {
+                                      defaultValue: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Default Value"
+                                  className="min-h-[80px] text-sm"
+                                  disabled={promptType === "showcase"}
+                                  data-testid={`input-default-${variable.id}`}
+                                />
+                              </BlitzDefaultFieldShell>
                             </div>
                           )}
 
                           {variable.type === "checkbox" && (
                             <>
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`checkbox-mobile-${variable.id}`}
-                                  checked={variable.defaultValue as boolean}
-                                  onCheckedChange={(checked) =>
-                                    updateVariable(variable.id, {
-                                      defaultValue: checked,
-                                    })
-                                  }
-                                  disabled={promptType === "showcase"}
-                                  data-testid={`checkbox-default-${variable.id}`}
-                                />
-                                <Label
-                                  htmlFor={`checkbox-mobile-${variable.id}`}
-                                  className="text-sm text-white"
-                                >
-                                  Active by default
-                                </Label>
-                              </div>
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`checkbox-mobile-${variable.id}`}
+                                    checked={variable.defaultValue as boolean}
+                                    onCheckedChange={(checked) =>
+                                      updateVariable(variable.id, {
+                                        defaultValue: checked,
+                                      })
+                                    }
+                                    disabled={promptType === "showcase"}
+                                    data-testid={`checkbox-default-${variable.id}`}
+                                  />
+                                  <Label
+                                    htmlFor={`checkbox-mobile-${variable.id}`}
+                                    className="text-sm text-white"
+                                  >
+                                    Active by default
+                                  </Label>
+                                </div>
+                              </BlitzDefaultFieldShell>
                               <div className="space-y-1.5">
                                 <div className="flex items-center gap-1.5">
                                   <Label className="text-xs text-white">Prompt value</Label>
@@ -2784,6 +3801,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
                           {(variable.type === "multi-select" ||
                             variable.type === "single-select") && (
+                            <BlitzDefaultFieldShell loading={blitzLoading}>
                             <div className="space-y-2">
                               <Label className="text-xs text-white">
                                 Default
@@ -2846,18 +3864,14 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                           </Label>
                                           <Input
                                             value={option.promptValue}
-                                            onChange={(e) => {
-                                              const newOptions = [
-                                                ...(variable.options || []),
-                                              ];
-                                              newOptions[index] = {
-                                                ...option,
-                                                promptValue: e.target.value,
-                                              };
-                                              updateVariable(variable.id, {
-                                                options: newOptions,
-                                              });
-                                            }}
+                                            onChange={(e) =>
+                                              updateOption(
+                                                variable.id,
+                                                index,
+                                                "promptValue",
+                                                e.target.value
+                                              )
+                                            }
                                             placeholder="Prompt Value"
                                             className="h-8 text-sm"
                                             disabled={promptType === "showcase"}
@@ -2930,6 +3944,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                 </Button>
                               </div>
                             </div>
+                            </BlitzDefaultFieldShell>
                           )}
 
                           {variable.type === "slider" && (
@@ -2970,6 +3985,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   />
                                 </div>
                               </div>
+                              <BlitzDefaultFieldShell loading={blitzLoading}>
                               <div className="space-y-1">
                                 <Label className="text-xs text-white">
                                   Default Value
@@ -2988,6 +4004,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   data-testid={`input-default-${variable.id}`}
                                 />
                               </div>
+                              </BlitzDefaultFieldShell>
                             </div>
                           )}
 
@@ -3067,6 +4084,35 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         )}
       </div>
 
+      <AlertDialog
+        open={blitzOverwriteOpen}
+        onOpenChange={setBlitzOverwriteOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite default values?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Some variables already have default values. Running Values will
+              replace them with new AI suggestions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-blitz-overwrite">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-blitz-overwrite"
+              onClick={() => {
+                setBlitzOverwriteOpen(false);
+                void executeBlitzDefaults();
+              }}
+            >
+              Yes, overwrite
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -3086,6 +4132,71 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             >
               Yes, delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={promptChangeDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            promptChangeDialog.onRevert?.();
+            setPromptChangeDialog((p) => ({ ...p, open: false }));
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {promptChangeDialog.revertValue !== undefined
+                ? "Change prompt?"
+                : "Invalid generations"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {promptChangeDialog.revertValue !== undefined ? (
+                <>
+                  If you change the prompt, all generations will be lost, as generations reflect the current state of the prompt. Are you sure?
+                  {promptChangeDialog.invalidGenerationIds && promptChangeDialog.invalidGenerationIds.length > 0 && (
+                    <span className="block mt-2">
+                      The following generation(s) will also be removed:{" "}
+                      {promptChangeDialog.invalidGenerationIds.slice(0, 5).join(", ")}
+                      {promptChangeDialog.invalidGenerationIds.length > 5 && ` and ${promptChangeDialog.invalidGenerationIds.length - 5} more`}.
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  The following generation(s) will be removed because their variable values are no longer valid:{" "}
+                  {promptChangeDialog.invalidGenerationIds?.slice(0, 5).join(", ")}
+                  {promptChangeDialog.invalidGenerationIds && promptChangeDialog.invalidGenerationIds.length > 5 && ` and ${promptChangeDialog.invalidGenerationIds.length - 5} more`}.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {promptChangeDialog.revertValue !== undefined ? (
+              <>
+                <AlertDialogCancel
+                  onClick={() => promptChangeDialog.onRevert?.()}
+                  data-testid="button-keep-prompt"
+                >
+                  No, I want to keep the prompt
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => promptChangeDialog.onConfirm()}
+                  data-testid="button-confirm-prompt-change"
+                >
+                  Yes, I want to regenerate
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction
+                onClick={() => promptChangeDialog.onConfirm()}
+                data-testid="button-remove-invalid-generations"
+              >
+                OK
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -3111,7 +4222,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               disabled={isGenerating || isPaymentPending}
               data-testid="button-proceed-generate"
             >
-              {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
+              {isGenerating ? (isPaymentPending ? "Processing Payment..." : "Generating...") : "Generate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

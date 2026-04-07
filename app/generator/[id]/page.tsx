@@ -1,6 +1,5 @@
-"use client";
+ "use client";
 
-import Navbar from "@/components/Navbar";
 import GeneratorInterface from "@/components/GeneratorInterface";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -33,7 +32,6 @@ export default function Generator() {
   if (promptLoading) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
         <main className="w-full px-6 lg:px-8 py-4 flex items-center justify-center">
           <p className="text-foreground text-lg" data-testid="text-loading">
             Loading prompt...
@@ -46,7 +44,6 @@ export default function Generator() {
   if (promptError || !prompt) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
         <main className="w-full px-6 lg:px-8 py-4 flex flex-col items-center justify-center gap-4">
           <p className="text-foreground text-lg" data-testid="text-error">
             Prompt not found
@@ -79,6 +76,11 @@ export default function Generator() {
   const allShowcaseImages = prompt.showcaseImages || [];
 
   const isFreeShowcase = prompt.type === "showcase";
+  const isFreePromptMode = prompt.type === "free";
+  const initialFreePromptText =
+    typeof prompt.promptTextForGenerator === "string"
+      ? prompt.promptTextForGenerator
+      : "";
 
   return (
     <div className="h-screen bg-background overflow-hidden flex flex-col">
@@ -91,8 +93,13 @@ export default function Generator() {
           imageUrl={imageUrl}
           showcaseImages={allShowcaseImages}
           isFreeShowcase={isFreeShowcase}
+          isFreePromptMode={isFreePromptMode}
+          initialFreePromptText={initialFreePromptText}
           publicPromptText={undefined}
           pricePerGeneration={prompt.pricing?.pricePerGeneration ?? (prompt.type === "showcase" ? 0 : undefined)}
+          category={prompt.category}
+          rating={typeof prompt.stats?.reviews?.averageRating === "number" ? prompt.stats.reviews.averageRating : undefined}
+          usePromptEnhancement={prompt.aiSettings?.usePromptEnhancement !== false}
         />
       </main>
     </div>

@@ -1,7 +1,6 @@
-"use client";
+ "use client";
 
 import { useState, useEffect } from "react";
-import Navbar from "@/components/Navbar";
 import { useActiveAccount } from "thirdweb/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ConnectWallet";
@@ -22,19 +21,17 @@ import {
 } from "@/components/ui/select";
 import {
   User,
-  Palette,
   Shield,
   Save,
-  Moon,
-  Sun,
-  Image as ImageIcon,
-  DollarSign
+  DollarSign,
 } from "lucide-react";
+import { saveUserThemePreference } from "@/lib/theme-settings";
 
 interface UserSettings {
   displayName?: string;
   showWalletInProfile?: boolean;
   showEarningsPublicly?: boolean;
+  theme?: "light" | "dark";
   defaultModel?: string;
   defaultAspectRatio?: string;
   defaultResolution?: string;
@@ -94,11 +91,20 @@ export default function SettingsPage() {
         if (response.ok) {
           const data = await response.json();
           const settings: UserSettings = data.settings || {};
-          
+
           // Apply settings from API
           if (settings.displayName !== undefined) setDisplayName(settings.displayName);
           if (settings.showWalletInProfile !== undefined) setShowWalletInProfile(settings.showWalletInProfile);
           if (settings.showEarningsPublicly !== undefined) setShowEarningsPublicly(settings.showEarningsPublicly);
+          if (settings.theme === "light" || settings.theme === "dark") {
+            setTheme(settings.theme);
+            const root = document.documentElement;
+            if (settings.theme === "dark") root.classList.add("dark");
+            else root.classList.remove("dark");
+            if (typeof window !== "undefined") {
+              localStorage.setItem("theme", settings.theme);
+            }
+          }
           if (settings.defaultModel) setDefaultModel(settings.defaultModel);
           if (settings.defaultAspectRatio) setDefaultAspectRatio(settings.defaultAspectRatio);
           if (settings.defaultResolution) setDefaultResolution(settings.defaultResolution);
@@ -170,12 +176,16 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const handleThemeChange = (newTheme: "light" | "dark") => {
+  const handleThemeChange = async (newTheme: "light" | "dark") => {
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
     const root = document.documentElement;
     if (newTheme === "dark") root.classList.add("dark");
     else root.classList.remove("dark");
+
+    // Persist theme preference for authenticated users
+    await saveUserThemePreference(account?.address, newTheme);
+
     toast({ title: "Theme updated", description: `Switched to ${newTheme} mode` });
   };
 
@@ -217,6 +227,7 @@ export default function SettingsPage() {
             displayName,
             showWalletInProfile,
             showEarningsPublicly,
+            theme,
             defaultModel,
             defaultAspectRatio,
             defaultResolution,
@@ -256,7 +267,6 @@ export default function SettingsPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
         <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardHeader>
@@ -277,7 +287,6 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
         <main className="w-full px-6 lg:px-8 py-10 max-w-6xl mx-auto">
           <div className="flex items-center justify-center min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -289,7 +298,6 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background pt-16">
-      <Navbar />
       <main className="w-full px-6 lg:px-8 py-10 max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Settings</h1>
@@ -297,12 +305,16 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
-            <TabsTrigger value="profile"><User className="h-4 w-4 mr-2" />Profile</TabsTrigger>
-            <TabsTrigger value="appearance"><Palette className="h-4 w-4 mr-2" />Appearance</TabsTrigger>
-            <TabsTrigger value="generation"><ImageIcon className="h-4 w-4 mr-2" />Generation</TabsTrigger>
-            <TabsTrigger value="creator"><DollarSign className="h-4 w-4 mr-2" />Creator</TabsTrigger>
-            <TabsTrigger value="privacy"><Shield className="h-4 w-4 mr-2" />Privacy</TabsTrigger>
+          <TabsList className="flex w-full flex-nowrap gap-1 p-1 h-auto">
+            <TabsTrigger value="profile" className="flex-1 min-w-0 text-xs sm:text-sm px-2 sm:px-4 py-2 gap-1 sm:gap-2">
+              <User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />Profile
+            </TabsTrigger>
+            <TabsTrigger value="creator" className="flex-1 min-w-0 text-xs sm:text-sm px-2 sm:px-4 py-2 gap-1 sm:gap-2">
+              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />Creator
+            </TabsTrigger>
+            <TabsTrigger value="privacy" className="flex-1 min-w-0 text-xs sm:text-sm px-2 sm:px-4 py-2 gap-1 sm:gap-2">
+              <Shield className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />Privacy
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile" className="space-y-6">
@@ -315,10 +327,6 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="wallet">Wallet Address</Label>
                   <Input id="wallet" value={account.address} disabled className="font-mono text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="displayName">Display Name</Label>
-                  <Input id="displayName" placeholder="Enter your display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -339,76 +347,7 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="appearance" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Appearance</CardTitle>
-                <CardDescription>Customize how the app looks</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <Label>Theme</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <Card className={`cursor-pointer ${theme === "light" ? "ring-2 ring-primary" : ""}`} onClick={() => handleThemeChange("light")}>
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <Sun className="h-8 w-8 mb-2" />
-                      <span className="font-medium">Light</span>
-                    </CardContent>
-                  </Card>
-                  <Card className={`cursor-pointer ${theme === "dark" ? "ring-2 ring-primary" : ""}`} onClick={() => handleThemeChange("dark")}>
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <Moon className="h-8 w-8 mb-2" />
-                      <span className="font-medium">Dark</span>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="generation" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Generation Defaults</CardTitle>
-                <CardDescription>Set default values for image generation</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Default Model</Label>
-                  <Select value={defaultModel} onValueChange={setDefaultModel}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini-2.0-flash-exp">Gemini 2.0 Flash</SelectItem>
-                      <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Default Aspect Ratio</Label>
-                  <Select value={defaultAspectRatio} onValueChange={setDefaultAspectRatio}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1:1">1:1 (Square)</SelectItem>
-                      <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-                      <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Default Resolution</Label>
-                  <Select value={defaultResolution} onValueChange={setDefaultResolution}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="512x512">512x512</SelectItem>
-                      <SelectItem value="1024x1024">1024x1024</SelectItem>
-                      <SelectItem value="2048x2048">2048x2048</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="creator" className="space-y-6">
+          <TabsContent value="creator" className="space-y-6 opacity-60 pointer-events-none">
             <Card>
               <CardHeader>
                 <CardTitle>Creator Settings</CardTitle>
@@ -442,7 +381,7 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="privacy" className="space-y-6">
+          <TabsContent value="privacy" className="space-y-6 opacity-60 pointer-events-none">
             <Card>
               <CardHeader>
                 <CardTitle>Privacy & Data</CardTitle>
@@ -476,10 +415,6 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <Label className="font-normal">Sales notifications</Label>
                   <Switch checked={salesNotifications} onCheckedChange={setSalesNotifications} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="font-normal">Purchase notifications</Label>
-                  <Switch checked={purchaseNotifications} onCheckedChange={setPurchaseNotifications} />
                 </div>
               </CardContent>
             </Card>

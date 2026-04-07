@@ -19,6 +19,7 @@
 
 import { GoogleGenAI, Modality } from '@google/genai';
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
+import type { GeminiUsageMetadata } from './types';
 
 // Initialize Gemini AI client
 let ai: GoogleGenAI | null = null;
@@ -120,7 +121,16 @@ export async function generateImagesWithGemini(
       config
     });
 
-    // 6. Extract image data
+    // 6. Extract usage metadata for exact billing (Google returns token counts)
+    const usageMetadata: GeminiUsageMetadata | undefined = (response as any).usageMetadata
+      ? {
+          promptTokenCount: (response as any).usageMetadata.promptTokenCount,
+          candidatesTokenCount: (response as any).usageMetadata.candidatesTokenCount,
+          totalTokenCount: (response as any).usageMetadata.totalTokenCount,
+        }
+      : undefined;
+
+    // 7. Extract image data
     const imageBuffers: Buffer[] = [];
     let finishReason: string | undefined;
     let safetyRatings: any[] | undefined;
@@ -185,7 +195,8 @@ export async function generateImagesWithGemini(
         aspectRatio: request.aspectRatio || '1:1',
         resolution: request.imageSize || '1K',
         finishReason,
-        safetyRatings
+        safetyRatings,
+        usageMetadata,
       }
     };
 
@@ -364,7 +375,34 @@ export function detectTextRequirement(prompt: string): boolean {
 }
 
 /**
- * Estimates the cost of a Gemini image generation
+ * Google Gemini image API pricing (USD per 1M tokens) – from official pricing.
+ * Used for both estimate and exact cost from usageMetadata.
+ */
+const GEMINI_IMAGE_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
+  'gemini-2.5-flash-image': { inputPer1M: 10, outputPer1M: 30 },
+  'gemini-3-pro-image-preview': { inputPer1M: 10, outputPer1M: 120 },
+};
+
+/**
+ * Compute exact API cost in USD from Gemini response usageMetadata.
+ * Uses Google's per-token pricing (no hardcoded per-image prices).
+ */
+export function computeImageCostFromUsage(
+  usage: GeminiUsageMetadata | undefined,
+  model: string
+): number {
+  if (!usage) return 0;
+  const pricing = GEMINI_IMAGE_PRICING[model] || GEMINI_IMAGE_PRICING['gemini-2.5-flash-image'];
+  const inputTokens = usage.promptTokenCount ?? 0;
+  const outputTokens = usage.candidatesTokenCount ?? 0;
+  const inputCost = (inputTokens / 1_000_000) * pricing.inputPer1M;
+  const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M;
+  return inputCost + outputCost;
+}
+
+/**
+ * Estimates the cost of a Gemini image generation using Google's token pricing.
+ * Same formula as billing; token counts are typical for model + resolution.
  *
  * @param model - The model to use
  * @param imageSize - The image resolution
@@ -376,23 +414,23 @@ export function estimateGeminiCost(
   imageSize: string = '1K',
   numImages: number = 1
 ): number {
-  let costPerImage = 0;
+  const pricing = GEMINI_IMAGE_PRICING[model] || GEMINI_IMAGE_PRICING['gemini-2.5-flash-image'];
+  let inputTokens = 0;
+  let outputTokensPerImage = 0;
 
   if (model === 'gemini-2.5-flash-image') {
-    // 1290 tokens per image at $30/1M tokens
-    costPerImage = (1290 / 1_000_000) * 30; // $0.0387
+    inputTokens = 500; // typical prompt
+    outputTokensPerImage = 1290;
   } else if (model === 'gemini-3-pro-image-preview') {
-    // Vertex AI pricing
-    const tokenCounts: Record<string, number> = {
-      '1K': 1120,
-      '2K': 1120,
-      '4K': 2000
-    };
-    const tokens = tokenCounts[imageSize] || 1120;
-    costPerImage = (tokens / 1_000_000) * 120; // $0.134 for 1K/2K, $0.240 for 4K
+    inputTokens = 500;
+    outputTokensPerImage = { '1K': 1120, '2K': 1120, '4K': 2000 }[imageSize] ?? 1120;
+  } else {
+    return 0;
   }
 
-  return costPerImage * numImages;
+  const inputCost = (inputTokens / 1_000_000) * pricing.inputPer1M;
+  const outputCost = (outputTokensPerImage * numImages / 1_000_000) * pricing.outputPer1M;
+  return inputCost + outputCost;
 }
 
 /**
@@ -420,5 +458,6 @@ export const __testing__ = {
   validateRequest,
   detectTextRequirement,
   estimateGeminiCost,
+  computeImageCostFromUsage,
   getRecommendedModel
 };

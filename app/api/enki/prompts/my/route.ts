@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/backend/db-mysql";
-import { getSymphoraPromptsByCreator } from "@/backend/storage-symphora";
+import { getEnkiPromptsByCreator } from "@/backend/storage-enki";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const prompts = await getSymphoraPromptsByCreator(userKey);
+    const prompts = await getEnkiPromptsByCreator(userKey);
 
     return NextResponse.json({
       prompts: prompts.map((p) => ({

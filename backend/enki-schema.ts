@@ -1,5 +1,5 @@
 /**
- * MongoDB Symphora schema types – aligned with your collection structures.
+ * MongoDB Enki schema types – aligned with your collection structures.
  * Use these for prompts, generations, users, and leaderboard.
  */
 
@@ -71,7 +71,7 @@ export interface PromptStats {
   };
 }
 
-export interface SymphoraPrompt {
+export interface EnkiPrompt {
   _id?: ObjectId;
   creator: ObjectId | string; // User _id or wallet address
   type: PromptType;
@@ -134,7 +134,7 @@ export interface GenError {
   occurredAt: Date;
 }
 
-export interface SymphoraGeneration {
+export interface EnkiGeneration {
   _id?: ObjectId;
   user: ObjectId | string;
   prompt: ObjectId | string;
@@ -200,7 +200,7 @@ export interface UserStats {
   calculationVersion?: number;
 }
 
-export interface SymphoraUser {
+export interface EnkiUser {
   _id?: ObjectId;
   walletAddresses?: WalletAddressEntry[];
   profile?: UserProfile;
@@ -233,7 +233,7 @@ export interface LeaderboardEntry {
   metrics: LeaderboardMetrics;
 }
 
-export interface SymphoraLeaderboard {
+export interface EnkiLeaderboard {
   _id?: ObjectId;
   period: string;
   date: Date;

@@ -1,11 +1,23 @@
+export type CreationStatus = "pending" | "completed" | "failed";
+
 export type StoredCreation = {
   id: string;
-  imageUrl: string;
+  /** Set when status is 'completed' */
+  imageUrl?: string;
   prompt: string;
   createdAt: string;
+  /** Default 'completed' for backward compatibility */
+  status?: CreationStatus;
+  /** Optional: quick_create | prompt_editor */
+  source?: "quick_create" | "prompt_editor";
+  /** Optional: aspect ratio for regenerate, e.g. "1:1", "16:9" */
+  aspectRatio?: string;
+  /** Optional: resolution for regenerate */
+  resolution?: "1K" | "2K" | "4K";
 };
 
 const STORAGE_PREFIX = "aigency:creations:";
+const LIKES_PREFIX = "aigency:creations_likes:";
 const UPDATE_EVENT = "aigency:creations_updated";
 
 function getStorageKey(userKey: string) {
@@ -48,18 +60,42 @@ export function getUserKeyFromPrivyUser(user: unknown): string | null {
   );
 }
 
+function normalizeCreation(c: StoredCreation): StoredCreation {
+  if (c.status) return c;
+  return { ...c, status: c.imageUrl ? "completed" : "pending" };
+}
+
 export function listCreations(userKey: string): StoredCreation[] {
   if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(getStorageKey(userKey));
   const items = safeParse<StoredCreation[]>(raw, []);
-  return Array.isArray(items) ? items : [];
+  const list = Array.isArray(items) ? items : [];
+  return list.map(normalizeCreation);
 }
 
 export function addCreation(userKey: string, creation: StoredCreation): void {
   if (typeof window === "undefined") return;
   const key = getStorageKey(userKey);
   const existing = listCreations(userKey);
-  const next = [creation, ...existing];
+  const normalized = normalizeCreation(creation);
+  const next = [normalized, ...existing];
+  window.localStorage.setItem(key, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { userKey } }));
+}
+
+export function updateCreation(
+  userKey: string,
+  id: string,
+  patch: Partial<Pick<StoredCreation, "status" | "imageUrl" | "prompt" | "aspectRatio" | "resolution">>
+): void {
+  if (typeof window === "undefined") return;
+  const key = getStorageKey(userKey);
+  const existing = listCreations(userKey);
+  const idx = existing.findIndex((c) => c.id === id);
+  if (idx === -1) return;
+  const updated = { ...existing[idx], ...patch };
+  const next = [...existing];
+  next[idx] = normalizeCreation(updated);
   window.localStorage.setItem(key, JSON.stringify(next));
   window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { userKey } }));
 }
@@ -101,4 +137,27 @@ export function subscribeCreations(
     window.removeEventListener(UPDATE_EVENT, handler as EventListener);
     window.removeEventListener("storage", storageHandler);
   };
+}
+
+/** Get set of creation IDs liked by the user (localStorage) */
+function getLikesKey(userKey: string) {
+  return `${LIKES_PREFIX}${userKey}`;
+}
+
+export function getCreationLiked(userKey: string, creationId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = window.localStorage.getItem(getLikesKey(userKey));
+  const ids = safeParse<string[]>(raw, []);
+  return Array.isArray(ids) && ids.includes(creationId);
+}
+
+export function toggleCreationLike(userKey: string, creationId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const key = getLikesKey(userKey);
+  const raw = window.localStorage.getItem(key);
+  const ids = safeParse<string[]>(raw, []);
+  const list = Array.isArray(ids) ? ids : [];
+  const next = list.includes(creationId) ? list.filter((id) => id !== creationId) : [...list, creationId];
+  window.localStorage.setItem(key, JSON.stringify(next));
+  return next.includes(creationId);
 }

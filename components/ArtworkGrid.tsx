@@ -1,7 +1,6 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Star, Download, Sparkles, Heart, Eye } from "lucide-react";
 import { useState } from "react";
@@ -54,42 +53,40 @@ function ArtworkCard({
 
   return (
     <Card
-      className="overflow-hidden hover-elevate active-elevate-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] h-full border-0 rounded-none"
+      className="overflow-hidden hover-elevate active-elevate-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] border-0 rounded-none min-w-0 p-0 select-none caret-transparent"
       onClick={() => onCardClick?.(item.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       data-testid={`card-artwork-${item.id}`}
     >
-      <div className="relative h-full bg-muted overflow-hidden">
+      <div className="relative bg-muted overflow-hidden">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={item.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="w-full h-auto block align-top"
             data-testid={`image-artwork-${item.id}`}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center">
+          <div className="w-full aspect-square bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center">
             <Sparkles className="h-12 w-12 text-primary/30" />
           </div>
         )}
-
+        {/* Price overlay: on image, top-left corner, fully inside image bounds */}
         {variant === "prompt" && (
-          <Badge
-            variant={
-              item.isFree || item.isFreeShowcase ? "secondary" : "default"
-            }
-            className="absolute top-2 left-2 backdrop-blur-sm text-xs z-10 !text-white border-white/30"
+          <span
+            className="absolute top-1.5 left-1.5 z-20 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50/95 text-gray-800 border border-amber-200/90 shadow-sm pointer-events-none dark:bg-amber-950/90 dark:text-amber-100 dark:border-amber-700/80"
             data-testid={`badge-price-${item.id}`}
           >
             {item.isFree || item.isFreeShowcase
               ? "FREE"
               : formatPricePerGeneration(Number(item.price) || 0)}
-          </Badge>
+          </span>
         )}
 
         <div
-          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-3 pt-8 transition-opacity duration-200 text-white ${isHovered ? "opacity-100" : "opacity-0"}`}
+          className={`absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3 pt-8 transition-opacity duration-200 text-white ${isHovered ? "opacity-100" : "opacity-0"}`}
+          aria-hidden
         >
           <h3
             className="font-bold text-base !text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
@@ -160,7 +157,6 @@ interface ArtworkGridProps {
   items: ArtworkItem[];
   variant?: "prompt" | "artwork";
   showArtist?: boolean;
-  useMasonryLayout?: boolean;
   onCardClick?: (id: string) => void;
   onArtistClick?: (artistId: string) => void;
 }
@@ -169,7 +165,6 @@ export default function ArtworkGrid({
   items,
   variant = "prompt",
   showArtist = true,
-  useMasonryLayout = true,
   onCardClick,
   onArtistClick,
 }: ArtworkGridProps) {
@@ -189,45 +184,18 @@ export default function ArtworkGrid({
     }
   };
 
-  if (useMasonryLayout) {
-    const repeatedItems = [...items, ...items, ...items, ...items];
-
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 auto-rows-[200px]">
-        {repeatedItems.map((item, idx) => {
-          const spans =
-            idx % 7 === 0
-              ? "row-span-2 col-span-2"
-              : idx % 5 === 0
-                ? "row-span-2"
-                : "";
-          return (
-            <div key={`${item.id}-${idx}`} className={spans}>
-              <ArtworkCard
-                item={item}
-                variant={variant}
-                showArtist={showArtist}
-                onCardClick={handleCardClick}
-                onArtistClick={handleArtistClick}
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-[3px]">
       {items.map((item) => (
-        <ArtworkCard
-          key={item.id}
-          item={item}
-          variant={variant}
-          showArtist={showArtist}
-          onCardClick={handleCardClick}
-          onArtistClick={handleArtistClick}
-        />
+        <div key={item.id} className="min-w-0">
+          <ArtworkCard
+            item={item}
+            variant={variant}
+            showArtist={showArtist}
+            onCardClick={handleCardClick}
+            onArtistClick={handleArtistClick}
+          />
+        </div>
       ))}
     </div>
   );

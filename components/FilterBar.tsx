@@ -9,19 +9,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, SlidersHorizontal } from "lucide-react";
+import { X, SlidersHorizontal, UserPlus } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 interface FilterBarProps {
-  onFilterChange?: (filters: any) => void;
+  onFilterChange?: (filters: { priceFilter?: "all" | "free" | "paid"; sortBy?: string; tags?: string[]; category?: string; followersOnly?: boolean }) => void;
+  /** Hide Free/Paid filter (e.g. for Showroom) */
+  hidePriceFilter?: boolean;
+  /** Show "Only people I follow" toggle; requires user to be logged in */
+  showFollowersFilter?: boolean;
+  /** Controlled category (sync with CategoriesBar); pass with onCategoryChange */
+  category?: string | undefined;
+  onCategoryChange?: (value: string | undefined) => void;
 }
 
-export default function FilterBar({ onFilterChange }: FilterBarProps) {
+export default function FilterBar({ onFilterChange, hidePriceFilter, showFollowersFilter, category: controlledCategory, onCategoryChange }: FilterBarProps) {
   const [priceFilter, setPriceFilter] = useState<"all" | "free" | "paid">(
     "all"
   );
   const [sortBy, setSortBy] = useState("popular");
+  const [internalCategory, setInternalCategory] = useState<string>("all");
+  const category = onCategoryChange ? (controlledCategory ?? "all") : internalCategory;
+  const setCategory = (v: string) => {
+    if (onCategoryChange) onCategoryChange(v === "all" ? undefined : v);
+    else setInternalCategory(v);
+  };
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [followersOnly, setFollowersOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const lastScrollYRef = useRef(0);
 
@@ -49,20 +63,27 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
 
   const handlePriceFilterChange = (filter: "all" | "free" | "paid") => {
     setPriceFilter(filter);
-    onFilterChange?.({ priceFilter: filter, sortBy, tags: selectedTags });
+    onFilterChange?.({ priceFilter: filter, sortBy, tags: selectedTags, category: category === "all" ? undefined : category, followersOnly });
+  };
+
+  const handleFollowersOnlyChange = (v: boolean) => {
+    setFollowersOnly(v);
+    onFilterChange?.({ priceFilter, sortBy, tags: selectedTags, category: category === "all" ? undefined : category, followersOnly: v });
   };
 
   const removeTag = (tag: string) => {
     const updated = selectedTags.filter((t) => t !== tag);
     setSelectedTags(updated);
-    onFilterChange?.({ priceFilter, sortBy, tags: updated });
+    onFilterChange?.({ priceFilter, sortBy, tags: updated, category: category === "all" ? undefined : category, followersOnly });
   };
 
   const resetFilters = () => {
     setPriceFilter("all");
     setSortBy("popular");
+    setCategory("all");
     setSelectedTags([]);
-    onFilterChange?.({ priceFilter: "all", sortBy: "popular", tags: [] });
+    setFollowersOnly(false);
+    onFilterChange?.({ priceFilter: "all", sortBy: "popular", tags: [], category: undefined, followersOnly: false });
   };
 
   return (
@@ -80,37 +101,52 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
             </span>
           </div>
 
-          <div className="flex gap-2">
+          {!hidePriceFilter && (
+            <div className="flex gap-2">
+              <Button
+                variant={priceFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handlePriceFilterChange("all")}
+                className={priceFilter === "all" ? "" : "text-foreground"}
+                data-testid="button-filter-all"
+              >
+                All
+              </Button>
+              <Button
+                variant={priceFilter === "free" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handlePriceFilterChange("free")}
+                className={priceFilter === "free" ? "" : "text-foreground"}
+                data-testid="button-filter-free"
+              >
+                Free
+              </Button>
+              <Button
+                variant={priceFilter === "paid" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handlePriceFilterChange("paid")}
+                className={priceFilter === "paid" ? "" : "text-foreground"}
+                data-testid="button-filter-paid"
+              >
+                Paid
+              </Button>
+            </div>
+          )}
+          {showFollowersFilter && (
             <Button
-              variant={priceFilter === "all" ? "default" : "outline"}
+              variant={followersOnly ? "default" : "outline"}
               size="sm"
-              onClick={() => handlePriceFilterChange("all")}
-              className={priceFilter === "all" ? "" : "text-foreground"}
-              data-testid="button-filter-all"
+              onClick={() => handleFollowersOnlyChange(!followersOnly)}
+              className="gap-1.5"
+              title="Only show people I follow"
+              data-testid="button-filter-followers"
             >
-              All
+              <UserPlus className="h-4 w-4" />
+              Following
             </Button>
-            <Button
-              variant={priceFilter === "free" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handlePriceFilterChange("free")}
-              className={priceFilter === "free" ? "" : "text-foreground"}
-              data-testid="button-filter-free"
-            >
-              Free
-            </Button>
-            <Button
-              variant={priceFilter === "paid" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handlePriceFilterChange("paid")}
-              className={priceFilter === "paid" ? "" : "text-foreground"}
-              data-testid="button-filter-paid"
-            >
-              Paid
-            </Button>
-          </div>
+          )}
 
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(v) => { setSortBy(v); onFilterChange?.({ priceFilter, sortBy: v, tags: selectedTags, category: category === "all" ? undefined : category, followersOnly }); }}>
             <SelectTrigger className="w-[150px]" data-testid="select-sort">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -120,20 +156,6 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
               <SelectItem value="price-low">Price: Low to High</SelectItem>
               <SelectItem value="price-high">Price: High to Low</SelectItem>
               <SelectItem value="rating">Highest Rated</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select>
-            <SelectTrigger className="w-[150px]" data-testid="select-category">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="portrait">Portrait</SelectItem>
-              <SelectItem value="landscape">Landscape</SelectItem>
-              <SelectItem value="abstract">Abstract</SelectItem>
-              <SelectItem value="scifi">Sci-Fi</SelectItem>
-              <SelectItem value="fantasy">Fantasy</SelectItem>
             </SelectContent>
           </Select>
 
@@ -158,7 +180,7 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
 
           <div className="flex-1" />
 
-          {(priceFilter !== "all" || selectedTags.length > 0) && (
+          {(priceFilter !== "all" || selectedTags.length > 0 || category !== "all" || followersOnly) && (
             <Button
               variant="ghost"
               size="sm"

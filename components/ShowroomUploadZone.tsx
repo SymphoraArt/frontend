@@ -10,6 +10,60 @@ import { useToast } from "@/hooks/use-toast";
 import { getUserKeyFromAccount } from "@/lib/creations";
 import { useActiveAccount } from "thirdweb/react";
 
+const MAX_UNCOMPRESSED_MB = 10;
+const JPEG_QUALITY = 0.88;
+
+/**
+ * Compress an image file to JPEG using canvas (client-side). Use for large or PNG/WebP files.
+ */
+async function compressImageToJpeg(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 4096;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas not available"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to compress image"));
+            return;
+          }
+          const name = file.name.replace(/\.[^.]+$/i, "") + ".jpg";
+          resolve(new File([blob], name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        JPEG_QUALITY
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = url;
+  });
+}
+
 interface UploadPreview {
   file: File;
   preview: string;
@@ -129,8 +183,17 @@ export default function ShowroomUploadZone() {
       setUploadProgress((prev) => ({ ...prev, [i]: 0 }));
 
       try {
+        // Compress to JPEG when large or PNG/WebP so upload stays under 20MB
+        const shouldCompress =
+          upload.file.size > MAX_UNCOMPRESSED_MB * 1024 * 1024 ||
+          upload.file.type === "image/png" ||
+          upload.file.type === "image/webp";
+        const fileToUpload = shouldCompress
+          ? await compressImageToJpeg(upload.file)
+          : upload.file;
+
         const formData = new FormData();
-        formData.append('file', upload.file);
+        formData.append('file', fileToUpload);
         formData.append('userId', userKey);
         if (upload.prompt) {
           formData.append('prompt', upload.prompt);
@@ -240,7 +303,7 @@ export default function ShowroomUploadZone() {
                 Drag and drop images here, or click to select
               </p>
               <p className="text-xs text-muted-foreground">
-                PNG, JPEG, WebP up to 10MB each
+                PNG, JPEG, WebP up to 20MB each. Large or PNG/WebP images are compressed to JPEG.
               </p>
             </div>
 

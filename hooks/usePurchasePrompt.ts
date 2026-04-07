@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Purchase Prompt Hook
  *

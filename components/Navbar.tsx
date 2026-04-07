@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Plus, Eye, Moon, Sun, User, LogOut } from "lucide-react";
+import { Search, Plus, Eye, Moon, Sun, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,11 +16,12 @@ import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
-import { Wallet, Copy } from "lucide-react";
+import { Wallet, Copy, LayoutDashboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getChainExplorerUrl } from "@/lib/thirdweb";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
+import { saveUserThemePreference } from "@/lib/theme-settings";
 
 interface NavbarProps {
   username?: string;
@@ -88,6 +89,12 @@ export default function Navbar({
   const account = useSafeActiveAccount();
   const wallet = useSafeActiveWallet();
   const walletInfo = useSafeWalletInfo();
+  const [walletResolved, setWalletResolved] = useState(false);
+  // Give Thirdweb time to restore session from storage/extension so we don't show "Guest" then flip to connected on first click
+  useEffect(() => {
+    const t = setTimeout(() => setWalletResolved(true), 400);
+    return () => clearTimeout(t);
+  }, []);
   const authenticated = !!account && walletInfo.isConnected;
   const router = useRouter();
   const { toast } = useToast();
@@ -146,6 +153,31 @@ export default function Navbar({
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
 
+  // When a wallet/account is available, try to sync theme from user settings
+  useEffect(() => {
+    const address = account?.address;
+    if (!address) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/users/${address}/settings`, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const settings = data?.settings as { theme?: "light" | "dark" } | undefined;
+        if (settings?.theme === "light" || settings?.theme === "dark") {
+          setTheme(settings.theme);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("theme", settings.theme);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to sync theme from settings", error);
+      }
+    })();
+  }, [account?.address]);
+
   useEffect(() => {
     if (!themeSyncedFromStorage.current) return;
 
@@ -195,116 +227,181 @@ export default function Navbar({
         showNav ? "translate-y-0" : "-translate-y-24"
       }`}
     >
-      <div className="w-full px-3 lg:px-8 max-w-full">
-        <div className="w-full">
-          <div className="flex h-14 items-center justify-between gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 sm:gap-4">
+      <div className="w-full px-2 sm:px-3 lg:px-8 max-w-full min-w-0">
+        <div className="w-full min-w-0">
+          <div className="flex h-11 sm:h-12 md:h-14 items-center justify-between gap-1 sm:gap-2 md:gap-3 min-h-0">
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0 shrink">
               <div
-                className="flex items-center gap-2 rounded-md px-2 py-2"
+                role="button"
+                tabIndex={0}
+                className="flex items-center gap-1.5 sm:gap-2 rounded-md px-1.5 sm:px-2 py-1.5 sm:py-2 shrink-0 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => router.push("/")}
+                onKeyDown={(e) => e.key === "Enter" && router.push("/")}
               >
-                <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary font-semibold text-xs">A</span>
+                <div className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-semibold text-[10px] sm:text-xs">A</span>
                 </div>
-                <span className="font-semibold text-foreground hidden sm:inline">
+                <span className="font-semibold text-foreground text-sm hidden sm:inline truncate">
                   AIgency
                 </span>
               </div>
 
-              <div className="flex gap-2">
+              {/* Desktop-Navigation */}
+              <div className="hidden md:flex gap-0.5 sm:gap-1 md:gap-2 min-w-0">
                 <Button
                   variant={pathname === "/" ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => router.push("/")}
-                  className="gap-2"
+                  className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 text-xs"
                   data-testid="nav-marketplace"
                 >
-                  <Eye className="h-4 w-4" />
-                  <span className="hidden sm:inline">Marketplace</span>
+                  <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">Marketplace</span>
                 </Button>
                 <Button
                   variant={pathname === "/showcase" ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => router.push("/showcase")}
-                  className="gap-2"
+                  className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 text-xs"
                   data-testid="nav-showroom"
                 >
-                  <Eye className="h-4 w-4" />
-                  <span className="hidden sm:inline">Showroom</span>
+                  <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">Showroom</span>
                 </Button>
+                <Button
+                  variant={pathname === "/workspace" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => router.push("/workspace")}
+                  className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 text-xs"
+                  data-testid="nav-workspace"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">My Workspace</span>
+                </Button>
+              </div>
+
+              {/* Mobile/Tablet: Burger-Menü */}
+              <div className="md:hidden flex items-center">
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Navigation menu"
+                    >
+                      <Menu className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem
+                      onClick={() => router.push("/")}
+                      data-testid="nav-marketplace-dropdown"
+                    >
+                      Marketplace
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/showcase")}
+                      data-testid="nav-showroom-dropdown"
+                    >
+                      Showroom
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/workspace")}
+                      data-testid="nav-workspace-dropdown"
+                    >
+                      My Workspace
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
-            <div className="hidden md:flex flex-1 max-w-md lg:max-w-xl">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="hidden lg:flex flex-1 max-w-md xl:max-w-xl min-w-0 shrink">
+              <div className="relative w-full min-w-0">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground shrink-0" />
                 <Input
                   type="search"
-                  placeholder="Search prompts..."
-                  className="pl-9 w-full"
+                  placeholder="Search..."
+                  className="pl-7 sm:pl-9 w-full h-8 sm:h-9 text-sm"
                   onChange={(e) => onSearch?.(e.target.value)}
                   data-testid="input-search"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0"
+                onClick={async () => {
+                  const nextTheme = theme === "dark" ? "light" : "dark";
+                  setTheme(nextTheme);
+                  // Best-effort persistence for authenticated users
+                  await saveUserThemePreference(account?.address ?? walletAddress ?? null, nextTheme);
+                }}
                 aria-label="Toggle theme"
                 data-testid="button-theme-toggle"
               >
                 {theme === "dark" ? (
-                  <Sun className="h-4 w-4" />
+                  <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 ) : (
-                  <Moon className="h-4 w-4" />
+                  <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 )}
               </Button>
-              
-              {/* Chain Switcher - Only show when wallet is connected */}
-              {authenticated && <ChainSwitcher />}
-              
-              <div className="flex gap-2">
+
+              {/* Chain Switcher - show when wallet is connected; hide until wallet state resolved to avoid flash */}
+              {walletResolved && authenticated && (
+                <div className="shrink min-w-0 max-w-[140px] sm:max-w-[180px]">
+                  <ChainSwitcher />
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="default"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1 sm:gap-1.5 h-8 sm:h-9 px-2 sm:px-3 text-xs shrink-0"
                   onClick={() => router.push("/editor")}
                   data-testid="button-create-prompt"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                   <span className="hidden sm:inline">Create Prompt</span>
                 </Button>
 
-                {/* User Menu */}
-                <DropdownMenu>
+                {/* User Menu - always visible, never shrink */}
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
-                    <button className="rounded-full" data-testid="button-user-menu">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          {authenticated ? (walletAddress ? walletAddress.slice(2, 3).toUpperCase() : "W") : <User className="h-4 w-4" />}
+                    <button className="rounded-full shrink-0" data-testid="button-user-menu">
+                      <Avatar className="h-8 w-8 sm:h-9 sm:w-9 shrink-0">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs sm:text-sm">
+                          {!walletResolved ? (
+                            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          ) : authenticated ? (
+                            walletAddress ? walletAddress.slice(2, 3).toUpperCase() : "W"
+                          ) : (
+                            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          )}
                         </AvatarFallback>
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
-                    {authenticated && walletInfo.isConnected && walletAddress ? (
+                    {!walletResolved ? (
+                      <div className="px-2 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                        Checking connection…
+                      </div>
+                    ) : authenticated && walletInfo.isConnected && walletAddress ? (
                       <div className="px-2 py-2 space-y-2">
                         <div className="flex items-center gap-2">
                           <Wallet className="h-4 w-4 text-muted-foreground" />
                           <p className="text-sm font-medium">Wallet Connected</p>
                         </div>
                         <div className="space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              {walletInfo.description}
-                            </p>
-                            <Badge variant="outline" className="text-xs font-mono">
-                              {shortAddress}
-                            </Badge>
-                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {walletInfo.description}
+                          </p>
                           {walletInfo.type === "in-app" && (
                             <Badge variant="secondary" className="text-xs">
                               {walletInfo.authMethod}
@@ -336,19 +433,13 @@ export default function Navbar({
                       </div>
                     )}
                     <DropdownMenuSeparator />
-                    {authenticated ? (
+                    {!walletResolved ? null : authenticated ? (
                       <>
                         <DropdownMenuItem
-                          onClick={() => router.push("/my-gallery")}
+                          onClick={() => walletAddress && router.push(`/profile/${encodeURIComponent(walletAddress)}`)}
                           data-testid="menu-item-my-gallery"
                         >
                           My Gallery
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => router.push("/my-prompts")}
-                          data-testid="menu-item-my-prompts"
-                        >
-                          My Prompts
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => router.push("/settings")}
@@ -393,12 +484,6 @@ export default function Navbar({
                           data-testid="menu-item-my-gallery"
                         >
                           My Gallery
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => router.push("/my-prompts")}
-                          data-testid="menu-item-my-prompts"
-                        >
-                          My Prompts
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => router.push("/settings")}

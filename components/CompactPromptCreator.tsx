@@ -25,6 +25,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,9 +46,10 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccount } from "thirdweb/react";
 import { ConnectWallet } from "@/components/ConnectWallet";
-import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
+import { addCreation, updateCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
+import { ENHANCEMENT_OPTIONS, getDefaultEnhancement, type EnhancementId } from "@/lib/enhancement-options";
 
 type VariableType = "text" | "checkbox" | "slider" | "single-select" | "multi-select";
 
@@ -211,10 +218,30 @@ const EXAMPLE_VARIABLES: Record<string, string> = {
   Mood: "elegant and sophisticated",
 };
 
+const QUICK_CREATE_OPEN_KEY = "quickCreateOpen";
+
+function getStoredQuickCreateOpen(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const v = sessionStorage.getItem(QUICK_CREATE_OPEN_KEY);
+    if (v !== null) return v === "true";
+  } catch {}
+  return true;
+}
+
 export default function CompactPromptCreator() {
   const [promptText, setPromptText] = useState("");
   const [variables, setVariables] = useState<Variable[]>([]);
-  const [open, setOpen] = useState(true);
+  const [open, setOpenState] = useState(getStoredQuickCreateOpen);
+  const setOpen = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    setOpenState((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      try {
+        sessionStorage.setItem(QUICK_CREATE_OPEN_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const [variablesOpen, setVariablesOpen] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedText, setSelectedText] = useState("");
@@ -231,12 +258,15 @@ export default function CompactPromptCreator() {
   const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [estimateCost, setEstimateCost] = useState<number | null>(null);
+  const [enhancement, setEnhancement] = useState<EnhancementId>(getDefaultEnhancement());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightOverlayRef = useRef<HTMLDivElement>(null);
 
   const { generateImage, isPending, getPaymentStatus } = useX402PaymentProduction();
   const account = useActiveAccount();
   const authenticated = !!account;
+  const userKey = getUserKeyFromAccount(account);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -359,6 +389,39 @@ export default function CompactPromptCreator() {
     setSelectionPosition(null);
   };
 
+  // Estimated cost for current prompt + resolution
+  useEffect(() => {
+    let processed = promptText;
+    variables.forEach((v) => {
+      if (v.currentValue) {
+        const regex = new RegExp(`\\[${v.name}(?:[^\\]]*)\\]`, "g");
+        processed = processed.replace(regex, v.currentValue);
+      }
+    });
+    if (!processed.trim()) {
+      setEstimateCost(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/estimate-generation-cost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: processed,
+        resolution,
+        useEnhancement: enhancement === "prompt",
+        userId: userKey ?? undefined,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data || data.totalUsd == null) return;
+        setEstimateCost(data.totalUsd);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [promptText, resolution, enhancement, userKey, variables]);
+
   // Create variable from QuickVariableCreator
   const createQuickVariable = ({
     name,
@@ -472,60 +535,68 @@ export default function CompactPromptCreator() {
     }
 
     setIsGenerating(true);
-    try {
-      // Prepare the prompt by replacing variables with their current values
-      let processedPrompt = promptText;
-      variables.forEach(variable => {
-        if (variable.currentValue) {
-          const regex = new RegExp(`\\[${variable.name}(?:[^\\]]*)\\]`, 'g');
-          processedPrompt = processedPrompt.replace(regex, variable.currentValue);
-        }
+    const creationId = `${Date.now()}`;
+    const userKey = getUserKeyFromAccount(account);
+    if (!userKey) {
+      toast({
+        title: "Wallet required",
+        description: "Missing user key.",
+        variant: "destructive",
       });
+      setIsGenerating(false);
+      return;
+    }
 
+    // Prepare the prompt by replacing variables with their current values
+    let processedPrompt = promptText;
+    variables.forEach(variable => {
+      if (variable.currentValue) {
+        const regex = new RegExp(`\\[${variable.name}(?:[^\\]]*)\\]`, 'g');
+        processedPrompt = processedPrompt.replace(regex, variable.currentValue);
+      }
+    });
+
+    // Add pending creation and go to My Workspace
+    addCreation(userKey, {
+      id: creationId,
+      prompt: processedPrompt,
+      createdAt: new Date().toISOString(),
+      status: "pending",
+      source: "quick_create",
+      aspectRatio: dimension,
+      resolution: resolution as "1K" | "2K" | "4K",
+    });
+    router.push("/workspace");
+
+    try {
       const result = await generateImage({
         prompt: processedPrompt,
         aspectRatio: dimension,
         resolution: resolution as '1K' | '2K' | '4K',
+        useEnhancement: enhancement === "prompt",
+        userId: userKey ?? undefined,
       }) as any;
 
       if (result?.imageUrl) {
+        updateCreation(userKey, creationId, { status: "completed", imageUrl: result.imageUrl });
         setGeneratedImage(result.imageUrl);
-        
-        // Save to user gallery
-        if (account) {
-          try {
-            const userKey = getUserKeyFromAccount(account);
-            if (!userKey) {
-              throw new Error("Missing userKey for account");
-            }
-            addCreation(userKey, {
-              id: `${Date.now()}`,
-              imageUrl: result.imageUrl,
-              prompt: processedPrompt,
-              createdAt: new Date().toISOString(),
-            });
-          } catch (error) {
-            console.error('Failed to save image to gallery:', error);
-            // Don't show error to user as image was generated successfully
-          }
-        }
-        
         toast({
           title: "Image generated successfully!",
           description: `Generated with Gemini (${result.generationTime || 'unknown'}ms)`,
         });
       } else {
+        updateCreation(userKey, creationId, { status: "failed" });
         throw new Error("No image URL returned");
       }
     } catch (error) {
       console.error('Generation error:', error);
-      
-      // Check for wallet timeout errors
+      updateCreation(userKey, creationId, { status: "failed" });
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const isWalletTimeout = errorMessage.includes('Wallet timeout') || 
+      const isWalletTimeout = errorMessage.includes('Wallet timeout') ||
                               errorMessage.includes('walletTimeout') ||
                               errorMessage.includes('timeout');
-      
+
       if (isWalletTimeout) {
         toast({
           title: "MetaMask Signature Required",
@@ -550,26 +621,23 @@ export default function CompactPromptCreator() {
       {/* Compact Prompt Creator UI */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[84%] max-w-4xl select-none">
         {!open ? (
-          <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden select-none">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="min-w-0 select-none">
-                <div className="text-sm font-semibold text-foreground">
-                  Quick Create
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  Paste a prompt with [variables] to adjust quickly
-                </div>
+          <div
+            role="button"
+            tabIndex={0}
+            className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden select-none cursor-pointer flex items-center justify-between px-4 py-3"
+            onClick={() => setOpen(true)}
+            onKeyDown={(e) => e.key === "Enter" && setOpen(true)}
+            data-testid="button-open-quick-create"
+          >
+            <div className="min-w-0 select-none">
+              <div className="text-sm font-semibold text-foreground">
+                Quick Create
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setOpen(true)}
-                data-testid="button-open-quick-create"
-              >
-                <ChevronUp className="h-5 w-5 text-muted-foreground" />
-              </Button>
+              <div className="text-xs text-muted-foreground truncate">
+                Paste a prompt with [variables] to adjust quickly
+              </div>
             </div>
+            <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
           </div>
         ) : (
           <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden select-none">
@@ -933,15 +1001,56 @@ export default function CompactPromptCreator() {
               </Button>
 
               {authenticated ? (
-                <Button
-                  size="sm"
-                  className="h-8 px-6 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={handleGenerateImage}
-                  disabled={isGenerating || isPending || !account}
-                  data-testid="button-generate"
-                >
-                  {isGenerating || isPending ? "Generating..." : "Generate"}
-                </Button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-2 h-8 cursor-pointer shrink-0">
+                            <Checkbox
+                              checked={enhancement === "prompt"}
+                              onCheckedChange={(checked) => setEnhancement(checked ? "prompt" : "none")}
+                              data-testid="checkbox-enhancement"
+                            />
+                            <span className="text-xs text-foreground whitespace-nowrap">Prompt enhancement</span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[280px] text-xs">
+                          <p className="font-medium mb-1">Output:</p>
+                          <p>{ENHANCEMENT_OPTIONS.find((o) => o.value === "prompt")?.outputDescription}</p>
+                          <p className="mt-1 text-muted-foreground">Estimated cost updates in real time with current Google API rates.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Button
+                      size="sm"
+                      className="h-8 px-6 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={handleGenerateImage}
+                      disabled={isGenerating || isPending || !account}
+                      data-testid="button-generate"
+                    >
+                      {isGenerating || isPending ? "Generating..." : "Generate"}
+                    </Button>
+                  </div>
+                  <span className="text-xs text-muted-foreground min-h-[1.25rem] inline-flex items-center gap-1">
+                    {estimateCost != null ? (
+                      <TooltipProvider>
+                        <Tooltip delayDuration={200}>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                              Estimated cost: ${estimateCost.toFixed(4)} · Live API
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[240px] text-xs">
+                            <p>Includes image + prompt enhancement. Price from current API rates.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="invisible">—</span>
+                    )}
+                  </span>
+                </div>
               ) : (
                 <div className="[&_.connect-wallet-button]:h-8 [&_.connect-wallet-button]:px-6 [&_.connect-wallet-button]:bg-green-600 [&_.connect-wallet-button]:hover:bg-green-700 [&_.connect-wallet-button]:text-white">
                   <ConnectWallet buttonClassName="h-8 px-6 bg-green-600 hover:bg-green-700 text-white" />

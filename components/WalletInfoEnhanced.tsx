@@ -119,7 +119,7 @@ export function WalletInfoEnhanced() {
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             variant={isSecure ? "outline" : "destructive"}

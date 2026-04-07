@@ -1,11 +1,14 @@
 "use client";
 
 import FilterBar from "@/components/FilterBar";
+import CategoriesBar from "@/components/CategoriesBar";
 import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useActiveAccount } from "thirdweb/react";
+import { getUserKeyFromAccount } from "@/lib/creations";
 
 const ShowroomUploadZone = dynamic(
   () => import("@/components/ShowroomUploadZone"),
@@ -14,26 +17,43 @@ const ShowroomUploadZone = dynamic(
 
 export default function Showcase() {
   const router = useRouter();
+  const account = useActiveAccount();
+  const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
   const PAGE_SIZE = 12;
   const [cursor, setCursor] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | undefined>(undefined);
+  const [followersOnly, setFollowersOnly] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  
-  // Prevent SSR issues by only rendering after mount
   const [isMounted, setIsMounted] = useState(false);
-  
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleFilterChange = (filters: { category?: string; followersOnly?: boolean }) => {
+    const newCategory = filters.category === "all" || !filters.category ? undefined : filters.category;
+    const newFollowersOnly = filters.followersOnly ?? false;
+    if (newCategory !== category || newFollowersOnly !== followersOnly) {
+      setCategory(newCategory);
+      setFollowersOnly(newFollowersOnly);
+      setCursor(null);
+    }
+  };
 
   const {
     data: showroomData,
     isLoading,
     fetchStatus,
   } = useQuery({
-    queryKey: ["/api/symphora/prompts/showroom", cursor],
+    queryKey: ["/api/enki/prompts/showroom", cursor, category, followersOnly, userKey],
     queryFn: async () => {
-      const url = new URL("/api/symphora/prompts/showroom", window.location.origin);
+      const url = new URL("/api/enki/prompts/showroom", window.location.origin);
       if (cursor) url.searchParams.set("cursor", cursor);
+      if (category) url.searchParams.set("category", category);
+      if (followersOnly && userKey) {
+        url.searchParams.set("onlyFollowing", "1");
+        url.searchParams.set("userKey", userKey);
+      }
       url.searchParams.set("limit", String(PAGE_SIZE));
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
@@ -105,7 +125,8 @@ export default function Showcase() {
   if (!isMounted || (isLoading && allPrompts.length === 0)) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+        <CategoriesBar selectedCategory={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
+        <FilterBar onFilterChange={handleFilterChange} hidePriceFilter showFollowersFilter={!!userKey} category={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
         <main className="w-full px-2 py-2 flex items-center justify-center">
           <p className="text-foreground text-lg">Loading prompts...</p>
         </main>
@@ -116,7 +137,8 @@ export default function Showcase() {
   if (visiblePrompts.length === 0) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+        <CategoriesBar selectedCategory={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
+        <FilterBar onFilterChange={handleFilterChange} hidePriceFilter showFollowersFilter={!!userKey} category={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
         <main className="w-full px-2 py-8 flex flex-col items-center justify-center">
           <p className="text-foreground text-lg mb-4">
             No prompts available yet
@@ -131,26 +153,16 @@ export default function Showcase() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-16">
-      <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
-      <main className="w-full px-2 py-2">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 auto-rows-[200px]">
-          {visiblePrompts.map((prompt, idx) => {
-            const spans =
-              idx % 7 === 0
-                ? "row-span-2 col-span-2"
-                : idx % 5 === 0
-                  ? "row-span-2"
-                  : "";
-            return (
-              <div key={prompt.id} className={spans}>
-                <PromptCard
-                  {...prompt}
-                  onClick={() => router.push(`/generator/${prompt.id}`)}
-                />
-              </div>
-            );
-          })}
+    <div className="min-h-screen bg-background flex flex-col pt-16">
+      <CategoriesBar selectedCategory={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
+      <FilterBar onFilterChange={handleFilterChange} hidePriceFilter showFollowersFilter={!!userKey} category={category} onCategoryChange={(v) => { setCategory(v); setCursor(null); }} />
+      <main className="flex-1 min-h-0 w-full px-1 sm:px-2 py-2 overflow-y-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-[3px]">
+          {visiblePrompts.map((prompt) => (
+            <div key={prompt.id} className="min-w-0">
+              <PromptCard {...prompt} onClick={() => router.push(`/generator/${prompt.id}`)} />
+            </div>
+          ))}
         </div>
         <div ref={sentinelRef} className="h-10" />
         <div className="w-full py-4 flex items-center justify-center text-sm text-muted-foreground">

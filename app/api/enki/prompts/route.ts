@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/backend/db-mysql";
 import {
-  buildSymphoraPromptFromEditor,
-  createSymphoraPrompt,
-  getSymphoraPromptByCreatorAndTitle,
-  updateSymphoraPrompt,
-} from "@/backend/storage-symphora";
+  buildEnkiPromptFromEditor,
+  createEnkiPrompt,
+  getEnkiPromptByCreatorAndTitle,
+  updateEnkiPrompt,
+} from "@/backend/storage-enki";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,12 +45,12 @@ export async function POST(req: NextRequest) {
         : "paid-prompt";
 
     const titleTrimmed = (body.title as string).trim();
-    const existing = await getSymphoraPromptByCreatorAndTitle(creator, titleTrimmed);
+    const existing = await getEnkiPromptByCreatorAndTitle(creator, titleTrimmed);
     const promptId = body.promptId != null ? String(body.promptId).trim() : null;
     if (existing) {
       if (promptId && existing.id === promptId) {
         // Re-saving the same prompt: update it
-        const data = buildSymphoraPromptFromEditor({
+        const data = buildEnkiPromptFromEditor({
           creator,
           title: titleTrimmed,
           content: body.content,
@@ -62,8 +62,9 @@ export async function POST(req: NextRequest) {
           uploadedPhotos,
           variables,
           generatedImageUrl: body.generatedImageUrl ?? body.generatedImage ?? null,
+          usePromptEnhancement: body.usePromptEnhancement !== false,
         });
-        const updated = await updateSymphoraPrompt(promptId, data);
+        const updated = await updateEnkiPrompt(promptId, data);
         if (!updated) {
           return NextResponse.json(
             { error: "Failed to update prompt." },
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = buildSymphoraPromptFromEditor({
+    const data = buildEnkiPromptFromEditor({
       creator,
       title: titleTrimmed,
       content: body.content,
@@ -95,9 +96,10 @@ export async function POST(req: NextRequest) {
       uploadedPhotos,
       variables,
       generatedImageUrl: body.generatedImageUrl ?? body.generatedImage ?? null,
+      usePromptEnhancement: body.usePromptEnhancement !== false,
     });
 
-    const prompt = await createSymphoraPrompt(data);
+    const prompt = await createEnkiPrompt(data);
 
     return NextResponse.json({
       id: prompt.id,

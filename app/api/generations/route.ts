@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { connectDB } from "@/backend/db-mysql";
-import { getSymphoraPromptById } from "@/backend/storage-symphora";
+import { getEnkiPromptById } from "@/backend/storage-enki";
 import { substituteVariables } from "@/backend/services/variable-substitution";
 import { encryptPrompt } from "@/backend/encryption";
 import {
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       return createErrorResponse('Invalid query parameters', 400, errorMessages);
     }
 
-    const { limit = 50, offset = 0 } = queryValidation.data;
+    const { limit = 50, offset = 0, promptId } = queryValidation.data;
     // Support both userKey (legacy) and userId
     const userId = searchParams.get("userId") || searchParams.get("userKey");
 
@@ -34,12 +34,15 @@ export async function GET(req: Request) {
     }
 
     const supabase = getSupabaseServerClient();
-    const { data, error, count } = await supabase
+    let query = supabase
       .from("generations")
       .select("*", { count: 'exact' })
       .eq("user_key", userId)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order("created_at", { ascending: false });
+    if (promptId) {
+      query = query.eq("prompt_id", promptId);
+    }
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Database error:', error);
@@ -105,7 +108,8 @@ export async function POST(req: Request) {
       authTag: bodyAuthTag,
       variableValues,
       settings,
-      transactionHash
+      transactionHash,
+      finalPromptOverride,
     } = validation.data;
 
     const userId = (bodyUserId ?? bodyUserKey ?? headerUserId ?? urlUserId ?? "").trim();
@@ -118,43 +122,64 @@ export async function POST(req: Request) {
     let iv = bodyIv ?? "";
     let authTag = bodyAuthTag ?? "";
     let variableDefinitions: any[] = [];
+    let mysqlPromptForType: Awaited<ReturnType<typeof getEnkiPromptById>> = null;
 
-    if (!encryptedContent && promptId) {
+    const overrideTrimmed = finalPromptOverride?.trim() ?? "";
+    const needMysqlPrompt =
+      !!promptId && (!encryptedContent || overrideTrimmed.length > 0);
+
+    if (needMysqlPrompt) {
       await connectDB();
-      const symphoraPrompt = await getSymphoraPromptById(String(promptId));
-      if (symphoraPrompt?.promptData?.segments?.[0]?.content) {
-        const seg = symphoraPrompt.promptData.segments[0].content as { encrypted?: string; iv?: string; authTag?: string };
+      mysqlPromptForType = await getEnkiPromptById(String(promptId));
+      if (!encryptedContent && mysqlPromptForType?.promptData?.segments?.[0]?.content) {
+        const seg = mysqlPromptForType.promptData.segments[0].content as { encrypted?: string; iv?: string; authTag?: string };
         encryptedContent = seg.encrypted ?? "";
         iv = seg.iv ?? "";
         authTag = seg.authTag ?? "";
       }
-      if (symphoraPrompt?.promptData?.variables) {
-        variableDefinitions = symphoraPrompt.promptData.variables;
+      if (mysqlPromptForType?.promptData?.variables) {
+        variableDefinitions = mysqlPromptForType.promptData.variables;
       }
-      if (!encryptedContent && !symphoraPrompt) {
+      if (!encryptedContent && !mysqlPromptForType && !overrideTrimmed) {
         console.error("[POST /api/generations] Prompt not found for promptId:", promptId);
         return createErrorResponse('Prompt not found', 400, [`No prompt found for promptId: ${promptId}. Check that the prompt exists in the database.`]);
       }
     }
-    if (!encryptedContent) {
-      console.error("[POST /api/generations] No encrypted content for promptId:", promptId);
-      return createErrorResponse('Prompt content not found', 400, ['Prompt has no encrypted content. Provide encryptedPrompt or use a valid promptId.']);
+
+    let encryptedFinalPrompt: { encryptedContent: string; iv: string; authTag: string };
+
+    if (overrideTrimmed) {
+      if (!promptId) {
+        return createErrorResponse("promptId required", 400, ["finalPromptOverride requires promptId."]);
+      }
+      if (!mysqlPromptForType) {
+        return createErrorResponse("Prompt not found", 400, [`No prompt found for promptId: ${promptId}.`]);
+      }
+      if (mysqlPromptForType.type !== "free") {
+        return createErrorResponse("finalPromptOverride not allowed for this prompt", 400, [
+          "Only free prompts accept finalPromptOverride.",
+        ]);
+      }
+      encryptedFinalPrompt = encryptPrompt(overrideTrimmed);
+    } else {
+      if (!encryptedContent) {
+        console.error("[POST /api/generations] No encrypted content for promptId:", promptId);
+        return createErrorResponse('Prompt content not found', 400, ['Prompt has no encrypted content. Provide encryptedPrompt or use a valid promptId.']);
+      }
+
+      const substitution = await substituteVariables(
+        { encryptedContent, iv, authTag },
+        variableValues,
+        variableDefinitions
+      );
+
+      if (!substitution.success) {
+        console.error("[POST /api/generations] Variable substitution failed:", substitution.errors);
+        return createErrorResponse('Variable substitution failed', 400, substitution.errors);
+      }
+
+      encryptedFinalPrompt = encryptPrompt(substitution.finalPrompt!);
     }
-
-    // Decrypt only here for variable substitution when generating the image (no other access to prompt content)
-    const substitution = await substituteVariables(
-      { encryptedContent, iv, authTag },
-      variableValues,
-      variableDefinitions
-    );
-
-    if (!substitution.success) {
-      console.error("[POST /api/generations] Variable substitution failed:", substitution.errors);
-      return createErrorResponse('Variable substitution failed', 400, substitution.errors);
-    }
-
-    // 3. Encrypt final prompt for storage
-    const encryptedFinalPrompt = encryptPrompt(substitution.finalPrompt!);
 
     // 4. Prepare generation data (userId already validated above)
     // Supabase generations table uses user_key (README schema); add columns via migration if missing

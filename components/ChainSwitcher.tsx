@@ -2,91 +2,82 @@
 
 /**
  * ChainSwitcher Component
- * 
- * Allows users to switch between supported chains.
- * Displays current chain and provides dropdown to switch.
- * 
- * Usage:
- * ```tsx
- * <ChainSwitcher />
- * ```
+ *
+ * Icon-only trigger: shows current chain logo. Dropdown shows [logo] [name] [check] per row.
  */
 
-import { useActiveWallet } from "thirdweb/react";
-import { supportedChains, defaultChain } from "@/lib/thirdweb";
+import { useActiveWallet, useActiveWalletChain } from "thirdweb/react";
+import { supportedChains, defaultChain, getChainLogoUrl } from "@/lib/thirdweb";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Network } from "lucide-react";
-import { useState } from "react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
 
 export function ChainSwitcher() {
   const wallet = useActiveWallet();
-  // Default to the default chain, user can switch
-  const [selectedChainId, setSelectedChainId] = useState<number>(defaultChain.id);
+  const chain = useActiveWalletChain();
+  const activeChain =
+    supportedChains.find((c) => c.id === (chain?.id ?? defaultChain.id)) ?? defaultChain;
 
   if (!wallet) {
     return null;
   }
 
-  const activeChain = supportedChains.find((c) => c.id === selectedChainId) || defaultChain;
-
   const handleChainChange = async (chainId: string) => {
-    const targetChain = supportedChains.find(
-      (chain) => chain.id === Number(chainId)
-    );
-
-    if (targetChain && wallet) {
-      try {
-        // Switch chain on the wallet
-        if (wallet.switchChain) {
-          await wallet.switchChain(targetChain);
-        }
-        setSelectedChainId(targetChain.id);
-      } catch (error) {
-        console.error("Failed to switch chain:", error);
-        // Still update UI even if switch fails (for UX)
-        setSelectedChainId(targetChain.id);
+    const targetChain = supportedChains.find((c) => c.id === Number(chainId));
+    if (!targetChain || !wallet) return;
+    try {
+      if (wallet.switchChain) {
+        await wallet.switchChain(targetChain);
       }
+    } catch (error) {
+      console.error("Failed to switch chain:", error);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <Network className="h-4 w-4 text-muted-foreground" />
-      <Select
-        value={activeChain.id.toString()}
-        onValueChange={handleChainChange}
-      >
-        <SelectTrigger className="w-[180px] h-9 border-border/60">
-          <SelectValue>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">
-                {activeChain.name}
-              </Badge>
-            </div>
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {supportedChains.map((chain) => (
-            <SelectItem key={chain.id} value={chain.id.toString()}>
-              <div className="flex items-center justify-between w-full">
-                <span>{chain.name}</span>
-                {chain.id === activeChain.id && (
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Active
-                  </Badge>
-                )}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 border-border/60"
+          aria-label="Switch network"
+        >
+          <img
+            src={getChainLogoUrl(activeChain.id)}
+            alt=""
+            width={20}
+            height={20}
+            className="h-4 w-4 sm:h-5 sm:w-5 rounded-full object-contain"
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]" sideOffset={4}>
+        {supportedChains.map((c) => (
+          <DropdownMenuItem
+            key={c.id}
+            onClick={() => handleChainChange(c.id.toString())}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <img
+              src={getChainLogoUrl(c.id)}
+              alt=""
+              width={20}
+              height={20}
+              className="h-5 w-5 rounded-full object-contain shrink-0"
+            />
+            <span className="flex-1 truncate">{c.name}</span>
+            {c.id === activeChain.id && (
+              <Check className="h-4 w-4 shrink-0 text-primary" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

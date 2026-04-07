@@ -11,6 +11,13 @@ export interface ImageGenerationRequest {
   safetySettings?: any[];
 }
 
+/** Token usage from Gemini generateContent response (for exact cost calculation). */
+export interface GeminiUsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
+}
+
 export interface ImageGenerationResult {
   success: boolean;
   imageUrls?: string[];
@@ -24,6 +31,8 @@ export interface ImageGenerationResult {
     resolution: string;
     finishReason?: string;
     safetyRatings?: any[];
+    /** Actual token usage from API (used for exact billing). */
+    usageMetadata?: GeminiUsageMetadata;
   };
 }
 

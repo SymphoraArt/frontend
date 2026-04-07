@@ -11,6 +11,8 @@ const nextConfig = {
     resolveAlias: {
       tailwindcss: path.join(__dirname, "node_modules", "tailwindcss"),
       "@tailwindcss/postcss": path.join(__dirname, "node_modules", "@tailwindcss/postcss"),
+      react: path.join(__dirname, "node_modules", "react"),
+      "react-dom": path.join(__dirname, "node_modules", "react-dom"),
     },
   },
 
@@ -58,7 +60,6 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
 
-  serverExternalPackages: ["thirdweb"],
 };
 
 export default nextConfig;

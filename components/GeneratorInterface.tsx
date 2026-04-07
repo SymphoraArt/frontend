@@ -50,8 +50,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Star } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -59,6 +65,10 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { usePaymentBalance, useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/lib/payment-config";
 import { formatPricePerGeneration, storedPriceToUsdc } from "@/lib/utils";
+import { PROMPT_CATEGORIES } from "@/lib/categories";
+
+/** Reference image key for free-prompt mode (no variable-based ref fields). */
+const FREE_PROMPT_REF_KEY = "__free_prompt_ref__";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -270,9 +280,19 @@ interface GeneratorInterfaceProps {
     isPrimary?: boolean;
   }>;
   isFreeShowcase?: boolean;
+  /** Symphora type `free`: full prompt on the left; user can edit text per session (not saved to the prompt record). */
+  isFreePromptMode?: boolean;
+  /** Decrypted prompt text from API (initial value for free mode). */
+  initialFreePromptText?: string;
   publicPromptText?: string;
   /** Price per generation (from prompt); shown above Payment Chain. */
   pricePerGeneration?: number;
+  /** Category (value from prompt); shown above title. */
+  category?: string;
+  /** Average rating (0–5); shown as stars next to title. */
+  rating?: number;
+  /** Enhancement set by artist (Marketplace); no dropdown, use this value. */
+  usePromptEnhancement?: boolean;
 }
 
 export default function GeneratorInterface({
@@ -283,13 +303,19 @@ export default function GeneratorInterface({
   imageUrl,
   showcaseImages = [],
   isFreeShowcase = false,
+  isFreePromptMode = false,
+  initialFreePromptText = "",
   publicPromptText,
   pricePerGeneration,
+  category,
+  rating,
+  usePromptEnhancement = true,
 }: GeneratorInterfaceProps) {
   const router = useRouter();
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [resolution, setResolution] = useState("2K");
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
   const [commentText, setCommentText] = useState("");
   const [selectedVariation, setSelectedVariation] = useState<string | null>(
     null
@@ -308,13 +334,18 @@ export default function GeneratorInterface({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [finalPromptFilled, setFinalPromptFilled] = useState<string | null>(null);
+  const [freePromptDraft, setFreePromptDraft] = useState(initialFreePromptText ?? "");
   const [selectedChain, setSelectedChain] = useState<ChainKey>('base-sepolia');
+  const [estimateCost, setEstimateCost] = useState<number | null>(null);
   const { toast } = useToast();
 
   // X402 Payment hooks
   const { generateImage, isPending: isPaymentPending, getPaymentStatus } = useX402PaymentProduction();
   const { chainKey: bestChain, balance: bestBalance } = useBestPaymentChain();
   const selectedChainBalance = usePaymentBalance(selectedChain);
+  const account = useActiveAccount();
+  const queryClient = useQueryClient();
+  const userId = account?.address ?? null;
   
   // Auto-select best chain if available
   useEffect(() => {
@@ -323,9 +354,40 @@ export default function GeneratorInterface({
     }
   }, [bestChain, bestBalance]);
 
-  const account = useActiveAccount();
-  const queryClient = useQueryClient();
-  const userId = account?.address ?? null;
+  useEffect(() => {
+    if (isFreePromptMode && typeof initialFreePromptText === "string") {
+      setFreePromptDraft(initialFreePromptText);
+    }
+  }, [isFreePromptMode, initialFreePromptText]);
+
+  // Estimated cost when we have final prompt (keep previous value while refetching to avoid flicker)
+  useEffect(() => {
+    const promptForEstimate = isFreePromptMode
+      ? freePromptDraft?.trim()
+      : finalPromptFilled?.trim();
+    if (!promptForEstimate) {
+      setEstimateCost(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/estimate-generation-cost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: promptForEstimate,
+        resolution,
+        useEnhancement: usePromptEnhancement,
+        userId: account?.address ?? undefined,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data || data.totalUsd == null) return;
+        setEstimateCost(data.totalUsd);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isFreePromptMode, freePromptDraft, finalPromptFilled, resolution, usePromptEnhancement, account?.address]);
 
   const { data: promptData } = useQuery<{
     prompt?: {
@@ -339,11 +401,11 @@ export default function GeneratorInterface({
   });
 
   const { data: likeData } = useQuery<{ likesCount: number; hasLiked: boolean }>({
-    queryKey: [`/api/symphora/prompts/${promptId}/like`, userId],
+    queryKey: [`/api/enki/prompts/${promptId}/like`, userId],
     queryFn: async () => {
       if (!promptId || !userId) return { likesCount: 0, hasLiked: false };
       const res = await fetch(
-        `/api/symphora/prompts/${promptId}/like?userId=${encodeURIComponent(userId)}`,
+        `/api/enki/prompts/${promptId}/like?userId=${encodeURIComponent(userId)}`,
         { credentials: "include" }
       );
       if (!res.ok) return { likesCount: 0, hasLiked: false };
@@ -355,21 +417,29 @@ export default function GeneratorInterface({
   const likeMutation = useMutation({
     mutationFn: async () => {
       if (!promptId || !userId) throw new Error("Wallet required");
-      const res = await fetch(`/api/symphora/prompts/${promptId}/like`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+
+      const isUnlike = hasLiked;
+
+      const url = isUnlike
+        ? `/api/enki/prompts/${promptId}/like?userId=${encodeURIComponent(userId)}`
+        : `/api/enki/prompts/${promptId}/like`;
+
+      const res = await fetch(url, {
+        method: isUnlike ? "DELETE" : "POST",
+        headers: isUnlike ? undefined : { "Content-Type": "application/json" },
+        body: isUnlike ? undefined : JSON.stringify({ userId }),
         credentials: "include",
       });
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to like");
+        throw new Error(err.error ?? "Failed to update like");
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/symphora/prompts/${promptId}/like`],
+        queryKey: [`/api/enki/prompts/${promptId}/like`],
       });
     },
   });
@@ -380,6 +450,45 @@ export default function GeneratorInterface({
 
   const likesCount = likeData?.likesCount ?? 0;
   const hasLiked = likeData?.hasLiked ?? false;
+
+  type GenerationRow = {
+    id: string;
+    prompt_id: string;
+    user_key: string;
+    variable_values?: Array<{ variableName: string; value: string | number | boolean | string[] }> | null;
+    image_urls?: string[] | null;
+    status?: string;
+    created_at?: string;
+  };
+
+  const { data: creationsData } = useQuery<{ generations: GenerationRow[]; total: number }>({
+    queryKey: ["/api/generations", userId, promptId],
+    queryFn: async () => {
+      if (!userId || !promptId) return { generations: [], total: 0 };
+      const res = await fetch(
+        `/api/generations?userId=${encodeURIComponent(userId)}&promptId=${encodeURIComponent(promptId)}&limit=100`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return { generations: [], total: 0 };
+      const json = await res.json();
+      return {
+        generations: Array.isArray(json.generations) ? json.generations : [],
+        total: typeof json.total === "number" ? json.total : 0,
+      };
+    },
+    enabled: !!userId && !!promptId,
+  });
+
+  const myCreations = useMemo(
+    () => (creationsData?.generations ?? []).filter((g) => g.status === "completed" && (g.image_urls?.length ?? 0) > 0),
+    [creationsData]
+  );
+
+  const [selectedCreationId, setSelectedCreationId] = useState<string | null>(null);
+  const selectedCreation = useMemo(
+    () => (selectedCreationId ? myCreations.find((c) => c.id === selectedCreationId) : null),
+    [selectedCreationId, myCreations]
+  );
 
   useEffect(() => {
     if (promptVariables.length > 0) {
@@ -486,23 +595,39 @@ export default function GeneratorInterface({
     }
 
     try {
-      const variableValuesArray = promptVariables
-        .map((variable) => {
-          const varName = variable.name || variable.id;
-          const value = variableValues[varName] ?? variable.defaultValue;
-          const varType = variable.type || "text";
-          if (varType === "checkbox") {
-            const checked = value === true || value === "true" || value === "1";
-            return { variableName: varName, value: checked };
-          }
-          if (value === undefined || value === null || value === "") return null;
-          return { variableName: varName, value };
-        })
-        .filter(
-          (v): v is { variableName: string; value: string | number | boolean | string[] } => v !== null
-        );
+      if (isFreePromptMode) {
+        const t = freePromptDraft.trim();
+        if (!t) {
+          toast({
+            title: "Prompt required",
+            description: "Enter a prompt to generate.",
+            variant: "destructive",
+          });
+          setIsGenerating(false);
+          return;
+        }
+      }
 
-      const generationRequest = {
+      const variableValuesArray = isFreePromptMode
+        ? []
+        : promptVariables
+            .map((variable) => {
+              const varName = variable.name || variable.id;
+              const value = variableValues[varName] ?? variable.defaultValue;
+              const varType = variable.type || "text";
+              if (varType === "checkbox") {
+                const checked = value === true || value === "true" || value === "1";
+                return { variableName: varName, value: checked };
+              }
+              if (value === undefined || value === null || value === "") return null;
+              return { variableName: varName, value };
+            })
+            .filter(
+              (v): v is { variableName: string; value: string | number | boolean | string[] } =>
+                v !== null
+            );
+
+      const generationRequest: Record<string, unknown> = {
         userId: userIdForApi,
         userKey: userIdForApi,
         promptId: String(promptId ?? ""),
@@ -512,8 +637,11 @@ export default function GeneratorInterface({
           ...(resolution != null && { resolution }),
         },
       };
+      if (isFreePromptMode) {
+        generationRequest.finalPromptOverride = freePromptDraft.trim();
+      }
 
-      const url = `/api/generations?userId=${encodeURIComponent(userIdForApi)}&promptId=${encodeURIComponent(generationRequest.promptId)}`;
+      const url = `/api/generations?userId=${encodeURIComponent(userIdForApi)}&promptId=${encodeURIComponent(String(generationRequest.promptId))}`;
       const generationResponse = await fetch(url, {
         method: "POST",
         headers: {
@@ -564,9 +692,14 @@ export default function GeneratorInterface({
       try {
         imageData = await generateImage(
           {
-        prompt: finalPrompt,
-        aspectRatio: aspectRatio,
+            prompt: finalPrompt,
+            aspectRatio: aspectRatio,
             resolution: resolution as '1K' | '2K' | '4K',
+            useEnhancement: usePromptEnhancement,
+            userId: account?.address ?? undefined,
+            ...(isFreePromptMode && referenceImages[FREE_PROMPT_REF_KEY]
+              ? { referenceImage: referenceImages[FREE_PROMPT_REF_KEY] }
+              : {}),
           },
           selectedChain
         ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
@@ -622,6 +755,7 @@ export default function GeneratorInterface({
         console.warn("Generation status update failed:", errorData);
       }
 
+      queryClient.invalidateQueries({ queryKey: ["/api/generations"] });
       setShowSuccessModal(true);
     } catch (error: any) {
       // Handle payment-specific errors
@@ -735,22 +869,9 @@ export default function GeneratorInterface({
     },
   ]);
 
-  const [comments] = useState<Comment[]>([
-    {
-      id: "c1",
-      username: "ArtLover42",
-      content: "Love the color scheme on this one!",
-      createdAt: "1h ago",
-    },
-    {
-      id: "c2",
-      username: "PixelMaster",
-      content: "The lighting effects are incredible",
-      createdAt: "3h ago",
-    },
-  ]);
+  const [comments] = useState<Comment[]>([]);
 
-  const [hasGeneratedFromThisArtwork] = useState(true);
+  const hasGeneratedFromThisArtwork = myCreations.length > 0;
 
   const baseCost = 15;
   const resolutionCost = resolution === "4K" ? 10 : resolution === "2K" ? 5 : 0;
@@ -765,7 +886,7 @@ export default function GeneratorInterface({
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className="h-screen flex flex-col min-h-0" style={{ height: "100vh", minHeight: "100vh" }}>
       <div className="flex items-center gap-3 p-3 border-b border-border/50 shrink-0">
         <Button
           variant="ghost"
@@ -780,7 +901,7 @@ export default function GeneratorInterface({
           <h2 className="text-lg font-bold text-foreground">{title}</h2>
           <p
             className="text-xs text-muted-foreground hover:text-primary cursor-pointer hover:underline"
-            onClick={() => router.push(`/artist/${artistId}`)}
+            onClick={() => artistId && router.push(`/profile/${encodeURIComponent(artistId)}`)}
             data-testid="text-artist-link"
           >
             by {artistName}
@@ -788,9 +909,68 @@ export default function GeneratorInterface({
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <ScrollArea className="w-[22rem] shrink-0 border-r border-border/50">
-          <div className="p-3 space-y-3">
+      <div className="flex-1 flex overflow-hidden min-h-0 items-stretch relative" style={{ flex: "1 1 0%" }}>
+        {/* Full-height vertical dividers – always from top to bottom of content area */}
+        <div aria-hidden className="absolute inset-0 pointer-events-none flex items-stretch">
+          <div className="w-[22rem] shrink-0 border-r border-border/50 min-h-full" />
+          <div className="flex-1 min-w-0 min-h-full" />
+          <div className="w-[16.8rem] shrink-0 border-l border-border/50 min-h-full" />
+        </div>
+        <div className="w-[22rem] shrink-0 self-stretch flex flex-col min-h-0 overflow-hidden relative z-0">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-3 space-y-3" style={{ contain: "layout" }}>
+            {/* Meta block: category, title, artist, rating & like – first thing above variables */}
+            <div className="space-y-1 pb-2 border-b border-border/50 pl-3 text-left">
+              {/* Top row: category on the left, rating & like on the right */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {category && (
+                    <p className="text-[6px] uppercase tracking-wider text-muted-foreground">
+                      {PROMPT_CATEGORIES.find((c) => c.value === category)?.label ?? category}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {typeof rating === "number" && (
+                    <button
+                      type="button"
+                      onClick={() => commentsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                      className="flex items-center gap-0.5 text-foreground hover:opacity-80 transition-opacity cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      title="Scroll to comments"
+                    >
+                      <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                      <span className="text-xs font-medium text-foreground">{rating.toFixed(1)}</span>
+                    </button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto py-1 px-1.5 gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => likeMutation.mutate()}
+                    disabled={!userId || likeMutation.isPending}
+                    title="Like"
+                    data-testid="button-like-meta"
+                  >
+                    <Heart className={`h-3.5 w-3.5 ${hasLiked ? "fill-red-500 text-red-500" : ""}`} />
+                    <span className="text-xs font-medium text-foreground">{likesCount}</span>
+                  </Button>
+                </div>
+              </div>
+              {/* Below: title and artist */}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-bold text-foreground whitespace-nowrap" title={title}>
+                  {title.slice(0, 18)}
+                </h2>
+                <p
+                  className="text-sm text-muted-foreground hover:text-primary cursor-pointer hover:underline break-words"
+                  onClick={() => artistId && router.push(`/profile/${encodeURIComponent(artistId)}`)}
+                  data-testid="text-artist-link"
+                >
+                  by {artistName}
+                </p>
+              </div>
+            </div>
+
             {isFreeShowcase && publicPromptText ? (
               <Card className="border-0 bg-card/50">
                 <CardHeader className="p-3 pb-2">
@@ -827,10 +1007,110 @@ export default function GeneratorInterface({
                   </p>
                 </CardContent>
               </Card>
+            ) : isFreePromptMode ? (
+              <Card className="border-0 bg-card/50">
+                <CardHeader className="p-3 pb-2">
+                  <CardTitle className="text-lg font-serif">Prompt</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0 space-y-3">
+                  <Textarea
+                    value={freePromptDraft}
+                    onChange={(e) => setFreePromptDraft(e.target.value)}
+                    className="min-h-[12rem] text-xs font-mono bg-background/50 border border-border/50"
+                    placeholder="Your prompt for this generation..."
+                    data-testid="textarea-free-prompt-editable"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Changes here apply only to your session. The published prompt in the marketplace is not updated.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      ref={(el) => {
+                        fileInputRefs.current[FREE_PROMPT_REF_KEY] = el;
+                      }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleReferenceImageUpload(FREE_PROMPT_REF_KEY, file);
+                      }}
+                      data-testid="input-file-free-ref"
+                    />
+                    {referenceImages[FREE_PROMPT_REF_KEY] ? (
+                      <div className="relative w-10 h-10 rounded-md overflow-hidden border border-border group shrink-0">
+                        <img
+                          src={referenceImages[FREE_PROMPT_REF_KEY]}
+                          alt="Reference"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeReferenceImage(FREE_PROMPT_REF_KEY)}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          data-testid="button-remove-free-ref"
+                        >
+                          <X className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRefs.current[FREE_PROMPT_REF_KEY]?.click()}
+                        className="w-10 h-10 rounded-md border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center shrink-0 transition-colors"
+                        data-testid="button-add-free-ref"
+                      >
+                        <Plus className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    )}
+                    <span className="text-xs text-muted-foreground">Add reference image (optional)</span>
+                  </div>
+
+                  <Separator className="my-2" />
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Aspect ratio</Label>
+                    <div className="grid grid-cols-5 gap-1">
+                      {ASPECT_RATIOS.map((ratio) => (
+                        <Button
+                          key={ratio.value}
+                          variant={
+                            aspectRatio === ratio.value ? "default" : "outline"
+                          }
+                          size="sm"
+                          className="h-7 text-xs px-1"
+                          onClick={() => setAspectRatio(ratio.value)}
+                          data-testid={`button-ratio-${ratio.value}`}
+                        >
+                          {ratio.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 min-h-[3.25rem] flex flex-col justify-center">
+                    <Label className="text-xs">Resolution</Label>
+                    <div className="grid grid-cols-3 gap-1">
+                      {["1K", "2K", "4K"].map((res) => (
+                        <Button
+                          key={res}
+                          variant={resolution === res ? "default" : "outline"}
+                          size="sm"
+                          className="h-7 text-xs min-w-0 w-full"
+                          onClick={() => setResolution(res)}
+                          data-testid={`button-resolution-${res}`}
+                        >
+                          {res}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               <Card className="border-0 bg-card/50">
                 <CardHeader className="p-3 pb-2">
-                  <CardTitle className="text-sm">Variables</CardTitle>
+                  <CardTitle className="text-lg font-serif">Variables</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 space-y-3">
                   {promptVariables.length > 0 &&
@@ -846,7 +1126,7 @@ export default function GeneratorInterface({
                           }
                           className="space-y-1.5"
                         >
-                          <Label className="text-md text-foreground">
+                          <Label className="text-sm font-medium text-foreground">
                             {variable.name}
                             {variable.required && <span className="text-destructive ml-1">*</span>}
                           </Label>
@@ -1098,7 +1378,7 @@ export default function GeneratorInterface({
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-h-[3.25rem] flex flex-col justify-center">
                     <Label className="text-xs">Resolution</Label>
                     <div className="grid grid-cols-3 gap-1">
                       {["1K", "2K", "4K"].map((res) => (
@@ -1106,7 +1386,7 @@ export default function GeneratorInterface({
                           key={res}
                           variant={resolution === res ? "default" : "outline"}
                           size="sm"
-                          className="h-7 text-xs"
+                          className="h-7 text-xs min-w-0 w-full"
                           onClick={() => setResolution(res)}
                           data-testid={`button-resolution-${res}`}
                         >
@@ -1127,19 +1407,6 @@ export default function GeneratorInterface({
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      data-testid="button-like"
-                      onClick={() => likeMutation.mutate()}
-                      disabled={!userId || likeMutation.isPending}
-                    >
-                      <Heart
-                        className={`h-4 w-4 mr-2 ${hasLiked ? "fill-red-500 text-red-500" : ""}`}
-                      />
-                      Like {likesCount > 0 ? `(${likesCount})` : ""}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
                       data-testid="button-save"
                     >
                       <Bookmark className="h-4 w-4 mr-2" />
@@ -1150,11 +1417,11 @@ export default function GeneratorInterface({
               </Card>
             ) : (
               <>
-                <Card className="border-0 bg-card/50">
-                  <CardHeader className="p-3 pb-2">
+                <Card className="border-0 bg-card/50 min-h-[12rem] flex flex-col">
+                  <CardHeader className="p-3 pb-2 shrink-0">
                     <CardTitle className="text-sm">Current Settings</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0 space-y-2">
+                  <CardContent className="p-3 pt-0 space-y-2 flex-1 min-h-0">
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Model</span>
@@ -1162,35 +1429,7 @@ export default function GeneratorInterface({
                           Nano Banana Pro
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Aspect Ratio
-                        </span>
-                        <span className="font-mono text-foreground">
-                          {aspectRatio}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Resolution
-                        </span>
-                        <span className="font-mono text-foreground">
-                          {resolution}
-                        </span>
-                      </div>
                     </div>
-
-                    {/* Price per generation (from item) */}
-                    {pricePerGeneration !== undefined && (
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">
-                          Price per generation
-                        </Label>
-                        <div className="text-sm font-medium text-foreground">
-                          {formatPricePerGeneration(pricePerGeneration ?? 0)}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Chain Selection */}
                     <div className="space-y-2">
@@ -1222,26 +1461,16 @@ export default function GeneratorInterface({
                       )}
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        data-testid="button-like-paid"
-                        onClick={() => likeMutation.mutate()}
-                        disabled={!userId || likeMutation.isPending}
-                      >
-                        <Heart
-                          className={`h-4 w-4 mr-2 ${hasLiked ? "fill-red-500 text-red-500" : ""}`}
-                        />
-                        Like {likesCount > 0 ? `(${likesCount})` : ""}
-                      </Button>
-                    </div>
                     <Button
                       className="w-full h-9"
                       data-testid="button-create"
                       onClick={handleCreateNow}
-                      disabled={isGenerating || isPaymentPending || (selectedChainBalance && !selectedChainBalance.hasSufficientBalance)}
+                      disabled={
+                        isGenerating ||
+                        isPaymentPending ||
+                        (selectedChainBalance && !selectedChainBalance.hasSufficientBalance) ||
+                        (isFreePromptMode && !freePromptDraft.trim())
+                      }
                     >
                       {isGenerating || isPaymentPending ? (
                         <>
@@ -1255,6 +1484,32 @@ export default function GeneratorInterface({
                         </>
                       )}
                     </Button>
+                    <div className="pt-1 h-6 flex items-center justify-center gap-1 shrink-0 w-full overflow-hidden" aria-live="polite">
+                      <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 min-w-0 max-w-full">
+                        {estimateCost != null ? (
+                          <>
+                            <span className="tabular-nums whitespace-nowrap shrink-0">
+                              Estimated cost: <span className="min-w-[5rem] inline-block text-left">${estimateCost.toFixed(4)}</span>
+                            </span>
+                            <TooltipProvider>
+                              <Tooltip delayDuration={200}>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[10px] text-muted-foreground/70 cursor-help border-b border-dotted border-muted-foreground/50 shrink-0">
+                                    Live API
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                  <p>Includes image generation + prompt enhancement (AI improves your text before generating).</p>
+                                  <p className="mt-1 text-muted-foreground">Price from current API rates; updates in real time when you change resolution or enhancement.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </>
+                        ) : (
+                          <span className="invisible tabular-nums">$0.0000</span>
+                        )}
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1271,37 +1526,24 @@ export default function GeneratorInterface({
             )}
           </div>
         </ScrollArea>
+        </div>
 
-        <ScrollArea className="flex-1 overflow-y-auto min-h-0">
-          <div className="p-3">
-            {/* Display prompt variables */}
-            {promptVariables && promptVariables.length > 0 && (
-              <Card className="mb-3">
-                <CardHeader className="pb-2 px-4">
-                  <CardTitle className="text-sm">Prompt Variables</CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {promptVariables.map((variable) => (
-                      <Badge
-                        key={variable.id}
-                        variant="secondary"
-                        className="text-xs"
-                        title={`Default: ${String(variable.defaultValue || "Not set")}`}
-                      >
-                        [{variable.name || variable.id}]
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            
-            {/* Your generated image first (for your gallery), then showcase images */}
-            <div className="grid grid-cols-2 gap-1 max-w-2xl mx-auto">
-              {generatedImageUrl ? (
+        {/* Right side: [ Image + Comments ] | [ Your creations ]; Comments only under image, Your creations own scroll */}
+        <div className="flex flex-1 min-h-0 min-w-0">
+          {/* Column A: Image on top, Comments below (right edge = divider to Your creations) */}
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 self-stretch overflow-hidden" style={{ minHeight: "100%" }}>
+        {(() => {
+          const hasGen = !!generatedImageUrl;
+          const scCount = hasGen ? 2 : 4;
+          const scLen = showcaseImages?.length ? Math.min(showcaseImages.length, scCount) : scCount;
+          const totalImageCount = hasGen ? 1 + scLen : scLen;
+          const isSingleImage = totalImageCount === 1;
+          const imageContent = (() => {
+              const yourGeneratedNode = generatedImageUrl ? (
                 <div
-                  className="col-span-2 aspect-video bg-muted rounded-sm overflow-hidden border-2 border-primary/50 relative group"
+                  key="your-generated"
+                  className="aspect-video bg-muted rounded-sm overflow-hidden border-2 border-primary/50 relative group min-w-0"
                   onClick={() => setLightboxImage(generatedImageUrl)}
                   data-testid="your-generated-image"
                 >
@@ -1317,15 +1559,17 @@ export default function GeneratorInterface({
                     <Maximize2 className="h-6 w-6 text-white" />
                   </div>
                 </div>
-              ) : null}
-              {showcaseImages && showcaseImages.length > 0
-                ? showcaseImages.slice(0, generatedImageUrl ? 2 : 4).map((img, idx) => {
+              ) : null;
+
+              const showcaseCount = generatedImageUrl ? 2 : 4;
+              const showcaseNodes = showcaseImages && showcaseImages.length > 0
+                ? showcaseImages.slice(0, showcaseCount).map((img, idx) => {
                     const displayUrl = img.thumbnail || img.url;
                     const fullUrl = img.url;
                     return (
                       <div
                         key={idx}
-                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group"
+                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group min-w-0"
                         onClick={() => fullUrl && setLightboxImage(fullUrl)}
                         data-testid={`generated-image-${idx}`}
                       >
@@ -1336,18 +1580,14 @@ export default function GeneratorInterface({
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
-                              e.currentTarget.nextElementSibling?.classList.remove(
-                                "hidden"
-                              );
+                              e.currentTarget.nextElementSibling?.classList.remove("hidden");
                             }}
                           />
                         )}
                         <div className="hidden absolute inset-0 flex items-center justify-center bg-muted">
                           <div className="text-center">
                             <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-xs text-muted-foreground">
-                              Image {idx + 1}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Image {idx + 1}</p>
                           </div>
                         </div>
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1356,14 +1596,14 @@ export default function GeneratorInterface({
                       </div>
                     );
                   })
-                : [1, 2, 3, 4].slice(0, generatedImageUrl ? 2 : 4).map((idx) => {
+                : [1, 2, 3, 4].slice(0, showcaseCount).map((idx) => {
                     const variationUrl = imageUrl
-                      ? `${imageUrl.replace("w=800", `w=400`).replace("h=800", "h=400")}&variant=${idx}`
+                      ? `${imageUrl.replace("w=800", "w=400").replace("h=800", "h=400")}&variant=${idx}`
                       : undefined;
                     return (
                       <div
                         key={idx}
-                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group"
+                        className="aspect-square bg-muted rounded-sm overflow-hidden border-[0.5px] border-border hover-elevate cursor-zoom-in relative group min-w-0"
                         onClick={() => imageUrl && setLightboxImage(imageUrl)}
                         data-testid={`generated-image-${idx}`}
                       >
@@ -1373,17 +1613,13 @@ export default function GeneratorInterface({
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
-                            e.currentTarget.nextElementSibling?.classList.remove(
-                              "hidden"
-                            );
+                            e.currentTarget.nextElementSibling?.classList.remove("hidden");
                           }}
                         />
                         <div className="hidden absolute inset-0 flex items-center justify-center bg-muted">
                           <div className="text-center">
                             <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-xs text-muted-foreground">
-                              Image {idx}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Image {idx}</p>
                           </div>
                         </div>
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1391,19 +1627,93 @@ export default function GeneratorInterface({
                         </div>
                       </div>
                     );
-                  })}
-            </div>
-          </div>
-        </ScrollArea>
+                  });
 
-        <ScrollArea className="w-[22rem] shrink-0 border-l border-border/50">
-          <div className="p-3">
-            <Card className="border-0 bg-card/50 h-full flex flex-col">
-              <CardHeader className="p-3 pb-2 shrink-0">
-                <CardTitle className="text-sm">Comments</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 flex-1 flex flex-col min-h-0">
-                <ScrollArea className="flex-1">
+              const allNodes = yourGeneratedNode ? [yourGeneratedNode, ...showcaseNodes] : showcaseNodes;
+              const n = allNodes.length;
+              if (n === 0) return null;
+
+              if (n === 1) {
+                return (
+                  <div className="flex items-center justify-center w-full h-full min-h-0 overflow-hidden">
+                    <div className="flex items-center justify-center w-full h-full max-w-full max-h-full [&>*]:max-w-full [&>*]:max-h-full [&>*]:min-w-0 [&>*]:min-h-0 [&_img]:object-contain [&_img]:max-w-full [&_img]:max-h-full [&_img]:w-auto [&_img]:h-auto">
+                      {allNodes[0]}
+                    </div>
+                  </div>
+                );
+              }
+              if (n === 2) {
+                return (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="grid grid-cols-2 gap-1 w-fit mx-auto">
+                      {allNodes.map((node, i) => (
+                        <div key={i} className="min-w-0">{node}</div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              if (n === 3) {
+                return (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="grid grid-cols-2 gap-1 w-fit mx-auto">
+                      {allNodes.slice(0, 2).map((node, i) => (
+                        <div key={i} className="min-w-0">{node}</div>
+                      ))}
+                      <div key={2} className="col-span-2 flex justify-center min-w-0">{allNodes[2]}</div>
+                    </div>
+                  </div>
+                );
+              }
+              if (n === 4) {
+                return (
+                  <div className="flex items-center justify-center w-full">
+                    <div className="grid grid-cols-2 gap-1 w-fit mx-auto">
+                      {allNodes.map((node, i) => (
+                        <div key={i} className="min-w-0">{node}</div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex items-center justify-center w-full">
+                  <div className="grid grid-cols-2 gap-1 w-fit max-w-full mx-auto">
+                    {allNodes.map((node, i) => (
+                      <div key={i} className="min-w-0">{node}</div>
+                    ))}
+                  </div>
+                </div>
+              );
+          })();
+          return isSingleImage ? (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="p-3 flex flex-col flex-1 min-h-0 overflow-hidden h-full">
+                <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden w-full">
+                  {imageContent}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
+              <div className="p-3 flex flex-col flex-1 min-h-0">
+                <div className="flex-1 flex items-center justify-center min-h-0 w-full">
+                  {imageContent}
+                </div>
+              </div>
+            </ScrollArea>
+          );
+        })()}
+        </div>
+
+        {/* Comments: only under image; right border aligns with Your creations divider */}
+        <div ref={commentsSectionRef} className="shrink-0 border-t border-border/50 relative z-0">
+            <div className="p-3">
+              <Card className="border-0 bg-card/50">
+                <CardHeader className="p-3 pb-2 shrink-0">
+                  <CardTitle className="text-lg font-serif">Comments</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0 flex flex-col">
                   <div className="space-y-3 pr-2">
                     {comments.map((comment) => (
                       <div
@@ -1432,33 +1742,107 @@ export default function GeneratorInterface({
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
-                {hasGeneratedFromThisArtwork ? (
-                  <div className="flex gap-2 mt-3 shrink-0">
-                    <Textarea
-                      placeholder="Add a comment..."
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      className="min-h-[36px] h-9 text-xs resize-none py-2"
-                      data-testid="input-comment"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-9 px-3"
-                      data-testid="button-send-comment"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic mt-3 shrink-0">
-                    Generate an image from this artwork to comment
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                  {hasGeneratedFromThisArtwork ? (
+                    <div className="flex gap-2 mt-3 shrink-0">
+                      <Textarea
+                        placeholder="Add a comment..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        className="min-h-[36px] h-9 text-xs resize-none py-2"
+                        data-testid="input-comment"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-9 px-3"
+                        data-testid="button-send-comment"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic mt-3 shrink-0">
+                      Generate an image from this artwork to comment
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+        </div>
+          </div>
+
+        {/* Your creations – own column, infinite scroll, spacing from divider */}
+        <div className="w-[16.8rem] shrink-0 flex flex-col min-h-0 overflow-y-auto relative z-0">
+        <ScrollArea className="flex-1 min-h-0 flex flex-col">
+          <div className="p-3 pl-5 flex flex-col h-full min-h-0">
+            <h3 className="text-lg font-semibold font-serif text-foreground mb-3 shrink-0">Your creations</h3>
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              {myCreations.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic text-center py-8" data-testid="creations-empty-state">
+                  Ready for some prompt magic!
+                </p>
+              ) : (
+                <>
+                  <ScrollArea className="flex-1 min-h-0 pr-2">
+                    <div className="space-y-2">
+                      {myCreations.map((gen) => {
+                        const imgUrl = Array.isArray(gen.image_urls) && gen.image_urls.length > 0 ? gen.image_urls[0] : null;
+                        const isSelected = selectedCreationId === gen.id;
+                        return (
+                          <div
+                            key={gen.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedCreationId(isSelected ? null : gen.id)}
+                            onKeyDown={(e) => e.key === "Enter" && setSelectedCreationId(isSelected ? null : gen.id)}
+                            className={`rounded-sm overflow-hidden border-2 transition-colors cursor-pointer ${
+                              isSelected ? "border-primary ring-1 ring-primary/30" : "border-border hover:border-primary/50"
+                            }`}
+                            data-testid={`creation-${gen.id}`}
+                          >
+                            <div className="aspect-square bg-muted relative">
+                              {imgUrl ? (
+                                <img
+                                  src={imgUrl}
+                                  alt="Creation"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                  {selectedCreation && (
+                    <div className="mt-3 pt-3 border-t border-border/50 shrink-0 space-y-1.5">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Variables used</p>
+                      <div className="space-y-1 text-sm text-foreground">
+                        {Array.isArray(selectedCreation.variable_values) && selectedCreation.variable_values.length > 0
+                          ? selectedCreation.variable_values.map((v: { variableName: string; value: string | number | boolean | string[] }) => (
+                              <div key={String(v.variableName)} className="flex gap-2">
+                                <span className="text-muted-foreground shrink-0 text-sm">{v.variableName}:</span>
+                                <span className="truncate">
+                                  {Array.isArray(v.value) ? v.value.join(", ") : String(v.value)}
+                                </span>
+                              </div>
+                            ))
+                          : (
+                            <p className="text-muted-foreground italic">No variables</p>
+                          )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </ScrollArea>
+        </div>
+      </div>
       </div>
 
       <ImageLightbox

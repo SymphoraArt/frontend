@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Client-side authentication hook
  * Handles wallet connection and signature-based authentication

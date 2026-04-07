@@ -52,6 +52,9 @@ export interface ImageGenerationSettings {
   aspectRatio?: string;
   resolution?: '1K' | '2K' | '4K';
   referenceImage?: string;
+  /** If false, skip prompt enhancement. Default true. */
+  useEnhancement?: boolean;
+  userId?: string;
 }
 
 /**
@@ -188,6 +191,7 @@ export function useX402PaymentProduction() {
   return {
     unlockPrompt,
     generateImage,
+    fetchWithPayment,
     isPending,
     getPaymentStatus,
   };

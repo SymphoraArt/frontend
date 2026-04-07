@@ -19,6 +19,23 @@ export const thirdwebClient = createThirdwebClient({
 });
 
 /**
+ * Chain logo URLs. Trust Wallet Assets (blockchains/{slug}/info/logo.png).
+ * Base Sepolia (84532) uses Base logo.
+ */
+const TRUST_ASSETS = "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains";
+const CHAIN_SLUG: Record<number, string> = {
+  84532: "base",   // Base Sepolia -> same as Base
+  8453: "base",
+  137: "polygon",
+  10: "optimism",
+  42161: "arbitrum",
+};
+export function getChainLogoUrl(chainId: number): string {
+  const slug = CHAIN_SLUG[chainId] ?? "base";
+  return `${TRUST_ASSETS}/${slug}/info/logo.png`;
+}
+
+/**
  * All supported chains in the application
  * Users can switch between these chains
  */
