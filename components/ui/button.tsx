@@ -17,7 +17,7 @@ const buttonVariants = cva(
         outline:
           // Shows the background color of whatever card / sidebar / accent background it is inside of.
           // Inherits the current text color.
-          "border [border-color:var(--button-outline)] bg-transparent [color:hsl(var(--primary-foreground))] shadow-xs hover:bg-accent/20 hover:shadow-sm active:shadow-none",
+          "border [border-color:var(--button-outline)] bg-transparent text-foreground shadow-xs hover:bg-accent/20 hover:shadow-sm active:shadow-none",
         secondary:
           "border bg-secondary text-secondary-foreground border border-secondary-border hover:bg-secondary/90 hover:shadow-sm ",
         ghost: "text-foreground hover:bg-accent/40",
