@@ -305,7 +305,7 @@ export default function PromptSettingsPanel({
                     ),
                   })
                 }
-                className="h-8 text-sm font-mono"
+                className="h-8 text-sm font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 data-testid="input-price"
               />
             </div>
