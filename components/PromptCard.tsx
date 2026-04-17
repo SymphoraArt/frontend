@@ -3,7 +3,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Download, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 interface PromptCardProps {
@@ -53,9 +52,7 @@ export default function PromptCard({
             }}
           />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center hidden">
-          <Sparkles className="h-12 w-12 text-primary/30" />
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center hidden" />
 
         <Badge
           variant={isFree ? "secondary" : "default"}
@@ -78,10 +75,7 @@ export default function PromptCard({
                 by {artist}
               </p>
               <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 fill-primary text-primary" />
-                  <span>{rating.toFixed(1)}</span>
-                </div>
+                <span>{rating.toFixed(1)} ★</span>
               </div>
             </div>
             <Button
