@@ -3,7 +3,6 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Download, Sparkles, Heart, Eye } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -68,9 +67,7 @@ function ArtworkCard({
             data-testid={`image-artwork-${item.id}`}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20 flex items-center justify-center">
-            <Sparkles className="h-12 w-12 text-primary/30" />
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-chart-2/20" />
         )}
 
         {variant === "prompt" && (
@@ -110,29 +107,17 @@ function ArtworkCard({
           <div className="flex items-center gap-3 text-xs text-white/70 mt-1">
             {variant === "prompt" && item.rating !== undefined && (
               <>
-                <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 fill-primary text-primary" />
-                  <span>{item.rating.toFixed(1)}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Download className="h-3 w-3" />
-                  <span>{item.downloads}</span>
-                </div>
+                <span>{item.rating?.toFixed(1)} ★</span>
+                <span>{item.downloads} dl</span>
               </>
             )}
             {variant === "artwork" && (
               <>
                 {item.likes !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <Heart className="h-3 w-3" />
-                    <span>{item.likes}</span>
-                  </div>
+                  <span>{item.likes} ❤</span>
                 )}
                 {item.views !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-3 w-3" />
-                    <span>{item.views}</span>
-                  </div>
+                  <span>{item.views} views</span>
                 )}
               </>
             )}
