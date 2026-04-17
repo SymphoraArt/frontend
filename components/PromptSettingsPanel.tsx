@@ -99,7 +99,7 @@ export default function PromptSettingsPanel({
 
   const content = (
     <div className="space-y-4">
-      <Card>
+      <Card className="hover:translate-y-0 hover:shadow-sm">
         <CardHeader className="pb-2 px-4">
           <CardTitle className="text-sm">PROMPT META</CardTitle>
         </CardHeader>
@@ -313,7 +313,7 @@ export default function PromptSettingsPanel({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="hover:translate-y-0 hover:shadow-sm">
         <CardHeader className="pb-2 px-4">
           <CardTitle className="text-sm">AI MODEL & PRICING</CardTitle>
         </CardHeader>
@@ -339,7 +339,7 @@ export default function PromptSettingsPanel({
 
       {settings.aiModel === "gemini" &&
         settings.promptType === "paid-prompt" && (
-          <Card>
+          <Card className="hover:translate-y-0 hover:shadow-sm">
             <CardHeader className="pb-2 px-4">
               <CardTitle className="text-sm">Gemini Assets</CardTitle>
             </CardHeader>
