@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Plus, Eye, Moon, Sun, User, LogOut } from "lucide-react";
+import { Search, Plus, Eye, Moon, Sun, User, LogOut, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -152,48 +152,64 @@ export default function Navbar({
   }, []);
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 transition-transform duration-300 ${
-        showNav ? "translate-y-0" : "-translate-y-24"
-      }`}
-    >
-      <div className="w-full px-3 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex h-14 items-center justify-between gap-2 sm:gap-3">
+    <div className={`fixed left-0 right-0 z-50 flex justify-center pt-[14px] px-[20px] transition-transform duration-300 ${showNav ? "translate-y-0" : "-translate-y-full"}`}>
+      <header
+        className="flex items-center justify-between w-full max-w-[1100px] h-[48px] px-3 sm:px-4 rounded-[16px] backdrop-blur-[28px] backdrop-saturate-[180%] bg-[rgba(13,22,45,0.55)] border border-[rgba(255,255,255,0.10)] hover:border-[rgba(255,255,255,0.16)] shadow-[0_4px_24px_rgba(0,0,0,0.35),0_1px_0_rgba(255,255,255,0.06)_inset] transition-all"
+        style={{ WebkitBackdropFilter: "saturate(180%) blur(28px)" }}
+      >
             <div className="flex items-center gap-2 sm:gap-4">
               <div
-                className="flex items-center gap-2 rounded-md px-2 py-2"
+                className="flex items-center gap-2 cursor-pointer"
                 onClick={() => router.push("/")}
               >
-                <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary font-semibold text-xs">A</span>
+                <div className="h-[26px] w-[26px] rounded-[7px] flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                  <span className="text-white font-bold text-[12px]">A</span>
                 </div>
-                <span className="font-semibold text-foreground hidden sm:inline">
+                <span className="font-[600] text-[rgba(255,255,255,0.9)] text-[14px] tracking-[-0.3px] hidden sm:inline">
                   AIgency
                 </span>
               </div>
+              <div className="w-[1px] h-[18px] bg-[rgba(255,255,255,0.1)] mx-1 hidden sm:block"></div>
 
               <div className="flex gap-2">
-                <Button
-                  variant={pathname === "/showcase" ? "secondary" : "ghost"}
-                  size="sm"
+                <button
+                  className="flex items-center gap-2 px-[11px] py-[5px] rounded-[10px] transition-all duration-150"
+                  style={pathname === "/showcase" ? {
+                    color: "rgba(255,255,255,0.92)",
+                    background: "rgba(99,102,241,0.22)",
+                    boxShadow: "0 0 0 1px rgba(99,102,241,0.35)",
+                    fontSize: "13px", fontWeight: 500
+                  } : {
+                    color: "rgba(255,255,255,0.45)",
+                    fontSize: "13px", fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => {
+                    if (pathname !== "/showcase") {
+                      e.currentTarget.style.color = "rgba(255,255,255,0.8)";
+                      e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (pathname !== "/showcase") {
+                      e.currentTarget.style.color = "rgba(255,255,255,0.45)";
+                      e.currentTarget.style.background = "transparent";
+                    }
+                  }}
                   onClick={() => router.push("/showcase")}
-                  className="gap-2"
                   data-testid="nav-showroom"
                 >
-                  <Eye className="h-4 w-4" />
                   <span className="hidden sm:inline">Showroom</span>
-                </Button>
+                </button>
               </div>
             </div>
 
-            <div className="hidden md:flex flex-1 max-w-md lg:max-w-xl">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+            <div className="hidden md:flex flex-1 mx-4">
+              <div className="w-full flex items-center h-[30px] bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] rounded-[9px] px-[10px] gap-[7px] focus-within:border-[rgba(99,102,241,0.45)] focus-within:bg-[rgba(99,102,241,0.07)] transition-all">
+                <Search className="h-[13px] w-[13px] opacity-35 text-white shrink-0" />
+                <input
                   type="search"
                   placeholder="Search prompts..."
-                  className="pl-9 w-full"
+                  className="w-full bg-transparent border-none outline-none text-[12.5px] text-[rgba(255,255,255,0.88)] placeholder-[rgba(255,255,255,0.25)] h-full"
                   onChange={(e) => onSearch?.(e.target.value)}
                   data-testid="input-search"
                 />
@@ -201,44 +217,40 @@ export default function Navbar({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                className="flex items-center justify-center shrink-0 w-[30px] h-[30px] rounded-[8px] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.10)] hover:border-[rgba(255,255,255,0.14)] transition-all"
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
-                data-testid="button-theme-toggle"
               >
-                {theme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-              </Button>
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <button className="flex items-center justify-center shrink-0 w-[30px] h-[30px] rounded-[8px] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.10)] hover:border-[rgba(255,255,255,0.14)] transition-all">
+                <Share2 className="h-4 w-4" />
+              </button>
               
               {/* Chain Switcher - Only show when wallet is connected */}
               {authenticated && <ChainSwitcher />}
               
               <div className="flex gap-2">
                 {authenticated && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="gap-1.5"
+                  <button
+                    className="flex items-center gap-[6px] h-[30px] px-[12px] rounded-[9px] shadow-[0_2px_10px_rgba(99,102,241,0.35)] transition-all hover:scale-[1.02]"
+                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
                     onClick={() => router.push("/editor")}
                     data-testid="button-create-prompt"
                   >
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Create Prompt</span>
-                  </Button>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span className="text-white font-[600] text-[12px] hidden sm:inline">Create Prompt</span>
+                  </button>
                 )}
 
                 {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="rounded-full" data-testid="button-user-menu">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          {authenticated ? (walletAddress ? walletAddress.slice(2, 3).toUpperCase() : "W") : <User className="h-4 w-4" />}
+                    <button className="rounded-full rounded-full border-[1.5px] border-[rgba(255,255,255,0.18)] block shrink-0" data-testid="button-user-menu">
+                      <Avatar className="h-[28px] w-[28px]">
+                        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-[12px] font-medium">
+                          {authenticated ? (walletAddress ? walletAddress.slice(2, 3).toUpperCase() : "W") : <User className="h-3.5 w-3.5" />}
                         </AvatarFallback>
                       </Avatar>
                     </button>
@@ -384,9 +396,7 @@ export default function Navbar({
                 </DropdownMenu>
               </div>
             </div>
-          </div>
+          </header>
         </div>
-      </div>
-    </header>
   );
 }

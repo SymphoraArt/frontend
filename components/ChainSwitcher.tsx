@@ -58,17 +58,17 @@ export function ChainSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
-      <Network className="h-4 w-4 text-muted-foreground" />
       <Select
         value={activeChain.id.toString()}
         onValueChange={handleChainChange}
       >
-        <SelectTrigger className="w-[180px] h-9 border-border/60">
+        <SelectTrigger className="h-[30px] px-[9px] rounded-[9px] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.09)] outline-none ring-0 w-auto">
           <SelectValue>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">
+            <div className="flex items-center gap-[6px]">
+              <div className="w-[5px] h-[5px] rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.7)]"></div>
+              <span className="text-[11.5px] font-medium text-[rgba(255,255,255,0.6)]">
                 {activeChain.name}
-              </Badge>
+              </span>
             </div>
           </SelectValue>
         </SelectTrigger>
