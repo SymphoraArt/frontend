@@ -863,7 +863,7 @@ export default function CompactPromptCreator() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1 text-muted-foreground"
+                className="h-8 text-xs gap-1 text-muted-foreground"
                 onClick={() => setQuickVarCreatorOpen(true)}
                 data-testid="button-quick-add-variable-compact"
               >
@@ -873,12 +873,12 @@ export default function CompactPromptCreator() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1 text-muted-foreground"
+                className="h-8 text-xs gap-1 text-muted-foreground capitalize"
                 onClick={fillExampleValues}
                 data-testid="button-fill-example"
               >
                 <Zap className="h-3 w-3" />
-                example
+                Example
               </Button>
 
               {!authenticated && (
