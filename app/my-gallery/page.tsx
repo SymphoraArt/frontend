@@ -36,6 +36,7 @@ export default function MyGalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [mediaFilter, setMediaFilter] = useState<"all" | "images" | "videos">("all");
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -189,21 +190,55 @@ export default function MyGalleryPage() {
           </div>
         )}
 
+        <div className="flex gap-1 mb-4">
+          {(["all", "images", "videos"] as const).map((filter) => (
+            <Button
+              key={filter}
+              variant={mediaFilter === filter ? "default" : "outline"}
+              size="sm"
+              className="text-xs capitalize"
+              onClick={() => setMediaFilter(filter)}
+              data-testid={`button-filter-${filter}`}
+            >
+              {filter === "all" ? "All" : filter === "images" ? "Images" : "Videos"}
+            </Button>
+          ))}
+        </div>
+
         {isLoading ? (
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               Loading your gallery...
             </CardContent>
           </Card>
-        ) : items.length === 0 ? (
-          <Card className="border border-border/60 bg-card/60 backdrop-blur">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              No creations yet. Generate an image or upload one from the showroom and it will appear here.
-            </CardContent>
-          </Card>
+        ) : (() => {
+          const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
+          const filtered = mediaFilter === "all" ? items
+            : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl))
+            : items.filter(c => isVideo(c.imageUrl));
+
+          return filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center pt-[36px] px-[20px] pb-[24px] gap-[10px] w-full text-center">
+            <div className="w-[58px] h-[58px] rounded-full border-[1.5px] border-dashed border-[rgba(99,102,241,0.3)] flex items-center justify-center mb-2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </div>
+            <h3 className="text-[14px] font-[500] text-[rgba(255,255,255,0.55)]">No creations yet</h3>
+            <p className="text-[12px] text-[rgba(255,255,255,0.22)] max-w-[260px] leading-[1.6]">
+              Generate an image or upload one from the showroom and it will appear here.
+            </p>
+            <button 
+              className="mt-2 px-[16px] py-[6px] rounded-[9px] bg-[rgba(99,102,241,0.14)] border border-[rgba(99,102,241,0.28)] text-[rgba(160,163,255,0.9)] text-[12px] font-[500] transition-colors hover:bg-[rgba(99,102,241,0.2)]"
+              onClick={() => router.push("/editor")}
+            >
+              Start Creating
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((c) => (
+            {filtered.map((c) => (
               <Card
                 key={c.id}
                 className="border border-border/60 bg-card/60 backdrop-blur overflow-hidden"
@@ -245,7 +280,8 @@ export default function MyGalleryPage() {
               </Card>
             ))}
           </div>
-        )}
+        );
+        })()}
       </main>
     </div>
   );
