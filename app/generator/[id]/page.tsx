@@ -81,7 +81,7 @@ export default function Generator() {
   const isFreeShowcase = prompt.type === "showcase";
 
   return (
-    <div className="h-screen bg-background overflow-hidden flex flex-col">
+    <div className="h-screen bg-background overflow-hidden flex flex-col pt-14">
       <main className="flex-1 overflow-hidden">
         <GeneratorInterface
           promptId={promptIdString}
