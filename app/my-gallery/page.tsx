@@ -36,6 +36,7 @@ export default function MyGalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [mediaFilter, setMediaFilter] = useState<"all" | "images" | "videos">("all");
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -189,13 +190,34 @@ export default function MyGalleryPage() {
           </div>
         )}
 
+        <div className="flex gap-1 mb-4">
+          {(["all", "images", "videos"] as const).map((filter) => (
+            <Button
+              key={filter}
+              variant={mediaFilter === filter ? "default" : "outline"}
+              size="sm"
+              className="text-xs capitalize"
+              onClick={() => setMediaFilter(filter)}
+              data-testid={`button-filter-${filter}`}
+            >
+              {filter === "all" ? "All" : filter === "images" ? "Images" : "Videos"}
+            </Button>
+          ))}
+        </div>
+
         {isLoading ? (
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               Loading your gallery...
             </CardContent>
           </Card>
-        ) : items.length === 0 ? (
+        ) : (() => {
+          const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
+          const filtered = mediaFilter === "all" ? items
+            : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl))
+            : items.filter(c => isVideo(c.imageUrl));
+
+          return filtered.length === 0 ? (
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               No creations yet. Generate an image or upload one from the showroom and it will appear here.
@@ -203,7 +225,7 @@ export default function MyGalleryPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((c) => (
+            {filtered.map((c) => (
               <Card
                 key={c.id}
                 className="border border-border/60 bg-card/60 backdrop-blur overflow-hidden"
@@ -245,7 +267,8 @@ export default function MyGalleryPage() {
               </Card>
             ))}
           </div>
-        )}
+        );
+        })()}
       </main>
     </div>
   );
