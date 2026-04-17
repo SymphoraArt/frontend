@@ -66,52 +66,44 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
   };
 
   return (
-    <div
-      className={`sticky top-16 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-transform duration-300 ${
-        showFilters ? "translate-y-0" : "-translate-y-full"
-      }`}
-    >
-      <div className="w-full px-6 lg:px-8 py-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">
-              Filters:
-            </span>
+    <div className={`sticky top-[70px] z-40 flex justify-center pt-[10px] px-[20px] transition-transform duration-300 ${showFilters ? "translate-y-0" : "-translate-y-full"}`}>
+      <div
+        className="flex items-center gap-[6px] p-[5px_10px] rounded-[12px] border border-[rgba(255,255,255,0.07)] bg-[rgba(13,22,45,0.45)] shadow-[0_2px_12px_rgba(0,0,0,0.2)] backdrop-blur-[28px] backdrop-saturate-[180%]"
+        style={{ WebkitBackdropFilter: "saturate(180%) blur(28px)" }}
+      >
+        <div className="flex flex-wrap items-center gap-[6px]">
+          <div className="flex items-center justify-center pl-1 pr-2">
+            <SlidersHorizontal className="h-[14px] w-[14px] text-[rgba(255,255,255,0.4)]" />
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              variant={priceFilter === "all" ? "default" : "outline"}
-              size="sm"
+          <div className="flex items-center gap-[2px]">
+            <button
               onClick={() => handlePriceFilterChange("all")}
-              className={priceFilter === "all" ? "" : "text-foreground"}
+              className={`px-[12px] py-[4px] rounded-[20px] text-[12px] font-[500] transition-all duration-150 ${priceFilter === "all" ? "text-white bg-[rgba(99,102,241,0.20)] shadow-[0_0_0_1px_rgba(99,102,241,0.35)]" : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.7)] hover:bg-[rgba(255,255,255,0.06)]"}`}
               data-testid="button-filter-all"
             >
               All
-            </Button>
-            <Button
-              variant={priceFilter === "free" ? "default" : "outline"}
-              size="sm"
+            </button>
+            <button
               onClick={() => handlePriceFilterChange("free")}
-              className={priceFilter === "free" ? "" : "text-foreground"}
+              className={`px-[12px] py-[4px] rounded-[20px] text-[12px] font-[500] transition-all duration-150 ${priceFilter === "free" ? "text-white bg-[rgba(99,102,241,0.20)] shadow-[0_0_0_1px_rgba(99,102,241,0.35)]" : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.7)] hover:bg-[rgba(255,255,255,0.06)]"}`}
               data-testid="button-filter-free"
             >
               Free
-            </Button>
-            <Button
-              variant={priceFilter === "paid" ? "default" : "outline"}
-              size="sm"
+            </button>
+            <button
               onClick={() => handlePriceFilterChange("paid")}
-              className={priceFilter === "paid" ? "" : "text-foreground"}
+              className={`px-[12px] py-[4px] rounded-[20px] text-[12px] font-[500] transition-all duration-150 ${priceFilter === "paid" ? "text-white bg-[rgba(99,102,241,0.20)] shadow-[0_0_0_1px_rgba(99,102,241,0.35)]" : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.7)] hover:bg-[rgba(255,255,255,0.06)]"}`}
               data-testid="button-filter-paid"
             >
               Paid
-            </Button>
+            </button>
           </div>
+          
+          <div className="w-[1px] h-[14px] bg-[rgba(255,255,255,0.07)] mx-[2px]"></div>
 
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[150px]" data-testid="select-sort">
+            <SelectTrigger className="flex items-center gap-[4px] px-[10px] py-[4px] h-auto border-none bg-transparent hover:bg-[rgba(255,255,255,0.07)] rounded-[8px] text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.75)] text-[12px] font-medium w-auto focus:ring-0 [&>svg]:w-[9px] [&>svg]:h-[9px] [&>svg]:opacity-40 transition-all cursor-pointer" data-testid="select-sort">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -124,7 +116,7 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
           </Select>
 
           <Select>
-            <SelectTrigger className="w-[150px]" data-testid="select-category">
+            <SelectTrigger className="flex items-center gap-[4px] px-[10px] py-[4px] h-auto border-none bg-transparent hover:bg-[rgba(255,255,255,0.07)] rounded-[8px] text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.75)] text-[12px] font-medium w-auto focus:ring-0 [&>svg]:w-[9px] [&>svg]:h-[9px] [&>svg]:opacity-40 transition-all cursor-pointer" data-testid="select-category">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -159,14 +151,13 @@ export default function FilterBar({ onFilterChange }: FilterBarProps) {
           <div className="flex-1" />
 
           {(priceFilter !== "all" || selectedTags.length > 0) && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              className="ml-2 text-[11.5px] text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.8)] transition-all flex items-center px-2 py-1 hover:bg-[rgba(255,255,255,0.05)] rounded-md"
               onClick={resetFilters}
               data-testid="button-reset-filters"
             >
               Reset All
-            </Button>
+            </button>
           )}
         </div>
       </div>
