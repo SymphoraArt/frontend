@@ -5,10 +5,20 @@ import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { useState } from "react";
 import { getQueryFn } from "@/lib/queryClient";
 import { ThirdwebProvider } from "./ThirdwebProvider";
+import { ThemeProvider } from "./ThemeProvider";
 
+/**
+ * Provider hierarchy (outermost first):
+ *
+ *   ThemeProvider          ← theme must survive wallet re-renders
+ *     QueryClientProvider  ← data fetching
+ *       ThirdwebProvider   ← wallet + x402
+ *         TooltipProvider  ← UI
+ *
+ * ThemeProvider is outermost so that wallet connect/disconnect
+ * never causes a theme flash or reset.
+ */
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Initialize QueryClient with lazy initialization to prevent SSR issues
-  // Using useState with function initializer ensures it only runs on client
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -27,13 +37,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  // Always render providers - they handle SSR gracefully
-  // The issue was with static generation, not SSR
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThirdwebProvider>
-        <TooltipProvider>{children}</TooltipProvider>
-      </ThirdwebProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThirdwebProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ThirdwebProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

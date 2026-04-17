@@ -162,7 +162,7 @@ function X402LinkSection({
                   )}
                 </Button>
               </div>
-              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-32 text-white whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
+              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-32 text-foreground whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
                 {middlewareCode}
               </pre>
             </div>
@@ -188,7 +188,7 @@ function X402LinkSection({
                   )}
                 </Button>
               </div>
-              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-28 text-white whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
+              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-28 text-foreground whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
                 {jsonPayload}
               </pre>
             </div>
@@ -214,7 +214,7 @@ function X402LinkSection({
                   )}
                 </Button>
               </div>
-              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-24 text-white whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
+              <pre className="bg-background/50 border border-border/50 rounded-md p-2 text-xs font-mono max-h-24 text-foreground whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden scrollbar-thin w-full max-w-full">
                 {curlExample}
               </pre>
             </div>
@@ -540,6 +540,68 @@ export default function GeneratorInterface({
         title: errorTitle,
         description: errorDescription,
         variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Free generate handler (no payment, no database, uses Pollinations.ai)
+  const handleFreeGenerate = async () => {
+    console.log('🆓 Free generate button clicked');
+    setIsGenerating(true);
+    setGeneratedImageUrl(null);
+    setShowSuccessModal(false);
+
+    try {
+      // Build prompt from variable values or use title as fallback
+      let prompt = title || 'A beautiful artistic image';
+      if (Object.keys(variableValues).length > 0) {
+        const filledVars = Object.entries(variableValues)
+          .filter(([, v]) => v)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        if (filledVars) {
+          prompt = `${title}, ${filledVars}`;
+        }
+      }
+
+      console.log('🎨 Free generating with prompt:', prompt);
+
+      const response = await fetch('/api/generate-free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          aspectRatio,
+          resolution,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate image');
+      }
+
+      const data = await response.json();
+
+      if (!data.imageUrl) {
+        throw new Error('No image URL returned');
+      }
+
+      setGeneratedImageUrl(data.imageUrl);
+      setShowSuccessModal(true);
+
+      toast({
+        title: '✨ Image Generated!',
+        description: `Generated in ${(data.generationTime / 1000).toFixed(1)}s using ${data.provider}`,
+      });
+    } catch (error: any) {
+      console.error('Free generate error:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'An error occurred',
+        variant: 'destructive',
       });
     } finally {
       setIsGenerating(false);
@@ -1118,6 +1180,27 @@ export default function GeneratorInterface({
                         <>
                           <Sparkles className="h-3.5 w-3.5 mr-2" />
                           Create Now
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Free Generate button (no wallet/payment needed) */}
+                    <Button
+                      className="w-full h-9"
+                      variant="outline"
+                      data-testid="button-free-generate"
+                      onClick={handleFreeGenerate}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="h-3.5 w-3.5 mr-2" />
+                          Free Generate (No Wallet)
                         </>
                       )}
                     </Button>

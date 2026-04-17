@@ -42,8 +42,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   
-  // Server external packages (moved from experimental in Next.js 16)
-  serverExternalPackages: ['thirdweb'],
+  // Note: serverExternalPackages removed for thirdweb - it must be bundled
+  // so it shares the same React instance as Next.js during SSR
 };
 
 export default nextConfig;

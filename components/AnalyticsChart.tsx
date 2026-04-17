@@ -80,8 +80,8 @@ export function AnalyticsChart({
                           );
                           const Icon = trend.direction === 'up' ? TrendingUp :
                                      trend.direction === 'down' ? TrendingDown : Minus;
-                          const color = trend.direction === 'up' ? 'text-green-600' :
-                                      trend.direction === 'down' ? 'text-red-600' : 'text-gray-600';
+                          const color = trend.direction === 'up' ? 'text-green-600 dark:text-green-400' :
+                                      trend.direction === 'down' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground';
                           return (
                             <span className={`inline-flex items-center ${color}`}>
                               <Icon className="h-3 w-3 mr-1" />
@@ -142,9 +142,9 @@ export function MetricCard({ title, value, change, changeLabel, icon }: MetricCa
                 ) : change < 0 ? (
                   <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
                 ) : (
-                  <Minus className="h-4 w-4 text-gray-500 mr-1" />
+                  <Minus className="h-4 w-4 text-muted-foreground mr-1" />
                 )}
-                <span className={change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-600'}>
+                <span className={change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}>
                   {Math.abs(change).toFixed(1)}% {changeLabel || 'vs last period'}
                 </span>
               </div>
