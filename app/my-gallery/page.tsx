@@ -34,6 +34,8 @@ export default function MyGalleryPage() {
   const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
   const [items, setItems] = useState<StoredCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -54,11 +56,15 @@ export default function MyGalleryPage() {
     let cancelled = false;
 
     const load = async () => {
+      setIsLoading(true);
+      setFetchError(null);
       try {
         const res = await fetch(`/api/generations?userKey=${encodeURIComponent(userKey)}`);
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || `Server responded with ${res.status}`);
+        }
         const json = (await res.json()) as { generations?: SupabaseGeneration[] };
-        // Support both new format (generations array) and legacy format (items array)
         const generations = Array.isArray(json.generations) 
           ? json.generations 
           : Array.isArray((json as any).items) 
@@ -66,12 +72,10 @@ export default function MyGalleryPage() {
             : [];
         
         const mapped: StoredCreation[] = generations.map((g: SupabaseGeneration) => {
-          // Get image URL - support both single image_url and array image_urls
           const imageUrl = g.image_urls && g.image_urls.length > 0
             ? g.image_urls[0]
             : g.image_url || "";
           
-          // Get prompt - support both final_prompt (encrypted) and prompt (legacy)
           const prompt = g.final_prompt || (g as any).prompt || "";
           
           return {
@@ -83,8 +87,15 @@ export default function MyGalleryPage() {
           };
         });
         if (!cancelled) setItems(mapped);
-      } catch {
-        if (!cancelled) setItems(listCreations(userKey));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('Gallery fetch error:', message);
+        if (!cancelled) {
+          setFetchError(message);
+          setItems(listCreations(userKey));
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     };
 
@@ -164,7 +175,27 @@ export default function MyGalleryPage() {
           </Button>
         </div>
 
-        {items.length === 0 ? (
+        {fetchError && (
+          <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 flex items-center justify-between">
+            <p className="text-sm text-destructive">Failed to load gallery: {fetchError}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRefreshTrigger(prev => prev + 1)}
+              data-testid="button-retry-gallery"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <Card className="border border-border/60 bg-card/60 backdrop-blur">
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
+              Loading your gallery...
+            </CardContent>
+          </Card>
+        ) : items.length === 0 ? (
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               No creations yet. Generate an image or upload one from the showroom and it will appear here.
