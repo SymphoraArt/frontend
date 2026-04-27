@@ -47,7 +47,6 @@ import {
   ArrowLeft,
   ChevronDown,
   HelpCircle,
-  Pencil,
   Loader2,
   AlertTriangle,
   SlidersHorizontal,
@@ -61,6 +60,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -71,7 +71,7 @@ import QuickVariableCreator from "./QuickVariableCreator";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import { thirdwebClient, defaultChain } from "@/lib/thirdweb";
-import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
+import { getUserKeyFromAccount } from "@/lib/creations";
 import { pickDefaultForVariable } from "@/lib/ai-defaults-map";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
@@ -123,6 +123,8 @@ export interface Variable {
   promptValue?: string;
   /** Placeholder variable name from plain [text] — user should rename; shown with red outline */
   needsNameAttention?: boolean;
+  /** User-facing variable label shown in UI (internal variable name stays hidden). */
+  uiLabel?: string;
 }
 
 function generateUniqueFieldName(used: Set<string>): string {
@@ -136,6 +138,79 @@ function generateUniqueFieldName(used: Set<string>): string {
   const fallback = `Field_${Math.random().toString(36).slice(2, 10)}`;
   used.add(fallback);
   return fallback;
+}
+
+function sanitizeVariableLabel(value: string): string {
+  return value
+    .replace(/[\[\]\{\}\(\)]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 42);
+}
+
+function sanitizeVariableDescription(value: string): string {
+  return value
+    .replace(/[\[\]\{\}\(\)]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+}
+
+function ensureUniqueVariableLabel(base: string, used: Set<string>): string {
+  const normalizedBase = sanitizeVariableLabel(base) || "Field";
+  if (!used.has(normalizedBase)) {
+    used.add(normalizedBase);
+    return normalizedBase;
+  }
+  let i = 2;
+  while (used.has(`${normalizedBase}_${i}`)) i += 1;
+  const next = `${normalizedBase}_${i}`;
+  used.add(next);
+  return next;
+}
+
+function applyVariableRenamesToPromptText(
+  promptText: string,
+  renameMap: Map<string, string>
+): string {
+  let nextPrompt = promptText;
+  renameMap.forEach((nextName, prevName) => {
+    if (!prevName || !nextName || prevName === nextName) return;
+    nextPrompt = nextPrompt
+      .split(`[${prevName}]`)
+      .join(`[${nextName}]`)
+      .split(`{${prevName}}`)
+      .join(`{${nextName}}`)
+      .split(`(${prevName})`)
+      .join(`(${nextName})`);
+  });
+  return nextPrompt;
+}
+
+function getInlineVariableLabel(variable: Variable): string {
+  const fromDescription = (variable.description || "").trim();
+  if (fromDescription) {
+    return fromDescription
+      .replace(/[\[\]\{\}\(\)]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 34);
+  }
+  const fromUiLabel = (variable.uiLabel || "").trim();
+  if (fromUiLabel) return fromUiLabel.slice(0, 34);
+  const fromDefault =
+    typeof variable.defaultValue === "string" ? variable.defaultValue.trim() : "";
+  const base = fromDefault || `Value ${variable.position + 1}`;
+  return base.replace(/[\[\]\{\}\(\)]/g, "").replace(/\s+/g, " ").trim().slice(0, 34);
+}
+
+function buildUserFacingVariableDescription(variable: Variable, inferredValue: string): string {
+  const fromUi = (variable.uiLabel || "").trim();
+  const fromDefault =
+    typeof variable.defaultValue === "string" ? variable.defaultValue.trim() : "";
+  const fromInferred = inferredValue.trim();
+  const base = fromUi || fromDefault || fromInferred || variable.name || "";
+  return base.replace(/[\[\]\{\}\(\)]/g, "").replace(/\s+/g, " ").trim().slice(0, 20);
 }
 
 function variableHasNonEmptyDefault(v: Variable): boolean {
@@ -302,7 +377,6 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   const [newOptionInput, setNewOptionInput] = useState<Record<string, string>>(
     {}
   );
-  const [editingVariableName, setEditingVariableName] = useState<{ id: string; value: string } | null>(null);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
 
   const [category, setCategory] = useState("");
@@ -315,6 +389,8 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   const [resolution, setResolution] = useState<string | null>(null);
   const [isFreeShowcase, setIsFreeShowcase] = useState(false);
   const [enhancement, setEnhancement] = useState<"none" | "prompt">("prompt");
+  const [generationCount, setGenerationCount] = useState(1);
+  const [blitzAgainEnabled, setBlitzAgainEnabled] = useState(false);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [buttonPosition, setButtonPosition] = useState<{
     top: number;
@@ -327,6 +403,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
     selectionRange: { start: number; end: number } | null;
   }>({ open: false, varName: "", selectedText: "", selectionRange: null });
   const [quickVarCreatorOpen, setQuickVarCreatorOpen] = useState(false);
+  const generationReferenceInputRef = useRef<HTMLInputElement>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const desktopPromptOverlayRef = useRef<HTMLDivElement>(null);
@@ -334,6 +411,51 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   const { toast } = useToast();
 
   const isShowcase = promptType === "showcase";
+  const maxReferencePhotos = Math.min(Math.max(photoCount, 1), 20);
+  const generationReferenceImages = useMemo(
+    () => uploadedPhotos.slice(0, maxReferencePhotos),
+    [uploadedPhotos, maxReferencePhotos]
+  );
+
+  const handleGenerationReferenceUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files) return;
+      const remaining = Math.max(0, maxReferencePhotos - uploadedPhotos.length);
+      if (remaining <= 0) {
+        event.target.value = "";
+        return;
+      }
+
+      const selected = Array.from(files).slice(0, remaining);
+      Promise.all(
+        selected.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve((reader.result as string) || "");
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            })
+        )
+      )
+        .then((base64Images) => {
+          const valid = base64Images.filter(Boolean);
+          if (valid.length === 0) return;
+          setUploadedPhotos((prev) =>
+            [...prev, ...valid].slice(0, maxReferencePhotos)
+          );
+        })
+        .finally(() => {
+          event.target.value = "";
+        });
+    },
+    [maxReferencePhotos, uploadedPhotos.length]
+  );
+
+  const removeGenerationReference = useCallback((index: number) => {
+    setUploadedPhotos((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const { data: savedPrompts = [] } = useQuery<
     Array<{ id: string; title: string; createdAt?: string }>
@@ -493,14 +615,6 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   // Ref for the button to detect outside clicks
   const buttonRef = useRef<HTMLButtonElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  const nameInputRefDesktop = useRef<HTMLInputElement>(null);
-  const nameInputRefMobile = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!editingVariableName?.id) return;
-    const isDesktop = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
-    (isDesktop ? nameInputRefDesktop : nameInputRefMobile).current?.focus();
-  }, [editingVariableName?.id]);
 
   // Global mousedown listener to clear selection when clicking outside
   useEffect(() => {
@@ -554,6 +668,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       id: varName,
       name: varName,
       description: "",
+      uiLabel: "Variable",
       type: "text",
       defaultValue: "",
       required: false,
@@ -609,22 +724,9 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
 
   const createVariableFromSelection = () => {
     if (!selectedText || !selectionRange) return;
-
-    const varName = selectedText.trim().replace(/[\[\]]/g, "");
-    const existingVariable = variables.find((v) => v.name === varName);
-
-    if (existingVariable) {
-      // Variable exists - show dialog asking what to do
-      setLinkOrCreateDialog({
-        open: true,
-        varName,
-        selectedText,
-        selectionRange,
-      });
-    } else {
-      // No existing variable - create new one directly
-      performVariableCreation(varName, selectedText, selectionRange, false);
-    }
+    const used = new Set(variables.map((v) => v.name));
+    const incrementalName = generateUniqueFieldName(used);
+    performVariableCreation(incrementalName, selectedText, selectionRange, false);
   };
 
   const createQuickVariable = ({
@@ -670,6 +772,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
         id: name,
         name: name,
       description: "",
+      uiLabel: defaultValue?.trim().slice(0, 34) || name,
       type: variableType,
       defaultValue:
         type === "number" ? Number(defaultValue) || 0 : defaultValue,
@@ -813,6 +916,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
         id: finalVarName,
         name: finalVarName,
         description: "",
+        uiLabel: originalText.trim().slice(0, 34) || finalVarName,
         type: "text",
         defaultValue: originalText,
         required: false,
@@ -1089,19 +1193,6 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
     setVariableToDelete(null);
   };
 
-  const commitVariableName = (varId: string, rawValue: string) => {
-    const sanitized = rawValue.trim().replace(/[\[\]]/g, "");
-    const currentVar = variables.find((v) => v.id === varId);
-    setEditingVariableName(null);
-    if (!currentVar) return;
-    if (!sanitized) {
-      toast({ title: "Name cannot be empty", variant: "destructive" });
-      return;
-    }
-    if (sanitized === currentVar.name) return;
-    updateVariable(varId, { name: sanitized });
-  };
-
   const updateVariable = (varId: string, updates: Partial<Variable>) => {
     // Check for duplicate name if name is being updated
     if (updates.name !== undefined) {
@@ -1217,6 +1308,19 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       return;
     }
 
+    const missingDescription = variables.find(
+      (v) => String(v.description ?? "").trim().length === 0
+    );
+    if (missingDescription) {
+      toast({
+        title: "Description required",
+        description: "Each variable must have a description before generating.",
+        variant: "destructive",
+      });
+      setOpenVariables(variables.map((v) => v.id));
+      return;
+    }
+
     const previewText = renderPreviewWithDefaults();
     if (!previewText.trim()) {
       toast({
@@ -1227,73 +1331,168 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       return;
     }
 
-    const variableValues = getCurrentVariableValues();
-    const aspectRatioVal = aspectRatio || "16:9";
-    const newId = `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const newItem: GenerationItem = {
-      id: newId,
+    const baselineVariableValues = getCurrentVariableValues();
+    const aspectRatioVal = aspectRatio || "1:1";
+    const resolutionVal =
+      resolution === "1K" || resolution === "2K" || resolution === "4K"
+        ? resolution
+        : "2K";
+    const requestedCount = Math.max(1, Math.min(4, generationCount));
+    const generationIds = Array.from({ length: requestedCount }, () =>
+      `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
+    const pendingItems: GenerationItem[] = generationIds.map((id) => ({
+      id,
       imageUrl: null,
-      variableValues: { ...variableValues },
+      variableValues: { ...baselineVariableValues },
       aspectRatio: aspectRatioVal,
       status: "pending",
-    };
-    setGenerations((prev) => [newItem, ...prev]);
+    }));
+    // Keep completed generations, but clear old failed/pending placeholders
+    // so a new run does not look like fresh failures.
+    setGenerations((prev) => [
+      ...pendingItems,
+      ...prev.filter((g) => g.status === "completed"),
+    ]);
     setIsGenerating(true);
 
+    let successes = 0;
     try {
-      const data = await generateImageWithPayment(
-        {
-          prompt: previewText,
-          resolution: "2K",
-          aspectRatio: aspectRatioVal,
-          useEnhancement: enhancement === "prompt",
-        },
-        selectedChain
-      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+      const blitzDefaultsBatch = blitzAgainEnabled
+        ? await fetchBlitzDefaultsForGenerationBatch(requestedCount)
+        : [];
+      const runPayload: Array<{
+        id: string;
+        generationVariableValues: Record<string, string | number | boolean | string[]>;
+        generationPrompt: string;
+      }> = [];
+      for (let i = 0; i < generationIds.length; i += 1) {
+        const id = generationIds[i];
+        const defaultsForRun = blitzAgainEnabled
+          ? blitzDefaultsBatch[i] ?? null
+          : null;
+        const generationVariableValues = blitzAgainEnabled
+          ? resolveGenerationVariableValues(baselineVariableValues, defaultsForRun ?? undefined)
+          : baselineVariableValues;
+        const generationPrompt = renderPreviewFromValues(generationVariableValues);
+        runPayload.push({ id, generationVariableValues, generationPrompt });
+      }
 
       setGenerations((prev) =>
+        prev.map((g) => {
+          const payload = runPayload.find((run) => run.id === g.id);
+          return payload ? { ...g, variableValues: { ...payload.generationVariableValues } } : g;
+        })
+      );
+
+      for (let i = 0; i < runPayload.length; i += 1) {
+        const currentRun = runPayload[i];
+        let data:
+          | {
+              imageUrl?: string;
+              provider?: string;
+              usedGemini?: boolean;
+              metadata?: unknown;
+            }
+          | undefined;
+        try {
+          // Progressive rendering: each completed generation appears immediately.
+          data = (await generateImageWithPayment(
+            {
+              prompt: currentRun.generationPrompt,
+              resolution: resolutionVal,
+              aspectRatio: aspectRatioVal,
+              useEnhancement: false,
+              ...(generationReferenceImages.length > 0
+                ? {
+                    referenceImages: generationReferenceImages,
+                    referenceImage: generationReferenceImages[0],
+                  }
+                : {}),
+            },
+            selectedChain
+          )) as typeof data;
+        } catch (error) {
+          flushSync(() => {
+            setGenerations((prev) =>
+              prev.map((g) =>
+                g.id === currentRun.id ? { ...g, status: "failed" as const } : g
+              )
+            );
+          });
+          const errorMessage = getErrorMessage(error);
+          if (
+            errorMessage?.includes("Wallet not connected") ||
+            errorMessage?.toLowerCase().includes("wallet")
+          ) {
+            setShowLoginRequiredDialog(true);
+            break;
+          }
+          continue;
+        }
+        const imageUrl = data?.imageUrl;
+        if (!imageUrl) {
+          flushSync(() => {
+            setGenerations((prev) =>
+              prev.map((g) =>
+                g.id === currentRun.id ? { ...g, status: "failed" as const } : g
+              )
+            );
+          });
+          continue;
+        }
+
+        flushSync(() => {
+          setGenerations((prev) => {
+            const updated = prev.map((g) =>
+              g.id === currentRun.id
+                ? { ...g, imageUrl, status: "completed" as const }
+                : g
+            );
+            const idx = updated.findIndex((g) => g.id === currentRun.id);
+            if (idx > 0) {
+              const [item] = updated.splice(idx, 1);
+              updated.unshift(item);
+            }
+            return updated;
+          });
+          setGeneratedImage(imageUrl);
+        });
+        successes += 1;
+
+        // Keep generated images temporary in editor state.
+        // Persisting to backend happens only on Release.
+      }
+
+      if (successes > 0) {
+        toast({
+          title: "Generation Complete",
+          description: `Created ${successes}/${requestedCount} image${successes === 1 ? "" : "s"}.`,
+        });
+      } else {
+        throw new Error("No images were generated.");
+      }
+    } catch (error: unknown) {
+      const pendingIds = new Set(generationIds);
+      setGenerations((prev) =>
         prev.map((g) =>
-          g.id === newId ? { ...g, imageUrl: data.imageUrl, status: "completed" as const } : g
+          pendingIds.has(g.id) && g.status === "pending"
+            ? { ...g, status: "failed" as const }
+            : g
         )
       );
-      setGeneratedImage(data.imageUrl);
-      const userKey = getUserKeyFromAccount(account);
-      if (userKey && data?.imageUrl) {
-        try {
-          await apiRequest("POST", "/api/generations", {
-            userKey,
-            prompt: previewText,
-            imageUrl: String(data.imageUrl),
-            provider: typeof data.provider === "string" ? data.provider : "unknown",
-            meta: { usedGemini: Boolean(data.usedGemini ?? false) },
-          });
-        } catch {
-          // ignore
-        }
-        addCreation(userKey, {
-          id: newId,
-          imageUrl: data.imageUrl,
-          prompt: previewText,
-          createdAt: new Date().toISOString(),
-          status: "completed",
-          source: "prompt_editor",
-        });
-      }
-      toast({ title: "Generation Complete", description: "Your image was generated successfully." });
-    } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      setGenerations((prev) =>
-        prev.map((g) => (g.id === newId ? { ...g, status: "failed" as const } : g))
-      );
-      if (errorMessage?.includes("Wallet not connected") || errorMessage?.includes("wallet")) {
+      if (
+        errorMessage?.includes("Wallet not connected") ||
+        errorMessage?.toLowerCase().includes("wallet")
+      ) {
         setShowLoginRequiredDialog(true);
-      } else {
-        toast({
-          title: "Generation Failed",
-          description: errorMessage || "Error generating image.",
-          variant: "destructive",
-        });
       }
+      toast({
+        title: "Generation Failed",
+        description: errorMessage || "Error generating image.",
+        variant: "destructive",
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -1306,76 +1505,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       setShowLoginRequiredDialog(true);
       return;
     }
-    const previewText = renderPreviewWithDefaults();
-    const variableValues = getCurrentVariableValues();
-    const aspectRatioVal = aspectRatio || "16:9";
-    const newId = `gen-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const newItem: GenerationItem = {
-      id: newId,
-      imageUrl: null,
-      variableValues: { ...variableValues },
-      aspectRatio: aspectRatioVal,
-      status: "pending",
-    };
-    setGenerations((prev) => [newItem, ...prev]);
-    setIsGenerating(true);
-
-    try {
-      const data = await generateImageWithPayment(
-        {
-          prompt: previewText,
-          resolution: "2K",
-          aspectRatio: aspectRatioVal,
-          useEnhancement: enhancement === "prompt",
-        },
-        selectedChain
-      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
-      setGenerations((prev) =>
-        prev.map((g) =>
-          g.id === newId ? { ...g, imageUrl: data.imageUrl, status: "completed" as const } : g
-        )
-      );
-      setGeneratedImage(data.imageUrl);
-      const userKey = getUserKeyFromAccount(account);
-      if (userKey && data?.imageUrl) {
-        try {
-          await apiRequest("POST", "/api/generations", {
-            userKey,
-            prompt: previewText,
-            imageUrl: String(data.imageUrl),
-            provider: typeof data.provider === "string" ? data.provider : "unknown",
-            meta: { usedGemini: Boolean(data.usedGemini ?? false) },
-          });
-        } catch {
-          // ignore
-        }
-        addCreation(userKey, {
-          id: newId,
-          imageUrl: data.imageUrl,
-          prompt: previewText,
-          createdAt: new Date().toISOString(),
-          status: "completed",
-          source: "prompt_editor",
-        });
-      }
-      toast({ title: "Generation Complete", description: "Your image was generated successfully." });
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      setGenerations((prev) =>
-        prev.map((g) => (g.id === newId ? { ...g, status: "failed" as const } : g))
-      );
-      if (errorMessage?.includes("Wallet not connected") || errorMessage?.includes("wallet")) {
-        setShowLoginRequiredDialog(true);
-      } else {
-        toast({
-          title: "Generation Failed",
-          description: errorMessage || "Error generating image.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsGenerating(false);
-    }
+    await handleGenerate();
   };
 
   const savePromptMutation = useMutation({
@@ -1383,11 +1513,142 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       if (!account?.address) {
         throw new Error("Connect your wallet to release.");
       }
+      const releaseCandidates =
+        promptType === "free-prompt"
+          ? []
+          : variables
+              .filter((variable) => {
+                if (
+                  variable.type !== "multi-select" &&
+                  variable.type !== "single-select"
+                )
+                  return true;
+                const opts = variable.options ?? [];
+                const draft = newOptionInput[variable.id]?.trim();
+                const draftParts = draft
+                  ? draft.split("|||").map((p) => p.trim())
+                  : [];
+                const hasDraft =
+                  draftParts.length >= 2 &&
+                  (draftParts[0] !== "" || draftParts[1] !== "");
+                const nonEmpty = opts.filter(
+                  (opt) =>
+                    (opt.visibleName?.trim() ?? "") !== "" ||
+                    (opt.promptValue?.trim() ?? "") !== ""
+                );
+                return nonEmpty.length > 0 || hasDraft;
+              })
+              .map((variable) => {
+                const isSelect =
+                  variable.type === "multi-select" ||
+                  variable.type === "single-select";
+                let options: { visibleName: string; promptValue: string }[] | null =
+                  isSelect && variable.options
+                    ? variable.options.filter(
+                        (opt) =>
+                          (opt.visibleName?.trim() ?? "") !== "" ||
+                          (opt.promptValue?.trim() ?? "") !== ""
+                      )
+                    : variable.options ?? null;
+                // Include unsaved option draft so the final value is persisted on release.
+                if (isSelect) {
+                  const draft = newOptionInput[variable.id]?.trim();
+                  if (draft) {
+                    const parts = draft.split("|||");
+                    const visibleName = parts[0]?.trim() ?? "";
+                    const promptValue = parts[1]?.trim() ?? "";
+                    if (visibleName !== "" || promptValue !== "") {
+                      options = [...(options ?? []), { visibleName, promptValue }];
+                    }
+                  }
+                }
+                return {
+                  id: variable.id,
+                  sourceName: variable.name,
+                  name: variable.name,
+                  description: variable.description ?? "",
+                  uiLabel: variable.uiLabel ?? "",
+                  type: variable.type,
+                  defaultValue: variable.defaultValue,
+                  required: variable.required,
+                  position: variable.position,
+                  min: variable.min ?? null,
+                  max: variable.max ?? null,
+                  options,
+                  promptValue:
+                    variable.type === "checkbox"
+                      ? (variable.promptValue ?? "")
+                      : undefined,
+                };
+              });
+
+      let contentForRelease = prompt;
+      let releaseVariables = releaseCandidates;
+
+      if (releaseCandidates.length > 0) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          const metadataResponse = await fetch("/api/variable-metadata", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              variables: releaseCandidates.map((v) => ({
+                id: v.id,
+                name: v.name,
+                description: v.description,
+                type: v.type,
+                defaultValue: v.defaultValue,
+                options: v.options ?? [],
+              })),
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (metadataResponse.ok) {
+            const metadataJson = (await metadataResponse.json()) as {
+              variables?: Array<{ id?: string; name?: string; description?: string }>;
+            };
+            const byId = new Map(
+              (metadataJson.variables ?? [])
+                .filter((item) => typeof item?.id === "string")
+                .map((item) => [String(item.id), item] as const)
+            );
+
+            const renameMap = new Map<string, string>();
+            const usedLabels = new Set<string>();
+            releaseVariables = releaseCandidates.map((variable) => {
+              const suggested = byId.get(variable.id);
+              const nextName = ensureUniqueVariableLabel(
+                suggested?.name ?? variable.name,
+                usedLabels
+              );
+              const nextDescription =
+                sanitizeVariableDescription(suggested?.description ?? "") ||
+                sanitizeVariableDescription(variable.description ?? "") ||
+                `Value used for ${nextName} in this prompt.`;
+              if (variable.sourceName !== nextName) {
+                renameMap.set(variable.sourceName, nextName);
+              }
+              return {
+                ...variable,
+                name: nextName,
+                description: nextDescription,
+              };
+            });
+            contentForRelease = applyVariableRenamesToPromptText(prompt, renameMap);
+          }
+        } catch {
+          // Keep incremental variable names as fallback when metadata generation is unavailable.
+        }
+      }
+
       const payload = {
         creator: account.address,
         title: promptTitle,
         ...(currentPromptId ? { promptId: currentPromptId } : {}),
-        content: prompt,
+        content: contentForRelease,
         category,
         aiModel,
         price: Math.round(price * PRICE_PER_GENERATION_SCALE),
@@ -1398,70 +1659,12 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
         resolution,
         isFreeShowcase,
         usePromptEnhancement: enhancement === "prompt",
-        generatedImageUrl: (() => {
-          const completed = generations.filter((g) => g.status === "completed" && g.imageUrl);
-          const selected = completed.filter((g) => selectedGenerationIds.has(g.id));
-          const forRelease = selected.length > 0 ? selected : completed;
-          return forRelease[0]?.imageUrl ?? generatedImage ?? null;
-        })(),
-        variables:
-          promptType === "free-prompt"
-            ? []
-            : variables
-                .filter((variable) => {
-                  if (variable.type !== "multi-select" && variable.type !== "single-select") return true;
-                  const opts = variable.options ?? [];
-                  const draft = newOptionInput[variable.id]?.trim();
-                  const draftParts = draft ? draft.split("|||").map((p) => p.trim()) : [];
-                  const hasDraft =
-                    draftParts.length >= 2 &&
-                    (draftParts[0] !== "" || draftParts[1] !== "");
-                  const nonEmpty = opts.filter(
-                    (opt) =>
-                      (opt.visibleName?.trim() ?? "") !== "" ||
-                      (opt.promptValue?.trim() ?? "") !== ""
-                  );
-                  return nonEmpty.length > 0 || hasDraft;
-                })
-                .map((variable) => {
-                  const isSelect =
-                    variable.type === "multi-select" || variable.type === "single-select";
-                  let options: { visibleName: string; promptValue: string }[] | null =
-                    isSelect && variable.options
-                      ? variable.options.filter(
-                          (opt) =>
-                            (opt.visibleName?.trim() ?? "") !== "" ||
-                            (opt.promptValue?.trim() ?? "") !== ""
-                        )
-                      : variable.options ?? null;
-                  // Include the current "Add option" draft so the last option is saved when clicking Save
-                  if (isSelect) {
-                    const draft = newOptionInput[variable.id]?.trim();
-                    if (draft) {
-                      const parts = draft.split("|||");
-                      const visibleName = parts[0]?.trim() ?? "";
-                      const promptValue = parts[1]?.trim() ?? "";
-                      if (visibleName !== "" || promptValue !== "") {
-                        options = [...(options ?? []), { visibleName, promptValue }];
-                      }
-                    }
-                  }
-                  return {
-                    name: variable.name,
-                    description: variable.description ?? "",
-                    type: variable.type,
-                    defaultValue: variable.defaultValue,
-                    required: variable.required,
-                    position: variable.position,
-                    min: variable.min ?? null,
-                    max: variable.max ?? null,
-                    options,
-                    promptValue:
-                      variable.type === "checkbox"
-                        ? (variable.promptValue ?? "")
-                        : undefined,
-                  };
-                }),
+        generatedImageUrl:
+          selectedCompletedGenerations[0]?.imageUrl ?? generatedImage ?? null,
+        generatedImageUrls: selectedCompletedGenerations
+          .map((g) => g.imageUrl)
+          .filter((img): img is string => Boolean(img)),
+        variables: releaseVariables.map(({ id, sourceName, ...variable }) => variable),
       };
 
       const response = await apiRequest("POST", "/api/enki/prompts", payload);
@@ -1560,6 +1763,27 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       setShowValidationDialog(true);
       return;
     }
+    const missingDescription = variables.find(
+      (v) => String(v.description ?? "").trim().length === 0
+    );
+    if (missingDescription) {
+      toast({
+        title: "Description required",
+        description: "Each variable must have a description before release.",
+        variant: "destructive",
+      });
+      setOpenVariables(variables.map((v) => v.id));
+      return;
+    }
+    if (selectedCompletedGenerations.length !== 4) {
+      toast({
+        title: "Select exactly 4 images",
+        description:
+          "Generate and select exactly 4 completed images before releasing.",
+        variant: "destructive",
+      });
+      return;
+    }
     savePromptMutation.mutate();
   };
 
@@ -1648,6 +1872,10 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
               id: String(v.id ?? v.name ?? ""),
               name: String(v.name ?? ""),
               description: String(v.description ?? ""),
+              uiLabel:
+                typeof v.uiLabel === "string" && v.uiLabel.trim().length > 0
+                  ? v.uiLabel.trim().slice(0, 34)
+                  : String(v.description ?? "").trim().slice(0, 34),
               type,
               defaultValue: coerceVariableDefaultValue(v.defaultValue),
               required: Boolean(v.required ?? false),
@@ -1777,8 +2005,8 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt: previewText,
-        resolution: "2K",
-        useEnhancement: enhancement === "prompt",
+        resolution: resolution || "2K",
+        useEnhancement: false,
         userId: userKey ?? undefined,
       }),
     })
@@ -1840,6 +2068,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
             if (typeof inferred !== "string") return v;
           const value = inferred.trim();
           if (!value) return v;
+          const nextDescription = buildUserFacingVariableDescription(v, value);
 
           if (v.type === "multi-select" && Array.isArray(v.options) && v.options.length > 0) {
             const tokens = value
@@ -1851,21 +2080,81 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
               .filter((opt) =>
                 tokens.some((t) => t.toLowerCase() === opt.toLowerCase())
               );
-            if (picked.length === 0) return v;
-            return { ...v, defaultValue: Array.from(new Set(picked)) };
+            if (picked.length === 0) {
+              return {
+                ...v,
+                description: nextDescription || v.description,
+              };
+            }
+            return {
+              ...v,
+              defaultValue: Array.from(new Set(picked)),
+              description: (nextDescription || v.description || "").slice(0, 20),
+            };
           }
 
           if (v.type === "single-select" && Array.isArray(v.options) && v.options.length > 0) {
             const idx = v.options.findIndex(
               (o) => o.promptValue.toLowerCase() === value.toLowerCase()
             );
-            if (idx < 0) return v;
-            return { ...v, defaultOptionIndex: idx };
+            if (idx < 0) {
+              return {
+                ...v,
+                description: nextDescription || v.description,
+              };
+            }
+            return {
+              ...v,
+              defaultOptionIndex: idx,
+              description: (nextDescription || v.description || "").slice(0, 20),
+            };
           }
 
-          return { ...v, defaultValue: value };
+          return {
+            ...v,
+            defaultValue: value.slice(0, 100),
+            description: (nextDescription || v.description || "").slice(0, 20),
+          };
         })
       );
+    },
+    []
+  );
+
+  const applyBlitzMetadata = useCallback(
+    (metadataRows: Array<{ id?: string; name?: string; description?: string }>) => {
+      const byId = new Map(
+        metadataRows
+          .filter((row) => typeof row?.id === "string")
+          .map((row) => [String(row.id), row] as const)
+      );
+      const renameMap = new Map<string, string>();
+      setVariables((prev) => {
+        const used = new Set<string>();
+        return prev.map((variable) => {
+          const suggestion = byId.get(variable.id);
+          const nextName = ensureUniqueVariableLabel(
+            suggestion?.name ?? variable.name,
+            used
+          );
+          const nextDescription =
+            sanitizeVariableDescription(suggestion?.description ?? "") ||
+            sanitizeVariableDescription(variable.description ?? "") ||
+            `Value used for ${nextName} in this prompt.`;
+          if (variable.name !== nextName) {
+            renameMap.set(variable.name, nextName);
+          }
+          return {
+            ...variable,
+            name: nextName,
+            description: nextDescription,
+            needsNameAttention: false,
+          };
+        });
+      });
+      if (renameMap.size > 0) {
+        setPrompt((prev) => applyVariableRenamesToPromptText(prev, renameMap));
+      }
     },
     []
   );
@@ -1887,6 +2176,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       prompt,
       variables: variables.map((v) => ({
         name: v.name,
+        description: v.description ?? "",
         type: v.type,
         options: v.options ?? [],
       })),
@@ -1905,6 +2195,8 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
         defaults?: Record<string, string>;
         blitzRemaining?: number;
         blitzPaid?: boolean;
+        fallbackUsed?: boolean;
+        warning?: string;
         error?: string;
       };
 
@@ -1928,13 +2220,53 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
 
       applyBlitzDefaults(defaults);
 
+      const resolvedDefaultsById = new Map<string, unknown>();
+      variables.forEach((v) => {
+        const inferred = pickDefaultForVariable(defaults, v);
+        if (typeof inferred === "string" && inferred.trim().length > 0) {
+          resolvedDefaultsById.set(v.id, inferred.trim());
+        }
+      });
+
+      try {
+        const metadataResponse = await fetch("/api/variable-metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            variables: variables.map((v) => ({
+              id: v.id,
+              name: v.name,
+              description: v.description,
+              type: v.type,
+              defaultValue: resolvedDefaultsById.has(v.id)
+                ? resolvedDefaultsById.get(v.id)
+                : v.defaultValue,
+              options: v.options ?? [],
+            })),
+          }),
+        });
+        if (metadataResponse.ok) {
+          const metadata = (await metadataResponse.json()) as {
+            variables?: Array<{ id?: string; name?: string; description?: string }>;
+          };
+          if (Array.isArray(metadata.variables) && metadata.variables.length > 0) {
+            applyBlitzMetadata(metadata.variables);
+          }
+        }
+      } catch {
+        // Optional enhancement only.
+      }
+
       const remaining =
         typeof data.blitzRemaining === "number" ? data.blitzRemaining : undefined;
       const paid = data.blitzPaid === true;
       toast({
         title: paid ? "Values (paid)" : "Values",
         description:
-          remaining !== undefined
+          data.fallbackUsed
+            ? data.warning || "Fallback defaults applied."
+            : remaining !== undefined
             ? paid
               ? "Defaults applied. Free uses reset tomorrow at UTC midnight."
               : `${remaining} free run${remaining === 1 ? "" : "s"} left today.`
@@ -1957,6 +2289,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
     fetchWithPayment,
     toast,
     applyBlitzDefaults,
+    applyBlitzMetadata,
   ]);
 
   const requestBlitzDefaults = useCallback(() => {
@@ -2010,6 +2343,135 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
     });
     return out;
   }, [variables]);
+
+  const renderPreviewFromValues = useCallback(
+    (values: Record<string, string | number | boolean | string[]>) => {
+      let previewText = prompt;
+      variables.forEach((variable) => {
+        const placeholder = `[${variable.name}]`;
+        const rawValue = values[variable.name];
+        let displayValue = "";
+        if (variable.type === "checkbox") {
+          const enabled =
+            rawValue === true || rawValue === "true" || rawValue === "1";
+          displayValue = enabled ? variable.promptValue ?? "" : "";
+        } else if (Array.isArray(rawValue)) {
+          displayValue = rawValue.join(", ");
+        } else if (rawValue !== undefined && rawValue !== null) {
+          displayValue = String(rawValue);
+        }
+        previewText = previewText.split(placeholder).join(displayValue);
+      });
+      return previewText;
+    },
+    [prompt, variables]
+  );
+
+  const resolveGenerationVariableValues = useCallback(
+    (
+      baseValues: Record<string, string | number | boolean | string[]>,
+      defaults?: Record<string, string>
+    ) => {
+      if (!defaults || Object.keys(defaults).length === 0) return baseValues;
+      const next = { ...baseValues };
+      variables.forEach((v) => {
+        const name = v.name || v.id;
+        const inferred = pickDefaultForVariable(defaults, v);
+        if (typeof inferred !== "string") return;
+        const value = inferred.trim();
+        if (!value) return;
+
+        if (v.type === "multi-select" && Array.isArray(v.options) && v.options.length > 0) {
+          const tokens = value
+            .split(/[;,/|]/)
+            .map((t) => t.trim())
+            .filter(Boolean);
+          const picked = v.options
+            .map((o) => o.promptValue)
+            .filter((opt) =>
+              tokens.some((t) => t.toLowerCase() === opt.toLowerCase())
+            );
+          if (picked.length > 0) next[name] = Array.from(new Set(picked));
+          return;
+        }
+
+        if (v.type === "single-select" && Array.isArray(v.options) && v.options.length > 0) {
+          const matched = v.options.find(
+            (o) => o.promptValue.toLowerCase() === value.toLowerCase()
+          );
+          if (matched) next[name] = matched.promptValue;
+          return;
+        }
+
+        if (v.type === "checkbox") {
+          const boolLike =
+            value.toLowerCase() === "true" ||
+            value.toLowerCase() === "yes" ||
+            value.toLowerCase() === "on" ||
+            value === "1";
+          next[name] = boolLike;
+          return;
+        }
+
+        next[name] = value;
+      });
+      return next;
+    },
+    [variables]
+  );
+
+  const fetchBlitzDefaultsForGenerationBatch = useCallback(async (count = 1): Promise<Array<Record<string, string> | null>> => {
+    const targetCount = Math.max(1, Math.min(4, count));
+    if (!userKey || !prompt.trim() || variables.length === 0) {
+      return Array.from({ length: targetCount }, () => null);
+    }
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${baseUrl}/api/variable-defaults?chain=${encodeURIComponent(selectedChain)}`;
+    const body = JSON.stringify({
+      userId: userKey,
+      prompt,
+      count: targetCount,
+      variables: variables.map((v) => ({
+        name: v.name,
+        description: v.description ?? "",
+        type: v.type,
+        options: v.options ?? [],
+      })),
+    });
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      credentials: "include",
+    });
+
+    let data: {
+      defaults?: Record<string, string>;
+      defaultsList?: Record<string, string>[];
+      error?: string;
+    };
+    if (res.ok) {
+      data = await res.json();
+    } else if (res.status === 402) {
+      data = (await fetchWithPayment(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      })) as typeof data;
+    } else {
+      return Array.from({ length: targetCount }, () => null);
+    }
+
+    if (data?.error && !data?.defaults && !Array.isArray(data?.defaultsList)) {
+      return Array.from({ length: targetCount }, () => null);
+    }
+    if (Array.isArray(data.defaultsList) && data.defaultsList.length > 0) {
+      return Array.from({ length: targetCount }, (_, index) => data.defaultsList?.[index] ?? null);
+    }
+    const single = (data?.defaults ?? null) as Record<string, string> | null;
+    return Array.from({ length: targetCount }, () => single);
+  }, [userKey, prompt, variables, selectedChain, fetchWithPayment]);
 
   const generationIsValid = useCallback(
     (gen: GenerationItem): boolean => {
@@ -2074,6 +2536,16 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   );
   const scrollYRef = useRef(0);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
+  const selectedCompletedGenerations = useMemo(
+    () =>
+      generations.filter(
+        (g) =>
+          selectedGenerationIds.has(g.id) &&
+          g.status === "completed" &&
+          Boolean(g.imageUrl)
+      ),
+    [generations, selectedGenerationIds]
+  );
 
   // Lock mobile container scroll when variable editor overlay is open
   useEffect(() => {
@@ -2176,14 +2648,14 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                                 onMouseDown={(e) => e.preventDefault()}
                                 data-testid={`badge-inline-variable-${variable.id}`}
                               >
-                                [{varName}]
+                                [{getInlineVariableLabel(variable)}]
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="text-xs">
                                 {variable.needsNameAttention && (
-                                  <span className="block text-destructive font-medium mb-1">
-                                    Rename this placeholder variable.
+                                  <span className="block text-muted-foreground mb-1">
+                                    Variable is managed in the background.
                                   </span>
                                 )}
                                 Default Value: {String(variable.defaultValue || "Not set")}
@@ -2471,7 +2943,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                 ) : variablesMode === "simple" ? (
                   <div className="space-y-3">
                     {variables.map((variable) => {
-                      const varName = variable.name || variable.id;
+                      const varName = getInlineVariableLabel(variable);
                       const currentVal = variable.defaultValue;
                       const strVal = currentVal === undefined || currentVal === null ? "" : typeof currentVal === "object" ? JSON.stringify(currentVal) : String(currentVal);
                       return (
@@ -2528,7 +3000,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                               className={`text-sm font-semibold font-sans ${selectedVariableId === variable.id ? 'text-primary' : 'text-foreground'}`}
                               style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                             >
-                              {variable.name}
+                              {getInlineVariableLabel(variable)}
                             </span>
                             <Badge
                               variant="secondary"
@@ -2537,74 +3009,28 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                               {variable.type}
                             </Badge>
                           </div>
-                          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${openVariables.includes(variable.id) ? 'rotate-180' : ''}`} />
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteVariable(variable.id);
+                              }}
+                              disabled={isShowcase}
+                              data-testid={`button-delete-${variable.id}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <ChevronDown className={`h-4 w-4 transition-transform ${openVariables.includes(variable.id) ? 'rotate-180' : ''}`} />
+                          </div>
                         </div>
                         
                         {openVariables.includes(variable.id) && (
                           <div className="pt-3 space-y-2">
-                            <div className="flex items-start gap-2">
-                              <div style={{ flex: '1 1 0', width: 0, minWidth: 0 }}>
-                                <div className="flex items-center gap-1.5">
-                                <Label className="text-xs">Variable Name</Label>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs">
-                                    This name will be displayed to users.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                                {editingVariableName?.id === variable.id ? (
-                                  <Input
-                                    ref={nameInputRefDesktop}
-                                    value={editingVariableName.value}
-                                    onChange={(e) =>
-                                      setEditingVariableName({ id: variable.id, value: e.target.value })
-                                    }
-                                    onBlur={() => {
-                                      commitVariableName(variable.id, editingVariableName.value);
-                                      setEditingVariableName(null);
-                                    }}
-                                    className="h-8 text-sm mt-1 font-mono"
-                                    placeholder="VariableName (used as [Name] in prompt)"
-                                    disabled={isShowcase}
-                                    data-testid={`input-name-${variable.id}`}
-                                  />
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setEditingVariableName({ id: variable.id, value: variable.name })
-                                    }
-                                    disabled={isShowcase}
-                                    className="flex items-center gap-2 h-8 mt-1 px-2 rounded border border-transparent hover:border-input hover:bg-muted/50 text-left w-full min-w-0"
-                                    data-testid={`button-edit-name-${variable.id}`}
-                                  >
-                                    <span className="text-sm font-mono truncate flex-1">
-                                      {variable.name || " "}
-                                    </span>
-                                    <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                  </button>
-                                )}
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 mt-6 shrink-0"
-                                onClick={() => deleteVariable(variable.id)}
-                                disabled={isShowcase}
-                                data-testid={`button-delete-${variable.id}`}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-
                           <div className="space-y-1">
-                            <Label className="text-xs">
-                              Description{" "}
-                              <span className="text-muted-foreground font-normal">(optional)</span>
-                            </Label>
+                            <Label className="text-xs">Description</Label>
                             <Textarea
                               value={variable.description}
                               onChange={(e) => {
@@ -3012,18 +3438,12 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
           </CardHeader>
           <CardContent className="flex-1 min-h-0 flex flex-col gap-3 px-4 pb-4 overflow-hidden">
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 pr-1">
                 {generations.map((gen) => {
-                  const ar = gen.aspectRatio || "16:9";
-                  const parts = ar.split(":").map(Number);
-                  const w = parts[0] || 16;
-                  const h = parts[1] || 9;
-                  const paddingBottom = `${(h / w) * 100}%`;
                   return (
                     <div
                       key={gen.id}
-                      className="relative rounded-md border bg-muted/30 overflow-hidden group"
-                      style={{ paddingBottom }}
+                      className="relative aspect-square min-h-[7.5rem] rounded-md border bg-muted/30 overflow-hidden group w-full min-w-0"
                     >
                       <div className="absolute inset-0 flex items-center justify-center">
                         {gen.status === "pending" ? (
@@ -3037,8 +3457,9 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                               onClick={() => setLightboxImageUrl(gen.imageUrl)}
                               data-testid={`generated-image-${gen.id}`}
                             />
-                            <div
-                              className="absolute top-0 left-0 right-0 h-8 flex items-center justify-center bg-gradient-to-b from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            <button
+                              type="button"
+                              className="absolute top-1 left-1 z-10 h-8 w-8 rounded-md bg-black/55 hover:bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 variables.forEach((v) => {
@@ -3052,7 +3473,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                               data-testid={`apply-vars-${gen.id}`}
                             >
                               <ArrowLeft className="h-5 w-5 text-white" />
-                            </div>
+                            </button>
                             <div
                               className="absolute top-1 right-1 z-10"
                               onClick={(e) => e.stopPropagation()}
@@ -3103,23 +3524,181 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
 
             <div className="sticky bottom-0 pt-3 bg-background/80 backdrop-blur border-t border-border/50 shrink-0">
               <div className="space-y-2">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || isPaymentPending}
-                  className="w-full"
-                  data-testid="button-generate"
-                >
-                  {isGenerating ? (isPaymentPending ? "Processing Payment..." : "Generating...") : "Generate"}
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap min-w-0 rounded-md border border-border/50 bg-muted/20 p-1.5">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground leading-none" title="Size">⧉</span>
+                    <Select
+                      value={aspectRatio || "1:1"}
+                      onValueChange={(value) => setAspectRatio(value)}
+                    >
+                      <SelectTrigger
+                        className="h-7 w-[4.2rem] text-[11px] px-1.5"
+                        data-testid="select-generation-size"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1:1">1:1</SelectItem>
+                        <SelectItem value="16:9">16:9</SelectItem>
+                        <SelectItem value="9:16">9:16</SelectItem>
+                        <SelectItem value="4:3">4:3</SelectItem>
+                        <SelectItem value="3:4">3:4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground leading-none" title="Resolution (model dependent)">♦</span>
+                    <Select
+                      value={resolution || "2K"}
+                      onValueChange={(value) => setResolution(value)}
+                    >
+                      <SelectTrigger
+                        className="h-7 w-[3.7rem] text-[11px] px-1.5"
+                        data-testid="select-generation-resolution"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1K">1K</SelectItem>
+                        <SelectItem value="2K">2K</SelectItem>
+                        <SelectItem value="4K">4K</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      ref={generationReferenceInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleGenerationReferenceUpload}
+                      data-testid="input-generation-reference-images"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => generationReferenceInputRef.current?.click()}
+                      disabled={generationReferenceImages.length >= maxReferencePhotos}
+                      data-testid="button-add-generation-reference-image"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground tabular-nums mr-0.5">
+                      {generationReferenceImages.length}/{maxReferencePhotos}
+                    </span>
+                    <div className="flex items-center gap-1 max-w-[10.5rem] overflow-x-auto overflow-y-hidden py-0.5 min-w-0">
+                      {generationReferenceImages.slice(0, 3).map((photo, idx) => (
+                        <div
+                          key={`${photo.slice(0, 16)}-${idx}`}
+                          className="relative h-8 w-8 flex-none rounded border border-border bg-card overflow-hidden"
+                        >
+                          <img
+                            src={photo}
+                            alt={`Reference ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            className="absolute top-0 right-0 rounded-full bg-black/65 text-white p-0.5"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              removeGenerationReference(idx);
+                            }}
+                            data-testid={`button-remove-generation-reference-${idx}`}
+                          >
+                            <X className="h-2 w-2" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-[minmax(0,66%)_minmax(0,34%)] items-center gap-1.5 min-w-0">
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isPaymentPending}
+                    className="min-w-0 w-full overflow-hidden text-ellipsis whitespace-nowrap"
+                    data-testid="button-generate"
+                  >
+                    {isGenerating
+                      ? isPaymentPending
+                        ? "Processing Payment..."
+                        : "Generating..."
+                      : "Generate"}
+                  </Button>
+                  <div className="flex items-center justify-end gap-1 max-w-full min-w-0 shrink-0">
+                    <div className="flex items-center rounded-md border border-border/70 px-0.5 py-0">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5 p-0"
+                        onClick={() =>
+                          setGenerationCount((prev) => Math.max(1, prev - 1))
+                        }
+                        disabled={isGenerating || generationCount <= 1}
+                        data-testid="button-generation-count-decrease"
+                      >
+                        -
+                      </Button>
+                      <span className="w-4 text-center text-[11px] tabular-nums leading-none">
+                        {generationCount}
+                      </span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5 p-0"
+                        onClick={() =>
+                          setGenerationCount((prev) => Math.min(4, prev + 1))
+                        }
+                        disabled={isGenerating || generationCount >= 4}
+                        data-testid="button-generation-count-increase"
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label className="flex items-center gap-1 cursor-pointer select-none rounded px-0.5 whitespace-nowrap">
+                          <Checkbox
+                            checked={blitzAgainEnabled}
+                            onCheckedChange={(checked) =>
+                              setBlitzAgainEnabled(Boolean(checked))
+                            }
+                            disabled={isGenerating}
+                            data-testid="checkbox-blitz-again"
+                          />
+                          <span className="flex flex-col items-start leading-[1] text-muted-foreground">
+                            <span
+                              className="font-mono text-[10px] leading-none select-none"
+                              aria-hidden
+                            >
+                              {"\u26A1"}
+                            </span>
+                            <span className="text-[10px] leading-none">Auto</span>
+                          </span>
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[220px] text-xs">
+                        Activate to create random AI generations.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
                 {estimateCost != null && (
                   <p className="text-xs text-muted-foreground text-center">Estimated cost: ${estimateCost.toFixed(4)}</p>
                 )}
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const completed = generations.filter((g) => g.status === "completed" && g.imageUrl);
-                    const selected = completed.filter((g) => selectedGenerationIds.has(g.id));
-                    const countForRelease = selected.length > 0 ? selected.length : completed.length;
-                    const showWarning = countForRelease > 0 && countForRelease < 4;
+                    const countForRelease = selectedCompletedGenerations.length;
+                    const showWarning = countForRelease > 0 && countForRelease !== 4;
                     return showWarning ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -3128,7 +3707,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
-                          At least 4 images are recommended to build trust in the quality of the images, which increases the likelihood of generations.
+                          You must select exactly 4 completed images before release.
                         </TooltipContent>
                       </Tooltip>
                     ) : null;
@@ -3139,7 +3718,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                     disabled={
                       isGenerating ||
                       savePromptMutation.isPending ||
-                      !generations.some((g) => g.status === "completed")
+                      selectedCompletedGenerations.length !== 4
                     }
                     className="flex-1 min-w-0"
                     data-testid="button-submit"
@@ -3267,14 +3846,14 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                                   onMouseDown={(e) => e.preventDefault()}
                                   data-testid={`badge-inline-variable-${variable.id}`}
                                 >
-                                  [{varName}]
+                                  [{getInlineVariableLabel(variable)}]
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="text-xs">
                                   {variable.needsNameAttention && (
-                                    <span className="block text-destructive font-medium mb-1">
-                                      Rename this placeholder variable.
+                                    <span className="block text-muted-foreground mb-1">
+                                      Variable is managed in the background.
                                     </span>
                                   )}
                                   Default Value: {String(variable.defaultValue || "Not set")}
@@ -3429,7 +4008,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                 disabled={
                   isGenerating ||
                   savePromptMutation.isPending ||
-                  generatedImage === null
+                  selectedCompletedGenerations.length !== 4
                 }
                 className="w-full"
                 data-testid="button-submit"
@@ -3565,7 +4144,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                 ) : variablesMode === "simple" ? (
                   <div className="space-y-3">
                     {variables.map((variable) => {
-                      const varName = variable.name || variable.id;
+                      const varName = getInlineVariableLabel(variable);
                       const currentVal = variable.defaultValue;
                       const strVal = currentVal === undefined || currentVal === null ? "" : typeof currentVal === "object" ? JSON.stringify(currentVal) : String(currentVal);
                       return (
@@ -3619,66 +4198,33 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                           onDoubleClick={(e) => e.preventDefault()}
                           data-testid={`accordion-trigger-${variable.id}`}
                         >
-                          <div className="flex items-center gap-2 flex-1">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
                             <span className="text-sm font-medium text-white">
-                              {variable.name}
+                              {getInlineVariableLabel(variable)}
                             </span>
                             <Badge variant="outline" className="text-xs">
                               {variable.type}
                             </Badge>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 mr-1"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setVariableToDelete(variable.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                            disabled={promptType === "showcase"}
+                            data-testid={`button-delete-${variable.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </AccordionTrigger>
                         <AccordionContent className="px-1.5 pt-1 space-y-2 w-full max-w-full overflow-x-hidden">
                           <div className="space-y-2">
-                            <div className="flex items-center gap-1.5">
-                            <Label className="text-xs text-foreground">Variable Name</Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs">
-                                This name will be displayed to users.
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                            {editingVariableName?.id === variable.id ? (
-                              <Input
-                                ref={nameInputRefMobile}
-                                value={editingVariableName.value}
-                                onChange={(e) =>
-                                  setEditingVariableName({ id: variable.id, value: e.target.value })
-                                }
-                                onBlur={() => {
-                                  commitVariableName(variable.id, editingVariableName.value);
-                                  setEditingVariableName(null);
-                                }}
-                                className="h-8 text-sm text-foreground font-mono"
-                                placeholder="VariableName (used as [Name] in prompt)"
-                                disabled={promptType === "showcase"}
-                                data-testid={`input-name-mobile-${variable.id}`}
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setEditingVariableName({ id: variable.id, value: variable.name })
-                                }
-                                disabled={promptType === "showcase"}
-                                className="flex items-center gap-2 h-8 px-2 rounded border border-transparent hover:border-input hover:bg-muted/50 text-left w-full min-w-0 text-foreground"
-                                data-testid={`button-edit-name-mobile-${variable.id}`}
-                              >
-                                <span className="text-sm font-mono truncate flex-1">
-                                  {variable.name || " "}
-                                </span>
-                                <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                              </button>
-                            )}
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs text-foreground">
-                              Description{" "}
-                              <span className="text-muted-foreground font-normal">(optional)</span>
-                            </Label>
+                            <Label className="text-xs text-foreground">Description</Label>
                             <Textarea
                               value={variable.description}
                               onChange={(e) => {
@@ -4056,21 +4602,11 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
                               onClick={() => {
                                 setShowVariableEditor(false);
                               }}
-                              className="flex-1"
+                              className="w-full"
                               disabled={variable.required && !variable.name.trim()}
                               data-testid={`button-save-variable-${variable.id}`}
                             >
                               Save
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              onClick={() => {
-                                setVariableToDelete(variable.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                              data-testid={`button-delete-${variable.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </AccordionContent>

@@ -104,6 +104,8 @@ export default function Navbar({
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const themeSyncedFromStorage = useRef(false);
   const pathname = usePathname();
+  const [mobileLogoFailed, setMobileLogoFailed] = useState(false);
+  const [desktopLogoFailed, setDesktopLogoFailed] = useState(false);
 
   const walletAddress = walletInfo.address;
   const shortAddress = walletInfo.shortAddress;
@@ -238,12 +240,32 @@ export default function Navbar({
                 onClick={() => router.push("/")}
                 onKeyDown={(e) => e.key === "Enter" && router.push("/")}
               >
-                <div className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-primary font-semibold text-[10px] sm:text-xs">A</span>
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center shrink-0 sm:hidden">
+                  {!mobileLogoFailed ? (
+                    <img
+                      src="/enki-art-logo.png"
+                      alt="Enki Art logo"
+                      className="h-full w-full object-contain p-0.5"
+                      onError={() => setMobileLogoFailed(true)}
+                    />
+                  ) : (
+                    <span className="text-primary font-semibold text-[10px] sm:text-xs">E</span>
+                  )}
                 </div>
-                <span className="font-semibold text-foreground text-sm hidden sm:inline truncate">
-                  AIgency
-                </span>
+                <div className="hidden sm:flex h-6 md:h-7 items-center">
+                  {!desktopLogoFailed ? (
+                    <img
+                      src="/enki-art-logo_full.png"
+                      alt="Enki Art"
+                      className="h-full w-auto object-contain"
+                      onError={() => setDesktopLogoFailed(true)}
+                    />
+                  ) : (
+                    <span className="font-semibold text-foreground text-sm truncate">
+                      Enki Art
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Desktop-Navigation */}

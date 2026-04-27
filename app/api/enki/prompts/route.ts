@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
           uploadedPhotos,
           variables,
           generatedImageUrl: body.generatedImageUrl ?? body.generatedImage ?? null,
+          generatedImageUrls: Array.isArray(body.generatedImageUrls)
+            ? body.generatedImageUrls.filter((img: unknown): img is string => typeof img === "string" && img.length > 0)
+            : undefined,
           usePromptEnhancement: body.usePromptEnhancement !== false,
         });
         const updated = await updateEnkiPrompt(promptId, data);
@@ -96,6 +99,9 @@ export async function POST(req: NextRequest) {
       uploadedPhotos,
       variables,
       generatedImageUrl: body.generatedImageUrl ?? body.generatedImage ?? null,
+      generatedImageUrls: Array.isArray(body.generatedImageUrls)
+        ? body.generatedImageUrls.filter((img: unknown): img is string => typeof img === "string" && img.length > 0)
+        : undefined,
       usePromptEnhancement: body.usePromptEnhancement !== false,
     });
 

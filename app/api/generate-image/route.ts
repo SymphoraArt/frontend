@@ -2,21 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
 import {
-  generateImagesWithGemini,
   estimateGeminiCost,
   computeImageCostFromUsage,
 } from "@/backend/services/gemini-image-generation";
+import {
+  generateWithRateLimit,
+  generateWithRetryAndCircuitBreaker,
+  RETRY_CONFIGS,
+} from "@/backend/services";
 import type { ImageGenerationRequest, ImageGenerationResult } from "@/backend/services/types";
 import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
-import { enhancePromptWithGemini, computeEnhancementCostUsd } from "@/lib/generation-pricing";
+import { computeEnhancementCostUsd } from "@/lib/generation-pricing";
 import { applyFee, resolveSpecialty, type UserSpecialty } from "@/lib/fee-config";
 
 type GenerateImageBody = {
   prompt?: string;
+  prompts?: string[];
   aspectRatio?: string;
   resolution?: string;
+  referenceImage?: string;
+  referenceImages?: string[];
   useUptoPayment?: boolean;
-  /** If false, skip prompt enhancement (use prompt as-is). Default true. */
+  /** Prompt enhancement is disabled server-side. */
   useEnhancement?: boolean;
   userId?: string;
 };
@@ -30,8 +37,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+    const prompts =
+      Array.isArray(body?.prompts) && body.prompts.length > 0
+        ? body.prompts
+            .filter((p): p is string => typeof p === "string")
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .slice(0, 4)
+        : [];
+    const promptBatch = prompts.length > 0 ? prompts : prompt ? [prompt] : [];
 
-    if (!prompt) {
+    if (promptBatch.length === 0) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
@@ -103,10 +119,14 @@ export async function POST(request: NextRequest) {
 
     const resolution = body.resolution || "2K";
     const resolutionKey = resolution === "1K" ? "1K" : resolution === "4K" ? "4K" : "2K";
-    const model = "gemini-3-pro-image-preview";
-    const useEnhancement = body.useEnhancement !== false;
-    const estimatedImageCostUsd = estimateGeminiCost(model, resolutionKey, 1);
-    const estimatedTotalUsd = estimatedImageCostUsd + (useEnhancement ? 0.01 : 0);
+    const model = "gemini-2.5-flash-image";
+    const resolutionSupportedByModel =
+      model === "gemini-2.5-flash-image" || model === "gemini-3-pro-image-preview";
+    // Hard-disable enhancement to avoid extra text-model calls (e.g. gemini-1.5-flash 404)
+    const useEnhancement = false;
+    const requestedCount = Math.max(1, Math.min(4, promptBatch.length));
+    const estimatedImageCostUsd = estimateGeminiCost(model, resolutionKey, requestedCount);
+    const estimatedTotalUsd = estimatedImageCostUsd + (useEnhancement ? 0.01 * requestedCount : 0);
     const basePriceWithFeeUsd = applyFee(estimatedTotalUsd, specialty);
     const basePrice = `$${basePriceWithFeeUsd.toFixed(4)}`;
 
@@ -123,14 +143,80 @@ export async function POST(request: NextRequest) {
       price: useUpto ? `${minPrice} - ${maxPrice}` : basePrice,
       hasPaymentHeader: !!paymentHeader,
       serverWallet: serverWalletAddress?.slice(0, 10) + '...',
+      requestedAspectRatio: body.aspectRatio || '1:1',
+      requestedResolution: resolutionKey,
+      resolutionApplied: resolutionSupportedByModel,
     });
 
     let paymentResult;
-    let enhancedPrompt = prompt;
     let usedGemini = false;
     let geminiTokens = 0;
-    /** Set by upto callback when we generate inside it (so we charge exact API cost). */
-    let capturedGeminiResult: ImageGenerationResult | null = null;
+    const imageSize = resolutionKey === '1K' ? '1K' : resolutionKey === '4K' ? '4K' : '2K';
+    const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+    const referenceImages = Array.isArray(body.referenceImages)
+      ? body.referenceImages.filter(
+          (img): img is string => typeof img === "string" && img.length > 0
+        )
+      : undefined;
+    const referenceImage =
+      typeof body.referenceImage === "string" ? body.referenceImage : referenceImages?.[0];
+
+    type GeneratedRun = {
+      sourcePrompt: string;
+      enhancedPrompt: string;
+      result: ImageGenerationResult;
+      imageCostUsd: number;
+      enhancementCostUsd: number;
+      enhancementTokens: number;
+    };
+
+    const runSingleGeneration = async (inputPrompt: string): Promise<GeneratedRun> => {
+      const enhancementInputTokens = 0;
+      const enhancementOutputTokens = 0;
+      const enhancedPrompt = inputPrompt;
+      const enhancementTokens = 0;
+
+      const imageRequest: ImageGenerationRequest = {
+        prompt: enhancedPrompt,
+        aspectRatio,
+        numImages: 1,
+        modelVersion: model,
+        imageSize: imageSize as '1K' | '2K' | '4K',
+        referenceImage,
+        referenceImages,
+      };
+
+      const imageResult = await generateWithRetryAndCircuitBreaker(
+        generateWithRateLimit,
+        imageRequest,
+        RETRY_CONFIGS.rateLimitError
+      );
+
+      if (!imageResult.success || !imageResult.imageBuffers?.length) {
+        const error = new Error(imageResult.error || "Image generation failed");
+        (error as Error & { retryable?: boolean }).retryable = imageResult.retryable;
+        throw error;
+      }
+
+      const imageCostUsd = imageResult.metadata?.usageMetadata
+        ? computeImageCostFromUsage(imageResult.metadata.usageMetadata, model)
+        : estimateGeminiCost(model, resolutionKey, 1);
+      const enhancementCostUsd = computeEnhancementCostUsd(
+        enhancementInputTokens,
+        enhancementOutputTokens
+      );
+
+      return {
+        sourcePrompt: inputPrompt,
+        enhancedPrompt,
+        result: imageResult,
+        imageCostUsd,
+        enhancementCostUsd,
+        enhancementTokens,
+      };
+    };
+
+    let capturedRuns: GeneratedRun[] | null = null;
 
     if (useUpto) {
       // Upto: do enhancement + image generation in callback so we have usageMetadata for exact cost
@@ -143,48 +229,23 @@ export async function POST(request: NextRequest) {
           scheme: 'upto',
           maxPrice: maxPrice,
           minPrice: minPrice,
-          description: `Generate ${body.resolution || '2K'} image with AI enhancement`,
+          description: `Generate ${requestedCount} ${(body.resolution || '2K')} image${requestedCount === 1 ? '' : 's'} with AI`,
           payToAddress: serverWalletAddress,
           category: 'image-generation',
         },
         async () => {
           try {
-            let enhancementInputTokens = 0;
-            let enhancementOutputTokens = 0;
-            if (useEnhancement) {
-              const geminiResult = await enhancePromptWithGemini(prompt);
-              enhancedPrompt = geminiResult.enhancedPrompt;
-              geminiTokens = geminiResult.tokensUsed;
-              enhancementInputTokens = geminiResult.inputTokens;
-              enhancementOutputTokens = geminiResult.outputTokens;
-              usedGemini = geminiTokens > 0;
-            } else {
-              enhancedPrompt = prompt;
+            const runs: GeneratedRun[] = [];
+            for (const promptForRun of promptBatch) {
+              runs.push(await runSingleGeneration(promptForRun));
             }
+            capturedRuns = runs;
 
-            const imageSize = resolutionKey === '1K' ? '1K' : resolutionKey === '4K' ? '4K' : '2K';
-            const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-            const imgRequest: ImageGenerationRequest = {
-              prompt: enhancedPrompt,
-              aspectRatio,
-              numImages: 1,
-              modelVersion: model,
-              imageSize: imageSize as '1K' | '2K' | '4K',
-            };
-            const imageResult = await generateImagesWithGemini(imgRequest);
-            capturedGeminiResult = imageResult;
-
-            if (!imageResult.success || !imageResult.imageBuffers?.length) {
-              const err = imageResult.error || 'Image generation failed';
-              throw new Error(err);
-            }
-
-            // Exact cost: image from usageMetadata, enhancement from official Gemini 1.5 Flash input/output pricing
-            const imageCostUsd = imageResult.metadata?.usageMetadata
-              ? computeImageCostFromUsage(imageResult.metadata.usageMetadata, model)
-              : estimateGeminiCost(model, resolutionKey, 1);
-            const enhancementCostUsd = computeEnhancementCostUsd(enhancementInputTokens, enhancementOutputTokens);
+            const imageCostUsd = runs.reduce((sum, run) => sum + run.imageCostUsd, 0);
+            const enhancementCostUsd = runs.reduce((sum, run) => sum + run.enhancementCostUsd, 0);
             const apiPriceUsd = imageCostUsd + enhancementCostUsd;
+            geminiTokens = runs.reduce((sum, run) => sum + run.enhancementTokens, 0);
+            usedGemini = geminiTokens > 0;
             const actualPriceUsd = applyFee(apiPriceUsd, specialty);
             const actualPrice = `$${actualPriceUsd.toFixed(4)}`;
 
@@ -205,9 +266,8 @@ export async function POST(request: NextRequest) {
             };
           } catch (error) {
             console.error('⚠️ Upto callback failed:', error);
-            enhancedPrompt = prompt;
             usedGemini = false;
-            capturedGeminiResult = null;
+            capturedRuns = null;
             return {
               actualPrice: basePrice,
               metadata: {
@@ -225,26 +285,10 @@ export async function POST(request: NextRequest) {
         paymentHeader: paymentHeader || undefined,
         chainKey: chain,
         price: basePrice,
-        description: `Generate ${body.resolution || '2K'} image with AI`,
+        description: `Generate ${requestedCount} ${(body.resolution || '2K')} image${requestedCount === 1 ? '' : 's'} with AI`,
         payToAddress: serverWalletAddress,
         category: 'image-generation',
       });
-
-      if (paymentResult.success && useEnhancement) {
-        try {
-          const geminiResult = await enhancePromptWithGemini(prompt);
-          if (geminiResult.enhancedPrompt !== prompt) {
-            enhancedPrompt = geminiResult.enhancedPrompt;
-            usedGemini = true;
-            geminiTokens = geminiResult.tokensUsed;
-          }
-        } catch {
-          enhancedPrompt = prompt;
-          usedGemini = false;
-        }
-      } else if (paymentResult.success) {
-        enhancedPrompt = prompt;
-      }
     }
 
     console.log('💳 X402 Payment Result:', {
@@ -263,89 +307,125 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use image from upto callback if we already generated there; otherwise generate now
-    let geminiResult: ImageGenerationResult;
-    if (useUpto && capturedGeminiResult?.success && capturedGeminiResult.imageBuffers?.length) {
-      geminiResult = capturedGeminiResult;
+    let finalRuns: GeneratedRun[] = [];
+    const preparedRuns = capturedRuns as GeneratedRun[] | null;
+    if (preparedRuns && preparedRuns.length === promptBatch.length) {
+      finalRuns = preparedRuns;
     } else {
-      console.log('🎨 Generating image with Gemini...');
-      const imageSize = resolutionKey === '1K' ? '1K' : resolutionKey === '4K' ? '4K' : '2K';
-      const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-      const geminiRequest: ImageGenerationRequest = {
-        prompt: enhancedPrompt,
-        aspectRatio,
-        numImages: 1,
-        modelVersion: model,
-        imageSize: imageSize as '1K' | '2K' | '4K',
-      };
-      geminiResult = await generateImagesWithGemini(geminiRequest);
+      console.log(`🎨 Generating ${promptBatch.length} image(s) with Gemini...`);
+      try {
+        for (const promptForRun of promptBatch) {
+          finalRuns.push(await runSingleGeneration(promptForRun));
+        }
+        geminiTokens = finalRuns.reduce((sum, run) => sum + run.enhancementTokens, 0);
+        usedGemini = geminiTokens > 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const retryable = Boolean((error as Error & { retryable?: boolean }).retryable);
+        console.error('❌ Gemini image generation failed:', message);
+        const errorText = message.toLowerCase();
+        const isRateLimit =
+          errorText.includes('rate limit') ||
+          errorText.includes('429') ||
+          errorText.includes('quota') ||
+          errorText.includes('too many requests');
+        const failureStatus = retryable ? (isRateLimit ? 429 : 503) : 500;
+        return NextResponse.json(
+          {
+            error: message || 'Image generation failed',
+            retryable,
+          },
+          {
+            status: failureStatus,
+            headers: retryable ? { "Retry-After": "30" } : undefined,
+          }
+        );
+      }
     }
 
-    if (!geminiResult.success || !geminiResult.imageBuffers || geminiResult.imageBuffers.length === 0) {
-      console.error('❌ Gemini image generation failed:', geminiResult.error);
+    if (finalRuns.length === 0) {
       return NextResponse.json(
-        { 
-          error: geminiResult.error || 'Image generation failed',
-          retryable: geminiResult.retryable,
-        },
+        { error: "No images were generated." },
         { status: 500 }
       );
     }
 
-    // Upload image buffer to Vercel Blob storage
-    let imageUrl: string;
-    try {
-      const { put } = await import('@vercel/blob');
-      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-      
-      if (!blobToken) {
-        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not set, using data URL fallback');
-        // Fallback to data URL if blob storage not configured
-        const base64 = geminiResult.imageBuffers[0].toString('base64');
-        imageUrl = `data:image/png;base64,${base64}`;
-      } else {
-        // Create unique filename
+    const uploadBuffer = async (buffer: Buffer) => {
+      try {
+        const { put } = await import('@vercel/blob');
+        const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+        if (!blobToken) {
+          const base64 = buffer.toString('base64');
+          return `data:image/png;base64,${base64}`;
+        }
         const timestamp = Date.now();
         const randomSuffix = Math.random().toString(36).substring(2, 9);
         const filename = `generations/${timestamp}_${randomSuffix}.png`;
-
-        // Upload to Vercel Blob
-        const { url } = await put(filename, geminiResult.imageBuffers[0], {
+        const { url } = await put(filename, buffer, {
           access: 'public',
           contentType: 'image/png',
           addRandomSuffix: false,
         });
-
-        imageUrl = url;
-        console.log(`✅ Image uploaded to blob storage: ${url}`);
+        return url;
+      } catch {
+        const base64 = buffer.toString('base64');
+        return `data:image/png;base64,${base64}`;
       }
-    } catch (uploadError: any) {
-      console.error('❌ Failed to upload image to blob storage:', uploadError);
-      // Fallback to data URL if upload fails
-      const base64 = geminiResult.imageBuffers[0].toString('base64');
-      imageUrl = `data:image/png;base64,${base64}`;
-      console.warn('⚠️ Using data URL fallback due to upload error');
+    };
+
+    const firstResult = finalRuns[0].result;
+    if (!firstResult.success || !firstResult.imageBuffers || firstResult.imageBuffers.length === 0) {
+      const errorText = (firstResult.error || '').toLowerCase();
+      const isRateLimit =
+        errorText.includes('rate limit') ||
+        errorText.includes('429') ||
+        errorText.includes('quota') ||
+        errorText.includes('too many requests');
+      const failureStatus = firstResult.retryable
+        ? (isRateLimit ? 429 : 503)
+        : 500;
+      return NextResponse.json(
+        { 
+          error: firstResult.error || 'Image generation failed',
+          retryable: firstResult.retryable,
+        },
+        {
+          status: failureStatus,
+          headers: firstResult.retryable ? { "Retry-After": "30" } : undefined,
+        }
+      );
     }
+    const imageUrls = await Promise.all(
+      finalRuns.map((run) => uploadBuffer(run.result.imageBuffers![0]))
+    );
+    const promptsUsed = finalRuns.map((run) => run.enhancedPrompt);
+    const imageMetadata = finalRuns.map((run) => run.result.metadata ?? {});
 
     // Return image with payment metadata and headers
     return NextResponse.json(
       {
-        imageUrl,
-        prompt: enhancedPrompt,
+        imageUrl: imageUrls[0],
+        imageUrls,
+        prompt: promptsUsed[0],
+        prompts: promptsUsed,
         provider: "gemini",
-        model: geminiResult.metadata?.model || 'gemini-3-pro-image-preview',
+        model: firstResult.metadata?.model || 'gemini-2.5-flash-image',
         usedGemini,
         geminiTokens: usedGemini ? geminiTokens : undefined,
-        generationTime: geminiResult.generationTime,
+        generationTime: firstResult.generationTime,
         paymentScheme: useUpto ? 'upto' : 'exact',
         metadata: {
           ...paymentResult.metadata,
+          requestedAspectRatio: aspectRatio,
+          requestedResolution: resolutionKey,
+          resolutionApplied: resolutionSupportedByModel,
+          resolutionNote: "Requested resolution was sent to Gemini.",
           ...(useUpto && {
             maxPrice,
             minPrice,
             actualPrice: paymentResult.metadata?.actualPrice,
           }),
-          geminiMetadata: geminiResult.metadata,
+          geminiMetadata: imageMetadata,
         },
       },
       {

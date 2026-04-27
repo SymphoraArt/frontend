@@ -16,7 +16,7 @@
  * const image = await generateImage({ prompt: 'A cat', resolution: '2K' }, 'base-sepolia');
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useFetchWithPayment } from "thirdweb/react";
 import { useActiveAccount } from "thirdweb/react";
 import { thirdwebClient } from "../lib/thirdweb-client";
@@ -46,12 +46,14 @@ const ERC20_ABI = [
 
 export interface ImageGenerationSettings {
   prompt: string;
+  prompts?: string[];
   evil?: number;
   middleFinger?: boolean;
   cameraEffects?: string[];
   aspectRatio?: string;
   resolution?: '1K' | '2K' | '4K';
   referenceImage?: string;
+  referenceImages?: string[];
   /** If false, skip prompt enhancement. Default true. */
   useEnhancement?: boolean;
   userId?: string;

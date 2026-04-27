@@ -10,6 +10,7 @@ import {
 type Option = { visibleName?: string; promptValue?: string };
 type VariableInput = {
   name?: string;
+  description?: string;
   type?: string;
   options?: Option[];
 };
@@ -17,9 +18,17 @@ type Body = {
   prompt?: string;
   variables?: VariableInput[];
   userId?: string;
+  count?: number;
 };
 
 const BLITZ_PRICE_USD = process.env.BLITZ_VALUES_PRICE_USD?.trim() || "$0.01";
+
+function scaleUsdPrice(price: string, factor: number): string {
+  const clean = price.replace(/^\$/, "").trim();
+  const value = Number(clean);
+  if (!Number.isFinite(value)) return price;
+  return `$${(value * factor).toFixed(4)}`;
+}
 
 function extractJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
@@ -42,7 +51,7 @@ function isWalletAddress(s: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(s);
 }
 
-async function fetchDeepSeekDefaults(
+function buildFallbackDefaults(
   prompt: string,
   compactVariables: Array<{
     name: string;
@@ -50,6 +59,68 @@ async function fetchDeepSeekDefaults(
     options: Array<{ visibleName: string; promptValue: string }>;
   }>,
   variableNames: string[]
+): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  const seed = Date.now();
+  const promptSnippet = prompt
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+
+  const hash = (input: string) => {
+    let h = 0;
+    for (let i = 0; i < input.length; i += 1) {
+      h = (h << 5) - h + input.charCodeAt(i);
+      h |= 0;
+    }
+    return Math.abs(h);
+  };
+
+  for (const varName of variableNames) {
+    const meta = compactVariables.find((v) => v.name === varName);
+    if (!meta) {
+      defaults[varName] = `${varName} detailed`;
+      continue;
+    }
+
+    if ((meta.type === "single-select" || meta.type === "multi-select") && meta.options.length > 0) {
+      const idx = hash(`${seed}-${varName}`) % meta.options.length;
+      defaults[varName] = meta.options[idx].promptValue || meta.options[idx].visibleName;
+      continue;
+    }
+
+    if (meta.type === "checkbox") {
+      defaults[varName] = hash(`${seed}-${varName}`) % 2 === 0 ? "true" : "false";
+      continue;
+    }
+
+    if (meta.type === "slider") {
+      defaults[varName] = String((hash(`${seed}-${varName}`) % 100) + 1);
+      continue;
+    }
+
+    defaults[varName] = promptSnippet
+      ? promptSnippet.slice(0, 100)
+      : "detailed subject";
+  }
+
+  return defaults;
+}
+
+async function fetchDeepSeekDefaults(
+  prompt: string,
+  compactVariables: Array<{
+    name: string;
+    description: string;
+    type: string;
+    options: Array<{ visibleName: string; promptValue: string }>;
+  }>,
+  variableNames: string[],
+  context?: {
+    runIndex?: number;
+    totalRuns?: number;
+    previousDefaults?: Record<string, string>[];
+  }
 ): Promise<Record<string, string>> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) {
@@ -75,10 +146,19 @@ async function fetchDeepSeekDefaults(
         {
           role: "user",
           content: [
-            "just fill in the variables of the prompt with values that fit the entire composition of the visual prompt, withoud adding more to the prompt",
+            "Fill only the variable values for this visual prompt. Do not add extra instructions.",
+            "Each value must fit the full prompt context.",
+            "Values must be materially different from variable descriptions and from previous runs.",
+            "For auto batch mode: each run must be inherently different while still fitting the same prompt area.",
+            context?.runIndex && context?.totalRuns
+              ? `Current run: ${context.runIndex}/${context.totalRuns}`
+              : "Current run: 1/1",
             "",
             "Return strict JSON only with this shape:",
             '{ "defaults": { "<variableName>": "<replacement value>" } }',
+            "",
+            "Previous run outputs (avoid repeating them):",
+            JSON.stringify(context?.previousDefaults ?? []),
             "",
             "Prompt:",
             prompt,
@@ -126,6 +206,7 @@ export async function POST(req: NextRequest) {
     const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const variables = Array.isArray(body?.variables) ? body.variables : [];
+    const runCount = Math.max(1, Math.min(4, Number(body?.count ?? 1)));
 
     if (!userId || !isWalletAddress(userId)) {
       return NextResponse.json(
@@ -155,6 +236,7 @@ export async function POST(req: NextRequest) {
 
     const compactVariables = variables.map((v) => ({
       name: typeof v?.name === "string" ? v.name.trim() : "",
+      description: typeof v?.description === "string" ? v.description.trim() : "",
       type: typeof v?.type === "string" ? v.type : "text",
       options: Array.isArray(v?.options)
         ? v.options
@@ -180,17 +262,48 @@ export async function POST(req: NextRequest) {
 
     if (useFree) {
       try {
-        const defaults = await fetchDeepSeekDefaults(prompt, compactVariables, variableNames);
+        const defaults = await fetchDeepSeekDefaults(prompt, compactVariables, variableNames, {
+          runIndex: 1,
+          totalRuns: runCount,
+          previousDefaults: [],
+        });
+        const defaultsList: Record<string, string>[] = [defaults];
+        for (let i = 1; i < runCount; i += 1) {
+          try {
+            // Generate a fresh run so Auto mode can vary values per image.
+            defaultsList.push(
+              await fetchDeepSeekDefaults(prompt, compactVariables, variableNames, {
+                runIndex: i + 1,
+                totalRuns: runCount,
+                previousDefaults: defaultsList,
+              })
+            );
+          } catch {
+            defaultsList.push(buildFallbackDefaults(prompt, compactVariables, variableNames));
+          }
+        }
         consumeBlitzFree(userId);
         const next = getBlitzQuota(userId);
         return NextResponse.json({
           defaults,
+          defaultsList,
           blitzRemaining: next.remaining,
           blitzPaid: false,
         });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        return NextResponse.json({ error: message }, { status: 502 });
+      } catch {
+        const fallbackDefaults = buildFallbackDefaults(prompt, compactVariables, variableNames);
+        const defaultsList = Array.from({ length: runCount }, () => fallbackDefaults);
+        consumeBlitzFree(userId);
+        const next = getBlitzQuota(userId);
+        return NextResponse.json({
+          defaults: fallbackDefaults,
+          defaultsList,
+          blitzRemaining: next.remaining,
+          blitzPaid: false,
+          fallbackUsed: true,
+          warning:
+            "DeepSeek was temporarily unavailable. Fallback defaults were applied.",
+        });
       }
     }
 
@@ -208,7 +321,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       paymentHeader: paymentHeader || undefined,
       chainKey: chain,
-      price: BLITZ_PRICE_USD,
+      price: scaleUsdPrice(BLITZ_PRICE_USD, runCount),
       description: "BLITZ variable defaults (AI)",
       payToAddress: serverWalletAddress,
       category: "variable-defaults",
@@ -222,15 +335,44 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const defaults = await fetchDeepSeekDefaults(prompt, compactVariables, variableNames);
+      const defaults = await fetchDeepSeekDefaults(prompt, compactVariables, variableNames, {
+        runIndex: 1,
+        totalRuns: runCount,
+        previousDefaults: [],
+      });
+      const defaultsList: Record<string, string>[] = [defaults];
+      for (let i = 1; i < runCount; i += 1) {
+        try {
+          // Generate a fresh run so Auto mode can vary values per image.
+          defaultsList.push(
+            await fetchDeepSeekDefaults(prompt, compactVariables, variableNames, {
+              runIndex: i + 1,
+              totalRuns: runCount,
+              previousDefaults: defaultsList,
+            })
+          );
+        } catch {
+          defaultsList.push(buildFallbackDefaults(prompt, compactVariables, variableNames));
+        }
+      }
       return NextResponse.json({
         defaults,
+        defaultsList,
         blitzRemaining: 0,
         blitzPaid: true,
       });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ error: message }, { status: 502 });
+    } catch {
+      const fallbackDefaults = buildFallbackDefaults(prompt, compactVariables, variableNames);
+      const defaultsList = Array.from({ length: runCount }, () => fallbackDefaults);
+      return NextResponse.json({
+        defaults: fallbackDefaults,
+        defaultsList,
+        blitzRemaining: 0,
+        blitzPaid: true,
+        fallbackUsed: true,
+        warning:
+          "DeepSeek was temporarily unavailable. Fallback defaults were applied.",
+      });
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

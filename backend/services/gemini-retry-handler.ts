@@ -99,15 +99,50 @@ export async function generateWithRetry(
 ): Promise<ImageGenerationResult> {
   try {
     return await withRetry(
-      () => generateFn(request),
+      async () => {
+        const result = await generateFn(request);
+        // Some Gemini flows return "success: false" instead of throwing.
+        // Convert retryable failures into thrown errors so backoff can kick in.
+        if (!result.success) {
+          const err: Error & { retryable?: boolean; status?: number } = new Error(
+            result.error || 'Image generation failed'
+          );
+          err.retryable = result.retryable !== false;
+          if (result.error?.toLowerCase().includes('rate limit')) {
+            err.status = 429;
+          }
+
+          if (err.retryable) {
+            throw err;
+          }
+          return result;
+        }
+
+        return result;
+      },
       config
     );
   } catch (error: any) {
+    const message = error?.message || 'Image generation failed';
+    const lower = message.toLowerCase();
+    const likelyTransient =
+      lower.includes('rate limit') ||
+      lower.includes('429') ||
+      lower.includes('quota') ||
+      lower.includes('too many requests') ||
+      lower.includes('network') ||
+      lower.includes('fetch failed') ||
+      lower.includes('timeout') ||
+      lower.includes('econn') ||
+      lower.includes('service unavailable') ||
+      lower.includes('temporarily unavailable') ||
+      lower.includes('gateway');
+
     // If all retries failed, return a failure result
     return {
       success: false,
-      error: `Generation failed after ${config.maxRetries || 3} retries: ${error.message}`,
-      retryable: false
+      error: `Generation failed after ${config.maxRetries || 3} retries: ${message}`,
+      retryable: likelyTransient
     };
   }
 }

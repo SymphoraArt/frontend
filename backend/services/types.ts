@@ -8,6 +8,10 @@ export interface ImageGenerationRequest {
   numImages?: number; // 1-4
   modelVersion?: string;
   imageSize?: '1K' | '2K' | '4K';
+  /** Single reference image as data URL (legacy). */
+  referenceImage?: string;
+  /** Multiple reference images as data URLs. */
+  referenceImages?: string[];
   safetySettings?: any[];
 }
 
@@ -29,6 +33,8 @@ export interface ImageGenerationResult {
     model: string;
     aspectRatio: string;
     resolution: string;
+    requestedResolution?: string;
+    resolutionApplied?: boolean;
     finishReason?: string;
     safetyRatings?: any[];
     /** Actual token usage from API (used for exact billing). */

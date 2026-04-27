@@ -24,6 +24,15 @@ import type { GeminiUsageMetadata } from './types';
 // Initialize Gemini AI client
 let ai: GoogleGenAI | null = null;
 
+function parseReferenceDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
+  if (typeof dataUrl !== 'string') return null;
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
+  const [, mimeType, data] = match;
+  if (!mimeType || !data) return null;
+  return { mimeType, data };
+}
+
 function getGeminiClient(): GoogleGenAI {
   if (!ai) {
     // Support both GEMINI_API_KEY and GOOGLE_GEMINI_API_KEY for compatibility
@@ -82,6 +91,13 @@ export async function generateImagesWithGemini(
 
     // 3. Determine model to use
     const model = request.modelVersion || 'gemini-2.5-flash-image';
+    const requestedResolution = request.imageSize || '1K';
+    const modelsWithImageSizeSupport = new Set([
+      'gemini-2.5-flash-image',
+      'gemini-3-pro-image-preview',
+    ]);
+    const resolutionApplied = Boolean(request.imageSize) && modelsWithImageSizeSupport.has(model);
+    const effectiveResolution = resolutionApplied ? requestedResolution : 'model-default';
 
     // 4. Build generation config
     const config: any = {
@@ -91,8 +107,8 @@ export async function generateImagesWithGemini(
       }
     };
 
-    // Only add imageSize if model is Gemini 3 Pro (supports 1K, 2K, 4K)
-    if (model === 'gemini-3-pro-image-preview' && request.imageSize) {
+    // Gemini imageSize is supported for current production models.
+    if (resolutionApplied && request.imageSize) {
       config.imageConfig.imageSize = request.imageSize;
     }
 
@@ -103,19 +119,41 @@ export async function generateImagesWithGemini(
 
     console.log(`[Gemini] Generating image with model: ${model}`);
     console.log(`[Gemini] Prompt: ${request.prompt.substring(0, 100)}...`);
+    console.log(`[Gemini] Settings:`, {
+      aspectRatio: request.aspectRatio || '1:1',
+      requestedResolution,
+      resolutionApplied,
+      effectiveResolution,
+    });
 
     // 5. Generate image
     // Contents must be an array with role and parts structure
+    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
+      { text: request.prompt }
+    ];
+    const referenceCandidates = Array.isArray(request.referenceImages) && request.referenceImages.length > 0
+      ? request.referenceImages
+      : request.referenceImage
+        ? [request.referenceImage]
+        : [];
+
+    for (const refDataUrl of referenceCandidates.slice(0, 8)) {
+      const parsed = parseReferenceDataUrl(refDataUrl);
+      if (!parsed) continue;
+      parts.push({
+        inlineData: {
+          mimeType: parsed.mimeType,
+          data: parsed.data
+        }
+      });
+    }
+
     const response = await client.models.generateContent({
       model,
       contents: [
         {
           role: "user",
-          parts: [
-            {
-              text: request.prompt
-            }
-          ]
+          parts
         }
       ],
       config
@@ -156,7 +194,9 @@ export async function generateImagesWithGemini(
           metadata: {
             model,
             aspectRatio: request.aspectRatio || '1:1',
-            resolution: request.imageSize || '1K',
+            resolution: effectiveResolution,
+            requestedResolution,
+            resolutionApplied,
             finishReason,
             safetyRatings
           }
@@ -193,7 +233,9 @@ export async function generateImagesWithGemini(
       metadata: {
         model,
         aspectRatio: request.aspectRatio || '1:1',
-        resolution: request.imageSize || '1K',
+        resolution: effectiveResolution,
+        requestedResolution,
+        resolutionApplied,
         finishReason,
         safetyRatings,
         usageMetadata,

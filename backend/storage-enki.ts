@@ -122,6 +122,7 @@ export function buildEnkiPromptFromEditor(params: {
     options?: Array<{ visibleName?: string; promptValue: string }> | null;
   }>;
   generatedImageUrl?: string | null;
+  generatedImageUrls?: string[];
   /** Artist choice: use prompt enhancement when users generate (default true). */
   usePromptEnhancement?: boolean;
 }): Omit<EnkiPrompt, "_id"> {
@@ -175,20 +176,22 @@ export function buildEnkiPromptFromEditor(params: {
     },
   ];
 
-  // Only one image total: prefer generated image, else first uploaded photo.
-  const singleImageUrl =
+  const selectedGenerated = Array.isArray(params.generatedImageUrls)
+    ? params.generatedImageUrls.filter((url) => typeof url === "string" && url.length > 0)
+    : [];
+  const fallbackSingle =
     params.generatedImageUrl ??
     (params.uploadedPhotos.length > 0 ? params.uploadedPhotos[0] : null);
-  const showcaseImages =
-    singleImageUrl
-      ? [
-          {
-            url: singleImageUrl,
-            thumbnail: singleImageUrl,
-            isPrimary: true,
-          },
-        ]
+  const showcaseSource = selectedGenerated.length > 0
+    ? selectedGenerated
+    : fallbackSingle
+      ? [fallbackSingle]
       : [];
+  const showcaseImages = showcaseSource.map((url, index) => ({
+    url,
+    thumbnail: url,
+    isPrimary: index === 0,
+  }));
 
   const now = new Date();
   const stats = {
