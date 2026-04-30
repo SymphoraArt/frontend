@@ -6,9 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Download, Loader2, ArrowLeft, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Download, Loader2, ArrowLeft, Image as ImageIcon, Wallet, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -18,15 +21,25 @@ const ASPECT_RATIOS = [
   { value: "3:4", label: "3:4" },
 ];
 
+const PRICE_BY_RESOLUTION: Record<string, string> = {
+  "1K": "$0.05",
+  "2K": "$0.10",
+  "4K": "$0.25",
+};
+
 export default function GeneratePage() {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [resolution, setResolution] = useState("2K");
+  const [paymentMode, setPaymentMode] = useState<"free" | "solana">("free");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [generationTime, setGenerationTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { connected } = useWallet();
+  const { generateImage: generateWithSolana, isPending: isSolanaPending } = useSolanaX402Payment();
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -37,6 +50,19 @@ export default function GeneratePage() {
     setGenerationTime(null);
 
     try {
+      if (paymentMode === "solana") {
+        const data = await generateWithSolana({
+          prompt: prompt.trim(),
+          aspectRatio,
+          resolution,
+          chain: "solana-devnet",
+        });
+        if (!data.imageUrl) throw new Error("No image returned");
+        setGeneratedImageUrl(data.imageUrl);
+        return;
+      }
+
+      // Free mode
       const response = await fetch("/api/generate-free", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,11 +79,7 @@ export default function GeneratePage() {
       }
 
       const data = await response.json();
-
-      if (!data.imageUrl) {
-        throw new Error("No image returned");
-      }
-
+      if (!data.imageUrl) throw new Error("No image returned");
       setGeneratedImageUrl(data.imageUrl);
       setGenerationTime(data.generationTime);
     } catch (err: any) {
@@ -99,10 +121,43 @@ export default function GeneratePage() {
               Powered by Pollinations.ai · No wallet or payment required
             </p>
           </div>
-          <Badge variant="secondary" className="ml-auto text-xs">
-            FREE
-          </Badge>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant={paymentMode === "free" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPaymentMode("free")}
+            >
+              Free
+            </Button>
+            <Button
+              variant={paymentMode === "solana" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setPaymentMode("solana")}
+            >
+              <Zap className="h-3 w-3" />
+              Solana
+            </Button>
+          </div>
         </div>
+
+        {paymentMode === "solana" && (
+          <div className="mb-4 p-3 rounded-lg border border-border/50 bg-card/60 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                {connected
+                  ? "Wallet connected — pay with USDC on Solana devnet"
+                  : "Connect a Solana wallet to generate with AI"}
+              </span>
+              <Badge variant="outline" className="text-xs">
+                {PRICE_BY_RESOLUTION[resolution]} USDC
+              </Badge>
+            </div>
+            <WalletMultiButton style={{ height: "32px", fontSize: "12px", padding: "0 12px" }} />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Controls */}
@@ -161,7 +216,12 @@ export default function GeneratePage() {
                 <Button
                   className="w-full h-10"
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim()}
+                  disabled={
+                    isGenerating ||
+                    isSolanaPending ||
+                    !prompt.trim() ||
+                    (paymentMode === "solana" && !connected)
+                  }
                   data-testid="button-generate"
                 >
                   {isGenerating ? (

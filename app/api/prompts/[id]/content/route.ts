@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
+import { isSolanaChain } from "@/shared/payment-config";
+import {
+  buildSolana402Response,
+  parseSolanaPaymentHeader,
+  verifySolanaUsdcTransfer,
+} from "@/backend/solana-x402-verifier";
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +15,7 @@ export async function GET(
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
-  const paymentHeader = request.headers.get('X-Payment');
+  const paymentHeader = request.headers.get('X-Payment') || request.headers.get('X-PAYMENT');
   const { id } = await params;
 
   const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
@@ -49,6 +55,57 @@ export async function GET(
       { status: 500 }
     );
   }
+
+  // ── Solana x402 path ──────────────────────────────────────────────────
+  if (isSolanaChain(chain)) {
+    const solanaChain = chain as "solana" | "solana-devnet";
+    const solanaPlatformWallet =
+      process.env.SOLANA_PLATFORM_WALLET ||
+      "9yygrkxBH9mm2WgFgua3LvCDWV4Y5fXdCru9SUsdWdKx";
+
+    if (!paymentHeader) {
+      const { body, headers } = buildSolana402Response({
+        chainKey: solanaChain,
+        resource: resourceUrl,
+        description: `Unlock prompt ${id}`,
+        priceUsdc: "$0.05",
+        payTo: solanaPlatformWallet,
+      });
+      return NextResponse.json(body, { status: 402, headers });
+    }
+
+    const payload = parseSolanaPaymentHeader(paymentHeader);
+    if (!payload) {
+      return NextResponse.json({ error: "Invalid Solana payment header" }, { status: 402 });
+    }
+
+    const verification = await verifySolanaUsdcTransfer({
+      signature: payload.signature,
+      chainKey: solanaChain,
+      recipientAddress: solanaPlatformWallet,
+      minAmountMicro: 50_000, // $0.05 USDC
+    });
+
+    if (!verification.verified) {
+      return NextResponse.json(
+        { error: `Solana payment verification failed: ${verification.error}` },
+        { status: 402 }
+      );
+    }
+
+    return NextResponse.json(
+      { content: "Unlocked prompt content" },
+      {
+        status: 200,
+        headers: {
+          "X-Payment-Response": Buffer.from(
+            JSON.stringify({ signature: payload.signature, verified: true })
+          ).toString("base64"),
+        },
+      }
+    );
+  }
+  // ── End Solana path ────────────────────────────────────────────────────
 
   try {
     const result = await paymentEngine.settle({
