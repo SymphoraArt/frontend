@@ -5,6 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { isAddress, verifyMessage } from 'viem';
+import { APP_NAME } from '@/shared/app-config';
 
 export interface AuthenticatedUser {
   walletAddress: string;
@@ -89,7 +90,7 @@ export function generateAuthMessage(walletAddress: string): {
   timestamp: number;
 } {
   const timestamp = Date.now();
-  const message = `Sign this message to authenticate with Symphora Marketplace.
+  const message = `Sign this message to authenticate with ${APP_NAME} Marketplace.
 
 Wallet: ${walletAddress}
 Timestamp: ${timestamp}

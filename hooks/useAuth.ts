@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import { generateAuthMessage, createAuthHeaders } from '@/lib/auth';
+import { AUTH_STORAGE_KEY } from '@/shared/app-config';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -28,7 +29,7 @@ export function useAuth() {
   useEffect(() => {
     const checkExistingAuth = () => {
       try {
-        const storedAuth = localStorage.getItem('symphora_auth');
+        const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
         if (storedAuth) {
           const { walletAddress, timestamp, signature } = JSON.parse(storedAuth);
 
@@ -47,12 +48,12 @@ export function useAuth() {
             return;
           } else {
             // Clear expired auth
-            localStorage.removeItem('symphora_auth');
+            localStorage.removeItem(AUTH_STORAGE_KEY);
           }
         }
       } catch (error) {
         console.warn('Error checking existing auth:', error);
-        localStorage.removeItem('symphora_auth');
+        localStorage.removeItem(AUTH_STORAGE_KEY);
       }
     };
 
@@ -99,7 +100,7 @@ export function useAuth() {
         timestamp,
       };
 
-      localStorage.setItem('symphora_auth', JSON.stringify(authData));
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authData));
 
       setAuthState({
         isAuthenticated: true,
@@ -121,7 +122,7 @@ export function useAuth() {
   }, [account]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('symphora_auth');
+    localStorage.removeItem(AUTH_STORAGE_KEY);
     setAuthState({
       isAuthenticated: false,
       walletAddress: null,
@@ -132,7 +133,7 @@ export function useAuth() {
 
   const getAuthHeaders = useCallback((): Record<string, string> | null => {
     try {
-      const storedAuth = localStorage.getItem('symphora_auth');
+      const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
       if (!storedAuth) return null;
 
       const { walletAddress, signature, message, timestamp } = JSON.parse(storedAuth);

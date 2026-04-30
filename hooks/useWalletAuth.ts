@@ -6,9 +6,10 @@
 
 import { useState, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { APP_NAME } from '@/shared/app-config';
 
 const AUTH_DOMAIN = {
-  name: 'Symphora Marketplace',
+  name: `${APP_NAME} Marketplace`,
   version: '1',
   chainId: 84532,
 };
@@ -76,7 +77,7 @@ export function useWalletAuth(): UseWalletAuthReturn {
 
       // Step 2: Create typed data message
       const message = {
-        purpose: 'Sign in to Symphora Marketplace',
+        purpose: `Sign in to ${APP_NAME} Marketplace`,
         nonce,
         issuedAt,
         expiresAt: expiresAtMs,

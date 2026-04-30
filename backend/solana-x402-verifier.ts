@@ -14,9 +14,8 @@ import {
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import type { ChainKey } from "../shared/payment-config";
 import { PAYMENT_CHAINS } from "../shared/payment-config";
+import { getProgramId } from "../shared/app-config";
 
-const SYMPHORA_PROGRAM_ID = "GdKHLpEPWC6xLjDjgKDJ1FPkZmmKnxGcCH1NebC8S6XD";
-export const SYMPHORA_PLATFORM_WALLET = "9yygrkxBH9mm2WgFgua3LvCDWV4Y5fXdCru9SUsdWdKx";
 const MAX_TX_AGE_SECONDS = 3600; // 1 hour
 
 // ─── Solana 402 Response ────────────────────────────────────────────────────
@@ -226,7 +225,7 @@ export async function verifySolanaPurchasePda(params: {
 }): Promise<VerifyTransferResult> {
   const chain = PAYMENT_CHAINS[params.chainKey];
   const connection = new Connection(chain.rpcUrl, "confirmed");
-  const programId = new PublicKey(SYMPHORA_PROGRAM_ID);
+  const programId = new PublicKey(getProgramId());
 
   // Derive Purchase PDA
   const generationIdBuf = Buffer.alloc(8);
@@ -260,7 +259,7 @@ export async function verifySolanaPurchasePda(params: {
  * Derive the Prompt PDA address for a given (artist, promptId) pair.
  */
 export function derivePromptPda(artistAddress: string, promptIdOnChain: bigint): string {
-  const programId = new PublicKey(SYMPHORA_PROGRAM_ID);
+  const programId = new PublicKey(getProgramId());
   const promptIdBuf = Buffer.alloc(8);
   promptIdBuf.writeBigUInt64LE(promptIdOnChain);
 

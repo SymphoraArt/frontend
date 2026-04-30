@@ -59,9 +59,13 @@ export async function GET(
   // ── Solana x402 path ──────────────────────────────────────────────────
   if (isSolanaChain(chain)) {
     const solanaChain = chain as "solana" | "solana-devnet";
-    const solanaPlatformWallet =
-      process.env.SOLANA_PLATFORM_WALLET ||
-      "9yygrkxBH9mm2WgFgua3LvCDWV4Y5fXdCru9SUsdWdKx";
+    const solanaPlatformWallet = process.env.SOLANA_PLATFORM_WALLET;
+    if (!solanaPlatformWallet) {
+      return NextResponse.json(
+        { error: 'SOLANA_PLATFORM_WALLET is not configured' },
+        { status: 500 }
+      );
+    }
 
     if (!paymentHeader) {
       const { body, headers } = buildSolana402Response({

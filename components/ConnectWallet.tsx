@@ -27,6 +27,7 @@
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import { thirdwebClient, defaultChain } from "@/lib/thirdweb";
+import { APP_NAME, TERMS_URL, PRIVACY_URL } from "@/shared/app-config";
 
 export function ConnectWallet() {
   const account = useActiveAccount();
@@ -65,11 +66,11 @@ export function ConnectWallet() {
       ]}
       connectModal={{
         size: "wide",
-        title: "Sign in to Symphora",
+        title: `Sign in to ${APP_NAME}`,
         titleIcon: "/favicon.svg", // Your app logo
         showThirdwebBranding: false,
-        termsOfServiceUrl: "https://symphora.com/terms",
-        privacyPolicyUrl: "https://symphora.com/privacy",
+        ...(TERMS_URL ? { termsOfServiceUrl: TERMS_URL } : {}),
+        ...(PRIVACY_URL ? { privacyPolicyUrl: PRIVACY_URL } : {}),
       }}
       connectButton={{
         label: "Connect Wallet",
