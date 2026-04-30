@@ -51,9 +51,12 @@ import { apiRequest } from "@/lib/queryClient";
 import PromptSettingsPanel from "./PromptSettingsPanel";
 import QuickVariableCreator from "./QuickVariableCreator";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
+import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import type { ChainKey } from "@/shared/payment-config";
 
 
@@ -107,9 +110,12 @@ interface PromptEditorProps {
 
 export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const account = useActiveAccount();
+  const { connected: solanaConnected } = useWallet();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
+  const { generateImage: generateWithSolana, isPending: isSolanaPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain, setSelectedChain] = useState<ChainKey>(bestChain || 'base-sepolia');
+  const [paymentMode, setPaymentMode] = useState<'evm' | 'solana'>('evm');
   
   const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState("");
@@ -877,15 +883,14 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     setGeneratedImage(null);
 
     try {
-      // Use X402 payment hook for image generation
-      const data = await generateImageWithPayment(
-        {
-        prompt: previewText,
-          resolution: '2K', // Default resolution
-        },
-        selectedChain
-      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
-      
+      let data: { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+
+      if (paymentMode === 'solana') {
+        data = await generateWithSolana({ prompt: previewText, resolution: '2K', chain: 'solana-devnet' });
+      } else {
+        data = await generateImageWithPayment({ prompt: previewText, resolution: '2K' }, selectedChain) as typeof data;
+      }
+
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
@@ -895,9 +900,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             prompt: previewText,
             imageUrl: String(data.imageUrl),
             provider: typeof data.provider === "string" ? data.provider : "unknown",
-            meta: {
-              usedGemini: Boolean(data.usedGemini ?? false),
-            },
+            meta: { usedGemini: Boolean(data.usedGemini ?? false) },
           });
         } catch {
           // ignore persistence error; local fallback below
@@ -909,26 +912,18 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           createdAt: new Date().toISOString(),
         });
       }
-      toast({
-        title: "Generation Complete",
-        description: "Your image was generated successfully.",
-      });
+      toast({ title: "Generation Complete", description: "Your image was generated successfully." });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      // Check if it's a payment/wallet error
       if (errorMessage?.includes('Wallet not connected') || errorMessage?.includes('wallet')) {
         toast({
           title: "Wallet Connection Required",
-          description: "Please connect your wallet to generate images. Click the wallet icon in the navbar.",
+          description: "Please connect your wallet to generate images.",
           variant: "destructive",
           duration: 5000,
         });
       } else {
-      toast({
-        title: "Generation Failed",
-          description: errorMessage || "Error generating image.",
-        variant: "destructive",
-      });
+        toast({ title: "Generation Failed", description: errorMessage || "Error generating image.", variant: "destructive" });
       }
     } finally {
       setIsGenerating(false);
@@ -943,14 +938,13 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     setGeneratedImage(null);
 
     try {
-      // Use X402 payment hook for image generation
-      const data = await generateImageWithPayment(
-        {
-        prompt: previewText,
-          resolution: '2K', // Default resolution
-        },
-        selectedChain
-      ) as { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+      let data: { imageUrl: string; prompt?: string; provider?: string; usedGemini?: boolean; metadata?: unknown };
+
+      if (paymentMode === 'solana') {
+        data = await generateWithSolana({ prompt: previewText, resolution: '2K', chain: 'solana-devnet' });
+      } else {
+        data = await generateImageWithPayment({ prompt: previewText, resolution: '2K' }, selectedChain) as typeof data;
+      }
       
       setGeneratedImage(data.imageUrl);
       const userKey = getUserKeyFromAccount(account);
@@ -1961,7 +1955,35 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
 
         <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink hover:translate-y-0 hover:shadow-sm">
           <CardHeader className="pb-2 px-4 shrink-0">
-            <CardTitle className="text-sm">Generation</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Generation</CardTitle>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={paymentMode === 'evm' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setPaymentMode('evm')}
+                >
+                  EVM
+                </Button>
+                <Button
+                  variant={paymentMode === 'solana' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setPaymentMode('solana')}
+                >
+                  Solana
+                </Button>
+              </div>
+            </div>
+            {paymentMode === 'solana' && (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {solanaConnected ? 'Solana wallet connected' : 'Connect Solana wallet'}
+                </span>
+                <WalletMultiButton style={{ height: '24px', fontSize: '11px', padding: '0 8px' }} />
+              </div>
+            )}
           </CardHeader>
           <CardContent className="flex-1 min-h-0 flex flex-col gap-3 px-4 pb-4">
             {generatedImage ? (
@@ -1993,11 +2015,22 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
               <div className="space-y-2">
                 <Button
                   onClick={handleGenerate}
-                  disabled={isGenerating || isPaymentPending}
+                  disabled={
+                    isGenerating ||
+                    isPaymentPending ||
+                    isSolanaPending ||
+                    (paymentMode === 'solana' && !solanaConnected)
+                  }
                   className="w-full"
                   data-testid="button-generate"
                 >
-                  {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
+                  {(isPaymentPending || isSolanaPending)
+                    ? "Processing Payment..."
+                    : isGenerating
+                    ? "Generating..."
+                    : paymentMode === 'solana' && !solanaConnected
+                    ? "Connect Solana Wallet"
+                    : "Generate"}
                 </Button>
                 <Button
                   variant="outline"
@@ -2795,10 +2828,10 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={proceedWithGenerate}
-              disabled={isGenerating || isPaymentPending}
+              disabled={isGenerating || isPaymentPending || isSolanaPending}
               data-testid="button-proceed-generate"
             >
-              {isPaymentPending ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
+              {(isPaymentPending || isSolanaPending) ? "Processing Payment..." : isGenerating ? "Generating..." : "Generate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

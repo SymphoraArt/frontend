@@ -231,6 +231,22 @@ const ESTIMATED_CHAIN_METRICS: Record<ChainKey, ChainMetrics> = {
     successRate: 0.95,
     lastUpdated: new Date(),
   },
+  // Solana chains use different fee model (lamports, not gas)
+  // avgGasPrice here represents median transaction fee in USD cents
+  solana: {
+    avgGasPrice: 0.001,
+    avgConfirmationTime: 1,
+    congestionLevel: 0.2,
+    successRate: 0.99,
+    lastUpdated: new Date(),
+  },
+  "solana-devnet": {
+    avgGasPrice: 0.001,
+    avgConfirmationTime: 1,
+    congestionLevel: 0.1,
+    successRate: 0.97,
+    lastUpdated: new Date(),
+  },
 };
 
 /**

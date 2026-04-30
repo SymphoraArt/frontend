@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
+import { storage } from "@/backend/storage";
 
 type PatchBody = {
   title?: string;
@@ -72,20 +74,37 @@ export async function GET(
         },
       },
     });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  // Require authentication
+  let authUser;
+  try {
+    authUser = await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Verify ownership before allowing edits
+  const prompt = await storage.getPrompt(id);
+  if (!prompt) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  const isOwner = prompt.userId === authUser.userId || prompt.artistId === authUser.userId;
+  if (!isOwner) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
@@ -130,8 +149,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

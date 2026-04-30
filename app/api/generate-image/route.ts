@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
+import { isSolanaChain } from "@/shared/payment-config";
+import {
+  buildSolana402Response,
+  parseSolanaPaymentHeader,
+  verifySolanaUsdcTransfer,
+  checkAndRecordSolanaSignature,
+} from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
 
@@ -158,6 +165,145 @@ export async function POST(request: NextRequest) {
 
     // Gemini pricing: $0.00001 per token (very affordable)
     const GEMINI_PRICE_PER_TOKEN = 0.00001;
+
+    // ── Solana x402 payment path ──────────────────────────────────────────
+    if (isSolanaChain(chain)) {
+      const solanaChain = chain as "solana" | "solana-devnet";
+      const solanaPlatformWallet = process.env.SOLANA_PLATFORM_WALLET;
+      if (!solanaPlatformWallet) {
+        return NextResponse.json(
+          { error: 'SOLANA_PLATFORM_WALLET is not configured' },
+          { status: 500 }
+        );
+      }
+
+      const solanaPaymentHeader = request.headers.get("X-PAYMENT");
+      if (!solanaPaymentHeader) {
+        // Issue 402 with Solana payment requirements
+        const solana402 = buildSolana402Response({
+          chainKey: solanaChain,
+          resource: resourceUrl,
+          description: `Generate ${body.resolution || "2K"} image`,
+          priceUsdc: basePrice,
+          payTo: solanaPlatformWallet,
+          mimeType: "application/json",
+        });
+        return NextResponse.json(solana402.body, { status: 402, headers: solana402.headers });
+      }
+
+      // Verify Solana payment
+      const payload = parseSolanaPaymentHeader(solanaPaymentHeader);
+      if (!payload) {
+        return NextResponse.json({ error: "Invalid Solana payment header" }, { status: 402 });
+      }
+
+      const priceNum = parseFloat(basePrice.replace("$", ""));
+      const minAmountMicro = Math.round(priceNum * 1_000_000);
+
+      const verification = await verifySolanaUsdcTransfer({
+        signature: payload.signature,
+        chainKey: solanaChain,
+        recipientAddress: solanaPlatformWallet,
+        minAmountMicro,
+      });
+
+      if (!verification.verified) {
+        return NextResponse.json(
+          { error: `Solana payment verification failed: ${verification.error}` },
+          { status: 402 }
+        );
+      }
+
+      // Replay protection: record signature; reject if already used
+      const replayCheck = await checkAndRecordSolanaSignature(
+        payload.signature,
+        solanaChain,
+        "image-generation"
+      );
+      if (!replayCheck.isNew) {
+        return NextResponse.json(
+          { error: "Transaction signature has already been used" },
+          { status: 402 }
+        );
+      }
+
+      // Payment verified — fall through to image generation below
+      console.log("✅ Solana payment verified:", {
+        signature: payload.signature,
+        buyer: verification.buyerAddress,
+        amountPaid: verification.amountPaid,
+      });
+
+      // Generate image directly (skip EVM paymentEngine)
+      try {
+        const enhancedResult = await enhancePromptWithGemini(prompt).catch(() => ({
+          enhancedPrompt: prompt,
+          tokensUsed: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+        }));
+        const enhancedPrompt = enhancedResult.enhancedPrompt;
+        const resolution = body?.resolution || "2K";
+        const aspectRatio = (body?.aspectRatio || "1:1") as "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+
+        const geminiRequest: ImageGenerationRequest = {
+          prompt: enhancedPrompt,
+          aspectRatio,
+          numImages: 1,
+          modelVersion: "gemini-3-pro-image-preview",
+          imageSize: resolution as "1K" | "2K" | "4K",
+        };
+        const geminiResult = await generateImagesWithGemini(geminiRequest);
+
+        if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
+          return NextResponse.json(
+            { error: geminiResult.error || "Image generation failed" },
+            { status: 500 }
+          );
+        }
+
+        let imageUrl: string;
+        try {
+          const { put } = await import("@vercel/blob");
+          const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+          if (!blobToken) {
+            const base64 = geminiResult.imageBuffers[0].toString("base64");
+            imageUrl = `data:image/png;base64,${base64}`;
+          } else {
+            const filename = `generations/${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+            const { url } = await put(filename, geminiResult.imageBuffers[0], {
+              access: "public",
+              contentType: "image/png",
+              addRandomSuffix: false,
+            });
+            imageUrl = url;
+          }
+        } catch {
+          const base64 = geminiResult.imageBuffers[0].toString("base64");
+          imageUrl = `data:image/png;base64,${base64}`;
+        }
+
+        return NextResponse.json({
+          imageUrl,
+          prompt: enhancedPrompt,
+          provider: "gemini",
+          model: geminiResult.metadata?.model || "gemini-3-pro-image-preview",
+          generationTime: geminiResult.generationTime,
+          paymentScheme: "solana-exact",
+          metadata: {
+            solanaTxSignature: payload.signature,
+            chainName: "Solana",
+            chainKey: solanaChain,
+          },
+        });
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Image generation failed" },
+          { status: 500 }
+        );
+      }
+    }
+    // ── End Solana path ───────────────────────────────────────────────────
 
     console.log('💳 X402 Payment Request:', {
       resourceUrl,

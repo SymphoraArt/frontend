@@ -96,9 +96,39 @@ export const PAYMENT_CHAINS = {
     usdcType: "native" as const,
     explorer: "https://explorer.testnet.lukso.network",
   },
+  // Solana Mainnet
+  "solana": {
+    id: 900,
+    name: "Solana Mainnet",
+    rpcUrl: "https://api.mainnet-beta.solana.com",
+    usdc: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    usdcType: "native" as const,
+    explorer: "https://explorer.solana.com",
+    isSolana: true,
+    solanaNetwork: "mainnet-beta" as const,
+  },
+  // Solana Devnet
+  "solana-devnet": {
+    id: 901,
+    name: "Solana Devnet",
+    rpcUrl: "https://api.devnet.solana.com",
+    usdc: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    usdcType: "native" as const,
+    explorer: "https://explorer.solana.com/?cluster=devnet",
+    isSolana: true,
+    solanaNetwork: "devnet" as const,
+  },
 } as const;
 
 export type ChainKey = keyof typeof PAYMENT_CHAINS;
+
+/**
+ * Check if a chain is Solana (non-EVM)
+ */
+export function isSolanaChain(chainKey: ChainKey): boolean {
+  const chain = PAYMENT_CHAINS[chainKey] as any;
+  return chain.isSolana === true;
+}
 
 /**
  * Check if a chain uses bridged USDC (USDC.e) instead of native Circle USDC
