@@ -7,15 +7,15 @@ import { createThirdwebClient } from "thirdweb";
 import { facilitator } from "thirdweb/x402";
 import { log } from "./logger";
 
-// Validate required environment variables
-if (!process.env.THIRDWEB_SECRET_KEY) {
-  console.error('❌ THIRDWEB_SECRET_KEY is not set in environment variables');
-  console.log('Please set THIRDWEB_SECRET_KEY in your .env file');
+// Validate required environment variables at startup
+const THIRDWEB_SECRET_KEY = process.env.THIRDWEB_SECRET_KEY;
+if (!THIRDWEB_SECRET_KEY) {
+  throw new Error('THIRDWEB_SECRET_KEY is not set in environment variables');
 }
 
-if (!process.env.SERVER_WALLET_ADDRESS) {
-  console.error('❌ SERVER_WALLET_ADDRESS is not set in environment variables');
-  console.log('Please set SERVER_WALLET_ADDRESS in your .env file');
+const SERVER_WALLET_ADDRESS = process.env.SERVER_WALLET_ADDRESS;
+if (!SERVER_WALLET_ADDRESS) {
+  throw new Error('SERVER_WALLET_ADDRESS is not set in environment variables');
 }
 
 /**
@@ -23,7 +23,7 @@ if (!process.env.SERVER_WALLET_ADDRESS) {
  * This client is used for server-side operations
  */
 export const thirdwebClient = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_SECRET_KEY || '',
+  secretKey: THIRDWEB_SECRET_KEY,
 });
 
 /**
@@ -35,7 +35,7 @@ export const thirdwebClient = createThirdwebClient({
  */
 export const thirdwebFacilitator = facilitator({
   client: thirdwebClient,
-  serverWalletAddress: process.env.SERVER_WALLET_ADDRESS || '',
+  serverWalletAddress: SERVER_WALLET_ADDRESS,
 
   // Wait for transaction confirmation on-chain
   // Options: "simulated" | "submitted" | "confirmed"
@@ -78,12 +78,7 @@ export async function initializeFacilitator() {
   try {
     log('Initializing Thirdweb X402 Facilitator...', 'facilitator');
 
-    // Verify server wallet is configured
-    if (!process.env.SERVER_WALLET_ADDRESS) {
-      throw new Error('SERVER_WALLET_ADDRESS not configured');
-    }
-
-    log(`✅ Facilitator initialized with wallet: ${process.env.SERVER_WALLET_ADDRESS}`, 'facilitator');
+    log(`✅ Facilitator initialized with wallet: ${SERVER_WALLET_ADDRESS}`, 'facilitator');
     log('✅ Ready to process X402 payments', 'facilitator');
 
     return true;

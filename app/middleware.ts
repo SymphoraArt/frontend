@@ -123,10 +123,7 @@ export async function middleware(request: NextRequest) {
     console.error('❌ Middleware payment error:', errorMessage);
 
     return NextResponse.json(
-      { 
-        error: 'Payment processing failed',
-        details: errorMessage,
-      },
+      { error: 'Payment processing failed' },
       { status: 500 }
     );
   }

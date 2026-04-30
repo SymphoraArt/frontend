@@ -6,6 +6,7 @@
 import { NextRequest } from 'next/server';
 import { isAddress, verifyMessage } from 'viem';
 import { APP_NAME } from '@/shared/app-config';
+import { getSupabaseServerClient } from '@/lib/supabaseServer';
 
 export interface AuthenticatedUser {
   walletAddress: string;
@@ -22,10 +23,11 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
   const signature = request.headers.get('X-Wallet-Signature');
   const message = request.headers.get('X-Auth-Message');
   const timestamp = request.headers.get('X-Timestamp');
+  const nonce = request.headers.get('X-Wallet-Nonce');
 
   // Validate required headers
-  if (!walletAddress || !signature || !message) {
-    throw new Error('Missing authentication headers. Required: X-Wallet-Address, X-Wallet-Signature, X-Auth-Message');
+  if (!walletAddress || !signature || !message || !timestamp) {
+    throw new Error('Missing authentication headers. Required: X-Wallet-Address, X-Wallet-Signature, X-Auth-Message, X-Timestamp');
   }
 
   // Validate wallet address format
@@ -33,14 +35,33 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     throw new Error('Invalid wallet address format');
   }
 
-  // Verify timestamp (prevent replay attacks)
-  if (timestamp) {
-    const requestTime = parseInt(timestamp);
-    const currentTime = Date.now();
-    const timeWindow = 5 * 60 * 1000; // 5 minutes
+  // Verify timestamp (required — prevents replay attacks)
+  const requestTime = parseInt(timestamp, 10);
+  if (isNaN(requestTime)) {
+    throw new Error('Invalid authentication timestamp');
+  }
+  const currentTime = Date.now();
+  const timeWindow = 5 * 60 * 1000; // 5 minutes
+  if (Math.abs(currentTime - requestTime) > timeWindow) {
+    throw new Error('Authentication timestamp expired');
+  }
 
-    if (Math.abs(currentTime - requestTime) > timeWindow) {
-      throw new Error('Authentication timestamp expired');
+  // Verify message contains the claimed wallet address (prevents cross-wallet replay)
+  if (!message.toLowerCase().includes(walletAddress.toLowerCase())) {
+    throw new Error('Authentication message does not reference the claimed wallet address');
+  }
+
+  // If a server-issued nonce is present, verify and consume it atomically
+  // This is the strongest protection against replay attacks
+  if (nonce) {
+    const supabase = getSupabaseServerClient();
+    const { data: consumed, error: nonceError } = await supabase
+      .rpc('consume_auth_nonce', {
+        p_wallet_address: walletAddress.toLowerCase(),
+        p_nonce: nonce,
+      });
+    if (nonceError || !consumed) {
+      throw new Error('Invalid, expired, or already-used nonce');
     }
   }
 
@@ -107,13 +128,13 @@ export function createAuthHeaders(
   walletAddress: string,
   signature: string,
   message: string,
-  timestamp?: number
+  timestamp: number
 ): Record<string, string> {
   return {
     'X-Wallet-Address': walletAddress,
     'X-Wallet-Signature': signature,
     'X-Auth-Message': message,
-    ...(timestamp && { 'X-Timestamp': timestamp.toString() })
+    'X-Timestamp': timestamp.toString(),
   };
 }
 

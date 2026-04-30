@@ -6,6 +6,7 @@ import {
   buildSolana402Response,
   parseSolanaPaymentHeader,
   verifySolanaUsdcTransfer,
+  checkAndRecordSolanaSignature,
 } from "@/backend/solana-x402-verifier";
 
 export async function GET(
@@ -93,6 +94,19 @@ export async function GET(
     if (!verification.verified) {
       return NextResponse.json(
         { error: `Solana payment verification failed: ${verification.error}` },
+        { status: 402 }
+      );
+    }
+
+    // Replay protection: record signature; reject if already used
+    const replayCheck = await checkAndRecordSolanaSignature(
+      payload.signature,
+      solanaChain,
+      "prompt-content"
+    );
+    if (!replayCheck.isNew) {
+      return NextResponse.json(
+        { error: "Transaction signature has already been used" },
         { status: 402 }
       );
     }

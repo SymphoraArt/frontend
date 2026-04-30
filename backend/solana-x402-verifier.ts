@@ -15,8 +15,70 @@ import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-tok
 import type { ChainKey } from "../shared/payment-config";
 import { PAYMENT_CHAINS } from "../shared/payment-config";
 import { getProgramId } from "../shared/app-config";
+import { getSupabaseServerClient } from "../lib/supabaseServer";
 
 const MAX_TX_AGE_SECONDS = 3600; // 1 hour
+
+// ─── Replay Protection ──────────────────────────────────────────────────────
+
+/**
+ * Check if a Solana tx signature has already been used for payment,
+ * and atomically record it if not.
+ *
+ * Returns true if the signature is new (safe to proceed).
+ * Returns false if the signature was already used (replay attack).
+ *
+ * NOTE: For true atomicity, add a UNIQUE constraint on
+ * payment_verifications.transaction_hash in Supabase.
+ */
+export async function checkAndRecordSolanaSignature(
+  signature: string,
+  chainKey: string,
+  context: string  // e.g. "image-generation" or "prompt-content"
+): Promise<{ isNew: boolean; error?: string }> {
+  try {
+    const supabase = getSupabaseServerClient();
+
+    // Check if this signature has already been recorded
+    const { data: existing } = await supabase
+      .from("payment_verifications")
+      .select("id")
+      .eq("transaction_hash", signature)
+      .maybeSingle();
+
+    if (existing) {
+      return { isNew: false, error: "Transaction signature already used" };
+    }
+
+    // Record the signature to prevent future reuse
+    const { error: insertError } = await supabase
+      .from("payment_verifications")
+      .insert({
+        transaction_hash: signature,
+        verified: true,
+        verification_method: "solana-rpc",
+        chain_id: null,
+        chain_name: chainKey,
+        verified_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      // Unique constraint violation = concurrent replay attempt
+      if (insertError.code === "23505") {
+        return { isNew: false, error: "Transaction signature already used" };
+      }
+      // Other DB errors: log but do not block (fail-open is acceptable here
+      // since verifySolanaUsdcTransfer still validates the on-chain state)
+      console.error("Failed to record Solana signature:", insertError);
+    }
+
+    return { isNew: true };
+  } catch (e) {
+    console.error("Replay-protection check failed:", e);
+    // Fail-open: if DB is unavailable don't block payments
+    return { isNew: true };
+  }
+}
 
 // ─── Solana 402 Response ────────────────────────────────────────────────────
 

@@ -10,6 +10,12 @@ export const TERMS_URL = process.env.NEXT_PUBLIC_TERMS_URL ?? '';
 export const PRIVACY_URL = process.env.NEXT_PUBLIC_PRIVACY_URL ?? '';
 
 /**
+ * Platform fee applied to all purchases (0.05 = 5%).
+ * Override with PLATFORM_FEE_PERCENT env var (e.g. "0.05").
+ */
+export const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT ?? '0.05');
+
+/**
  * Solana program ID — required, set NEXT_PUBLIC_PROGRAM_ID in .env.local
  */
 export function getProgramId(): string {

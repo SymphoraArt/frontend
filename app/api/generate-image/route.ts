@@ -6,6 +6,7 @@ import {
   buildSolana402Response,
   parseSolanaPaymentHeader,
   verifySolanaUsdcTransfer,
+  checkAndRecordSolanaSignature,
 } from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
@@ -209,6 +210,19 @@ export async function POST(request: NextRequest) {
       if (!verification.verified) {
         return NextResponse.json(
           { error: `Solana payment verification failed: ${verification.error}` },
+          { status: 402 }
+        );
+      }
+
+      // Replay protection: record signature; reject if already used
+      const replayCheck = await checkAndRecordSolanaSignature(
+        payload.signature,
+        solanaChain,
+        "image-generation"
+      );
+      if (!replayCheck.isNew) {
+        return NextResponse.json(
+          { error: "Transaction signature has already been used" },
           { status: 402 }
         );
       }

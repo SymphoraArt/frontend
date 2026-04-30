@@ -10,6 +10,7 @@ import { paymentEngine } from "@/backend/x402-engine";
 import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { validatePromptForPurchase, revalidatePromptBeforePurchase, validateListingStatusBeforePurchase } from "@/lib/prompt-consistency";
+import { PLATFORM_FEE_PERCENT } from "@/shared/app-config";
 import { verifyPaymentOnChain, recordPaymentVerification } from "@/backend/payment-verification";
 import { generateAccessToken } from "@/lib/content-access-tokens";
 import { queueEarningsReconciliation, queuePromptStatsReconciliation } from "@/lib/reconciliation-queue";
@@ -272,9 +273,9 @@ export async function POST(
     }
 
     // Paid prompt - proceed with payment flow
-    // Calculate revenue split
-    const platformFeeCents = Math.floor(priceUsdCents * 0.20); // 20%
-    const creatorEarningsCents = priceUsdCents - platformFeeCents; // 80%
+    // Calculate revenue split (PLATFORM_FEE_PERCENT default: 5%)
+    const platformFeeCents = Math.floor(priceUsdCents * PLATFORM_FEE_PERCENT);
+    const creatorEarningsCents = priceUsdCents - platformFeeCents;
 
     // Re-validate prompt exists right before payment
     // This prevents race condition where prompt is deleted between initial check and purchase
@@ -384,12 +385,16 @@ export async function POST(
         onChainData: verification.onChainData,
       });
     } else {
-      // No transaction hash - this shouldn't happen with X402, but log it
-      console.warn('⚠️  Payment succeeded but no transaction hash in metadata:', {
+      // No transaction hash — cannot verify payment on-chain, reject
+      console.error('❌ Payment succeeded but no transaction hash — rejecting purchase:', {
         promptId,
         userId: authUser.userId,
         metadata: paymentResult.metadata,
       });
+      return NextResponse.json(
+        { success: false, error: 'Payment verification failed: missing transaction hash' },
+        { status: 402 }
+      );
     }
 
     // CRITICAL: Final validation right before database write
