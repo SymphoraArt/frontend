@@ -181,7 +181,7 @@
 /* ─── Grid ─── */
 .alg-grid {
   flex: 1; display: grid;
-  grid-template-columns: 280px 1.2fr 280px 380px;
+  grid-template-columns: 280px 1.2fr 280px 44px 380px;
   min-height: 0; overflow: hidden;
 }
 
@@ -712,4 +712,45 @@
   font-family: var(--font-jetbrains-mono), monospace;
   font-size: 9px; color: #6A6560; letter-spacing: 0.5px;
   position: absolute; right: 20px; bottom: 5px;
+}
+
+/* ─── Bridge Column (between Variables and Verify) ─── */
+.alg-bridge-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--alg-bg);
+  border-right: 1px solid var(--alg-border);
+  position: relative;
+  overflow: visible;
+  z-index: 10;
+}
+.alg-bridge-btn {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  background: #1C1A18;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  padding: 16px 10px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s ease;
+  width: 44px;
+}
+.alg-bridge-btn:hover { background: #E07045; }
+.alg-bridge-btn--done { background: #E07045; }
+.alg-bridge-btn__arrow {
+  font-size: 11px;
+  transform: rotate(90deg);
+  display: inline-block;
 }
