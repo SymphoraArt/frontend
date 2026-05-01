@@ -994,7 +994,9 @@ export default function AlgencyPromptEditor() {
                             e.preventDefault();
                             const val = (e.target as HTMLInputElement).value.trim();
                             if (val && !variable.values.includes(val)) {
-                              updateVariable(variable.id, { values: [...variable.values, val] });
+                              const updates: any = { values: [...variable.values, val] };
+                              if (!variable.defaultValue) updates.defaultValue = val;
+                              updateVariable(variable.id, updates);
                             }
                             (e.target as HTMLInputElement).value = "";
                           }
