@@ -507,16 +507,16 @@ export default function AlgencyPromptEditor() {
 
   /* ─── Pay & Generate — UX shows total cost, fires sequential per-slot x402 ─── */
   const handlePayAndGenerate = () => {
-    const idleCards = versions.filter(v => v.status === "idle");
-    if (idleCards.length === 0) {
-      toast({ title: "No idle slots", description: "Stack variables first." });
+    const processableCards = versions.filter(v => v.status === "idle" || v.status === "failed");
+    if (processableCards.length === 0) {
+      toast({ title: "No slots ready", description: "Stack variables first." });
       return;
     }
-    const cost = getBatchCost(idleCards.length);
-    const total = idleCards.length;
+    const cost = getBatchCost(processableCards.length);
+    const total = processableCards.length;
     // Mark all as queued immediately
     setVersions(prev => prev.map(v => {
-      const pos = idleCards.findIndex(c => c.id === v.id);
+      const pos = processableCards.findIndex(c => c.id === v.id);
       if (pos === -1) return v;
       return { ...v, status: "queued", queuePosition: pos + 1 };
     }));
@@ -526,7 +526,7 @@ export default function AlgencyPromptEditor() {
       description: "Each slot will process a micro-payment via Thirdweb.",
     });
     // Fire each with 400ms stagger — each triggers its own x402 payment
-    idleCards.forEach((card, i) => {
+    processableCards.forEach((card, i) => {
       setTimeout(() => {
         setVersions(prev => prev.map(v =>
           v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
@@ -991,6 +991,7 @@ export default function AlgencyPromptEditor() {
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
+                            e.preventDefault();
                             const val = (e.target as HTMLInputElement).value.trim();
                             if (val && !variable.values.includes(val)) {
                               updateVariable(variable.id, { values: [...variable.values, val] });
@@ -1098,7 +1099,7 @@ export default function AlgencyPromptEditor() {
                     <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13, fontWeight: 700, color: "#1C1A18" }}>
-                        {getBatchCost(Math.max(versions.filter(v => v.status === "idle").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
+                        {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                       </span>
                       <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
                     </div>
@@ -1115,8 +1116,8 @@ export default function AlgencyPromptEditor() {
                         <Zap size={11} />
                         Pay &amp; Generate
                         <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
-                          {versions.filter(v => v.status === "idle").length > 0
-                            ? `${versions.filter(v => v.status === "idle").length} slots`
+                          {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0
+                            ? `${versions.filter(v => v.status === "idle" || v.status === "failed").length} slots`
                             : "stack first"}
                         </span>
                       </>
@@ -1147,10 +1148,11 @@ export default function AlgencyPromptEditor() {
                           <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#9A9590", letterSpacing: 1 }}>IN QUEUE</span>
                         </div>
                       ) : slot.status === "failed" ? (
-                        <>
-                          <AlertTriangle color="#E07045" size={24} />
-                          <button className="alg-retry-btn" onClick={(e) => { e.stopPropagation(); handleGenerateVersion(slot.id); }}>Retry</button>
-                        </>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 10px", textAlign: "center" }}>
+                          <AlertTriangle color="#E07045" size={20} />
+                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#E07045", letterSpacing: 0.5 }}>RESTRICTED CONTENT</span>
+                          <span style={{ fontSize: 9, color: "#9A9590", lineHeight: 1.3 }}>NSFW or policy violation detected. Adjust variables and try again.</span>
+                        </div>
                       ) : (
                         <button style={{ background: "#5A5550", color: "white", padding: "6px 12px", border: "none", borderRadius: "3px", fontSize: 10, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontWeight: 500 }}
                           onClick={(e) => { e.stopPropagation(); handleGenerateVersion(slot.id); }}
@@ -1164,11 +1166,13 @@ export default function AlgencyPromptEditor() {
                         <span className="alg-version-card__label">Version {String(slot.id).padStart(2, "0")}</span>
                         <span className="alg-version-card__status" style={
                           slot.status === "queued" ? { color: "#E07045", fontWeight: 600 } :
+                          slot.status === "failed" ? { color: "#E07045", fontWeight: 600 } :
                           slot.status === "idle" ? { color: "#B0AAA2", fontStyle: "italic", fontWeight: 400 } : {}
                         }>
                           {slot.status === "complete" ? "● ready" :
                            slot.status === "generating" ? "● generating" :
                            slot.status === "queued" ? `● queue ${slot.queuePosition}/${ui.queueTotal}` :
+                           slot.status === "failed" ? "● failed" :
                            "idle"}
                         </span>
                       </div>
@@ -1229,15 +1233,15 @@ export default function AlgencyPromptEditor() {
           <button
             className="alg-pay-btn alg-pay-btn--footer"
             onClick={handlePayAndGenerate}
-            disabled={isPaymentPending || versions.filter(v => v.status === "idle").length === 0}
+            disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
           >
             <Zap size={12} color="white" fill="white" />
             {isPaymentPending ? "Processing..." : "Pay & Generate"}
-            {versions.filter(v => v.status === "idle").length > 0 && (
+            {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
               <span className="alg-pay-btn__badge">
-                {getBatchCost(versions.filter(v => v.status === "idle").length)}
+                {getBatchCost(versions.filter(v => v.status === "idle" || v.status === "failed").length)}
                 &nbsp;&middot;&nbsp;
-                {versions.filter(v => v.status === "idle").length} image{versions.filter(v => v.status === "idle").length > 1 ? "s" : ""}
+                {versions.filter(v => v.status === "idle" || v.status === "failed").length} image{versions.filter(v => v.status === "idle" || v.status === "failed").length > 1 ? "s" : ""}
               </span>
             )}
           </button>
