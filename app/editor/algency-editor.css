@@ -754,3 +754,26 @@
   transform: rotate(90deg);
   display: inline-block;
 }
+
+/* ─── Stack Value Chips (inside variable card) ─── */
+.alg-val-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #1C1A18; color: #EDE8E0;
+  padding: 2px 8px; font-size: 9px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  letter-spacing: 0.5px; border-radius: 2px;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.alg-val-chip__remove {
+  background: none; border: none; cursor: pointer;
+  color: #6A6560; font-size: 11px; padding: 0; line-height: 1;
+  flex-shrink: 0;
+}
+.alg-val-chip__remove:hover { color: #E07045; }
+.alg-val-add-input {
+  width: 100%; border: none; border-bottom: 1px dashed var(--alg-border);
+  background: transparent; outline: none; padding: 4px 0;
+  font-size: 10px; font-family: var(--font-jetbrains-mono), monospace;
+  color: var(--alg-text);
+}
+.alg-val-add-input::placeholder { color: var(--alg-hint); font-style: italic; }
