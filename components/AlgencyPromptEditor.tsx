@@ -1033,10 +1033,11 @@ export default function AlgencyPromptEditor() {
           </div>
         </section>
 
-        {/* ═══ BRIDGE COLUMN — Stack Variables ═══ */}
-        <div className="alg-bridge-col">
-          {/* Edit Arrows */}
-          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* ═══ PANEL 04 — Verify ═══ */}
+        <section className="alg-panel alg-panel--verify" style={{ background: "var(--alg-bg)", position: "relative", overflow: "visible" }}>
+          
+          {/* Edit Arrows — Overlayed on the left border */}
+          <div style={{ position: "absolute", top: "50%", left: 0, transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", gap: 12, zIndex: 50 }}>
             <button
               className="alg-icon-btn"
               disabled={ui.selectedCards.length !== 1}
@@ -1054,7 +1055,7 @@ export default function AlgencyPromptEditor() {
                 }
               }}
               title="Send selected back to Variables for editing"
-              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#1C1A18", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#1C1A18", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
@@ -1101,16 +1102,12 @@ export default function AlgencyPromptEditor() {
                     ? variables.every(v => v.type === "checkbox" || v.defaultValue)
                     : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
                 ) ? "pointer" : "not-allowed",
-                display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
+                display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
               }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
           </div>
-        </div>
-
-        {/* ═══ PANEL 04 — Verify ═══ */}
-        <section className="alg-panel alg-panel--verify" style={{ background: "var(--alg-bg)" }}>
           <div className="alg-panel__header" style={{ paddingBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span className="alg-panel__number" style={{ color: "#E07045" }}>04</span>
@@ -1222,11 +1219,11 @@ export default function AlgencyPromptEditor() {
             )}
           </div>
 
-          {/* Sticky Footer for Pay & Generate */}
-          {versions.some(v => v.status === "idle" || v.status === "failed") && (
-            <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "16px 24px", zIndex: 10 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {/* Cost summary */}
+          {/* Consolidated Action Bar */}
+          <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "16px 24px", zIndex: 10, marginTop: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Cost summary */}
+              {versions.some(v => v.status === "idle" || v.status === "failed") && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
                   <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -1236,81 +1233,51 @@ export default function AlgencyPromptEditor() {
                     <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
                   </div>
                 </div>
+              )}
+              {/* Action Buttons Row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <button
-                  className="alg-pay-btn"
-                  onClick={handlePayAndGenerate}
-                  disabled={isPaymentPending}
+                  className="alg-btn alg-btn--ghost alg-btn--sm"
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10 }}
+                  onClick={handleGrokFill}
+                  disabled={ui.isGrokFilling}
                 >
-                  {isPaymentPending ? (
-                    <>● Processing payment...</>
-                  ) : (
-                    <>
-                      <Zap size={11} />
-                      Pay &amp; Generate
-                      <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
-                        {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0
-                          ? `${versions.filter(v => v.status === "idle" || v.status === "failed").length} slots`
-                          : "stack first"}
-                      </span>
-                    </>
-                  )}
+                  <Sparkles size={10} />
+                  {ui.isGrokFilling ? "Filling..." : "Grok fill"}
                 </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    className="alg-pay-btn"
+                    onClick={handlePayAndGenerate}
+                    disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
+                    style={{ padding: "8px 16px", height: "auto" }}
+                  >
+                    {isPaymentPending ? (
+                      <>● Processing payment...</>
+                    ) : (
+                      <>
+                        <Zap size={11} />
+                        Pay &amp; Generate
+                        {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
+                          <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
+                            {versions.filter(v => v.status === "idle" || v.status === "failed").length} slots
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    className="alg-btn alg-btn--primary alg-btn--sm"
+                    style={{ padding: "8px 20px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer" }}
+                    disabled={isPublishDisabled}
+                  >
+                    Publish prompt
+                  </button>
+                </div>
               </div>
             </div>
-          )}
+          </div>
         </section>
-      </div>
-
-      {/* ═══ STICKY FOOTER ═══ */}
-      <div className="alg-workspace-footer">
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Pay & Generate Batch */}
-          <button
-            className="alg-pay-btn alg-pay-btn--footer"
-            onClick={handlePayAndGenerate}
-            disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
-          >
-            <Zap size={12} color="white" fill="white" />
-            {isPaymentPending ? "Processing..." : "Pay & Generate"}
-            {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
-              <span className="alg-pay-btn__badge">
-                {getBatchCost(versions.filter(v => v.status === "idle" || v.status === "failed").length)}
-                &nbsp;&middot;&nbsp;
-                {versions.filter(v => v.status === "idle" || v.status === "failed").length} image{versions.filter(v => v.status === "idle" || v.status === "failed").length > 1 ? "s" : ""}
-              </span>
-            )}
-          </button>
-          {/* Grok fill stays as a ghost secondary */}
-          <button
-            className="alg-btn alg-btn--ghost alg-btn--sm"
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10 }}
-            onClick={handleGrokFill}
-            disabled={ui.isGrokFilling}
-          >
-            <Sparkles size={10} />
-            {ui.isGrokFilling ? "Filling..." : "Grok fill"}
-          </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#9A9590" }}>
-            {verifiedCount}/1+ verified
-          </span>
-          <button
-            className="alg-btn alg-btn--ghost alg-btn--sm"
-            style={{ padding: "7px 16px", color: "#1C1A18" }}
-            onClick={() => savePromptMutation.mutate()}
-            disabled={savePromptMutation.isPending}
-          >
-            {savePromptMutation.isPending ? "Saving..." : "Release prompt"}
-          </button>
-          <button
-            className="alg-btn alg-btn--primary alg-btn--sm"
-            style={{ padding: "7px 20px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer" }}
-            disabled={isPublishDisabled}
-          >
-            Publish prompt
-          </button>
-        </div>
       </div>
     </div>
   );

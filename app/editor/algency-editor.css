@@ -181,7 +181,7 @@
 /* ─── Grid ─── */
 .alg-grid {
   flex: 1; display: grid;
-  grid-template-columns: 280px 1.2fr 280px 44px 380px;
+  grid-template-columns: 280px 1.2fr 280px 380px;
   min-height: 0; overflow: hidden;
 }
 
