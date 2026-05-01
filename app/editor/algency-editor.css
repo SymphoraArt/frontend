@@ -639,3 +639,43 @@
 @keyframes alg-collapse {
   to { opacity: 0; height: 0; padding: 0; margin: 0; border: none; }
 }
+
+/* ─── Sticky Workspace Footer ─── */
+.alg-workspace-footer {
+  position: relative; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  height: 48px; min-height: 48px;
+  background: var(--alg-panel);
+  border-top: 1px solid var(--alg-border);
+  flex-shrink: 0;
+}
+
+/* ─── Tag Input ─── */
+.alg-tag-input-wrap {
+  border: 1px solid var(--alg-border);
+  background: #FFFFFF;
+  padding: 8px 10px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center; min-height: 40px;
+}
+.alg-tag-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.alg-tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--alg-bg); border: 1px solid var(--alg-border);
+  padding: 2px 8px; font-size: 10px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  color: var(--alg-dark); letter-spacing: 0.5px;
+}
+.alg-tag-chip__remove {
+  background: none; border: none; cursor: pointer;
+  color: var(--alg-hint); font-size: 12px; line-height: 1;
+  padding: 0; margin-left: 2px;
+}
+.alg-tag-chip__remove:hover { color: #E07045; }
+.alg-tag-input {
+  flex: 1; min-width: 120px; border: none; outline: none; background: transparent;
+  font-size: 11px; font-family: var(--font-jetbrains-mono), monospace;
+  color: var(--alg-text);
+}
+.alg-tag-input::placeholder { color: var(--alg-hint); }
