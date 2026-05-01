@@ -1062,38 +1062,53 @@ export default function AlgencyPromptEditor() {
             </button>
             <button
               className="alg-icon-btn"
-              disabled={!ui.isEditingVersion || !variables.every(v => v.type === "checkbox" || v.defaultValue)}
+              disabled={
+                ui.isEditingVersion 
+                  ? !variables.every(v => v.type === "checkbox" || v.defaultValue)
+                  : variables.length === 0 || (versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
+              }
               onClick={() => {
-                if (!ui.editingVersionId) return;
-                const snapshot: Record<string, string> = {};
-                variables.forEach(v => {
-                  if (v.type === "checkbox") {
-                    snapshot[v.name] = v.defaultValue ? (v.description || "on") : "off";
-                  } else {
-                    snapshot[v.name] = (v.defaultValue as string) || v.name;
-                  }
-                });
-                setVersions(prev => prev.map(v => v.id === ui.editingVersionId ? { ...v, variableSnapshot: snapshot, status: "idle" } : v));
-                setUi(prev => ({ ...prev, isEditingVersion: false, editingVersionId: null, selectedCards: [] }));
+                if (ui.isEditingVersion) {
+                  if (!ui.editingVersionId) return;
+                  const snapshot: Record<string, string> = {};
+                  variables.forEach(v => {
+                    if (v.type === "checkbox") {
+                      snapshot[v.name] = v.defaultValue ? (v.description || "on") : "off";
+                    } else {
+                      snapshot[v.name] = (v.defaultValue as string) || v.name;
+                    }
+                  });
+                  setVersions(prev => prev.map(v => v.id === ui.editingVersionId ? { ...v, variableSnapshot: snapshot, status: "idle" } : v));
+                  setUi(prev => ({ ...prev, isEditingVersion: false, editingVersionId: null, selectedCards: [] }));
+                } else {
+                  handleStackVariables();
+                }
               }}
-              title="Add variables back to Verify"
-              style={{ width: 24, height: 24, borderRadius: "50%", background: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF", color: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#1C1A18", border: "none", cursor: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+              title={ui.isEditingVersion ? "Add variables back to Verify" : "Stack variables and verify"}
+              style={{
+                width: 24, height: 24, borderRadius: "50%",
+                background: (
+                  ui.isEditingVersion 
+                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
+                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
+                ) ? "#1C1A18" : "#EAE5DF",
+                color: (
+                  ui.isEditingVersion 
+                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
+                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
+                ) ? "#FFFFFF" : "#1C1A18",
+                border: "none",
+                cursor: (
+                  ui.isEditingVersion 
+                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
+                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
+                ) ? "pointer" : "not-allowed",
+                display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
+              }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
           </div>
-
-          {variables.length > 0 && !ui.isEditingVersion && (
-            <button
-              className="alg-bridge-btn"
-              onClick={handleStackVariables}
-              title="Stack variables and verify"
-              disabled={versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed")}
-            >
-              <Zap size={10} color={versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed") ? "#A09A95" : "#FFFFFF"} fill="currentColor" />
-              Stack &amp; Verify
-            </button>
-          )}
         </div>
 
         {/* ═══ PANEL 04 — Verify ═══ */}
