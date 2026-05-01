@@ -118,6 +118,8 @@ export default function AlgencyPromptEditor() {
     isGrokFilling: false,
     showVerificationCard: false,
     queueTotal: 0,
+    isEditingVersion: false,
+    editingVersionId: null as number | null,
   });
 
   /* ─── Model Sync ─── */
@@ -1035,7 +1037,53 @@ export default function AlgencyPromptEditor() {
 
         {/* ═══ BRIDGE COLUMN — Stack Variables ═══ */}
         <div className="alg-bridge-col">
-          {variables.length > 0 && (
+          {/* Edit Arrows */}
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", gap: 12 }}>
+            <button
+              className="alg-icon-btn"
+              disabled={ui.selectedCards.length !== 1}
+              onClick={() => {
+                const card = versions.find(v => v.id === ui.selectedCards[0]);
+                if (card) {
+                  const newVariables = variables.map(v => {
+                    if (card.variableSnapshot[v.name]) {
+                      return { ...v, defaultValue: card.variableSnapshot[v.name] };
+                    }
+                    return v;
+                  });
+                  setVariables(newVariables);
+                  setUi(prev => ({ ...prev, isEditingVersion: true, editingVersionId: card.id }));
+                }
+              }}
+              title="Send selected back to Variables for editing"
+              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#A09A95", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <button
+              className="alg-icon-btn"
+              disabled={!ui.isEditingVersion || !variables.every(v => v.type === "checkbox" || v.defaultValue)}
+              onClick={() => {
+                if (!ui.editingVersionId) return;
+                const snapshot: Record<string, string> = {};
+                variables.forEach(v => {
+                  if (v.type === "checkbox") {
+                    snapshot[v.name] = v.defaultValue ? (v.description || "on") : "off";
+                  } else {
+                    snapshot[v.name] = (v.defaultValue as string) || v.name;
+                  }
+                });
+                setVersions(prev => prev.map(v => v.id === ui.editingVersionId ? { ...v, variableSnapshot: snapshot, status: "idle" } : v));
+                setUi(prev => ({ ...prev, isEditingVersion: false, editingVersionId: null, selectedCards: [] }));
+              }}
+              title="Add variables back to Verify"
+              style={{ width: 24, height: 24, borderRadius: "50%", background: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF", color: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#A09A95", border: "none", cursor: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+
+          {variables.length > 0 && !ui.isEditingVersion && (
             <button
               className="alg-bridge-btn"
               onClick={handleStackVariables}
