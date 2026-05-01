@@ -1066,6 +1066,7 @@ export default function AlgencyPromptEditor() {
                         </div>
                       ))}
                   </div>
+                  </div>
                 );
               })}
               <div style={{ height: 24, flexShrink: 0 }} />
