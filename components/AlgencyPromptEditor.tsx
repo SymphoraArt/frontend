@@ -117,6 +117,7 @@ export default function AlgencyPromptEditor() {
     tooltip: null as { x: number, y: number, text: string } | null,
     tagInput: "",
     isGrokFilling: false,
+    showVerificationCard: false,
   });
 
   /* ─── Model Sync ─── */
@@ -869,6 +870,20 @@ export default function AlgencyPromptEditor() {
                 </div>
               ))
             )}
+
+            {/* ─── Stack Variables Bridge Button ─── */}
+            {variables.length > 0 && (
+              <div style={{ marginTop: "auto", paddingTop: 24 }}>
+                <button
+                  className="alg-stack-btn"
+                  onClick={() => setUi(prev => ({ ...prev, showVerificationCard: true }))}
+                >
+                  <span className="alg-stack-btn__label">Stack variables</span>
+                  <span className="alg-stack-btn__arrow">→ Verify</span>
+                  <span className="alg-stack-btn__count">{variables.length} var{variables.length !== 1 ? 's' : ''}</span>
+                </button>
+              </div>
+            )}
             <div style={{ height: 24, flexShrink: 0 }} />
           </div>
         </section>
@@ -890,7 +905,7 @@ export default function AlgencyPromptEditor() {
             </p>
 
             {/* ─── Verification Card ─── */}
-            {variables.length > 0 && (
+            {ui.showVerificationCard && variables.length > 0 && (
               <div style={{ border: "1px solid var(--alg-border)", background: "#FDFBF8", padding: "16px", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, fontWeight: 600, color: "#5A5550", letterSpacing: 1.5, textTransform: "uppercase" }}>Before you generate</span>
