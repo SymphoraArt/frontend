@@ -1056,7 +1056,7 @@ export default function AlgencyPromptEditor() {
                 }
               }}
               title="Send selected back to Variables for editing"
-              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#A09A95", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#1C1A18", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
@@ -1077,7 +1077,7 @@ export default function AlgencyPromptEditor() {
                 setUi(prev => ({ ...prev, isEditingVersion: false, editingVersionId: null, selectedCards: [] }));
               }}
               title="Add variables back to Verify"
-              style={{ width: 24, height: 24, borderRadius: "50%", background: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF", color: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#A09A95", border: "none", cursor: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+              style={{ width: 24, height: 24, borderRadius: "50%", background: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF", color: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#1C1A18", border: "none", cursor: (ui.isEditingVersion && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
