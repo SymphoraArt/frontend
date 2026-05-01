@@ -777,3 +777,9 @@
   color: var(--alg-text);
 }
 .alg-val-add-input::placeholder { color: var(--alg-hint); font-style: italic; }
+
+/* ─── Version card selected state ─── */
+.alg-version-card--selected {
+  outline: 2px solid #E07045;
+  outline-offset: -2px;
+}

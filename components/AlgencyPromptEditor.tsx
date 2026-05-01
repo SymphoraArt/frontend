@@ -40,9 +40,10 @@ interface PromptVariable {
 
 interface VersionCard {
   id: number;
-  variableSnapshot: Record<string, string>; // dynamic per-card variable values
+  variableSnapshot: Record<string, string>;
   imageUrl: string | null;
-  status: "idle" | "generating" | "complete" | "failed";
+  status: "idle" | "queued" | "generating" | "complete" | "failed";
+  queuePosition?: number; // assigned when batch-queued
 }
 
 /* ─── Color map for known variables ─── */
@@ -116,6 +117,7 @@ export default function AlgencyPromptEditor() {
     tagInput: "",
     isGrokFilling: false,
     showVerificationCard: false,
+    queueTotal: 0,
   });
 
   /* ─── Model Sync ─── */
@@ -449,15 +451,28 @@ export default function AlgencyPromptEditor() {
     setUi(prev => ({ ...prev, showVerificationCard: true }));
   };
 
-  /* ─── Batch Generate — fires only idle slots, 300ms stagger ─── */
+  /* ─── Batch Generate — assigns queue positions, fires sequentially ─── */
   const handleBatchGenerate = () => {
     const idleCards = versions.filter(v => v.status === "idle");
     if (idleCards.length === 0) {
-      toast({ title: "No idle slots", description: "Stack variables first." });
+      toast({ title: "No idle slots", description: "Stack variables first, then generate." });
       return;
     }
+    const total = idleCards.length;
+    // Mark all idle cards as queued with their position
+    setVersions(prev => prev.map(v => {
+      const pos = idleCards.findIndex(c => c.id === v.id);
+      if (pos === -1) return v;
+      return { ...v, status: "queued", queuePosition: pos + 1 };
+    }));
+    setUi(prev => ({ ...prev, queueTotal: total }));
+    toast({ title: `Batch queued`, description: `${total} slot${total > 1 ? 's' : ''} queued for generation.` });
+    // Fire each with stagger, clearing queue position on start
     idleCards.forEach((card, i) => {
-      setTimeout(() => handleGenerateVersion(card.id), i * 300);
+      setTimeout(() => {
+        setVersions(prev => prev.map(v => v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v));
+        handleGenerateVersion(card.id);
+      }, i * 400);
     });
   };
 
@@ -920,20 +935,18 @@ export default function AlgencyPromptEditor() {
               ))
             )}
 
-            {/* ─── Stack Variables Bridge Button ─── */}
+            {/* ─── Stack Variables Bridge Button — flush to bottom divider ─── */}
             {variables.length > 0 && (
-              <div style={{ marginTop: "auto", paddingTop: 24 }}>
-                  <button
-                    className="alg-stack-btn"
-                    onClick={handleStackVariables}
-                  >
-                  <span className="alg-stack-btn__label">Stack variables</span>
-                  <span className="alg-stack-btn__arrow">→ Verify</span>
-                  <span className="alg-stack-btn__count">{variables.length} var{variables.length !== 1 ? 's' : ''}</span>
-                </button>
-              </div>
+              <button
+                className="alg-stack-btn"
+                style={{ marginTop: "auto" }}
+                onClick={handleStackVariables}
+              >
+                <span className="alg-stack-btn__label">Stack variables</span>
+                <span className="alg-stack-btn__arrow">→ Verify</span>
+                <span className="alg-stack-btn__count">{variables.length} var{variables.length !== 1 ? 's' : ''}</span>
+              </button>
             )}
-            <div style={{ height: 24, flexShrink: 0 }} />
           </div>
         </section>
 
@@ -1001,28 +1014,31 @@ export default function AlgencyPromptEditor() {
               {versions.map((slot) => {
                 const isSelected = ui.selectedCards.includes(slot.id);
                 return (
-                  <div key={slot.id} className={`alg-version-card ${slot.status === "generating" ? "alg-version-card--loading" : ""} ${slot.status === "failed" ? "alg-version-card--failed" : ""}`}>
-
-                    <div
-                      className={`alg-version-card__checkbox ${isSelected ? "alg-version-card__checkbox--checked" : ""}`}
-                      onClick={() => toggleVersionCheckbox(slot.id)}
-                      style={{ display: "none" }} // Hide the floating checkbox in this new layout
-                    >
-                      {isSelected && <Check />}
-                    </div>
-
+                  <div
+                    key={slot.id}
+                    className={`alg-version-card ${slot.status === "generating" ? "alg-version-card--loading" : ""} ${slot.status === "failed" ? "alg-version-card--failed" : ""} ${isSelected ? "alg-version-card--selected" : ""}`}
+                    onClick={() => toggleVersionCheckbox(slot.id)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <div className="alg-version-card__thumb">
                       {slot.status === "complete" && slot.imageUrl ? (
-                        <img src={slot.imageUrl} alt={`Version ${String(slot.id).padStart(2, "0")}`} />
+                        <img src={slot.imageUrl} alt={`Version ${String(slot.id).padStart(2, "00")}`} />
                       ) : slot.status === "generating" ? (
-                        <div className="alg-spinner"></div>
+                        <div className="alg-spinner" />
+                      ) : slot.status === "queued" ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 18, fontWeight: 700, color: "#E07045" }}>#{slot.queuePosition}</span>
+                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#9A9590", letterSpacing: 1 }}>IN QUEUE</span>
+                        </div>
                       ) : slot.status === "failed" ? (
                         <>
                           <AlertTriangle color="#E07045" size={24} />
-                          <button className="alg-retry-btn" onClick={() => handleGenerateVersion(slot.id)}>Retry</button>
+                          <button className="alg-retry-btn" onClick={(e) => { e.stopPropagation(); handleGenerateVersion(slot.id); }}>Retry</button>
                         </>
                       ) : (
-                        <button style={{ background: "#5A5550", color: "white", padding: "6px 12px", border: "none", borderRadius: "3px", fontSize: 10, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontWeight: 500 }} onClick={() => handleGenerateVersion(slot.id)}>
+                        <button style={{ background: "#5A5550", color: "white", padding: "6px 12px", border: "none", borderRadius: "3px", fontSize: 10, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontWeight: 500 }}
+                          onClick={(e) => { e.stopPropagation(); handleGenerateVersion(slot.id); }}
+                        >
                           <Zap size={10} color="white" fill="white" /> Generate
                         </button>
                       )}
@@ -1030,17 +1046,25 @@ export default function AlgencyPromptEditor() {
                     <div className="alg-version-card__info">
                       <div className="alg-version-card__header">
                         <span className="alg-version-card__label">Version {String(slot.id).padStart(2, "0")}</span>
-                        <span className="alg-version-card__status" style={slot.status === "idle" ? { color: "#B0AAA2", fontStyle: "italic", textTransform: "lowercase", fontWeight: 400 } : {}}>
-                          {slot.status === "complete" ? "● ready" : slot.status === "generating" ? "● generating" : "idle"}
+                        <span className="alg-version-card__status" style={
+                          slot.status === "queued" ? { color: "#E07045", fontWeight: 600 } :
+                          slot.status === "idle" ? { color: "#B0AAA2", fontStyle: "italic", fontWeight: 400 } : {}
+                        }>
+                          {slot.status === "complete" ? "● ready" :
+                           slot.status === "generating" ? "● generating" :
+                           slot.status === "queued" ? `● queue ${slot.queuePosition}/${ui.queueTotal}` :
+                           "idle"}
                         </span>
                       </div>
+                      {isSelected && (
+                        <div style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#E07045", letterSpacing: 1, marginBottom: 4 }}>✓ SELECTED</div>
+                      )}
                       {Object.entries(slot.variableSnapshot).map(([key, val]) => (
                         <div key={key} className="alg-version-card__row">
                           <span className="alg-version-card__key">{key.toUpperCase()}</span>
                           <span className="alg-version-card__val">{val || <span style={{ color: "var(--alg-hint)", fontStyle: "italic" }}>—</span>}</span>
                         </div>
                       ))}
-                    </div>
                   </div>
                 );
               })}
