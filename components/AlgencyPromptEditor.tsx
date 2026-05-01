@@ -1044,6 +1044,11 @@ export default function AlgencyPromptEditor() {
               onClick={() => {
                 const card = versions.find(v => v.id === ui.selectedCards[0]);
                 if (card) {
+                  const hasExistingDefaults = variables.some(v => v.defaultValue);
+                  if (hasExistingDefaults) {
+                    if (!window.confirm("This will overwrite your current variable defaults. Continue?")) return;
+                  }
+
                   const newVariables = variables.map(v => {
                     if (card.variableSnapshot[v.name]) {
                       return { ...v, defaultValue: card.variableSnapshot[v.name] };
@@ -1051,7 +1056,8 @@ export default function AlgencyPromptEditor() {
                     return v;
                   });
                   setVariables(newVariables);
-                  setUi(prev => ({ ...prev, isEditingVersion: true, editingVersionId: card.id }));
+                  setVersions(prev => prev.filter(v => v.id !== card.id));
+                  setUi(prev => ({ ...prev, selectedCards: [] }));
                 }
               }}
               title="Send selected back to Variables for editing"
@@ -1061,47 +1067,17 @@ export default function AlgencyPromptEditor() {
             </button>
             <button
               className="alg-icon-btn"
-              disabled={
-                ui.isEditingVersion 
-                  ? !variables.every(v => v.type === "checkbox" || v.defaultValue)
-                  : variables.length === 0 || (versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
-              }
+              disabled={variables.length === 0 || !variables.every(v => v.type === "checkbox" || v.defaultValue)}
               onClick={() => {
-                if (ui.isEditingVersion) {
-                  if (!ui.editingVersionId) return;
-                  const snapshot: Record<string, string> = {};
-                  variables.forEach(v => {
-                    if (v.type === "checkbox") {
-                      snapshot[v.name] = v.defaultValue ? (v.description || "on") : "off";
-                    } else {
-                      snapshot[v.name] = (v.defaultValue as string) || v.name;
-                    }
-                  });
-                  setVersions(prev => prev.map(v => v.id === ui.editingVersionId ? { ...v, variableSnapshot: snapshot, status: "idle" } : v));
-                  setUi(prev => ({ ...prev, isEditingVersion: false, editingVersionId: null, selectedCards: [] }));
-                } else {
-                  handleStackVariables();
-                }
+                handleStackVariables();
               }}
-              title={ui.isEditingVersion ? "Add variables back to Verify" : "Stack variables and verify"}
+              title="Stack variables and verify"
               style={{
                 width: 24, height: 24, borderRadius: "50%",
-                background: (
-                  ui.isEditingVersion 
-                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
-                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
-                ) ? "#1C1A18" : "#EAE5DF",
-                color: (
-                  ui.isEditingVersion 
-                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
-                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
-                ) ? "#FFFFFF" : "#1C1A18",
+                background: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF",
+                color: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#1C1A18",
                 border: "none",
-                cursor: (
-                  ui.isEditingVersion 
-                    ? variables.every(v => v.type === "checkbox" || v.defaultValue)
-                    : variables.length > 0 && !(versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed"))
-                ) ? "pointer" : "not-allowed",
+                cursor: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed",
                 display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
               }}
             >
@@ -1205,7 +1181,7 @@ export default function AlgencyPromptEditor() {
                     className="alg-refill-bar__refill"
                     onClick={handleRefillAndGenerate}
                   >
-                    Delete &amp; Refill
+                    Refill
                     <span className="alg-refill-bar__cost">{getRefillCost(ui.selectedCards.length)}</span>
                   </button>
                   <button
@@ -1238,29 +1214,29 @@ export default function AlgencyPromptEditor() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <button
                   className="alg-btn alg-btn--ghost alg-btn--sm"
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10 }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, whiteSpace: "nowrap" }}
                   onClick={handleGrokFill}
                   disabled={ui.isGrokFilling}
                 >
                   <Sparkles size={10} />
                   {ui.isGrokFilling ? "Filling..." : "Grok fill"}
                 </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
                     className="alg-pay-btn"
                     onClick={handlePayAndGenerate}
                     disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
-                    style={{ padding: "8px 16px", height: "auto" }}
+                    style={{ padding: "8px 12px", height: "auto", whiteSpace: "nowrap" }}
                   >
                     {isPaymentPending ? (
-                      <>● Processing payment...</>
+                      <>● Processing...</>
                     ) : (
                       <>
                         <Zap size={11} />
                         Pay &amp; Generate
                         {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
                           <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
-                            {versions.filter(v => v.status === "idle" || v.status === "failed").length} slots
+                            ({versions.filter(v => v.status === "idle" || v.status === "failed").length})
                           </span>
                         )}
                       </>
@@ -1268,10 +1244,10 @@ export default function AlgencyPromptEditor() {
                   </button>
                   <button
                     className="alg-btn alg-btn--primary alg-btn--sm"
-                    style={{ padding: "8px 20px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer" }}
+                    style={{ padding: "8px 12px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
                     disabled={isPublishDisabled}
                   >
-                    Publish prompt
+                    Publish
                   </button>
                 </div>
               </div>
