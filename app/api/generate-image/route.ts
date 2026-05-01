@@ -9,6 +9,8 @@ type GenerateImageBody = {
   aspectRatio?: string;
   resolution?: string;
   useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
+  modelIds?: string[];
+  ratio?: string;
 };
 
 /**
@@ -100,6 +102,37 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
+
+    // --- SECURITY GUARDS ---
+    // 1. Prompt length cap
+    if (prompt.length > 4000) {
+      return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
+    }
+
+    // 2. Variable injection guard
+    const bracketCount = (prompt.match(/\[/g) || []).length;
+    if (bracketCount > 20) {
+      return NextResponse.json({ error: "Too many variables" }, { status: 400 });
+    }
+
+    // 3. Ratio validation
+    // Mock DB for now
+    const mockModels: Record<string, string[]> = {
+      "nano-banana-pro": ["1:1", "4:5", "3:2", "16:9", "9:16", "21:9"],
+      "gpt-image-2": ["1:1", "16:9", "9:16"],
+      "midjourney-v7": ["1:1", "4:5", "3:2", "16:9", "9:16"],
+    };
+    if (body.modelIds && body.modelIds.length > 0 && body.ratio && body.ratio !== "Any ratio") {
+      const allowed = body.modelIds.some(id => mockModels[id]?.includes(body.ratio as string));
+      if (!allowed) {
+        return NextResponse.json({ error: "Ratio not allowed for selected model(s)" }, { status: 400 });
+      }
+    }
+
+    // 4. Rate limiting (Placeholder)
+    // TODO: Implement rate limiting (e.g., using @upstash/ratelimit or express-rate-limit)
+    // max 10 generations per user per minute
+    // --- END SECURITY GUARDS ---
 
     const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
     if (!serverWalletAddress) {

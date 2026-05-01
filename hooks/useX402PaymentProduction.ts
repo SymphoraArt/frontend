@@ -52,6 +52,8 @@ export interface ImageGenerationSettings {
   aspectRatio?: string;
   resolution?: '1K' | '2K' | '4K';
   referenceImage?: string;
+  modelIds?: string[];
+  ratio?: string;
 }
 
 /**

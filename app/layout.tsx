@@ -5,6 +5,8 @@ import {
   Playfair_Display,
   Inter,
   JetBrains_Mono,
+  Cormorant_Garamond,
+  Outfit,
 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "../providers";
@@ -36,6 +38,18 @@ const playfairDisplay = Playfair_Display({
   variable: "--font-serif",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -121,7 +135,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${outfit.variable} antialiased`}
       >
         <Providers>
           <Navbar />
