@@ -1,81 +1,64 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// Creative fallback values used if Grok key is not configured
-const FALLBACK_FILLS: Record<string, string[]> = {
-  subject: ["a shattered marble statue", "an elderly fisherman at dusk", "a woman reading in fog", "twin brothers in a doorway"],
-  mood: ["melancholic and still", "electric, barely contained", "wistful, golden-hour soft", "cold and architectural"],
-  lighting: ["overcast diffuse, no shadows", "single candle, warm rim light", "harsh noon sun, sharp angles", "tungsten practical, deep amber"],
-  location: ["a derelict greenhouse", "rooftop terrace at midnight", "flooded city street", "empty cathedral nave"],
-  style: ["painterly, textured oil", "clinical editorial", "1970s Italian cinema", "high-fashion monochrome"],
-};
-
-function getRandomFill(varName: string): string {
-  const key = varName.toLowerCase();
-  const pool = FALLBACK_FILLS[key] ?? FALLBACK_FILLS.subject;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { prompt, variables } = (await req.json()) as {
-      prompt: string;
-      variables: string[];
-    };
+    const { prompt, variables } = await request.json();
 
-    if (!Array.isArray(variables) || variables.length === 0) {
-      return NextResponse.json({});
+    if (!variables || !Array.isArray(variables) || variables.length === 0) {
+      return NextResponse.json({ error: "No variables provided" }, { status: 400 });
     }
 
     const apiKey = process.env.XAI_API_KEY;
-
-    if (apiKey) {
-      // ── Live Grok path ──────────────────────────────────────────────
-      const systemPrompt = `You are a creative AI assistant helping an artist fill in prompt variables.
-Given a prompt template and a list of variable names, return a JSON object where each key is a variable name and the value is a vivid, distinct, artistically interesting fill value.
-Be specific, cinematic, and avoid generic descriptions. Keep values under 12 words.
-Return ONLY valid JSON with no extra text.`;
-
-      const userMessage = `Prompt: "${prompt}"\nVariables to fill: ${variables.join(", ")}\nReturn JSON:`;
-
-      const res = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "grok-3-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          temperature: 0.9,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json() as { choices?: { message?: { content?: string } }[] };
-        const raw = data?.choices?.[0]?.message?.content ?? "{}";
-        try {
-          // Strip markdown fences if present
-          const cleaned = raw.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
-          const filled = JSON.parse(cleaned) as Record<string, string>;
-          return NextResponse.json(filled);
-        } catch {
-          // JSON parse failed — fall through to fallback
-        }
-      }
+    if (!apiKey) {
+      return NextResponse.json({ error: "XAI API key is not configured" }, { status: 500 });
     }
 
-    // ── Fallback: creative random fills ────────────────────────────
-    const filled: Record<string, string> = {};
-    for (const varName of variables) {
-      filled[varName] = getRandomFill(varName);
-    }
-    return NextResponse.json(filled);
+    const systemPrompt = `You are a creative AI prompt engineer. 
+The user will provide a base text-to-image prompt and a list of empty variable names (like 'subject', 'lighting', 'mood').
+Your job is to generate highly creative, vivid, and distinct values for each of these variables that would result in a stunning image generation.
+Return the result strictly as a valid JSON object where keys are the variable names and values are the generated strings.
+DO NOT include any other text, markdown formatting, or explanation. Just the JSON object.`;
 
-  } catch (e) {
-    console.error("[/api/grok-fill]", e);
-    return NextResponse.json({}, { status: 500 });
+    const userMessage = `Base Prompt: ${prompt || "None"}
+Variables to fill: ${variables.join(", ")}
+Generate vivid and creative values for these variables.`;
+
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-3-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0.8,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("xAI error:", errorText);
+      return NextResponse.json({ error: "Failed to generate from xAI" }, { status: response.status });
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) {
+      return NextResponse.json({ error: "Empty response from xAI" }, { status: 500 });
+    }
+
+    const jsonStr = content.replace(/```json\n?|\n?```/g, "").trim();
+    const parsed = JSON.parse(jsonStr);
+
+    return NextResponse.json(parsed);
+  } catch (error: any) {
+    console.error("Grok Fill Error:", error);
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
   }
 }
