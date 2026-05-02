@@ -3003,3 +3003,9 @@ https://nextjs.org/docs/messages/module-not-found
 [02:44:20.271] Server  LOG     ✓ Compiled in 114ms
 [02:45:27.839] Server  LOG     ✓ Compiled in 77ms
 [02:46:02.234] Server  LOG     ✓ Compiled in 145ms
+[02:50:19.881] Server  LOG     ✓ Compiled in 64ms
+[02:52:25.122] Server  LOG     ✓ Compiled in 56ms
+[02:52:44.151] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[02:52:44.573] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[02:52:44.754] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[02:52:44.861] Browser LOG     ✅ Wallet state repaired successfully
