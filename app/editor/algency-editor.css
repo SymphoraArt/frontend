@@ -343,12 +343,12 @@ html.dark {
 /* ─── Inputs ─── */
 .alg-input {
   width: 100%; height: 36px; padding: 0 12px;
-  border: 1px solid var(--alg-border); border-radius: 8px;
+  border: 1px solid var(--alg-border); border-radius: 3px;
   background: var(--alg-white); font-size: 13px;
   font-family: var(--font-outfit), 'Outfit', sans-serif;
   color: var(--alg-text); outline: none; transition: border-color 0.2s ease;
 }
-.alg-input:focus { border-color: var(--alg-accent); box-shadow: 0 0 0 3px rgba(224,112,69,0.08); }
+.alg-input:focus { border-color: var(--alg-border); box-shadow: none; }
 .alg-input::placeholder { color: var(--alg-hint); }
 
 /* ─── Textarea ─── */
