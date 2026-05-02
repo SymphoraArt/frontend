@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/react/web/wallets/smartWallet/locale/tl.js","sources":["file:///Users/srthck/Desktop/frontend/node_modules/thirdweb/src/react/web/wallets/smartWallet/locale/tl.ts"],"sourcesContent":["import type { SmartWalletLocale } from \"./types.js\";\n\nconst smartWalletLocaleTl: SmartWalletLocale = {\n  connecting: \"Kumokonekta sa Smart Account\",\n  failedToConnect: \"Hindi nagawa ang pagkonekta sa Smart Account\",\n  wrongNetworkScreen: {\n    failedToSwitch: \"Hindi nagawa ang pagpapalit ng network\",\n    subtitle: \"Hindi konektado ang iyong wallet sa kinakailangang network\",\n    title: \"Maling Network\",\n  },\n};\n\nexport default smartWalletLocaleTl;\n"],"names":[],"mappings":";;;;AAEA,MAAM,mBAAmB,GAAsB;IAC7C,UAAU,EAAE,8BAA8B;IAC1C,eAAe,EAAE,8CAA8C;IAC/D,kBAAkB,EAAE;QAClB,cAAc,EAAE,wCAAwC;QACxD,QAAQ,EAAE,4DAA4D;QACtE,KAAK,EAAE,gBAAgB;KACxB;CACF,CAAC;uCAEa,mBAAmB,CAAC"}}]
-}

@@ -132,9 +132,9 @@
 }
 .alg-titlebar__title {
   font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
-  font-size: 22px; font-weight: 500; color: var(--alg-dark);
+  font-size: 19px; font-weight: 500; color: var(--alg-dark);
   border: none; background: none; padding: 0; outline: none;
-  width: 360px; line-height: 1.3;
+  width: 360px; line-height: 1.2;
 }
 .alg-titlebar__title::placeholder { color: var(--alg-hint); }
 .alg-titlebar__right { display: flex; align-items: center; gap: 8px; }
@@ -181,7 +181,7 @@
 /* ─── Grid ─── */
 .alg-grid {
   flex: 1; display: grid;
-  grid-template-columns: 280px 1.2fr 280px 380px;
+  grid-template-columns: 240px 1fr 360px 280px;
   min-height: 0; overflow: hidden;
 }
 
@@ -189,11 +189,11 @@
 .alg-panel {
   display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--alg-border);
-  background: var(--alg-panel); overflow: hidden;
+  background: var(--alg-panel); position: relative;
 }
 .alg-panel:last-child { border-right: none; }
 .alg-panel__header {
-  padding: 24px 24px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--alg-border);
   display: flex; align-items: baseline;
   justify-content: space-between; gap: 8px; flex-shrink: 0;
@@ -204,11 +204,11 @@
 }
 .alg-panel__title {
   font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
-  font-size: 18px; font-weight: 500; color: var(--alg-dark);
+  font-size: 16px; font-weight: 500; color: var(--alg-dark);
 }
 .alg-panel__subtitle { font-size: 10px; color: var(--alg-hint); font-weight: 500; }
 .alg-panel__body {
-  flex: 1; overflow-y: auto; padding: 16px 24px 48px;
+  flex: 1; overflow-y: auto; padding: 12px 16px 48px;
   scrollbar-width: thin; scrollbar-color: var(--alg-border) transparent;
 }
 
@@ -352,12 +352,12 @@
 /* ─── Variable Cards ─── */
 .alg-var-card {
   border: 1px solid var(--alg-border); border-radius: 0;
-  padding: 14px 16px; margin-bottom: 8px;
+  padding: 10px 12px; margin-bottom: 6px;
   background: #FFFFFF; transition: all 0.15s; overflow: hidden;
 }
 .alg-var-card:hover {
   border: 1.5px solid var(--alg-dark);
-  padding: 13.5px 15.5px; /* Prevent layout shift */
+  padding: 9.5px 11.5px; /* Prevent layout shift */
 }
 .alg-var-card--active {
   background: #FCECDD;
@@ -374,14 +374,14 @@
 
 .alg-var-card__name {
   font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: 22px; font-weight: 500; color: #1C1A18; 
-  padding-bottom: 10px; margin-bottom: 12px;
+  font-size: 16px; font-weight: 500; color: #1C1A18; 
+  padding-bottom: 4px; margin-bottom: 6px;
   border-bottom: 1px solid #EDE8E0; line-height: 1.1;
 }
 
 .alg-var-card__default-val {
   font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: 16px; font-weight: 500; color: #1C1A18;
+  font-size: 12px; font-weight: 500; color: #1C1A18;
 }
 .alg-var-card__default-val--italic {
   font-style: italic; color: #C4BDB5;
@@ -389,7 +389,7 @@
 
 .alg-var-card__hint {
   font-size: 11px; font-style: italic; color: #B0AAA2;
-  margin-top: 6px; border-top: 1px solid #EDE8E0; padding-top: 8px;
+  margin-top: 4px; border-top: 1px solid #EDE8E0; padding-top: 6px;
 }
 
 .alg-toggle-inserts-row {
@@ -399,9 +399,9 @@
   font-size: 8px; font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
 }
 .alg-toggle-inserts-block {
-  border-left: 2.5px solid #E07045; padding-left: 10px; margin: 8px 0;
+  border-left: 2.5px solid #E07045; padding-left: 10px; margin: 6px 0;
   font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: 15px; font-style: italic; color: #5A5550; line-height: 1.3;
+  font-size: 13px; font-style: italic; color: #5A5550; line-height: 1.2;
 }
 .alg-toggle-inserts-footer {
   font-size: 10px; color: #B0AAA2; font-style: italic; margin-top: 4px;
@@ -414,7 +414,7 @@
 /* ─── Type Toggle ─── */
 .alg-type-toggle { 
   display: flex; gap: 0; align-items: center; 
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 .alg-type-toggle__btn {
   padding: 5px 13px; font-size: 11px; font-weight: 500;
@@ -436,45 +436,113 @@
   background: #1C1A18; color: #fff; border-color: #1C1A18; z-index: 2; 
 }
 
-/* ─── Version Cards ─── */
-.alg-version-card {
-  display: flex; flex-direction: row; gap: 0; padding: 0;
-  border: 1px solid var(--alg-border); border-radius: 0;
-  margin-bottom: 12px; background: var(--alg-white); overflow: hidden;
+/* ═══════════════════════════════════════════
+   VERSION CARDS — fresh build
+   ═══════════════════════════════════════════ */
+.alg-version-card-wrapper {
+  margin-bottom: 2px;
 }
+
+.alg-version-card {
+  display: flex;
+  flex-direction: row;
+  border: 1px solid #d0c8be;
+  border-radius: 10px;
+  background: #f5f0e8;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.alg-version-card:hover {
+  border-color: #b0a89c;
+}
+.alg-version-card--selected {
+  border-color: #b0a89c;
+}
+
+/* — Thumbnail — */
 .alg-version-card__thumb {
-  width: 140px; min-height: 100%; flex-shrink: 0; overflow: hidden;
-  background: var(--alg-bg); border-right: 1px solid var(--alg-border);
+  width: 80px;
+  flex-shrink: 0;
+  background: #1a1714;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  align-self: stretch;
+}
+.alg-version-card__thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  position: absolute; inset: 0;
+}
+
+/* Overlay labels on the thumb */
+.alg-version-card__overlay-status {
+  position: absolute; top: 4px; right: 4px;
+  font-family: monospace; font-size: 7px;
+  color: #c0542a; letter-spacing: 0.03em;
+}
+.alg-version-card__overlay-label {
+  position: absolute; bottom: 4px;
+  left: 0; right: 0; text-align: center;
+  font-family: monospace; font-size: 7px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* — Info panel — */
+.alg-version-card__info {
+  flex: 1; min-width: 0;
+  padding: 4px 6px;
+}
+.alg-version-card__header { display: none; }
+
+/* Rows */
+.alg-version-card__row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0;
+  margin-bottom: 1px;
+  border-top: 1px solid #d8d0c6;
+}
+.alg-version-card__row:first-child { border-top: none; }
+
+.alg-version-card__key {
+  font-family: monospace;
+  width: 45px; flex-shrink: 0;
+  font-size: 7px; font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a7f72;
+}
+.alg-version-card__val {
+  font-family: Georgia, 'Playfair Display', serif;
+  font-size: 10px; font-weight: 500;
+  color: #1e1a16; line-height: 1.1;
+  min-width: 0;
+}
+
+/* Checkbox row */
+.alg-version-card__checkbox-row {
+  display: flex; align-items: center; gap: 4px;
+  padding-top: 2px; margin-top: 1px;
+  border-top: 1px solid #d8d0c6;
+}
+.alg-version-card__checkbox {
+  width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.alg-version-card__thumb img { width: 100%; height: 100%; object-fit: cover; }
-.alg-version-card__info { flex: 1; min-width: 0; padding: 16px 20px; }
-.alg-version-card__header {
-  display: flex; justify-content: space-between; align-items: center; 
-  margin-bottom: 16px;
+.alg-version-card__checkbox--checked { background: #c0542a; }
+.alg-version-card__checkbox--unchecked { background: transparent; border: 1.5px solid #c8c0b4; }
+.alg-version-card__checkbox-label {
+  font-family: monospace; font-size: 8px; color: #2c2822;
 }
-.alg-version-card__label { 
-  font-family: var(--font-jetbrains-mono), monospace;
-  font-size: 11px; font-weight: 500; color: #5A5550; letter-spacing: 1.5px;
-  white-space: nowrap;
-}
-.alg-version-card__status {
-  font-family: var(--font-jetbrains-mono), monospace;
-  font-size: 9px; font-weight: 500; color: #E07045; letter-spacing: 1px;
-}
-.alg-version-card__row { 
-  display: flex; padding: 10px 0; border-bottom: 1px solid #EDE8E0; align-items: baseline;
-}
-.alg-version-card__key {
-  font-family: var(--font-jetbrains-mono), monospace;
-  width: 80px; flex-shrink: 0; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;
-  color: var(--alg-hint); font-size: 9px;
-}
-.alg-version-card__val { 
-  font-family: var(--font-serif), 'Playfair Display', serif;
-  color: var(--alg-dark); font-size: 13px; font-weight: 500;
-  line-height: 1.2;
-}
+
+/* Generate button — only shown in header for idle cards */
+.alg-version-gen-btn { display: none; }
 
 /* ─── Empty State ─── */
 .alg-empty {
@@ -571,7 +639,7 @@
   background: var(--alg-accent); border-color: var(--alg-accent);
 }
 .alg-version-card__checkbox--checked svg {
-  color: white; width: 12px; height: 12px;
+  color: white; width: 8px; height: 8px;
 }
 .alg-version-card--loading .alg-version-card__thumb {
   position: relative;
@@ -753,8 +821,7 @@
 
 /* ─── Version card selected state ─── */
 .alg-version-card--selected {
-  outline: 2px solid #E07045;
-  outline-offset: -2px;
+  outline: none;
 }
 
 /* ─── Pay & Generate Button ─── */
@@ -808,3 +875,84 @@
   color: #B0AAA2; font-size: 14px; padding: 4px 8px; line-height: 1;
 }
 .alg-refill-bar__cancel:hover { color: #1C1A18; }
+
+/* ═══════════════════════════════════════════
+   BRIDGE — simple sleek circuit track
+   ═══════════════════════════════════════════ */
+.alg-bridge-overlay {
+  position: absolute;
+  top: 50%; left: -1px;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column;
+  align-items: center; gap: 0;
+  z-index: 50;
+}
+
+/* Track wire — Schematic Node Design */
+.alg-bridge-track {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2px 0;
+}
+/* Solder pad / via dots */
+.alg-bridge-track__dot { 
+  display: block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--alg-bg);
+  border: 1.5px solid #d0c8be;
+  z-index: 2;
+}
+.alg-bridge-track__dot:last-child {
+  border-color: #c7663a;
+}
+/* Dashed circuit trace */
+.alg-bridge-track__line {
+  width: 0; height: 36px;
+  border-left: 1.5px dashed #d0c8be;
+  margin: 3px 0;
+}
+
+/* Arrow buttons */
+.alg-arrow-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+  border: none;
+  background: var(--alg-bg); /* Crucial: hides the column border behind the button */
+}
+.alg-arrow-btn svg { width: 14px; height: 14px; stroke-width: 1.5px; }
+.alg-arrow-btn:disabled { cursor: not-allowed; opacity: 0.35; }
+
+/* Back button — plain circle */
+.alg-arrow-btn--back {
+  border: 1px solid #d0c8be;
+  color: #8a7f72;
+}
+.alg-arrow-btn--back:hover:not(:disabled) {
+  border-color: #c0542a; color: #c0542a;
+}
+.alg-arrow-btn--back.alg-arrow-btn--active {
+  border-color: #8a7f72; color: #1e1a16;
+}
+
+/* Forward button — filled rust circle */
+.alg-arrow-btn--forward {
+  background: #c7663a;
+  color: #fff;
+  border: 1px solid #c7663a;
+}
+.alg-arrow-btn--forward:hover:not(:disabled) {
+  background: #a8482a; border-color: #a8482a;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVENESS
+   ═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
