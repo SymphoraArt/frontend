@@ -679,7 +679,14 @@ export default function AlgencyPromptEditor() {
       <nav className="alg-navbar">
         <div className="alg-navbar__left">
           <div className="alg-navbar__logo" onClick={() => router.push("/")}>
-            <span className="alg-navbar__logo-icon">A</span>
+            <span className="alg-navbar__logo-icon">
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="7" y1="26" x2="16" y2="7" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
+                <line x1="25" y1="26" x2="16" y2="7" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
+                <line x1="10.5" y1="19" x2="21.5" y2="19" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
+                <circle cx="16" cy="7" r="2" fill="white"/>
+              </svg>
+            </span>
             Algency
           </div>
           <div className="alg-navbar__links">
