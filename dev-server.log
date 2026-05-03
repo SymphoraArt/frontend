@@ -1,0 +1,260 @@
+
+> frontend@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.1 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.180.205:3000
+- Environments: .env.local
+
+✓ Starting...
+Creating turbopack project { dir: 'C:\\Users\\Public\\Documents\\Enki\\frontend', testMode: true }
+✓ Ready in 1814ms
+○ Compiling / ...
+ GET / 200 in 4.9s (compile: 4.2s, render: 714ms)
+ GET / 200 in 824ms (compile: 166ms, render: 657ms)
+○ Compiling /settings ...
+ GET /settings 200 in 13.2s (compile: 13.1s, render: 85ms)
+○ Compiling /earnings ...
+ GET /earnings 200 in 4.3s (compile: 4.3s, render: 62ms)
+○ Compiling /released ...
+ GET /released 200 in 4.3s (compile: 4.2s, render: 59ms)
+○ Compiling /release ...
+⨯ ./components/PromptEditor.tsx:63:10
+Ecmascript file had an error
+[0m [90m 61 |[39m   type [33mReactNode[39m[33m,[39m
+ [90m 62 |[39m } [36mfrom[39m [32m"react"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 63 |[39m [36mimport[39m { flushSync } [36mfrom[39m [32m"react-dom"[39m[33m;[39m
+ [90m    |[39m          [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 64 |[39m [36mimport[39m { useRouter } [36mfrom[39m [32m"next/navigation"[39m[33m;[39m
+ [90m 65 |[39m [36mimport[39m { useToast } [36mfrom[39m [32m"@/hooks/use-toast"[39m[33m;[39m
+ [90m 66 |[39m [36mimport[39m { useMutation[33m,[39m useQuery } [36mfrom[39m [32m"@tanstack/react-query"[39m[33m;[39m[0m
+
+You're importing a component that needs `flushSync`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptEditor.tsx:58:3
+Ecmascript file had an error
+[0m [90m 56 |[39m   useState[33m,[39m
+ [90m 57 |[39m   useRef[33m,[39m
+[31m[1m>[22m[39m[90m 58 |[39m   useEffect[33m,[39m
+ [90m    |[39m   [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 59 |[39m   useCallback[33m,[39m
+ [90m 60 |[39m   useMemo[33m,[39m
+ [90m 61 |[39m   type [33mReactNode[39m[33m,[39m[0m
+
+You're importing a component that needs `useEffect`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptEditor.tsx:57:3
+Ecmascript file had an error
+[0m [90m 55 |[39m [36mimport[39m {
+ [90m 56 |[39m   useState[33m,[39m
+[31m[1m>[22m[39m[90m 57 |[39m   useRef[33m,[39m
+ [90m    |[39m   [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 58 |[39m   useEffect[33m,[39m
+ [90m 59 |[39m   useCallback[33m,[39m
+ [90m 60 |[39m   useMemo[33m,[39m[0m
+
+You're importing a component that needs `useRef`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptEditor.tsx:64:10
+Ecmascript file had an error
+[0m [90m 62 |[39m } [36mfrom[39m [32m"react"[39m[33m;[39m
+ [90m 63 |[39m [36mimport[39m { flushSync } [36mfrom[39m [32m"react-dom"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 64 |[39m [36mimport[39m { useRouter } [36mfrom[39m [32m"next/navigation"[39m[33m;[39m
+ [90m    |[39m          [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 65 |[39m [36mimport[39m { useToast } [36mfrom[39m [32m"@/hooks/use-toast"[39m[33m;[39m
+ [90m 66 |[39m [36mimport[39m { useMutation[33m,[39m useQuery } [36mfrom[39m [32m"@tanstack/react-query"[39m[33m;[39m
+ [90m 67 |[39m [36mimport[39m { apiRequest } [36mfrom[39m [32m"@/lib/queryClient"[39m[33m;[39m[0m
+
+You're importing a component that needs `useRouter`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptEditor.tsx:56:3
+Ecmascript file had an error
+[0m [90m 54 |[39m [36mimport[39m [33mImageLightbox[39m [36mfrom[39m [32m"./ImageLightbox"[39m[33m;[39m
+ [90m 55 |[39m [36mimport[39m {
+[31m[1m>[22m[39m[90m 56 |[39m   useState[33m,[39m
+ [90m    |[39m   [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 57 |[39m   useRef[33m,[39m
+ [90m 58 |[39m   useEffect[33m,[39m
+ [90m 59 |[39m   useCallback[33m,[39m[0m
+
+You're importing a component that needs `useState`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptSettingsPanel.tsx:24:41
+Ecmascript file had an error
+[0m [90m 22 |[39m [36mimport[39m { [33mScrollArea[39m } [36mfrom[39m [32m"@/components/ui/scroll-area"[39m[33m;[39m
+ [90m 23 |[39m [36mimport[39m { [33mX[39m[33m,[39m [33mPlus[39m } [36mfrom[39m [32m"lucide-react"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 24 |[39m [36mimport[39m { useState[33m,[39m useCallback[33m,[39m useRef[33m,[39m useEffect } [36mfrom[39m [32m"react"[39m[33m;[39m
+ [90m    |[39m                                         [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 25 |[39m [36mimport[39m { [33mPROMPT_CATEGORIES[39m } [36mfrom[39m [32m"@/lib/categories"[39m[33m;[39m
+ [90m 26 |[39m [36mimport[39m { [33mENHANCEMENT_OPTIONS[39m[33m,[39m type [33mEnhancementId[39m } [36mfrom[39m [32m"@/lib/enhancement-options"[39m[33m;[39m
+ [90m 27 |[39m[0m
+
+You're importing a component that needs `useEffect`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptSettingsPanel.tsx
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptSettingsPanel.tsx:24:33
+Ecmascript file had an error
+[0m [90m 22 |[39m [36mimport[39m { [33mScrollArea[39m } [36mfrom[39m [32m"@/components/ui/scroll-area"[39m[33m;[39m
+ [90m 23 |[39m [36mimport[39m { [33mX[39m[33m,[39m [33mPlus[39m } [36mfrom[39m [32m"lucide-react"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 24 |[39m [36mimport[39m { useState[33m,[39m useCallback[33m,[39m useRef[33m,[39m useEffect } [36mfrom[39m [32m"react"[39m[33m;[39m
+ [90m    |[39m                                 [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 25 |[39m [36mimport[39m { [33mPROMPT_CATEGORIES[39m } [36mfrom[39m [32m"@/lib/categories"[39m[33m;[39m
+ [90m 26 |[39m [36mimport[39m { [33mENHANCEMENT_OPTIONS[39m[33m,[39m type [33mEnhancementId[39m } [36mfrom[39m [32m"@/lib/enhancement-options"[39m[33m;[39m
+ [90m 27 |[39m[0m
+
+You're importing a component that needs `useRef`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptSettingsPanel.tsx
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+
+./components/PromptSettingsPanel.tsx:24:10
+Ecmascript file had an error
+[0m [90m 22 |[39m [36mimport[39m { [33mScrollArea[39m } [36mfrom[39m [32m"@/components/ui/scroll-area"[39m[33m;[39m
+ [90m 23 |[39m [36mimport[39m { [33mX[39m[33m,[39m [33mPlus[39m } [36mfrom[39m [32m"lucide-react"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 24 |[39m [36mimport[39m { useState[33m,[39m useCallback[33m,[39m useRef[33m,[39m useEffect } [36mfrom[39m [32m"react"[39m[33m;[39m
+ [90m    |[39m          [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 25 |[39m [36mimport[39m { [33mPROMPT_CATEGORIES[39m } [36mfrom[39m [32m"@/lib/categories"[39m[33m;[39m
+ [90m 26 |[39m [36mimport[39m { [33mENHANCEMENT_OPTIONS[39m[33m,[39m type [33mEnhancementId[39m } [36mfrom[39m [32m"@/lib/enhancement-options"[39m[33m;[39m
+ [90m 27 |[39m[0m
+
+You're importing a component that needs `useState`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+
+
+Import trace:
+  Server Component:
+    ./components/PromptSettingsPanel.tsx
+    ./components/PromptEditor.tsx
+    ./app/release/page.tsx
+
+
+⨯ ./
+Module not found: Can't resolve 'C:\Users\Public\Documents\Enki\frontend\node_modules\react'
+windows imports are not implemented yet
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./
+Module not found: Can't resolve 'C:\Users\Public\Documents\Enki\frontend\node_modules\react-dom'
+windows imports are not implemented yet
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./
+Module not found: Can't resolve 'C:\Users\Public\Documents\Enki\frontend\node_modules\react'
+windows imports are not implemented yet
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./
+Module not found: Can't resolve 'C:\Users\Public\Documents\Enki\frontend\node_modules\react-dom'
+windows imports are not implemented yet
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ GET /release 500 in 14.9s (compile: 14.7s, render: 153ms)
+○ Compiling /images ...
+ GET /images 200 in 5.7s (compile: 5.6s, render: 175ms)
+○ Compiling /videos ...
+ GET /videos 200 in 3.9s (compile: 3.8s, render: 160ms)
+○ Compiling /search ...
+ GET /search 200 in 4.1s (compile: 4.0s, render: 153ms)
+✓ Compiled in 30.2s
+ GET /release 200 in 22.6s (compile: 21.8s, render: 875ms)
+ GET / 200 in 349ms (compile: 133ms, render: 216ms)
+ GET /settings 200 in 194ms (compile: 66ms, render: 128ms)
+ GET /earnings 200 in 97ms (compile: 35ms, render: 63ms)
+ GET /released 200 in 128ms (compile: 34ms, render: 94ms)
+ GET /release 200 in 194ms (compile: 23ms, render: 171ms)
+ GET /images 200 in 166ms (compile: 31ms, render: 135ms)
+ GET /videos 200 in 99ms (compile: 27ms, render: 72ms)
+✓ Finished writing to filesystem cache in 11.0s
+ GET /search 200 in 211ms (compile: 41ms, render: 170ms)
+○ Compiling /favorites ...
+ GET /favorites 200 in 6.6s (compile: 6.5s, render: 68ms)

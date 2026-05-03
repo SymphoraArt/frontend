@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2582,8 +2584,8 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
   return (
     <TooltipProvider>
       {/* Desktop View: left = Prompt Settings (30%) + Prompt Editor (70%), right = Variables + Generation (equal) */}
-      <div className="hidden md:grid h-full w-full overflow-hidden grid-cols-[1fr_1fr] gap-4 p-4">
-        <div className="grid grid-cols-[3fr_7fr] gap-4 min-h-0 overflow-hidden min-w-0">
+      <div className="hidden lg:grid h-full w-full min-h-[700px] overflow-hidden grid-cols-[1fr_1fr] gap-2 lg:gap-4 p-2 lg:p-4">
+        <div className="grid grid-cols-[3fr_7fr] gap-2 lg:gap-4 min-h-0 overflow-hidden min-w-0">
           <div className="min-h-0 min-w-0 overflow-hidden">
             <PromptSettingsPanel
               settings={settingsData}
@@ -2818,7 +2820,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
         </Card>
         </div>
 
-        <div className={`grid gap-4 min-h-0 overflow-hidden min-w-0 ${promptType === "paid-prompt" ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`grid gap-2 lg:gap-4 min-h-0 overflow-hidden min-w-0 ${promptType === "paid-prompt" ? "grid-cols-2" : "grid-cols-1"}`}>
         {promptType === "paid-prompt" && (
           <Card className="flex flex-col overflow-hidden min-h-0 min-w-0" style={{ contain: 'inline-size' }}>
             <CardHeader className="pb-2 px-4 shrink-0">
@@ -3742,7 +3744,7 @@ export default function PromptEditor({ onBack, initialPromptId }: PromptEditorPr
       {/* Mobile View */}
       <div
         ref={mobileContainerRef}
-        className="lg:hidden flex flex-col h-[calc(100vh-8rem)] overflow-y-auto overflow-x-hidden w-full max-w-full"
+        className="lg:hidden flex flex-col h-[calc(100vh-100px)] overflow-y-auto overflow-x-hidden w-full max-w-full"
       >
         {/* Header - inside scrollable area */}
         <div className="shrink-0 flex items-center gap-4 px-6 py-4 border-b w-full max-w-full overflow-x-hidden">

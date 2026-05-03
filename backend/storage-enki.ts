@@ -67,6 +67,17 @@ interface PromptRow extends RowDataPacket {
   is_featured: number;
 }
 
+function safeParseJSON(value: any) {
+  if (value == null) return undefined;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    console.error("Failed to parse JSON:", e, value);
+    return undefined;
+  }
+}
+
 function rowToPrompt(row: PromptRow): EnkiPromptWithId {
   const idStr = String(row.id);
   return {
@@ -76,11 +87,11 @@ function rowToPrompt(row: PromptRow): EnkiPromptWithId {
     title: row.title,
     description: row.description ?? undefined,
     category: row.category,
-    aiSettings: row.ai_settings ? JSON.parse(row.ai_settings) : undefined,
-    promptData: JSON.parse(row.prompt_data),
-    pricing: row.pricing ? JSON.parse(row.pricing) : undefined,
-    showcaseImages: row.showcase_images ? JSON.parse(row.showcase_images) : undefined,
-    stats: row.stats ? JSON.parse(row.stats) : undefined,
+    aiSettings: safeParseJSON(row.ai_settings),
+    promptData: safeParseJSON(row.prompt_data) ?? { segments: [], variables: [] },
+    pricing: safeParseJSON(row.pricing),
+    showcaseImages: safeParseJSON(row.showcase_images),
+    stats: safeParseJSON(row.stats),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     publishedAt: row.published_at ?? undefined,
@@ -531,14 +542,14 @@ function rowToGeneration(row: GenRow): EnkiGenerationWithId {
     id: String(row.id),
     user: row.user_id,
     prompt: String(row.prompt_id),
-    variableValues: row.variable_values ? JSON.parse(row.variable_values) : undefined,
-    referenceImages: row.reference_images ? JSON.parse(row.reference_images) : undefined,
-    finalPrompt: row.final_prompt ? JSON.parse(row.final_prompt) : undefined,
-    generatedImage: row.generated_image ? JSON.parse(row.generated_image) : undefined,
-    usedSettings: row.used_settings ? JSON.parse(row.used_settings) : undefined,
-    transaction: row.transaction_data ? JSON.parse(row.transaction_data) : undefined,
+    variableValues: safeParseJSON(row.variable_values),
+    referenceImages: safeParseJSON(row.reference_images),
+    finalPrompt: safeParseJSON(row.final_prompt),
+    generatedImage: safeParseJSON(row.generated_image),
+    usedSettings: safeParseJSON(row.used_settings),
+    transaction: safeParseJSON(row.transaction_data),
     status: row.status as EnkiGeneration["status"],
-    error: row.error_data ? JSON.parse(row.error_data) : undefined,
+    error: safeParseJSON(row.error_data),
     isPrivate: Boolean(row.is_private),
     likes: row.likes,
     bookmarks: row.bookmarks,

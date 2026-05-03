@@ -886,8 +886,8 @@ export default function GeneratorInterface({
   };
 
   return (
-    <div className="h-screen flex flex-col min-h-0" style={{ height: "100vh", minHeight: "100vh" }}>
-      <div className="flex items-center gap-3 p-3 border-b border-border/50 shrink-0">
+    <div className="flex flex-col min-h-0 w-full bg-background">
+      <div className="flex items-center gap-3 p-4 border-b border-border/50 shrink-0">
         <Button
           variant="ghost"
           size="sm"
@@ -909,7 +909,7 @@ export default function GeneratorInterface({
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden min-h-0 items-stretch relative" style={{ flex: "1 1 0%" }}>
+      <div className="flex-1 flex overflow-hidden min-h-[600px] items-stretch relative">
         {/* Full-height vertical dividers – always from top to bottom of content area */}
         <div aria-hidden className="absolute inset-0 pointer-events-none flex items-stretch">
           <div className="w-[22rem] shrink-0 border-r border-border/50 min-h-full" />

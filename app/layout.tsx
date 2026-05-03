@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import {
+  Fraunces,
   Geist,
   Geist_Mono,
-  Playfair_Display,
   Inter,
   JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
+import "./enki-redesign.css";
 import { Providers } from "../providers";
-import Navbar from "@/components/Navbar";
 import ThemeSync from "@/components/ThemeSync";
-import CompactPromptCreatorWrapper from "@/components/CompactPromptCreatorWrapper";
+import EnkiHeader from "@/components/enki/EnkiHeader";
+import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,32 +35,32 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "600"],
 });
 
-const playfairDisplay = Playfair_Display({
-  variable: "--font-serif",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "AIgency",
-    template: "%s | AIgency",
+    default: "Enki Art",
+    template: "%s | Enki Art",
   },
-  description:
-    "AIgency — discover, create, and generate stunning AI art with customizable prompt templates. A creative marketplace powered by Gemini AI.",
+  description: "Enki Art - discover, release, and generate AI art prompt templates.",
   keywords: ["AI art", "image generation", "prompt templates", "Gemini AI", "creative marketplace"],
-  authors: [{ name: "AIgency Team" }],
+  authors: [{ name: "Enki Art Team" }],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   openGraph: {
-    title: "AIgency",
-    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+    title: "Enki Art",
+    description: "Discover, release, and generate AI art prompt templates.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AIgency",
-    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+    title: "Enki Art",
+    description: "Discover, release, and generate AI art prompt templates.",
   },
   robots: {
     index: true,
@@ -67,8 +68,7 @@ export const metadata: Metadata = {
   },
 };
 
-// Force dynamic rendering to prevent static generation issues with client components
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default function RootLayout({
   children,
@@ -81,10 +81,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
-              // Theme initialization
               try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}
-              
-              // Clear old Privy wallet state to prevent "Wallet with id privy not found" errors
               try{
                 var keysToRemove=[];
                 for(var i=0;i<localStorage.length;i++){
@@ -99,10 +96,7 @@ export default function RootLayout({
                   }
                 }
                 keysToRemove.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
-                if(keysToRemove.length>0){console.log('🧹 Cleared '+keysToRemove.length+' old Privy wallet state entries');}
               }catch(e){}
-              
-              // Suppress Ambire wallet extension errors (non-critical)
               if(typeof window!=='undefined'){
                 const originalError=console.error;
                 console.error=function(...args){
@@ -112,7 +106,6 @@ export default function RootLayout({
                      msg.includes('Unexpected end of input')||
                      msg.includes('Wallet with id privy not found')||
                      msg.includes('Error auto connecting wallet')){
-                    // Suppress non-critical errors - they don't affect functionality
                     return;
                   }
                   originalError.apply(console,args);
@@ -123,13 +116,15 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable} antialiased`}
       >
         <Providers>
           <ThemeSync>
-            <Navbar />
-            {children}
-            <CompactPromptCreatorWrapper />
+            <div className="enki">
+              <EnkiHeader />
+              {children}
+              <EnkiQuickCreate />
+            </div>
           </ThemeSync>
         </Providers>
       </body>

@@ -5,6 +5,131 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { connectDB, getPool } from "@/backend/db-mysql";
+import type { RowDataPacket } from "mysql2/promise";
+
+interface EarningsRow extends RowDataPacket {
+  total_earnings_cents: number;
+  total_sales: number;
+  total_prompts_listed: number;
+  pending_earnings_cents: number;
+  available_earnings_cents: number;
+  earnings_this_month_cents: number;
+  earnings_this_week_cents: number;
+  sales_this_month: number;
+}
+
+interface SaleRow extends RowDataPacket {
+  id: string;
+  prompt_id: string;
+  prompt_title: string | null;
+  prompt_preview_image_url: string | null;
+  buyer_id: string;
+  amount_usd_cents: number;
+  created_at: Date;
+}
+
+interface TopPromptRow extends RowDataPacket {
+  prompt_id: string;
+  description: string | null;
+  total_sales: number;
+  total_revenue_cents: number;
+  total_views: number;
+}
+
+interface SupabaseSale {
+  id: string;
+  prompt_id: string;
+  prompt_title?: string | null;
+  prompt_preview_image_url?: string | null;
+  buyer_id: string;
+  amount_usd_cents: number;
+  created_at: string;
+}
+
+async function getMysqlEarnings(userId: string) {
+  await connectDB();
+  const pool = getPool();
+  if (!pool) return null;
+
+  const [earningsRows] = await pool.execute<EarningsRow[]>(
+    `SELECT * FROM user_earnings WHERE user_id = ? LIMIT 1`,
+    [userId]
+  );
+  const earnings = earningsRows[0] ?? null;
+
+  const [salesRows] = await pool.execute<SaleRow[]>(
+    `SELECT id, prompt_id, prompt_title, prompt_preview_image_url, buyer_id, amount_usd_cents, created_at
+     FROM prompt_purchases
+     WHERE seller_id = ? AND status = 'completed'
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [userId]
+  );
+
+  const [topRows] = await pool.execute<TopPromptRow[]>(
+    `SELECT prompt_id, description, total_sales, total_revenue_cents, total_views
+     FROM marketplace_prompts
+     WHERE seller_id = ? AND listing_status = 'active'
+     ORDER BY total_revenue_cents DESC
+     LIMIT 5`,
+    [userId]
+  );
+
+  const fallback = {
+    total_earnings_cents: 0,
+    total_sales: 0,
+    total_prompts_listed: 0,
+    pending_earnings_cents: 0,
+    available_earnings_cents: 0,
+    earnings_this_month_cents: 0,
+    earnings_this_week_cents: 0,
+    sales_this_month: 0,
+  };
+  const e = earnings ?? fallback;
+
+  return NextResponse.json({
+    userId,
+    earnings: {
+      total: e.total_earnings_cents,
+      thisMonth: e.earnings_this_month_cents,
+      thisWeek: e.earnings_this_week_cents,
+      pending: e.pending_earnings_cents,
+      available: e.available_earnings_cents,
+    },
+    sales: {
+      total: e.total_sales,
+      thisMonth: e.sales_this_month,
+      thisWeek: 0,
+    },
+    listings: {
+      total: e.total_prompts_listed,
+      active: e.total_prompts_listed,
+      draft: 0,
+      paused: 0,
+    },
+    recentSales: salesRows.map((sale) => ({
+      id: sale.id,
+      promptId: sale.prompt_id,
+      promptTitle: sale.prompt_title || "Unknown Prompt",
+      promptPreviewImageUrl: sale.prompt_preview_image_url || null,
+      buyerId: sale.buyer_id,
+      amountCents: sale.amount_usd_cents,
+      createdAt: sale.created_at,
+    })),
+    topPrompts: topRows.map((prompt) => {
+      const conversionRate =
+        prompt.total_views > 0 ? (prompt.total_sales / prompt.total_views) * 100 : 0;
+      return {
+        promptId: prompt.prompt_id,
+        title: prompt.description || `Prompt ${prompt.prompt_id}`,
+        sales: prompt.total_sales,
+        revenue: prompt.total_revenue_cents,
+        conversionRate: Math.round(conversionRate * 10) / 10,
+      };
+    }),
+  });
+}
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +137,11 @@ export async function GET(
 ) {
   try {
     const { id: userId } = await params;
+
+    if (process.env.SUPABASE_URL?.includes("mock.supabase.co")) {
+      const mysqlResponse = await getMysqlEarnings(userId);
+      if (mysqlResponse) return mysqlResponse;
+    }
 
     const supabase = getSupabaseServerClient();
 
@@ -119,11 +249,6 @@ export async function GET(
       }
     }
 
-    // Calculate summary statistics
-    const now = new Date();
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
     const earningsData = earnings || {
       total_earnings_cents: 0,
       total_sales: 0,
@@ -155,7 +280,7 @@ export async function GET(
         draft: 0,
         paused: 0,
       },
-      recentSales: ((salesError && (salesError.code === 'PGRST205' || salesError.message?.includes('schema cache'))) ? [] : (recentSales || [])).map((sale: any) => ({
+      recentSales: ((salesError && (salesError.code === 'PGRST205' || salesError.message?.includes('schema cache'))) ? [] : ((recentSales || []) as SupabaseSale[])).map((sale) => ({
         id: sale.id,
         promptId: sale.prompt_id,
         promptTitle: sale.prompt_title || 'Unknown Prompt', // Denormalized - no N+1 query needed
