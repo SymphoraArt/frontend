@@ -11,8 +11,7 @@ import {
   PublicKey,
   type ParsedTransactionWithMeta,
 } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import type { ChainKey } from "../shared/payment-config";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { PAYMENT_CHAINS } from "../shared/payment-config";
 import { getProgramId } from "../shared/app-config";
 import { getSupabaseServerClient } from "../lib/supabaseServer";
@@ -33,11 +32,12 @@ const MAX_TX_AGE_SECONDS = 3600; // 1 hour
  */
 export async function checkAndRecordSolanaSignature(
   signature: string,
-  chainKey: string,
+  chainKey: "solana" | "solana-devnet",
   context: string  // e.g. "image-generation" or "prompt-content"
 ): Promise<{ isNew: boolean; error?: string }> {
   try {
     const supabase = getSupabaseServerClient();
+    const chain = PAYMENT_CHAINS[chainKey];
 
     // Check if this signature has already been recorded
     const { data: existing } = await supabase
@@ -57,8 +57,9 @@ export async function checkAndRecordSolanaSignature(
         transaction_hash: signature,
         verified: true,
         verification_method: "solana-rpc",
-        chain_id: null,
-        chain_name: chainKey,
+        chain_id: chain.id,
+        chain_name: chain.name,
+        verification_error: context,
         verified_at: new Date().toISOString(),
       });
 
@@ -67,16 +68,14 @@ export async function checkAndRecordSolanaSignature(
       if (insertError.code === "23505") {
         return { isNew: false, error: "Transaction signature already used" };
       }
-      // Other DB errors: log but do not block (fail-open is acceptable here
-      // since verifySolanaUsdcTransfer still validates the on-chain state)
       console.error("Failed to record Solana signature:", insertError);
+      return { isNew: false, error: "Could not record payment signature" };
     }
 
     return { isNew: true };
   } catch (e) {
     console.error("Replay-protection check failed:", e);
-    // Fail-open: if DB is unavailable don't block payments
-    return { isNew: true };
+    return { isNew: false, error: "Could not verify payment replay status" };
   }
 }
 

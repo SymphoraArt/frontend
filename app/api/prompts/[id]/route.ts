@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth } from "@/lib/auth";
 import { storage } from "@/backend/storage";
+import { TurnkeyClient } from "@turnkey/http";
 
 type PatchBody = {
   title?: string;
@@ -148,6 +149,72 @@ export async function PATCH(
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
 
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+  let authUser;
+  try {
+    authUser = await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const prompt = await storage.getPrompt(id);
+  if (!prompt) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const isOwner = prompt.userId === authUser.userId || prompt.artistId === authUser.userId;
+  if (!isOwner) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Require Turnkey 2FA: client must send a verified stamp header
+  const turnkeyStampHeader = req.headers.get('X-Turnkey-Stamp');
+  const turnkeyStampValue = req.headers.get('X-Turnkey-Stamp-Value');
+
+  if (!turnkeyStampHeader || !turnkeyStampValue) {
+    return NextResponse.json({ error: "2FA required" }, { status: 403 });
+  }
+
+  // Verify the Turnkey stamp against the whoami endpoint
+  const supabase = getSupabaseServerClient();
+  const { data: row } = await supabase
+    .from('user_turnkey_orgs')
+    .select('sub_org_id')
+    .eq('wallet_address', authUser.walletAddress)
+    .maybeSingle();
+
+  if (!row?.sub_org_id) {
+    return NextResponse.json({ error: "No Turnkey account registered" }, { status: 403 });
+  }
+
+  const whoamiRes = await fetch('https://api.turnkey.com/public/v1/query/whoami', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      [turnkeyStampHeader]: turnkeyStampValue,
+    },
+    body: JSON.stringify({ organizationId: row.sub_org_id }),
+  });
+
+  if (!whoamiRes.ok) {
+    return NextResponse.json({ error: "2FA verification failed" }, { status: 401 });
+  }
+
+  const whoami = await whoamiRes.json();
+  if (whoami.organizationId !== row.sub_org_id) {
+    return NextResponse.json({ error: "2FA organization mismatch" }, { status: 401 });
+  }
+
+  try {
+    await supabase.from('prompts').delete().eq('id', id);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

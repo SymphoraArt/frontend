@@ -83,8 +83,22 @@ export function useAuth() {
     }));
 
     try {
+      const nonceResponse = await fetch('/api/auth/nonce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: account.address, walletType: 'evm' }),
+      });
+      if (!nonceResponse.ok) {
+        const errorData = await nonceResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to get authentication nonce');
+      }
+      const { nonce } = await nonceResponse.json();
+      if (typeof nonce !== 'string' || !nonce) {
+        throw new Error('Invalid authentication nonce');
+      }
+
       // Generate authentication message
-      const { message, timestamp } = generateAuthMessage(account.address);
+      const { message, timestamp } = generateAuthMessage(account.address, nonce);
 
       // Sign the message
       if (!account) {
@@ -98,6 +112,7 @@ export function useAuth() {
         signature,
         message,
         timestamp,
+        nonce,
       };
 
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authData));
@@ -136,8 +151,8 @@ export function useAuth() {
       const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
       if (!storedAuth) return null;
 
-      const { walletAddress, signature, message, timestamp } = JSON.parse(storedAuth);
-      return createAuthHeaders(walletAddress, signature, message, timestamp);
+      const { walletAddress, signature, message, timestamp, nonce } = JSON.parse(storedAuth);
+      return createAuthHeaders(walletAddress, signature, message, timestamp, nonce);
     } catch (error) {
       console.warn('Error getting auth headers:', error);
       return null;

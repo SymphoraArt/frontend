@@ -8,9 +8,18 @@
 --    checkAndRecordSolanaSignature() relies on this for atomic deduplication.
 -- ============================================================================
 
-ALTER TABLE payment_verifications
-  ADD CONSTRAINT IF NOT EXISTS payment_verifications_transaction_hash_key
-  UNIQUE (transaction_hash);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'payment_verifications_transaction_hash_key'
+  ) THEN
+    ALTER TABLE payment_verifications
+      ADD CONSTRAINT payment_verifications_transaction_hash_key
+      UNIQUE (transaction_hash);
+  END IF;
+END $$;
 
 COMMENT ON CONSTRAINT payment_verifications_transaction_hash_key
   ON payment_verifications
@@ -26,9 +35,18 @@ ALTER TABLE auth_nonces
   ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
 
 -- Unique constraint so each nonce can only exist once per wallet
-ALTER TABLE auth_nonces
-  ADD CONSTRAINT IF NOT EXISTS auth_nonces_nonce_key
-  UNIQUE (nonce);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'auth_nonces_nonce_key'
+  ) THEN
+    ALTER TABLE auth_nonces
+      ADD CONSTRAINT auth_nonces_nonce_key
+      UNIQUE (nonce);
+  END IF;
+END $$;
 
 -- Function: consume a nonce atomically (returns true if nonce was valid and unused)
 CREATE OR REPLACE FUNCTION consume_auth_nonce(
@@ -38,24 +56,17 @@ CREATE OR REPLACE FUNCTION consume_auth_nonce(
 DECLARE
   v_nonce_id UUID;
 BEGIN
-  SELECT id INTO v_nonce_id
-  FROM auth_nonces
+  UPDATE auth_nonces
+  SET consumed = TRUE,
+      consumed_at = NOW()
   WHERE nonce = p_nonce
     AND wallet_address = p_wallet_address
     AND consumed = FALSE
     AND consumed_at IS NULL
-    AND expires_at > NOW();
+    AND expires_at > NOW()
+  RETURNING id INTO v_nonce_id;
 
-  IF v_nonce_id IS NULL THEN
-    RETURN FALSE;
-  END IF;
-
-  UPDATE auth_nonces
-  SET consumed = TRUE,
-      consumed_at = NOW()
-  WHERE id = v_nonce_id;
-
-  RETURN TRUE;
+  RETURN v_nonce_id IS NOT NULL;
 END;
 $$ LANGUAGE plpgsql;
 

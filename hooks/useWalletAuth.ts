@@ -1,31 +1,18 @@
 /**
  * Wallet Authentication Hook
  *
- * Provides EIP-712 typed data signature authentication for wallet users.
+ * Provides nonce-bound signature authentication for wallet users.
  */
 
 import { useState, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { APP_NAME } from '@/shared/app-config';
-
-const AUTH_DOMAIN = {
-  name: `${APP_NAME} Marketplace`,
-  version: '1',
-  chainId: 84532,
-};
-
-const AUTH_TYPES = {
-  Authentication: [
-    { name: 'purpose', type: 'string' },
-    { name: 'nonce', type: 'string' },
-    { name: 'issuedAt', type: 'uint256' },
-    { name: 'expiresAt', type: 'uint256' },
-  ],
-};
+import { createAuthHeaders, generateAuthMessage } from '@/lib/auth';
 
 interface AuthHeaders {
   'X-Wallet-Address': string;
   'X-Wallet-Signature': string;
+  'X-Auth-Message': string;
+  'X-Timestamp': string;
   'X-Wallet-Nonce': string;
 }
 
@@ -39,7 +26,7 @@ interface UseWalletAuthReturn {
 }
 
 /**
- * Hook for wallet-based authentication using EIP-712 signatures
+ * Hook for wallet-based authentication using signed nonce messages.
  */
 export function useWalletAuth(): UseWalletAuthReturn {
   const account = useActiveAccount();
@@ -63,7 +50,7 @@ export function useWalletAuth(): UseWalletAuthReturn {
       const nonceResponse = await fetch('/api/auth/nonce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress }),
+        body: JSON.stringify({ walletAddress, walletType: 'evm' }),
       });
 
       if (!nonceResponse.ok) {
@@ -71,32 +58,19 @@ export function useWalletAuth(): UseWalletAuthReturn {
         throw new Error(errorData.error || 'Failed to get authentication nonce');
       }
 
-      const { nonce, expiresAt } = await nonceResponse.json();
-      const issuedAt = Date.now();
-      const expiresAtMs = new Date(expiresAt).getTime();
+      const { nonce } = await nonceResponse.json();
+      if (typeof nonce !== 'string' || !nonce) {
+        throw new Error('Invalid authentication nonce');
+      }
 
-      // Step 2: Create typed data message
-      const message = {
-        purpose: `Sign in to ${APP_NAME} Marketplace`,
-        nonce,
-        issuedAt,
-        expiresAt: expiresAtMs,
-      };
+      // Step 2: Create nonce-bound message
+      const { message, timestamp } = generateAuthMessage(walletAddress, nonce);
 
-      // Step 3: Sign typed data with wallet
-      const signature = await account.signTypedData({
-        domain: AUTH_DOMAIN,
-        types: AUTH_TYPES,
-        primaryType: 'Authentication',
-        message,
-      });
+      // Step 3: Sign message with wallet
+      const signature = await account.signMessage({ message });
 
       // Step 4: Store auth headers for API requests
-      const headers: AuthHeaders = {
-        'X-Wallet-Address': walletAddress,
-        'X-Wallet-Signature': signature,
-        'X-Wallet-Nonce': nonce,
-      };
+      const headers = createAuthHeaders(walletAddress, signature, message, timestamp, nonce) as AuthHeaders;
 
       setAuthHeaders(headers);
       setIsAuthenticating(false);

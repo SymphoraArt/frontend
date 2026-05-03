@@ -7,6 +7,8 @@ import { NextRequest } from 'next/server';
 import { isAddress, verifyMessage } from 'viem';
 import { APP_NAME } from '@/shared/app-config';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
+import { PublicKey } from '@solana/web3.js';
+import { ed25519 } from '@noble/curves/ed25519';
 
 export interface AuthenticatedUser {
   walletAddress: string;
@@ -26,12 +28,18 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
   const nonce = request.headers.get('X-Wallet-Nonce');
 
   // Validate required headers
-  if (!walletAddress || !signature || !message || !timestamp) {
-    throw new Error('Missing authentication headers. Required: X-Wallet-Address, X-Wallet-Signature, X-Auth-Message, X-Timestamp');
+  if (!walletAddress || !signature || !message || !timestamp || !nonce) {
+    throw new Error('Missing authentication headers. Required: X-Wallet-Address, X-Wallet-Signature, X-Auth-Message, X-Timestamp, X-Wallet-Nonce');
   }
 
+  const walletType = request.headers.get('X-Wallet-Type') || 'evm';
+
   // Validate wallet address format
-  if (!isAddress(walletAddress)) {
+  if (walletType === 'solana') {
+    try { new PublicKey(walletAddress); } catch {
+      throw new Error('Invalid Solana wallet address format');
+    }
+  } else if (!isAddress(walletAddress)) {
     throw new Error('Invalid wallet address format');
   }
 
@@ -51,25 +59,29 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     throw new Error('Authentication message does not reference the claimed wallet address');
   }
 
-  // If a server-issued nonce is present, verify and consume it atomically
-  // This is the strongest protection against replay attacks
-  if (nonce) {
-    const supabase = getSupabaseServerClient();
-    const { data: consumed, error: nonceError } = await supabase
-      .rpc('consume_auth_nonce', {
-        p_wallet_address: walletAddress.toLowerCase(),
-        p_nonce: nonce,
-      });
-    if (nonceError || !consumed) {
-      throw new Error('Invalid, expired, or already-used nonce');
-    }
+  if (!message.includes(nonce)) {
+    throw new Error('Authentication message does not reference the issued nonce');
   }
 
   // Verify signature
-  const isValidSignature = await verifyWalletSignature(walletAddress, signature, message);
+  const isValidSignature = walletType === 'solana'
+    ? await verifySolanaWalletSignature(walletAddress, signature, message)
+    : await verifyWalletSignature(walletAddress, signature, message);
 
   if (!isValidSignature) {
     throw new Error('Invalid wallet signature');
+  }
+
+  // Consume the server-issued nonce only after signature verification, so invalid
+  // signatures cannot burn a user's active nonce.
+  const supabase = getSupabaseServerClient();
+  const { data: consumed, error: nonceError } = await supabase
+    .rpc('consume_auth_nonce', {
+      p_wallet_address: walletAddress.toLowerCase(),
+      p_nonce: nonce,
+    });
+  if (nonceError || !consumed) {
+    throw new Error('Invalid, expired, or already-used nonce');
   }
 
   // Return authenticated user
@@ -79,6 +91,26 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     walletAddress: walletAddress.toLowerCase(),
     userId
   };
+}
+
+/**
+ * Verify Solana wallet signature (ed25519)
+ * Signature is base64-encoded, message is plain text
+ */
+export async function verifySolanaWalletSignature(
+  publicKeyBase58: string,
+  signatureBase64: string,
+  message: string
+): Promise<boolean> {
+  try {
+    const pubKeyBytes = new PublicKey(publicKeyBase58).toBytes();
+    const sigBytes = Buffer.from(signatureBase64, 'base64');
+    const msgBytes = new TextEncoder().encode(message);
+    return ed25519.verify(sigBytes, msgBytes, pubKeyBytes);
+  } catch (error) {
+    console.error('Solana signature verification error:', error);
+    return false;
+  }
 }
 
 /**
@@ -109,12 +141,21 @@ export async function verifyWalletSignature(
 export function generateAuthMessage(walletAddress: string): {
   message: string;
   timestamp: number;
+};
+export function generateAuthMessage(walletAddress: string, nonce: string): {
+  message: string;
+  timestamp: number;
+};
+export function generateAuthMessage(walletAddress: string, nonce?: string): {
+  message: string;
+  timestamp: number;
 } {
   const timestamp = Date.now();
   const message = `Sign this message to authenticate with ${APP_NAME} Marketplace.
 
 Wallet: ${walletAddress}
 Timestamp: ${timestamp}
+${nonce ? `Nonce: ${nonce}\n` : ''}
 
 This signature proves ownership of this wallet and will be used to authenticate your marketplace actions.`;
 
@@ -128,14 +169,19 @@ export function createAuthHeaders(
   walletAddress: string,
   signature: string,
   message: string,
-  timestamp: number
+  timestamp: number,
+  nonce?: string
 ): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     'X-Wallet-Address': walletAddress,
     'X-Wallet-Signature': signature,
     'X-Auth-Message': message,
     'X-Timestamp': timestamp.toString(),
   };
+  if (nonce) {
+    headers['X-Wallet-Nonce'] = nonce;
+  }
+  return headers;
 }
 
 /**

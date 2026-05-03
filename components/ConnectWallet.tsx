@@ -32,12 +32,6 @@ import { APP_NAME, TERMS_URL, PRIVACY_URL } from "@/shared/app-config";
 export function ConnectWallet() {
   const account = useActiveAccount();
 
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7245/ingest/09072fc2-e9a8-4b0b-9748-5e9d2e8abc2b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ConnectWallet.tsx:render',message:'ConnectWallet rendering with account abstraction disabled',data:{hasAccount:!!account,accountAddress:account?.address,accountAbstractionEnabled:false},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-  }
-  // #endregion
-
   return (
     <ConnectButton
       client={thirdwebClient}

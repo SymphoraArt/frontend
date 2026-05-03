@@ -7,9 +7,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import crypto from "crypto";
 import { z } from "zod";
+import { PublicKey } from "@solana/web3.js";
 
 const nonceRequestSchema = z.object({
-  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
+  walletAddress: z.string().min(1),
+  walletType: z.enum(["evm", "solana"]).optional().default("evm"),
 });
 
 const NONCE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
@@ -30,7 +32,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { walletAddress } = validation.data;
+    const { walletAddress, walletType } = validation.data;
+    if (walletType === "solana") {
+      try {
+        new PublicKey(walletAddress);
+      } catch {
+        return NextResponse.json(
+          { success: false, error: "Invalid Solana address" },
+          { status: 400 }
+        );
+      }
+    } else if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid Ethereum address" },
+        { status: 400 }
+      );
+    }
+
     const normalizedAddress = walletAddress.toLowerCase();
 
     // Generate cryptographically secure nonce
