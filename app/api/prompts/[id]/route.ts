@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth } from "@/lib/auth";
 import { storage } from "@/backend/storage";
-import { TurnkeyClient } from "@turnkey/http";
 
 type PatchBody = {
   title?: string;
@@ -162,6 +161,7 @@ export async function DELETE(
   const { id } = await context.params;
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
+  // Require wallet auth
   let authUser;
   try {
     authUser = await requireAuth(req);
@@ -169,52 +169,37 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Verify ownership
   const prompt = await storage.getPrompt(id);
   if (!prompt) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const isOwner = prompt.userId === authUser.userId || prompt.artistId === authUser.userId;
   if (!isOwner) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // Require Turnkey 2FA: client must send a verified stamp header
-  const turnkeyStampHeader = req.headers.get('X-Turnkey-Stamp');
-  const turnkeyStampValue = req.headers.get('X-Turnkey-Stamp-Value');
-
-  if (!turnkeyStampHeader || !turnkeyStampValue) {
-    return NextResponse.json({ error: "2FA required" }, { status: 403 });
+  // Require Turnkey 2FA delete-confirm token
+  const deleteToken = req.headers.get("X-Delete-Token");
+  if (!deleteToken) {
+    return NextResponse.json({ error: "2FA confirmation required" }, { status: 403 });
   }
 
-  // Verify the Turnkey stamp against the whoami endpoint
   const supabase = getSupabaseServerClient();
-  const { data: row } = await supabase
-    .from('user_turnkey_orgs')
-    .select('sub_org_id')
-    .eq('wallet_address', authUser.walletAddress)
+
+  // Verify and consume the token
+  const { data: tokenRow } = await supabase
+    .from("delete_confirm_tokens")
+    .select("id, expires_at, used")
+    .eq("token", deleteToken)
     .maybeSingle();
 
-  if (!row?.sub_org_id) {
-    return NextResponse.json({ error: "No Turnkey account registered" }, { status: 403 });
+  if (!tokenRow || tokenRow.used || new Date(tokenRow.expires_at) < new Date()) {
+    return NextResponse.json({ error: "Invalid or expired 2FA token" }, { status: 401 });
   }
 
-  const whoamiRes = await fetch('https://api.turnkey.com/public/v1/query/whoami', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      [turnkeyStampHeader]: turnkeyStampValue,
-    },
-    body: JSON.stringify({ organizationId: row.sub_org_id }),
-  });
-
-  if (!whoamiRes.ok) {
-    return NextResponse.json({ error: "2FA verification failed" }, { status: 401 });
-  }
-
-  const whoami = await whoamiRes.json();
-  if (whoami.organizationId !== row.sub_org_id) {
-    return NextResponse.json({ error: "2FA organization mismatch" }, { status: 401 });
-  }
+  // Consume token atomically
+  await supabase.from("delete_confirm_tokens").update({ used: true }).eq("id", tokenRow.id);
 
   try {
-    await supabase.from('prompts').delete().eq('id', id);
+    await supabase.from("prompts").delete().eq("id", id);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

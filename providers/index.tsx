@@ -7,6 +7,7 @@ import { getQueryFn } from "@/lib/queryClient";
 import { ThirdwebProvider } from "./ThirdwebProvider";
 import { ThemeProvider } from "./ThemeProvider";
 import { SolanaWalletProvider } from "./SolanaWalletProvider";
+import { TurnkeyProvider } from "./TurnkeyProvider";
 
 /**
  * Provider hierarchy (outermost first):
@@ -42,9 +43,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <ThirdwebProvider>
-          <SolanaWalletProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-          </SolanaWalletProvider>
+          <TurnkeyProvider>
+            <SolanaWalletProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </SolanaWalletProvider>
+          </TurnkeyProvider>
         </ThirdwebProvider>
       </QueryClientProvider>
     </ThemeProvider>

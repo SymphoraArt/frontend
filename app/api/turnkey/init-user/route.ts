@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TurnkeyClient } from '@turnkey/http';
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
+import { TurnkeyBrowserClient, DEFAULT_SOLANA_ACCOUNTS } from '@turnkey/sdk-browser';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { requireAuth } from '@/lib/auth';
 
@@ -9,20 +9,21 @@ const TURNKEY_BASE_URL = 'https://api.turnkey.com';
 function getTurnkeyClient() {
   const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY;
   const apiPrivateKey = process.env.TURNKEY_API_PRIVATE_KEY;
-  if (!apiPublicKey || !apiPrivateKey) {
-    throw new Error('TURNKEY_API_PUBLIC_KEY and TURNKEY_API_PRIVATE_KEY must be set');
+  const organizationId = process.env.TURNKEY_ORGANIZATION_ID;
+  if (!apiPublicKey || !apiPrivateKey || !organizationId) {
+    throw new Error('TURNKEY_API_PUBLIC_KEY, TURNKEY_API_PRIVATE_KEY, TURNKEY_ORGANIZATION_ID must be set');
   }
-  return new TurnkeyClient(
-    { baseUrl: TURNKEY_BASE_URL },
-    new ApiKeyStamper({ apiPublicKey, apiPrivateKey })
-  );
+  const stamper = new ApiKeyStamper({ apiPublicKey, apiPrivateKey });
+  return new TurnkeyBrowserClient({ stamper, apiBaseUrl: TURNKEY_BASE_URL, organizationId });
 }
 
-// POST /api/turnkey/init-user
-// Creates a Turnkey sub-organization for a user with their passkey credential.
-// Body: { walletAddress, encodedChallenge, attestation }
+/**
+ * POST /api/turnkey/init-user
+ * Creates a Turnkey sub-organization for a wallet-authenticated user.
+ * Registers a passkey as the primary authenticator and provisions a Solana wallet.
+ * Body: { encodedChallenge, attestation }
+ */
 export async function POST(req: NextRequest) {
-  // Require wallet auth — ensures only the wallet owner can register a Turnkey account for it
   let authUser;
   try {
     authUser = await requireAuth(req);
@@ -30,69 +31,90 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  let encodedChallenge: string;
+  let attestation: {
+    credentialId: string;
+    clientDataJson: string;
+    attestationObject: string;
+    transports: string[];
+  };
+
   try {
-    const { encodedChallenge, attestation } = await req.json();
-    const walletAddress = authUser.walletAddress;
+    ({ encodedChallenge, attestation } = await req.json());
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
 
-    if (!encodedChallenge || !attestation) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+  if (!encodedChallenge || !attestation) {
+    return NextResponse.json({ error: 'encodedChallenge and attestation are required' }, { status: 400 });
+  }
 
-    const orgId = process.env.TURNKEY_ORGANIZATION_ID;
-    if (!orgId) {
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
+  const orgId = process.env.TURNKEY_ORGANIZATION_ID!;
+  const walletAddress = authUser.walletAddress;
 
+  // Check if already registered
+  const supabase = getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from('user_turnkey_orgs')
+    .select('sub_org_id')
+    .eq('wallet_address', walletAddress.toLowerCase())
+    .maybeSingle();
+
+  if (existing?.sub_org_id) {
+    return NextResponse.json({ subOrgId: existing.sub_org_id, alreadyExists: true });
+  }
+
+  try {
     const client = getTurnkeyClient();
 
     const result = await client.createSubOrganization({
-      type: 'ACTIVITY_TYPE_CREATE_SUB_ORGANIZATION_V4',
-      timestampMs: Date.now().toString(),
       organizationId: orgId,
-      parameters: {
-        subOrganizationName: `user-${walletAddress}`,
-        rootQuorumThreshold: 1,
-        rootUsers: [
-          {
-            userName: walletAddress,
-            userEmail: '',
-            apiKeys: [],
-            authenticators: [
-              {
-                authenticatorName: 'Device Passkey',
-                challenge: encodedChallenge,
-                attestation,
-              },
-            ],
-          },
-        ],
-        wallet: {
-          walletName: 'Default Wallet',
-          accounts: [
+      subOrganizationName: `user-${walletAddress}`,
+      rootQuorumThreshold: 1,
+      rootUsers: [
+        {
+          userName: walletAddress,
+          userEmail: '',
+          apiKeys: [],
+          oauthProviders: [],
+          authenticators: [
             {
-              curve: 'CURVE_ED25519',
-              pathFormat: 'PATH_FORMAT_BIP32',
-              path: "m/44'/501'/0'/0'",
-              addressFormat: 'ADDRESS_FORMAT_SOLANA',
+              authenticatorName: 'Device Passkey',
+              challenge: encodedChallenge,
+              attestation: {
+                credentialId: attestation.credentialId,
+                clientDataJson: attestation.clientDataJson,
+                attestationObject: attestation.attestationObject,
+                transports: attestation.transports as (
+                  | 'AUTHENTICATOR_TRANSPORT_BLE'
+                  | 'AUTHENTICATOR_TRANSPORT_INTERNAL'
+                  | 'AUTHENTICATOR_TRANSPORT_NFC'
+                  | 'AUTHENTICATOR_TRANSPORT_USB'
+                  | 'AUTHENTICATOR_TRANSPORT_HYBRID'
+                )[],
+              },
             },
           ],
         },
+      ],
+      wallet: {
+        walletName: 'Default Wallet',
+        accounts: DEFAULT_SOLANA_ACCOUNTS,
       },
     });
 
-    const subOrgId = result.activity.result.createSubOrganizationResultV4?.subOrganizationId;
+    const subOrgId = result.subOrganizationId;
+    const solanaAddress = result.wallet?.addresses?.[0];
 
-    if (!subOrgId) {
-      throw new Error('Failed to create sub-organization');
-    }
+    if (!subOrgId) throw new Error('Sub-org creation returned no ID');
 
-    // Store sub-org ID linked to wallet address in Supabase
-    const supabase = getSupabaseServerClient();
-    await supabase
-      .from('user_turnkey_orgs')
-      .upsert({ wallet_address: walletAddress.toLowerCase(), sub_org_id: subOrgId });
+    await supabase.from('user_turnkey_orgs').upsert({
+      wallet_address: walletAddress.toLowerCase(),
+      sub_org_id: subOrgId,
+      solana_address: solanaAddress ?? null,
+    });
 
-    return NextResponse.json({ subOrgId });
+    return NextResponse.json({ subOrgId, solanaAddress });
   } catch (error) {
     console.error('Turnkey init-user error:', error);
     return NextResponse.json({ error: 'Failed to initialize Turnkey account' }, { status: 500 });

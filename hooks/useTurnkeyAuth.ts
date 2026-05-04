@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { TurnkeyClient, PasskeyStamper } from '@turnkey/sdk-browser';
+import { Turnkey } from '@turnkey/sdk-browser';
 
 const TURNKEY_BASE_URL = 'https://api.turnkey.com';
 const TURNKEY_ORG_STORAGE_KEY = 'turnkey-sub-orgs';
 
-function getPasskeyStamper() {
-  return new PasskeyStamper({ rpId: window.location.hostname });
+function getTurnkeySDK() {
+  return new Turnkey({
+    apiBaseUrl: TURNKEY_BASE_URL,
+    defaultOrganizationId: process.env.NEXT_PUBLIC_TURNKEY_ORGANIZATION_ID ?? '',
+  });
 }
 
 function getStoredSubOrgId(walletAddress: string): string | null {
@@ -42,10 +45,10 @@ export function useTurnkeyAuth() {
     setError(null);
 
     try {
-      const stamper = getPasskeyStamper();
-      const client = new TurnkeyClient({ baseUrl: TURNKEY_BASE_URL }, stamper);
+      const sdk = getTurnkeySDK();
+      const passkeyClient = sdk.passkeyClient(window.location.hostname);
 
-      const { encodedChallenge, attestation } = await client.createUserPasskey({
+      const { encodedChallenge, attestation } = await passkeyClient.createUserPasskey({
         publicKey: {
           rp: {
             id: window.location.hostname,
@@ -62,7 +65,7 @@ export function useTurnkeyAuth() {
       const res = await fetch('/api/turnkey/init-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ walletAddress, encodedChallenge, attestation }),
+        body: JSON.stringify({ encodedChallenge, attestation }),
       });
 
       const result = await res.json();
@@ -85,7 +88,7 @@ export function useTurnkeyAuth() {
     }
   }, []);
 
-  // Returns the passkey stamp headers for use in authenticated DELETE requests
+  // Returns a passkey-signed whoami stamp for use in authenticated DELETE requests
   const getDeleteStampHeaders = useCallback(async (walletAddress: string): Promise<Record<string, string> | null> => {
     setIsLoading(true);
     setError(null);
@@ -96,16 +99,16 @@ export function useTurnkeyAuth() {
         throw new Error('No Turnkey 2FA registration found for this wallet');
       }
 
-      const stamper = getPasskeyStamper();
-      const client = new TurnkeyClient({ baseUrl: TURNKEY_BASE_URL }, stamper);
+      const sdk = getTurnkeySDK();
+      const passkeyClient = sdk.passkeyClient(window.location.hostname);
 
-      const stamp = await client.stampGetWhoami({
-        organizationId: subOrgId,
-      });
+      const stamp = await passkeyClient.stampGetWhoami({ organizationId: subOrgId });
+
+      if (!stamp) throw new Error('Failed to get passkey stamp');
 
       return {
-        'X-Turnkey-Stamp': stamp.stampHeaderName,
-        'X-Turnkey-Stamp-Value': stamp.stampHeaderValue,
+        'X-Turnkey-Stamp': stamp.stamp.stampHeaderName,
+        'X-Turnkey-Stamp-Value': stamp.stamp.stampHeaderValue,
       };
     } catch (err) {
       setError(err instanceof Error ? err.message : '2FA verification failed');
