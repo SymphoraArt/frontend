@@ -1219,6 +1219,16 @@ export default function AlgencyPromptEditor() {
             )}
           </div>
 
+          {/* Prompt Ownership Notice */}
+          <div style={{ padding: "12px", background: "#fffaf0", borderTop: "1px solid #f5e6cc", borderBottom: "1px solid #f5e6cc" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+              <AlertTriangle size={14} style={{ color: "#b8860b", marginTop: "2px", flexShrink: 0 }} />
+              <p style={{ fontSize: "11px", color: "#8a6d3b", lineHeight: 1.5, margin: 0 }}>
+                <strong>Ownership Notice:</strong> Only mark prompts as your own property if you genuinely created them. We will be rolling out methods to verify prompt originality. Falsely claiming authorship will be flagged and may result in strikes against your account. See Terms of Service.
+              </p>
+            </div>
+          </div>
+
           {/* Consolidated Action Bar */}
           <div style={{ background: "var(--alg-warm-white)", borderTop: "1px solid var(--alg-border)", padding: "10px 12px", zIndex: 10, marginTop: "auto" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1334,6 +1344,8 @@ export default function AlgencyPromptEditor() {
         ratios={ratios}
         setRatio={(r) => setRatios(prev => ({ ...prev, selected: r }))}
         pricePerSlot={getPricePerSlot()}
+        onAutoFill={handleGrokFill}
+        isAutoFilling={ui.isGrokFilling}
         onGenerate={() => {
           // Mobile single generation with payment
           const snapshot: Record<string, string> = {};
