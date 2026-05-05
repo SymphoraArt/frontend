@@ -54,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "compromise": "^14.15.0",
+    "ethers": "^6.16.0",
     "lucide-react": "^0.562.0",
     "mongodb": "^6.0.0",
     "mongoose": "^8.0.0",
