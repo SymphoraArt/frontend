@@ -498,6 +498,11 @@
   gap: 12px;
   min-height: 52px;
   padding: 0 40px;
+  transition: background 0.2s ease;
+}
+
+.enki-qc-bar:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .enki-qc-bar-bolt {

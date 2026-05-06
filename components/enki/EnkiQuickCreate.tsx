@@ -15,7 +15,7 @@ export default function EnkiQuickCreate() {
       <button className="enki-qc-bar" onClick={() => setOpen((value) => !value)} type="button">
         <span className="enki-qc-bar-bolt"><Zap size={12} /></span>
         <span className="serif" style={{ fontSize: 18 }}>Quick create</span>
-        <span className="mono" style={{ color: "var(--enki-ink-3)", fontSize: 11 }}>
+        <span className="mono" style={{ color: "var(--enki-ink-2)", fontSize: 12, opacity: 0.8 }}>
           {open ? "Click to collapse" : "Paste a prompt - wrap variables in [brackets]"}
         </span>
         <ChevronDown size={14} style={{ marginLeft: "auto", transform: open ? "rotate(180deg)" : undefined }} />
