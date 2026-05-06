@@ -80,15 +80,15 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
   return (
     <header style={{
-      position: "fixed", top: 24, left: "50%", zIndex: 50,
-      width: "calc(100% - 80px)",
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
+      width: "100%",
       background: "rgba(255, 255, 255, 0.82)",
       backdropFilter: "blur(24px) saturate(200%)",
       WebkitBackdropFilter: "blur(24px) saturate(200%)",
       border: "none",
-      boxShadow: "0 2px 20px rgba(0, 0, 0, 0.08)",
-      borderRadius: 18,
-      transform: "translate(-50%, 0)",
+      borderBottom: "1px solid rgba(0,0,0,0.06)",
+      boxShadow: "none",
+      borderRadius: 0,
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
       <div style={{ padding: "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
