@@ -18,6 +18,9 @@ import {
 import { useRouter } from "next/navigation";
 import PromptCard from "@/components/PromptCard";
 import { ReviewsSection } from "@/components/ReviewsSection";
+import ShadowProfileBadge from "@/components/ShadowProfileBadge";
+import ReportModal from "@/components/ReportModal";
+import { Flag } from "lucide-react";
 
 export default function CreatorProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: creatorId } = use(params);
@@ -80,8 +83,26 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <h1 className="text-3xl font-bold mb-2">{creator.displayName}</h1>
-                <p className="text-muted-foreground mb-2">@{creator.username}</p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h1 className="text-3xl font-bold mb-1 flex items-center gap-3">
+                      {creator.displayName}
+                      {/* MOCK: Randomly showing shadow badge with a fake value for demo */}
+                      <ShadowProfileBadge unclaimedAmount={1250} />
+                    </h1>
+                    <p className="text-muted-foreground mb-3">@{creator.username}</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button variant="default">Follow</Button>
+                    <ReportModal title={`Report @${creator.username}`}>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                        <Flag size={18} />
+                      </Button>
+                    </ReportModal>
+                  </div>
+                </div>
+                
                 {creator.bio && (
                   <p className="text-sm text-foreground/80 mb-3 max-w-2xl">{creator.bio}</p>
                 )}

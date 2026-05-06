@@ -261,29 +261,122 @@
   color: #8A7F72;
 }
 
-/* ─── Footer ─── */
+/* ─── Footer container ─── */
 .mobile-modal-footer {
-  padding: 16px;
+  padding: 14px 16px;
   border-top: 1px solid #EBE5DB;
   background: #FCFBF8;
+  flex-shrink: 0;
 }
 
-.mobile-modal-generate-btn {
-  width: 100%;
-  background: #1C1A18;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 24px;
-  padding: 14px;
-  font-family: var(--font-outfit), 'Outfit', sans-serif;
-  font-size: 15px;
-  font-weight: 500;
+/* ─── Footer Action Bar ─── */
+.mobile-modal-footer-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 12px;
 }
+
+.mobile-modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Auto Fill ghost button */
+.mobile-modal-autofill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #F2EFEA;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #5A5550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.mobile-modal-autofill-btn svg {
+  flex-shrink: 0;
+  width: 11px;
+  height: 11px;
+  stroke: #8A7F72;
+}
+.mobile-modal-autofill-btn:hover:not(:disabled) {
+  background: #EAE6DF;
+  color: #1C1A18;
+}
+.mobile-modal-autofill-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Price badge — subtle pill */
+.mobile-modal-price-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  padding: 4px 10px;
+  background: #F6F3EC;
+  border-radius: 8px;
+}
+.mobile-modal-price-label {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #B0A89C;
+  line-height: 1.2;
+}
+.mobile-modal-price-value {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1C1A18;
+  line-height: 1.2;
+}
+.mobile-modal-price-network {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 7px;
+  color: #C4BDB5;
+  line-height: 1.2;
+}
+
+/* Pay & Generate button */
+.mobile-modal-generate-btn {
+  background: #E07045;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 20px;
+  padding: 11px 20px;
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.1s;
+  letter-spacing: 0.1px;
+  flex-shrink: 0;
+}
+.mobile-modal-generate-btn svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+.mobile-modal-generate-btn:hover { background: #C85E35; }
+.mobile-modal-generate-btn:active { transform: scale(0.98); }
 
 /* ─── Release Tab Specifics ─── */
 .mobile-modal-add-var-btn {

@@ -26,6 +26,8 @@ interface AlgencyMobileGenerateModalProps {
   setRatio?: (val: string) => void;
   pricePerSlot: number;
   onGenerate: () => void;
+  onAutoFill?: () => void;
+  isAutoFilling?: boolean;
 }
 
 export default function AlgencyMobileGenerateModal({
@@ -42,7 +44,9 @@ export default function AlgencyMobileGenerateModal({
   ratios,
   setRatio,
   pricePerSlot,
-  onGenerate
+  onGenerate,
+  onAutoFill,
+  isAutoFilling = false
 }: AlgencyMobileGenerateModalProps) {
   const [activeTab, setActiveTab] = useState<"Generate" | "Release">("Generate");
 
@@ -298,10 +302,30 @@ export default function AlgencyMobileGenerateModal({
         {/* Footer */}
         <div className="mobile-modal-footer">
           {activeTab === "Generate" ? (
-            <button className="mobile-modal-generate-btn" onClick={onGenerate}>
-              <Sparkles size={14} style={{ fill: "white" }} />
-              Generate · ${pricePerSlot.toFixed(2)}
-            </button>
+            <div className="mobile-modal-footer-actions">
+              {/* Auto Fill */}
+              <button
+                className="mobile-modal-autofill-btn"
+                onClick={() => onAutoFill && onAutoFill()}
+                disabled={isAutoFilling}
+              >
+                <Sparkles size={12} />
+                {isAutoFilling ? "Filling..." : "Auto Fill"}
+              </button>
+
+              {/* Price + Generate */}
+              <div className="mobile-modal-footer-right">
+                <div className="mobile-modal-price-badge">
+                  <span className="mobile-modal-price-label">COST</span>
+                  <span className="mobile-modal-price-value">${pricePerSlot.toFixed(2)}</span>
+                  <span className="mobile-modal-price-network">via x402</span>
+                </div>
+                <button className="mobile-modal-generate-btn" onClick={onGenerate}>
+                  <Sparkles size={13} style={{ fill: "white" }} />
+                  Pay &amp; Generate
+                </button>
+              </div>
+            </div>
           ) : (
             <button className="mobile-modal-generate-btn" onClick={onGenerate}>
               <Sparkles size={14} style={{ fill: "white" }} />

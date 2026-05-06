@@ -5,6 +5,7 @@ import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import PromptDetailModal from "@/components/PromptDetailModal";
 import { useQuery, useQueries } from "@tanstack/react-query";
 
 // Dynamically import components that use browser-only hooks to prevent SSR errors
@@ -23,10 +24,11 @@ export default function Showcase() {
   const PAGE_SIZE = 12;
   const [cursor, setCursor] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  
+  const [selectedPromptData, setSelectedPromptData] = useState<any>(null);
+
   // Prevent SSR issues by only rendering after mount
   const [isMounted, setIsMounted] = useState(false);
-  
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -194,7 +196,7 @@ export default function Showcase() {
               <div key={prompt.id} className={spans}>
                 <PromptCard
                   {...prompt}
-                  onClick={() => router.push(`/generator/${prompt.id}`)}
+                  onClick={() => setSelectedPromptData({ ...prompt, imageUrl: prompt.thumbnail })}
                 />
               </div>
             );
@@ -211,6 +213,11 @@ export default function Showcase() {
       </main>
       <CompactPromptCreator />
       <ShowroomUploadZone />
+      <PromptDetailModal
+        isOpen={!!selectedPromptData}
+        onClose={() => setSelectedPromptData(null)}
+        prompt={selectedPromptData}
+      />
     </div>
   );
 }
