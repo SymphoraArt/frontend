@@ -77,6 +77,7 @@ export default function EnkiFeedPage() {
         {visible.length > 0 ? (
           <>
             <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
+            <EnkiFilters active={tags} toggle={toggleTag} />
             <section className="enki-masonry">
             {visible.map((prompt) => (
               <EnkiCard
@@ -110,9 +111,6 @@ export default function EnkiFeedPage() {
           />
         )}
       </main>
-
-      {/* Fixed bottom dock — rendered outside <main> so position:fixed works */}
-      <EnkiFilters active={tags} toggle={toggleTag} />
     </>
   );
 }
