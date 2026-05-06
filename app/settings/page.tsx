@@ -31,6 +31,17 @@ export default function SettingsPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [isAwaitingModalOpen, setIsAwaitingModalOpen] = useState(false);
+  const [showLivenessBanner, setShowLivenessBanner] = useState(true);
+  const [guardiansList, setGuardiansList] = useState([
+    { id: "g1", name: "@lune_lab",  type: "handle", sub: "Enki Art User", status: "confirmed" },
+    { id: "g2", name: "0xA1B2…C3D4", type: "wallet", sub: "Ethereum Wallet", status: "confirmed" },
+    { id: "g3", name: "friend@email.com", type: "email", sub: "Trusted Email", status: "confirmed" },
+  ]);
+
+  const pingGuardian = (id: string) => {
+    setGuardiansList(prev => prev.map(g => g.id === id ? { ...g, status: "pinged" } : g));
+    toast({ title: "Ping sent", description: "Guardian has been requested to confirm their liveness." });
+  };
 
   // --- Mock States ---
   const [settings, setSettings] = useState({
@@ -297,6 +308,16 @@ export default function SettingsPage() {
           {/* === RECOVERY & 2FA TAB === */}
           {activeTab === "recovery" && (
             <>
+              {showLivenessBanner && (
+                <div style={{ background: "#fef9eb", border: "1px solid #f5e6c0", borderLeft: "3px solid #f5c542", borderRadius: 8, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#7a5c10" }}>Annual Guardians check</p>
+                    <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#8a7020" }}>Please confirm your guardians are still up to date or ping them to verify liveness.</p>
+                  </div>
+                  <button onClick={() => setShowLivenessBanner(false)} style={{ background: "none", border: "none", color: "#a09788", fontSize: 13, cursor: "pointer", fontFamily: "var(--font-outfit)" }}>Dismiss</button>
+                </div>
+              )}
+
               {/* ── Recovery Phrase ── */}
               <SettingsSection num="01" title="Recovery Phrase">
                 <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
@@ -316,7 +337,11 @@ export default function SettingsPage() {
                 <div className="set-list-item" style={{ background: '#f8f6f1' }}>
                   <div className="set-item-icon" style={{ color: '#5a3e8f', background: '#f0eafb' }}><Key size={14} /></div>
                   <div className="set-item-content">
-                    <div className="set-item-title">Split Recovery Phrase <span style={{ marginLeft: 6, padding: '2px 8px', background: '#f0ede6', color: '#a09788', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>Coming soon</span></div>
+                    <div className="set-item-title">
+                      Split Recovery Phrase 
+                      <span style={{marginLeft: 6, fontSize: 10, color: '#a09788', fontWeight: 'normal', fontFamily: 'monospace', letterSpacing: '1px'}}>SLIP-39</span>
+                      <span style={{ marginLeft: 6, padding: '2px 8px', background: '#f0ede6', color: '#a09788', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>Coming soon</span>
+                    </div>
                     <div className="set-item-sub">Split your phrase into 5 shares, any 3 reconstruct it. Eliminates single-point-of-failure. Pending Turnkey infrastructure support.</div>
                   </div>
                 </div>
@@ -336,18 +361,28 @@ export default function SettingsPage() {
                   <button className="set-btn set-btn-secondary" style={{ padding: '4px 10px', fontSize: 11 }}>+ Add guardian</button>
                 </div>
                 
-                {[
-                  { id: "g1", name: "@lune_lab",  type: "handle", sub: "Enki Art User", icon: <User size={14} /> },
-                  { id: "g2", name: "0xA1B2…C3D4", type: "wallet", sub: "Ethereum Wallet", icon: <Wallet size={14} /> },
-                  { id: "g3", name: "friend@email.com", type: "email", sub: "Trusted Email", icon: <Mail size={14} /> },
-                ].map((g, i, arr) => (
+                {guardiansList.map((g, i, arr) => (
                   <div key={g.id} className="set-list-item" style={{ borderBottom: i === arr.length - 1 ? '1px solid #e8e5de' : 'none' }}>
-                    <div className="set-item-icon" style={{ background: '#f5f3ee' }}>{g.icon}</div>
+                    <div className="set-item-icon" style={{ background: '#f5f3ee' }}>
+                      {g.type === "handle" ? <User size={14} /> : g.type === "wallet" ? <Wallet size={14} /> : <Mail size={14} />}
+                    </div>
                     <div className="set-item-content">
-                      <div className="set-item-title" style={{ fontFamily: g.type === "wallet" ? "monospace" : "'Outfit', sans-serif" }}>{g.name}</div>
+                      <div className="set-item-title" style={{ fontFamily: g.type === "wallet" ? "monospace" : "'Outfit', sans-serif" }}>
+                        {g.name}
+                        {showLivenessBanner && (
+                          <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 6px", borderRadius: 12, background: g.status === "pinged" ? "#fff0c2" : "#eaf6ee", color: g.status === "pinged" ? "#966f07" : "#276738", fontWeight: 600 }}>
+                            {g.status === "pinged" ? "Pinged" : "Confirmed"}
+                          </span>
+                        )}
+                      </div>
                       <div className="set-item-sub">{g.sub}</div>
                     </div>
-                    <button className="set-btn set-btn-outline">Remove</button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {showLivenessBanner && g.status !== "pinged" && (
+                        <button className="set-btn set-btn-outline" onClick={() => pingGuardian(g.id)}>Ping</button>
+                      )}
+                      <button className="set-btn set-btn-outline">Remove</button>
+                    </div>
                   </div>
                 ))}
 
@@ -370,6 +405,7 @@ export default function SettingsPage() {
                   <div className="set-item-content">
                     <div className="set-item-title">
                       Guardian Passcode
+                      <span style={{marginLeft: 6, fontSize: 10, color: '#a09788', fontWeight: 'normal', fontFamily: 'monospace', letterSpacing: '1px'}}>ZK PROOF</span>
                       <span style={{ marginLeft: 8, padding: '2px 8px', background: '#eaf6ee', color: '#276738', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>✓ Set</span>
                     </div>
                     <div className="set-item-sub">The cryptographic hash of your passphrase + guardian set. Proves you initiated the recovery without revealing your passphrase.</div>
