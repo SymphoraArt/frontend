@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"file":"turbopack:///[project]/Desktop/frontend/node_modules/thirdweb/dist/esm/react/web/wallets/smartWallet/locale/zh.js","sources":["file:///Users/srthck/Desktop/frontend/node_modules/thirdweb/src/react/web/wallets/smartWallet/locale/zh.ts"],"sourcesContent":["import type { SmartWalletLocale } from \"./types.js\";\n\nconst smartWalletLocalZh: SmartWalletLocale = {\n  connecting: \"正在连接智能账户\",\n  failedToConnect: \"连接智能账户失败\",\n  wrongNetworkScreen: {\n    failedToSwitch: \"网络切换失败\",\n    subtitle: \"钱包未连接至所需网络\",\n    title: \"网络错误\",\n  },\n};\n\nexport default smartWalletLocalZh;\n"],"names":[],"mappings":";;;;AAEA,MAAM,kBAAkB,GAAsB;IAC5C,UAAU,EAAE,UAAU;IACtB,eAAe,EAAE,UAAU;IAC3B,kBAAkB,EAAE;QAClB,cAAc,EAAE,QAAQ;QACxB,QAAQ,EAAE,YAAY;QACtB,KAAK,EAAE,MAAM;KACd;CACF,CAAC;uCAEa,kBAAkB,CAAC"}}]
-}

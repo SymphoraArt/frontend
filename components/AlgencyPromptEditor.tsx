@@ -10,6 +10,7 @@ import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
+import AlgencyMobileGenerateModal from "./AlgencyMobileGenerateModal";
 import {
   Search,
   Settings,
@@ -120,6 +121,16 @@ export default function AlgencyPromptEditor() {
     isEditingVersion: false,
     editingVersionId: null as number | null,
   });
+
+  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileViewport(window.innerWidth <= 768);
+    handleResize(); // Initial check
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   /* ─── Model Sync ─── */
   useEffect(() => {
@@ -709,7 +720,7 @@ export default function AlgencyPromptEditor() {
       </nav>
 
       {/* ═══ TITLE BAR ═══ */}
-      <div className="alg-titlebar">
+      <div className="alg-titlebar desktop-only">
         <div className="alg-titlebar__left">
           <span className="alg-titlebar__label">PROMPT TITLE</span>
           <input
@@ -728,7 +739,7 @@ export default function AlgencyPromptEditor() {
       </div>
 
       {/* ═══ 4-COLUMN GRID ═══ */}
-      <div className="alg-grid">
+      <div className="alg-grid desktop-only">
 
         {/* ═══ PANEL 01 — Settings ═══ */}
         <section className="alg-panel" style={{ background: "var(--alg-bg)" }}>
@@ -966,15 +977,15 @@ export default function AlgencyPromptEditor() {
                   {/* Default value + stacked values */}
                   {variable.type === "text" ? (
                     <>
-                      <div className="alg-var-card__label" style={{ marginTop: 12, marginBottom: 6 }}>DEFAULT VALUE</div>
+                      <div className="alg-var-card__label" style={{ marginTop: 8, marginBottom: 4 }}>DEFAULT VALUE</div>
                       <div className={`alg-var-card__default-val ${ui.selectedVariableId === variable.id && !variable.defaultValue ? "alg-var-card__default-val--italic" : ""}`}>
                         {(variable.defaultValue as string) || (ui.selectedVariableId === variable.id ? "e.g. a young woman, dark hair..." : "")}
                       </div>
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>
 
                       {/* Stacked values */}
-                      <div className="alg-var-card__label" style={{ marginTop: 14, marginBottom: 6 }}>STACK VALUES <span style={{ color: "#B0AAA2", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                      <div className="alg-var-card__label" style={{ marginTop: 8, marginBottom: 4 }}>STACK VALUES <span style={{ color: "#B0AAA2", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
                         {variable.values.map((val, idx) => (
                           <span key={idx} className="alg-val-chip">
                             {val}
@@ -1034,12 +1045,12 @@ export default function AlgencyPromptEditor() {
         </section>
 
         {/* ═══ PANEL 04 — Verify ═══ */}
-        <section className="alg-panel alg-panel--verify" style={{ background: "var(--alg-bg)", position: "relative", overflow: "visible" }}>
+        <section className="alg-panel alg-panel--verify" style={{ background: "var(--alg-bg)" }}>
           
-          {/* Edit Arrows — Overlayed on the left border */}
-          <div style={{ position: "absolute", top: "50%", left: 0, transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", gap: 12, zIndex: 50 }}>
+          {/* Dual-Arrow Bridge — Circuit Track Design */}
+          <div className="alg-bridge-overlay">
             <button
-              className="alg-icon-btn"
+              className={`alg-arrow-btn alg-arrow-btn--back ${ui.selectedCards.length === 1 ? "alg-arrow-btn--active" : ""}`}
               disabled={ui.selectedCards.length !== 1}
               onClick={() => {
                 const card = versions.find(v => v.id === ui.selectedCards[0]);
@@ -1048,7 +1059,6 @@ export default function AlgencyPromptEditor() {
                   if (hasExistingDefaults) {
                     if (!window.confirm("This will overwrite your current variable defaults. Continue?")) return;
                   }
-
                   const newVariables = variables.map(v => {
                     if (card.variableSnapshot[v.name]) {
                       return { ...v, defaultValue: card.variableSnapshot[v.name] };
@@ -1060,31 +1070,26 @@ export default function AlgencyPromptEditor() {
                   setUi(prev => ({ ...prev, selectedCards: [] }));
                 }
               }}
-              title="Send selected back to Variables for editing"
-              style={{ width: 24, height: 24, borderRadius: "50%", background: ui.selectedCards.length === 1 ? "#1C1A18" : "#EAE5DF", color: ui.selectedCards.length === 1 ? "#FFFFFF" : "#1C1A18", border: "none", cursor: ui.selectedCards.length === 1 ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}
+              title="Edit — send selected back to Variables"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
+            <div className="alg-bridge-track">
+              <div className="alg-bridge-track__dot" />
+              <div className="alg-bridge-track__line" />
+              <div className="alg-bridge-track__dot" />
+            </div>
             <button
-              className="alg-icon-btn"
+              className={`alg-arrow-btn alg-arrow-btn--forward ${(variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "alg-arrow-btn--active alg-arrow-btn--glow" : ""}`}
               disabled={variables.length === 0 || !variables.every(v => v.type === "checkbox" || v.defaultValue)}
-              onClick={() => {
-                handleStackVariables();
-              }}
-              title="Stack variables and verify"
-              style={{
-                width: 24, height: 24, borderRadius: "50%",
-                background: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#1C1A18" : "#EAE5DF",
-                color: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "#FFFFFF" : "#1C1A18",
-                border: "none",
-                cursor: (variables.length > 0 && variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "pointer" : "not-allowed",
-                display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-              }}
+              onClick={() => handleStackVariables()}
+              title="Push variables to Verify"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
           </div>
-          <div className="alg-panel__header" style={{ paddingBottom: 16 }}>
+
+          <div className="alg-panel__header" style={{ paddingBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span className="alg-panel__number" style={{ color: "#E07045" }}>04</span>
               <span className="alg-panel__title">Verify</span>
@@ -1094,7 +1099,7 @@ export default function AlgencyPromptEditor() {
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 16, lineHeight: 1.6, flexShrink: 0 }}>
+            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#7A7570", marginBottom: 8, lineHeight: 1.3, flexShrink: 0 }}>
               {promptData.type === "free-prompt"
                 ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
                 : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
@@ -1103,61 +1108,76 @@ export default function AlgencyPromptEditor() {
             {versions.map((slot) => {
               const isSelected = ui.selectedCards.includes(slot.id);
               return (
-                  <div
-                    key={slot.id}
-                    className={`alg-version-card ${slot.status === "generating" ? "alg-version-card--loading" : ""} ${slot.status === "failed" ? "alg-version-card--failed" : ""} ${isSelected ? "alg-version-card--selected" : ""}`}
-                    onClick={() => toggleVersionCheckbox(slot.id)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <div className="alg-version-card__thumb">
-                      {slot.status === "complete" && slot.imageUrl ? (
-                        <img src={slot.imageUrl} alt={`Version ${String(slot.id).padStart(2, "00")}`} />
-                      ) : slot.status === "generating" ? (
-                        <div className="alg-spinner" />
-                      ) : slot.status === "queued" ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 18, fontWeight: 700, color: "#E07045" }}>#{slot.queuePosition}</span>
-                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#9A9590", letterSpacing: 1 }}>IN QUEUE</span>
-                        </div>
-                      ) : slot.status === "failed" ? (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 10px", textAlign: "center" }}>
-                          <AlertTriangle color="#E07045" size={20} />
-                          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#E07045", letterSpacing: 0.5 }}>RESTRICTED CONTENT</span>
-                          <span style={{ fontSize: 9, color: "#9A9590", lineHeight: 1.3 }}>NSFW or policy violation detected. Adjust variables and try again.</span>
-                        </div>
-                      ) : (
-                        <button style={{ background: "#5A5550", color: "white", padding: "6px 12px", border: "none", borderRadius: "3px", fontSize: 10, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontWeight: 500 }}
-                          onClick={(e) => { e.stopPropagation(); handleGenerateVersion(slot.id); }}
-                        >
-                          <Zap size={10} color="white" fill="white" /> Generate
-                        </button>
-                      )}
-                    </div>
-                    <div className="alg-version-card__info">
-                      <div className="alg-version-card__header">
-                        <span className="alg-version-card__label">Version {String(slot.id).padStart(2, "0")}</span>
-                        <span className="alg-version-card__status" style={
-                          slot.status === "queued" ? { color: "#E07045", fontWeight: 600 } :
-                          slot.status === "failed" ? { color: "#E07045", fontWeight: 600 } :
-                          slot.status === "idle" ? { color: "#B0AAA2", fontStyle: "italic", fontWeight: 400 } : {}
-                        }>
+                  <div key={slot.id} className="alg-version-card-wrapper">
+                    <div
+                      className={`alg-version-card ${isSelected ? "alg-version-card--selected" : ""}`}
+                      onClick={() => toggleVersionCheckbox(slot.id)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* Image panel — always visible */}
+                      <div className="alg-version-card__thumb">
+                        {slot.status === "complete" && slot.imageUrl && (
+                          <img src={slot.imageUrl} alt={`Version ${String(slot.id).padStart(2, "0")}`} />
+                        )}
+                        {slot.status === "generating" && (
+                          <div className="alg-spinner" />
+                        )}
+                        {slot.status === "queued" && (
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, zIndex: 2 }}>
+                            <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 700, color: "#c0542a" }}>#{slot.queuePosition}</span>
+                            <span style={{ fontFamily: "monospace", fontSize: 9, color: "#888", letterSpacing: "0.1em" }}>IN QUEUE</span>
+                          </div>
+                        )}
+                        {slot.status === "failed" && (
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 10px", textAlign: "center", zIndex: 2 }}>
+                            <AlertTriangle color="#c0542a" size={20} />
+                            <span style={{ fontFamily: "monospace", fontSize: 9, color: "#c0542a", letterSpacing: "0.05em" }}>RESTRICTED</span>
+                          </div>
+                        )}
+                        {/* Overlay: status */}
+                        <span className="alg-version-card__overlay-status">
                           {slot.status === "complete" ? "● ready" :
                            slot.status === "generating" ? "● generating" :
-                           slot.status === "queued" ? `● queue ${slot.queuePosition}/${ui.queueTotal}` :
+                           slot.status === "queued" ? `● queue` :
                            slot.status === "failed" ? "● failed" :
-                           "idle"}
+                           ""}
+                        </span>
+                        {/* Overlay: version label */}
+                        <span className="alg-version-card__overlay-label">
+                          Version {String(slot.id).padStart(2, "0")}
                         </span>
                       </div>
-                      {isSelected && (
-                        <div style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#E07045", letterSpacing: 1, marginBottom: 4 }}>✓ SELECTED</div>
-                      )}
-                      {Object.entries(slot.variableSnapshot).map(([key, val]) => (
-                        <div key={key} className="alg-version-card__row">
-                          <span className="alg-version-card__key">{key.toUpperCase()}</span>
-                          <span className="alg-version-card__val">{val || <span style={{ color: "var(--alg-hint)", fontStyle: "italic" }}>—</span>}</span>
-                        </div>
-                      ))}
-                  </div>
+
+                      {/* Metadata panel */}
+                      <div className="alg-version-card__info">
+                        {Object.entries(slot.variableSnapshot).map(([key, val]) => {
+                          const isCheckbox = val === "true" || val === "false" || val === true || val === false;
+                          const isChecked = val === "true" || val === true;
+                          
+                          if (isCheckbox) {
+                            return (
+                              <div key={key} className="alg-version-card__checkbox-row">
+                                <div className={`alg-version-card__checkbox ${isChecked ? "alg-version-card__checkbox--checked" : "alg-version-card__checkbox--unchecked"}`}>
+                                  {isChecked && (
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                  )}
+                                </div>
+                                <span className="alg-version-card__checkbox-label">
+                                  {key === "grain" ? "Add film grain" : key.charAt(0).toUpperCase() + key.slice(1)}
+                                </span>
+                              </div>
+                            );
+                          }
+                          
+                          return (
+                            <div key={key} className="alg-version-card__row">
+                              <span className="alg-version-card__key">{key.toUpperCase()}</span>
+                              <span className="alg-version-card__val">{val || <span style={{ color: "#8a7f72", fontStyle: "italic" }}>—</span>}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -1168,7 +1188,6 @@ export default function AlgencyPromptEditor() {
               <div className="alg-refill-bar">
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#1C1A18", fontWeight: 600 }}>{ui.selectedCards.length} selected</span>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#9A9590" }}>refill discount applies</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button
@@ -1196,46 +1215,46 @@ export default function AlgencyPromptEditor() {
           </div>
 
           {/* Consolidated Action Bar */}
-          <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "16px 24px", zIndex: 10, marginTop: "auto" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "10px 12px", zIndex: 10, marginTop: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Cost summary */}
               {versions.some(v => v.status === "idle" || v.status === "failed") && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13, fontWeight: 700, color: "#1C1A18" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "#1C1A18" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#B0AAA2" }}>via Thirdweb x402</span>
                   </div>
                 </div>
               )}
               {/* Action Buttons Row */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
                 <button
                   className="alg-btn alg-btn--ghost alg-btn--sm"
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, whiteSpace: "nowrap" }}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 6px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, whiteSpace: "nowrap" }}
                   onClick={handleGrokFill}
                   disabled={ui.isGrokFilling}
                 >
                   <Sparkles size={10} />
                   {ui.isGrokFilling ? "Filling..." : "Grok fill"}
                 </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <button
                     className="alg-pay-btn"
                     onClick={handlePayAndGenerate}
                     disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
-                    style={{ padding: "8px 12px", height: "auto", whiteSpace: "nowrap" }}
+                    style={{ padding: "6px 8px", height: "auto", whiteSpace: "nowrap", fontSize: 9 }}
                   >
                     {isPaymentPending ? (
                       <>● Processing...</>
                     ) : (
                       <>
-                        <Zap size={11} />
-                        Pay &amp; Generate
+                        <Zap size={10} />
+                        Pay &amp; Gen
                         {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
-                          <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
+                          <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 8 }}>
                             ({versions.filter(v => v.status === "idle" || v.status === "failed").length})
                           </span>
                         )}
@@ -1244,7 +1263,7 @@ export default function AlgencyPromptEditor() {
                   </button>
                   <button
                     className="alg-btn alg-btn--primary alg-btn--sm"
-                    style={{ padding: "8px 12px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+                    style={{ padding: "6px 8px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
                     disabled={isPublishDisabled}
                   >
                     Publish
@@ -1255,6 +1274,77 @@ export default function AlgencyPromptEditor() {
           </div>
         </section>
       </div>
+
+      {/* Mobile Base View (Background for Modal) */}
+      {isMobileViewport && (
+        <div style={{ position: "fixed", inset: 0, background: "#f2efe8", zIndex: 100 }}>
+          <div style={{ padding: "40px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-serif), 'Playfair Display', serif", fontSize: 28, fontStyle: "italic", fontWeight: 700, color: "#9A938A", letterSpacing: "-1px" }}>Enki.</span>
+            <div style={{ width: 16, height: 4, background: "#C4BDB5", borderRadius: 2 }}></div>
+          </div>
+          <div style={{ display: "flex", gap: 16, padding: "0 20px" }}>
+            <div style={{ width: 160, height: 160, borderRadius: 12, background: "#C4BDB5", opacity: 0.5 }}></div>
+            <div style={{ width: 160, height: 160, borderRadius: 12, background: "#C4BDB5", opacity: 0.5 }}></div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Floating Button */}
+      {isMobileViewport && !isMobileModalOpen && (
+        <div style={{ position: "fixed", bottom: 24, left: 24, right: 24, zIndex: 150 }}>
+          <button 
+            style={{ width: "100%", background: "#1C1A18", color: "white", padding: "16px 24px", borderRadius: 32, display: "flex", justifyContent: "space-between", alignItems: "center", border: "none", boxShadow: "0 12px 32px rgba(0,0,0,0.2)", cursor: "pointer" }}
+            onClick={() => setIsMobileModalOpen(true)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Sparkles size={18} style={{ fill: "white" }} />
+              <span style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontSize: 16, fontWeight: 500 }}>Generate</span>
+            </div>
+            <span style={{ fontFamily: "var(--font-serif), 'Playfair Display', serif", fontStyle: "italic", fontSize: 15, color: "#9A938A" }}>new image</span>
+          </button>
+        </div>
+      )}
+
+      {/* Render Mobile Modal */}
+      <AlgencyMobileGenerateModal
+        isOpen={isMobileModalOpen}
+        onClose={() => setIsMobileModalOpen(false)}
+        promptBody={promptData.body}
+        setPromptBody={(val) => setPromptData(prev => ({ ...prev, body: val }))}
+        variables={variables}
+        onVariableChange={(id, val) => {
+          setVariables(prev => prev.map(v => 
+            v.id === id ? { ...v, defaultValue: val, values: [val] } : v
+          ));
+        }}
+        onAddVariable={() => {
+          const newVarName = `var_${variables.length + 1}`;
+          setPromptData(prev => ({ ...prev, body: prev.body + ` [${newVarName}]` }));
+        }}
+        onRemoveVariable={(name) => {
+          setPromptData(prev => ({ ...prev, body: prev.body.split(`[${name}]`).join('') }));
+        }}
+        models={models}
+        setModel={(id) => setModels(prev => ({ ...prev, selected: [id] }))}
+        ratios={ratios}
+        setRatio={(r) => setRatios(prev => ({ ...prev, selected: r }))}
+        pricePerSlot={getPricePerSlot()}
+        onGenerate={() => {
+          // Mobile single generation with payment
+          const snapshot: Record<string, string> = {};
+          variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
+          const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
+          
+          setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
+          
+          toast({ title: `Paying ${formatCost(getPricePerSlot())}`, description: "Processing micro-payment for generation..." });
+          
+          // Slight delay to allow state update before firing payment
+          setTimeout(() => {
+            handleGenerateVersion(newId);
+          }, 100);
+        }}
+      />
     </div>
   );
 }

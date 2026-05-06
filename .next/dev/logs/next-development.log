@@ -1,42 +1,129 @@
-[00:00:02.142] Server  LOG     ✓ Ready in 1928ms
-[00:00:16.649] Server  LOG     ○ Compiling / ...
-[00:00:23.757] Server  WARN    ⚠️  NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set. x402 payments will not function correctly.
-[00:00:24.030] Server  ERROR   ⨯ Error: clientId or secretKey must be provided
-[00:00:24.236] Server  WARN    ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
-Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
-[00:00:24.622] Browser WARN    ⚠️  NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set. x402 payments will not function correctly.
-[00:00:24.622] Browser ERROR   uncaughtError: Error: clientId or secretKey must be provided
-[00:01:07.330] Server  LOG     ○ Compiling /editor ...
-[00:01:11.012] Server  ERROR   ⨯ Error: clientId or secretKey must be provided
-[00:01:11.451] Browser WARN    ⚠️  NEXT_PUBLIC_THIRDWEB_CLIENT_ID is not set. x402 payments will not function correctly.
-[00:01:11.452] Browser ERROR   uncaughtError: Error: clientId or secretKey must be provided
-[00:02:17.421] Server  LOG       Reload env: .env.local
-[00:02:20.376] Server  LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:20.596] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
-[00:02:20.596] Server  WARN    ⚠ Fast Refresh had to perform a full reload when ./Desktop/frontend/lib/thirdweb-client.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
-[00:02:20.599] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
-[00:02:20.714] Server  LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:20.752] Server  LOG     ✓ Compiled in 4ms
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     ✅ Privy credentials found, initializing Privy provider...
-[00:02:21.321] Browser LOG     [2;38;2;124;124;124m%s[0m ✅ Privy credentials found, initializing Privy provider...
-[00:02:22.405] Browser WARN    Error generating app config:  {"code":"missing_or_invalid_privy_app_id","error":"Invalid Privy app ID"}
+[00:00:02.156] Server  LOG     ✓ Ready in 1870ms
+[00:00:22.736] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:00:23.078] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:23.404] Server  WARN    ⚠️  MONGODB_URI not set. Running in mock mode (no database persistence).
+[00:00:23.442] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[00:00:23.442] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[00:00:23.450] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:00:23.450] Browser LOG     ✅ Wallet state repaired successfully
+[00:02:42.780] Server  LOG     ✓ Compiled in 384ms
+[00:04:03.198] Server  LOG     ✓ Compiled in 144ms
+[00:04:56.671] Server  LOG     ✓ Compiled in 112ms
+[00:05:05.288] Server  LOG     ✓ Compiled in 596ms
+[00:07:18.652] Server  LOG     ✓ Compiled in 113ms
+[00:08:43.488] Server  LOG     ✓ Compiled in 113ms
+[00:12:41.430] Server  LOG     ✓ Compiled in 103ms
+[00:12:55.735] Server  LOG     ✓ Compiled in 44ms
+[00:17:42.592] Server  LOG     ✓ Compiled in 144ms
+[00:17:53.522] Server  LOG     ✓ Compiled in 48ms
+[00:19:16.106] Server  LOG     ✓ Compiled in 95ms
+[00:20:12.023] Server  LOG     ✓ Compiled in 92ms
+[00:20:37.954] Server  LOG     ✓ Compiled in 52ms
+[00:23:26.602] Server  LOG     ✓ Compiled in 113ms
+[00:30:11.377] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:30:12.443] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:30:12.529] Browser LOG     ✅ Wallet state repaired successfully
+[00:30:34.642] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[00:30:34.642] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[00:30:34.724] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[00:30:50.092] Server  LOG     ✓ Compiled in 1747ms
+[00:30:55.855] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:30:56.932] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:30:56.932] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <TooltipProvider>
+      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={700} ...>
+        <Navbar>
+          <header className="fixed top-...">
+            <div className="w-full px-...">
+              <div className="mx-auto ma...">
+                <div className="flex h-14 ...">
+                  <div>
+                  <div>
+                  <div className="flex items...">
+                    <_c variant="ghost" size="icon" onClick={function ThemeProvider.useCallback[toggleTheme]} ...>
+                      <button className={"inline-f..."} ref={null} ...>
+                        <Sun className="h-4 w-4">
+                          <svg
+                            ref={null}
+                            xmlns="http://www.w3.org/2000/svg"
+                            width={24}
+                            height={24}
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
++                           className="lucide lucide-sun h-4 w-4"
+-                           className="lucide lucide-moon h-4 w-4"
+                            aria-hidden="true"
+                          >
++                           <circle cx="12" cy="12" r="4">
+-                           <path
+-                             d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c...."
+-                           >
+                            ...
+                    ...
+        ...
+
+[00:30:56.932] Browser LOG     ✅ Wallet state repaired successfully
+[00:30:56.932] Browser LOG     ✅ Wallet state repaired successfully
+[00:30:58.271] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[00:30:58.271] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[00:30:58.356] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[00:31:15.301] Browser LOG     Filters: {"priceFilter":"free","sortBy":"popular","tags":[]}
+[00:31:15.865] Browser LOG     Filters: {"priceFilter":"paid","sortBy":"popular","tags":[]}
+[00:32:31.408] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:32:31.547] Browser LOG     ✅ Wallet state repaired successfully
+[00:32:54.920] Server  LOG     ✓ Compiled in 116ms
+[00:33:00.952] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:33:01.870] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:33:02.417] Browser LOG     ✅ Wallet state repaired successfully
+[00:34:53.348] Server  LOG     ✓ Compiled in 116ms
+[00:35:00.707] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:35:00.837] Browser LOG     ✅ Wallet state repaired successfully
+[00:35:18.293] Server  LOG     ✓ Compiled in 123ms
+[00:37:18.285] Server  LOG     ✓ Compiled in 119ms
+[00:37:31.652] Server  LOG     ✓ Compiled in 198ms
+[00:38:28.385] Server  LOG     ✓ Compiled in 88ms
+[00:38:40.082] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[00:38:40.082] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[00:38:43.394] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[00:40:58.849] Server  LOG     ✓ Compiled in 79ms
+[00:40:58.879] Browser ERROR   uncaughtError: TypeError: Cannot read properties of undefined (reading 'selected')
+[00:41:09.558] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:41:09.568] Server  LOG     ✓ Compiled in 47ms
+[00:41:10.029] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:41:10.178] Browser LOG     ✅ Wallet state repaired successfully
+[00:41:11.083] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:41:11.242] Browser LOG     ✅ Wallet state repaired successfully
+[00:41:15.597] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[00:41:15.597] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[00:41:33.549] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[00:43:34.839] Server  LOG     ✓ Compiled in 355ms
+[00:43:45.104] Server  LOG     ✓ Compiled in 114ms
+[00:45:44.467] Server  LOG     ✓ Compiled in 643ms
+[00:45:53.919] Server  LOG     ✓ Compiled in 111ms
+[00:46:23.272] Server  LOG     ✓ Compiled in 240ms
+[00:46:45.412] Server  LOG     ✓ Compiled in 176ms
+[00:48:20.379] Server  LOG     ✓ Compiled in 121ms
+[00:50:21.054] Server  LOG     ✓ Compiled in 108ms
+[00:50:21.167] Browser ERROR   uncaughtError: TypeError: Cannot read properties of undefined (reading 'toFixed')
+[00:50:34.162] Server  LOG     ✓ Compiled in 103ms
+[00:50:34.169] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:50:34.892] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:50:35.019] Browser LOG     ✅ Wallet state repaired successfully
+[00:50:35.814] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[00:50:35.981] Browser LOG     ✅ Wallet state repaired successfully
