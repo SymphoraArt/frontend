@@ -983,7 +983,6 @@ export default function AlgencyPromptEditor() {
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>
 
                       {/* Stacked values */}
-                      <div className="alg-var-card__label" style={{ marginTop: 8, marginBottom: 4 }}>STACK VALUES <span style={{ color: "var(--alg-hint)", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
                         {variable.values.map((val, idx) => (
                           <span key={idx} className="alg-val-chip">
@@ -1088,13 +1087,13 @@ export default function AlgencyPromptEditor() {
             </button>
           </div>
 
-          <div className="alg-panel__header" style={{ paddingBottom: 8 }}>
+          <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>04</span>
               <span className="alg-panel__title">Verify</span>
             </div>
-            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-hint)", letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {promptData.type === "free-prompt" ? `${verifiedCount} of 1 required, 4 recommended` : `${verifiedCount} of 4 required`}
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-hint)", letterSpacing: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 1, minWidth: 0 }}>
+              {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
