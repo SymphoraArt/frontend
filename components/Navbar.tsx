@@ -156,7 +156,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           <button onClick={() => router.push("/editor")} style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "0 20px", height: 40, background: "#111", color: "#fff",
-            border: "none", borderRadius: 999px, cursor: "pointer",
+            border: "none", borderRadius: 999, cursor: "pointer",
             fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
           }}
