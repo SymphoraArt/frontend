@@ -1,8 +1,12 @@
 export type StoredCreation = {
   id: string;
-  imageUrl: string;
+  imageUrl?: string;
   prompt: string;
   createdAt: string;
+  status?: string;
+  source?: string;
+  aspectRatio?: string;
+  resolution?: string;
 };
 
 const STORAGE_PREFIX = "aigency:creations:";
@@ -60,6 +64,15 @@ export function addCreation(userKey: string, creation: StoredCreation): void {
   const key = getStorageKey(userKey);
   const existing = listCreations(userKey);
   const next = [creation, ...existing];
+  window.localStorage.setItem(key, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { userKey } }));
+}
+
+export function updateCreation(userKey: string, id: string, updates: Partial<StoredCreation>): void {
+  if (typeof window === "undefined") return;
+  const key = getStorageKey(userKey);
+  const existing = listCreations(userKey);
+  const next = existing.map(c => c.id === id ? { ...c, ...updates } : c);
   window.localStorage.setItem(key, JSON.stringify(next));
   window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { userKey } }));
 }

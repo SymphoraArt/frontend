@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
-import Navbar from "@/components/Navbar";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ConnectWallet";
 import { Button } from "@/components/ui/button";
@@ -93,7 +93,7 @@ export default function DashboardPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardHeader>
@@ -114,7 +114,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-10 max-w-6xl mx-auto">
           <div className="flex items-center justify-center min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background pt-16">
-      <Navbar />
+
       <main className="w-full px-6 lg:px-8 py-10 max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Dashboard</h1>

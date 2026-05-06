@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Download, Loader2, ArrowLeft, Image as ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
+
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -80,7 +80,7 @@ export default function GeneratePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+
       <main className="pt-20 pb-10 px-4 max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <Button

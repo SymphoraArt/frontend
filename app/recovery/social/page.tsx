@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Shield, Key, AlertCircle, Clock, Users, Mail, Link } from "lucide-react";
+import { Shield, Key, AlertCircle, Clock, Users, Mail, Link, User } from "lucide-react";
 
 const FONT = "'Outfit', sans-serif";
 const SERIF = "'Playfair Display', Georgia, serif";

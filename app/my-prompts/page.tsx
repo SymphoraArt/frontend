@@ -1,6 +1,6 @@
 "use client";
 
-import Navbar from "@/components/Navbar";
+
 import { useActiveAccount } from "thirdweb/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ConnectWallet";
@@ -12,7 +12,7 @@ export default function MyPromptsPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardHeader>
@@ -32,7 +32,7 @@ export default function MyPromptsPage() {
 
   return (
     <div className="min-h-screen bg-background pt-16">
-      <Navbar />
+
       <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
         <Card className="border border-border/60 bg-card/60 backdrop-blur">
           <CardHeader>

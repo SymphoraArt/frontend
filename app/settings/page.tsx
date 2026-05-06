@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Navbar from "@/components/Navbar";
+
 import { useActiveAccount } from "thirdweb/react";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Laptop, Smartphone, Mail, Loader2, Twitter, Instagram, Wallet, AlertCircle, ArrowUpRight, Key, User, Users, Shield } from "lucide-react";
@@ -106,7 +106,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <Navbar />
+
       <div className="pt-14">
         <SettingsLayout
           breadcrumbs={`Settings > ${TABS.find(t => t.id === activeTab)?.label}`}

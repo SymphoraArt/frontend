@@ -1,0 +1,543 @@
+/* 
+   ENKI REDESIGN - CONSOLIDATED SYSTEM
+   Merging globals.css, screens.css, and panel.css from reference.
+   Includes production app integrations and responsive fixes.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.enki {
+  --paper: #faf8f4;
+  --paper-2: #f3efe7;
+  --paper-3: #e8e2d6;
+  --ink: #1a1715;
+  --ink-2: #3d3a36;
+  --ink-3: #6b665e;
+  --rule: #d8d2c5;
+  --rule-2: #ebe5d8;
+  --ember: oklch(0.62 0.14 45);
+  --ember-soft: oklch(0.92 0.04 60);
+  --teal: oklch(0.55 0.08 200);
+  --teal-soft: oklch(0.93 0.03 200);
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  display: flex;
+  flex-direction: column;
+}
+
+.enki input, .enki textarea, .enki [contenteditable="true"], .enki select {
+  pointer-events: auto !important;
+  cursor: text !important;
+  user-select: text !important;
+  z-index: 5;
+  position: relative;
+  caret-color: var(--ember) !important;
+  accent-color: var(--ember) !important;
+}
+
+.enki select { cursor: pointer !important; }
+
+.enki-search, .enki-qc-textarea, .enki-qc-input, .enki-release-titlebox-input, .enki-comment-input {
+  cursor: text !important;
+}
+
+.dark .enki {
+  --paper: #0d1418;
+  --paper-2: #131c22;
+  --paper-3: #1c272d;
+  --ink: #e8e0cc;
+  --ink-2: #c4bca8;
+  --ink-3: #7d8a8c;
+  --rule: #243036;
+  --rule-2: #1a242a;
+  --ember: oklch(0.78 0.12 85);
+  --ember-soft: oklch(0.32 0.05 85);
+  --teal: oklch(0.72 0.09 200);
+  --teal-soft: oklch(0.28 0.04 200);
+}
+
+.enki *, .enki *::before, .enki *::after { box-sizing: border-box; }
+.enki a { color: inherit; text-decoration: none; }
+.serif { font-family: var(--serif); font-optical-sizing: auto; font-variant-ligatures: common-ligatures; }
+.mono { font-family: var(--mono); }
+.enki h1, .enki h2, .enki h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; margin: 0; }
+
+.enki-main { 
+  display: block; 
+  min-height: calc(100dvh - 82px); 
+  background: var(--paper); 
+  color: var(--ink); 
+  position: relative; 
+  z-index: 1; 
+}
+
+/* Header */
+.enki-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 80px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+
+.enki-header > * { flex: 1; }
+.enki-header > .enki-search { flex: 2; display: flex; justify-content: center; max-width: 480px; margin: 0 auto; }
+.enki-header > .enki-header-actions { display: flex; justify-content: flex-end; }
+.enki-header > .enki-logo-nav-group { display: flex; align-items: center; gap: 32px; }
+
+@media (max-width: 1440px) {
+  .enki-header { padding: 22px 40px; }
+}
+
+@media (max-width: 1280px) {
+  .enki-header { padding: 18px 24px; gap: 20px; }
+  .enki-nav { gap: 16px; }
+}
+
+.enki-logo {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-style: italic;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.enki-logo::after { content: "/"; color: var(--ember); font-style: normal; }
+
+.enki-nav { display: flex; gap: 28px; font-size: 13px; letter-spacing: 0.02em; text-transform: uppercase; font-weight: 500; }
+.enki-nav a { color: var(--ink-3); padding-bottom: 2px; border-bottom: 2px solid transparent; transition: color 0.15s; }
+.enki-nav a:hover, .enki-nav a.active { color: var(--ink); border-bottom-color: var(--ember); }
+
+.enki-search { flex: 1; max-width: 480px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 100px; background: var(--paper-2); font-size: 14px; transition: border-color 0.15s, background 0.15s; cursor: text; margin: 0 auto; }
+.enki-search:focus-within { border-color: var(--ink-3); background: var(--paper); }
+.enki-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; color: var(--ink); font-family: var(--sans); font-size: 14px; z-index: 10 !important; }
+.enki-search input::placeholder { color: var(--ink-3); opacity: 0.6; }
+.enki-search-icon { color: var(--ink-3); display: flex; }
+.enki-search-kbd { font-size: 10px; color: var(--ink-3); border: 1px solid var(--rule); padding: 2px 5px; border-radius: 3px; white-space: nowrap; }
+
+.enki-header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.enki-release-cta { 
+  display: inline-flex; align-items: center; gap: 6px; 
+  height: 34px; padding: 0 14px 0 11px; 
+  background: var(--ink); color: var(--paper) !important; 
+  border: 1px solid var(--ink); border-radius: 999px; 
+  font: 500 12.5px/1 var(--sans); letter-spacing: 0.01em; 
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; 
+}
+.enki-release-cta:hover { background: var(--ember); border-color: var(--ember); color: var(--paper) !important; }
+.enki-release-cta.active { background: var(--ember); border-color: var(--ember); color: var(--paper) !important; }
+
+.enki-btn { 
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; 
+  border: 1px solid var(--ink); background: var(--ink); color: var(--paper); 
+  font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; 
+  border-radius: 4px; min-height: 36px; padding: 0 16px; white-space: nowrap; transition: all 0.15s;
+}
+.enki-btn:hover { background: var(--ember); border-color: var(--ember); }
+
+.enki-btn-secondary { background: transparent; color: var(--ink); border-color: var(--rule); }
+.enki-btn-secondary:hover { background: var(--paper-2); border-color: var(--ink-3); }
+
+.enki-icon-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: 50%; background: var(--paper); cursor: pointer; color: var(--ink-2); transition: all 0.15s; }
+.enki-icon-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+
+.enki-avatar { 
+  width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--paper); 
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; 
+  cursor: pointer; font-family: var(--serif); font-style: italic;
+}
+
+.enki-mobile-topline, .enki-mobile-nav, .enki-mobile-tabs, .enki-mobile-feed { display: none; }
+
+/* Dropdown */
+.enki-dropdown { position: absolute; right: 0; top: calc(100% + 12px); width: 320px; background: var(--paper); border: 1px solid var(--rule); box-shadow: 0 12px 40px rgba(0,0,0,0.1); z-index: 90; font-size: 13px; }
+.enki-dropdown-header { padding: 18px 20px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; gap: 12px; }
+.enki-dropdown-section { padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+.enki-dropdown-link { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: var(--ink-2); transition: color 0.15s; cursor: pointer; }
+.enki-dropdown-link:hover { color: var(--ink); }
+.enki-dropdown-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-family: var(--mono); margin-bottom: 10px; }
+
+.enki-network-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; cursor: pointer; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink); font-family: var(--sans); }
+.enki-network-item:hover { background: var(--paper-2); }
+.enki-network-item.active { border-color: var(--ember); background: var(--ember-soft); }
+.enki-network-name { display: flex; align-items: center; gap: 10px; }
+.enki-network-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Search Layout */
+.enki-search-layout { display: grid; grid-template-columns: 280px 1fr; border-top: 1px solid var(--rule); }
+.enki-filter-sidebar { padding: 32px 40px; border-right: 1px solid var(--rule); background: var(--paper); }
+@media (min-width: 1536px) { 
+  .enki-search-layout { grid-template-columns: 320px 1fr; }
+  .enki-filter-sidebar { padding: 40px 60px; } 
+}
+.enki-filter-group { margin-bottom: 28px; }
+.enki-filter-group-title { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-family: var(--mono); margin-bottom: 12px; }
+.enki-filter-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 6px 0; cursor: pointer; color: var(--ink-2); transition: color 0.15s; }
+.enki-filter-row:hover { color: var(--ink); }
+.enki-filter-count { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.enki-filter-row input { accent-color: var(--ember); margin-right: 8px; }
+.enki-search-results-head { padding: 24px 40px 18px; display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+@media (min-width: 1536px) { .enki-search-results-head { padding: 32px 60px 24px; } }
+@media (max-width: 1280px) { .enki-search-results-head { padding: 24px 24px 18px; } }
+@media (max-width: 760px) { 
+  .enki-search-layout { display: block; border-top: 0; }
+  .enki-filter-sidebar { display: none; }
+  .enki-search-results-head { display: block; padding: 18px 20px 12px; }
+}
+
+/* Page Titles */
+.enki-page-title { padding: 56px 80px 24px; border-bottom: 1px solid var(--rule); }
+@media (max-width: 1440px) { .enki-page-title { padding: 56px 40px 24px; } }
+@media (max-width: 1280px) { .enki-page-title { padding: 40px 24px 20px; } }
+.enki-page-eyebrow { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ember); font-family: var(--mono); margin-bottom: 14px; }
+.enki-page-h1 { font-family: var(--serif); font-size: 76px; font-weight: 300; letter-spacing: -0.03em; line-height: 0.95; margin-bottom: 16px; }
+@media (max-width: 1280px) { .enki-page-h1 { font-size: 56px; } }
+@media (max-width: 768px) { .enki-page-h1 { font-size: 42px; } }
+.enki-page-h1 em { font-style: italic; }
+.enki-page-lede { font-family: var(--serif); font-size: 18px; color: var(--ink-2); max-width: 640px; line-height: 1.4; font-style: italic; }
+
+/* Filters bar */
+.enki-filters { display: flex; align-items: center; gap: 8px; padding: 18px 80px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+@media (max-width: 1440px) { .enki-filters { padding: 18px 40px; } }
+@media (max-width: 1280px) { .enki-filters { padding: 18px 24px; } }
+.enki-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 100px; font-size: 12px; color: var(--ink-2); background: var(--paper); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.enki-chip:hover { border-color: var(--ink-3); }
+.enki-chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.enki-filter-divider { width: 1px; height: 18px; background: var(--rule); margin: 0 6px; }
+.enki-sort { margin-left: auto; font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.enki-sort strong { color: var(--ink); font-weight: 500; }
+
+/* Masonry grid */
+.enki-masonry { display: block; padding: 32px 80px 80px; column-gap: 24px; column-count: var(--cols, 4); }
+@media (max-width: 1440px) { .enki-masonry { padding: 32px 40px 80px; } }
+@media (max-width: 1280px) { .enki-masonry { padding: 32px 24px 80px; } }
+
+.enki-empty { padding: 60px 40px; }
+@media (min-width: 1536px) { .enki-empty { padding: 80px 60px; } }
+@media (max-width: 760px) { .enki-empty { padding: 40px 20px; text-align: center; } }
+
+.enki-desktop-feed { display: block; }
+@media (max-width: 760px) { .enki-desktop-feed { display: none; } }
+
+.enki-card { break-inside: avoid; margin-bottom: 24px; position: relative; cursor: pointer; display: block; }
+.enki-card-img { width: 100%; display: block; background: var(--paper-2); position: relative; overflow: hidden; }
+.enki-card-img img { width: 100%; height: auto; display: block; transition: transform 0.4s ease; }
+.enki-card:hover .enki-card-img img { transform: scale(1.02); }
+
+.enki-card-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 14px; pointer-events: none; opacity: 0; transition: opacity .18s ease; background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.78) 100%); color: white; }
+.enki-card:hover .enki-card-overlay { opacity: 1; }
+.enki-card-overlay-title { font-size: 17px; line-height: 1.2; letter-spacing: -0.005em; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+.enki-card-overlay-artist { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.78); }
+
+.enki-card-badge { position: absolute; top: 10px; left: 10px; font-size: 10px; letter-spacing: 0.1em; padding: 4px 8px; background: rgba(255,255,255,0.85); color: #1a1715; font-family: var(--mono); text-transform: uppercase; backdrop-filter: blur(4px); }
+.enki-card-badge.video::before { content: '▶ '; color: var(--ember); }
+
+.enki-heart { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.85); color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; backdrop-filter: blur(4px); border: none; }
+.enki-heart:hover { background: white; }
+.enki-heart.active { color: var(--ember); }
+.enki-heart.active svg { fill: currentColor; }
+
+/* Side Panel */
+.enki-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.32); z-index: 100; backdrop-filter: blur(2px); cursor: pointer; }
+.enki-panel { position: fixed; right: 0; top: 0; bottom: 0; width: min(720px, 92vw); background: var(--paper); z-index: 101; overflow-y: auto; border-left: 1px solid var(--rule); box-shadow: -20px 0 60px rgba(0,0,0,0.08); }
+.enki-panel-close { position: absolute; top: 18px; right: 18px; width: 32px; height: 32px; border-radius: 50%; background: var(--paper-2); border: 1px solid var(--rule); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); z-index: 2; }
+.enki-panel-hero-stack { background: var(--paper-2); padding: 16px 16px 12px; border-bottom: 1px solid var(--rule); }
+.enki-panel-hero-main { position: relative; background: var(--paper-3); margin-bottom: 8px; cursor: zoom-in; aspect-ratio: 4/5; max-height: 480px; width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.enki-panel-hero-main img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.enki-panel-body { padding: 32px 40px 60px; }
+.enki-panel-title { font-family: var(--serif); font-size: 38px; font-weight: 400; line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 14px; }
+.enki-panel-by { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.enki-panel-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: var(--serif); font-style: italic; }
+.enki-panel-section-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-family: var(--mono); display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.enki-prompt-text { font-family: var(--serif); font-size: 19px; line-height: 1.65; color: var(--ink-2); letter-spacing: -0.005em; padding: 22px 24px; background: var(--paper-2); border-left: 2px solid var(--ember); position: relative; }
+.enki-rule { height: 1px; background: var(--rule); margin: 24px 0; }
+
+/* Quick create dock */
+.enki-qc { 
+  position: sticky; 
+  bottom: 0; 
+  z-index: 40; 
+  background: var(--paper); 
+  border-top: 1px solid var(--rule); 
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); 
+  transform: translateY(100%); 
+}
+.enki-qc.visible { transform: translateY(0); }
+.enki-qc.open { z-index: 70; }
+.enki-qc-bar { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 40px; background: transparent; border: none; cursor: pointer; text-align: left; color: var(--ink); }
+@media (max-width: 1440px) { .enki-qc-bar { padding: 10px 24px; } }
+.enki-qc-bar:hover { background: var(--paper-2); }
+.enki-qc.open .enki-qc-bar { border-bottom: 1px solid var(--rule); }
+.enki-qc-bar-bolt { width: 22px; height: 22px; border-radius: 50%; background: var(--ember-soft); color: var(--ember); display: flex; align-items: center; justify-content: center; }
+.enki-qc-bar-label { font-size: 14px; font-weight: 400; letter-spacing: -0.005em; }
+.enki-qc-bar-hint { font-size: 10px; color: var(--ink-3); letter-spacing: 0.04em; }
+.enki-qc-bar-chev { margin-left: auto; color: var(--ink-3); transition: transform 0.2s; }
+.enki-qc-bar-chev.up { transform: rotate(180deg); }
+
+.enki-qc-panel { padding: 18px 40px 22px; background: var(--paper); max-height: 60vh; overflow: auto; }
+@media (max-width: 1440px) { .enki-qc-panel { padding: 18px 24px 22px; } }
+.enki-qc-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: start; }
+.enki-qc-col { display: flex; flex-direction: column; gap: 10px; }
+.enki-qc-section-label { font-size: 9px; color: var(--ink-3); letter-spacing: 0.14em; text-transform: uppercase; display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; font-family: var(--mono); }
+.enki-qc-sheet-handle, .enki-qc-sheet-head { display: none; }
+.enki-qc-textarea { width: 100%; border: none; border-bottom: 1px solid var(--rule); background: transparent; padding: 4px 0 8px; font-size: 15px; line-height: 1.45; color: var(--ink); resize: none; min-height: 64px; font-family: var(--serif); outline: none; }
+.enki-qc-token-row { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; }
+.enki-qc-token { font-size: 9px; padding: 2px 6px; border: none; background: var(--paper-2); color: var(--ink-3); letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 4px; }
+.enki-qc-token.filled { color: var(--ember); background: var(--ember-soft); }
+
+/* Release workspace */
+.enki-release-bar { padding: 14px 40px; border-bottom: 1px solid var(--rule); display: flex; align-items: stretch; gap: 18px; background: var(--paper); position: sticky; top: 0; z-index: 50; }
+@media (max-width: 1440px) { .enki-release-bar { padding: 14px 24px; } }
+.enki-release-titlebox { flex: 1; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--rule); background: var(--paper); padding: 6px 14px 8px; border-radius: 2px; transition: border-color 0.12s; }
+.enki-release-titlebox:focus-within { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.enki-release-titlebox-label { font-size: 9px; color: var(--ink-3); letter-spacing: 0.16em; text-transform: uppercase; }
+.enki-release-titlebox-input { font-size: 22px; font-weight: 300; letter-spacing: -0.02em; border: none; outline: none; background: transparent; color: var(--ink); padding: 0; width: 100%; }
+.enki-release-titlebox-input::placeholder { color: var(--ink-3); font-style: italic; }
+.enki-release-actions { display: flex; align-items: stretch; gap: 8px; }
+
+.enki-release-workspace { display: grid; grid-template-columns: 280px 1.1fr 1fr 1.2fr; gap: 1px; background: var(--rule); min-height: calc(100vh - 120px); }
+@media (max-width: 1200px) { .enki-release-workspace { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .enki-release-workspace { display: block; } }
+
+.enki-release-pane { background: var(--paper); padding: 22px 22px 32px; display: flex; flex-direction: column; gap: 16px; min-width: 0; border-right: 1px solid var(--rule); }
+.enki-release-pane:last-child { border-right: 0; }
+.enki-release-pane-settings { background: var(--paper-2); }
+.enki-release-pane-verify { background: var(--paper-2); }
+.enki-release-pane-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.enki-release-pane-num { font-size: 10px; color: var(--ember); letter-spacing: 0.18em; font-family: var(--mono); }
+.enki-release-pane-title { font-family: var(--serif); font-size: 22px; font-weight: 300; letter-spacing: -0.01em; line-height: 1; }
+
+.enki-qc-segmented { display: inline-flex; padding: 3px; background: rgba(24,20,18,0.06); border-radius: 999px; }
+.enki-qc-segmented button { padding: 7px 14px; border-radius: 999px; border: 0; background: transparent; color: var(--ink-3); font: 500 12px/1 var(--sans); cursor: pointer; }
+.enki-qc-segmented button.active { background: var(--paper); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Results Overlay */
+.enki-qc-results { position: fixed; bottom: 80px; left: 40px; right: 40px; background: var(--paper); border: 1px solid var(--rule); box-shadow: 0 12px 48px rgba(0,0,0,0.18); z-index: 100; display: flex; flex-direction: column; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.enki-qc-results-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--rule); }
+.enki-qc-results-eyebrow { font-size: 10px; color: var(--ember); letter-spacing: 0.12em; text-transform: uppercase; }
+.enki-qc-results-title { font-size: 24px; font-weight: 300; }
+.enki-qc-results-grid { display: flex; gap: 12px; padding: 16px 24px; overflow-x: auto; }
+.enki-qc-result { flex: 0 0 240px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--rule); background: var(--paper-2); padding: 8px; }
+.enki-qc-result img { width: 100%; height: auto; display: block; aspect-ratio: var(--ratio, 4/5); object-fit: cover; }
+.enki-qc-result-actions { display: flex; gap: 6px; }
+.enki-qc-results-prompt { padding: 12px 24px; background: var(--paper-2); border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-3); line-height: 1.4; display: flex; gap: 12px; }
+.enki-qc-results-prompt-label { text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); flex-shrink: 0; }
+
+@media (max-width: 760px) {
+  .enki-qc-results { left: 0; right: 0; bottom: 0; border-left: 0; border-right: 0; max-height: 80vh; }
+}
+
+.enki-qc-settings { display: flex; align-items: center; gap: 16px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--rule-2); }
+.enki-qc-setting { display: flex; align-items: center; gap: 6px; }
+.enki-qc-setting-label { font-size: 9px; color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase; }
+.enki-qc-select { padding: 4px 6px; font-family: var(--mono); font-size: 10px; border: none; border-bottom: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; outline: none; }
+
+.enki-qc-vars { display: flex; flex-direction: column; gap: 2px; }
+.enki-qc-var { display: grid; grid-template-columns: 100px 1fr; gap: 12px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rule-2); }
+.enki-qc-var:last-child { border-bottom: none; }
+.enki-qc-var-label { font-size: 10px; color: var(--ink-3); text-transform: lowercase; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+.enki-qc-var-input { border: none; background: transparent; font-family: var(--serif); font-size: 14px; color: var(--ink); padding: 2px 0; outline: none; width: 100%; }
+.enki-qc-var-input::placeholder { color: var(--ink-3); opacity: 0.5; }
+
+.enki-qc-cost { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 10px; }
+.enki-qc-cost-line { display: flex; justify-content: space-between; align-items: baseline; }
+.enki-qc-generate { width: 100%; font-size: 13px !important; padding: 12px !important; }
+
+/* Release Workspace */
+.enki-release-bar { padding: 14px 32px; border-bottom: 1px solid var(--rule); display: flex; align-items: stretch; gap: 18px; background: var(--paper); position: sticky; top: 0; z-index: 5; }
+.enki-release-titlebox { flex: 1; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--rule); background: var(--paper); padding: 6px 14px 8px; border-radius: 2px; transition: border-color 0.12s; }
+.enki-release-titlebox-label { font-size: 9px; color: var(--ink-3); letter-spacing: 0.16em; text-transform: uppercase; font-family: var(--mono); }
+.enki-release-titlebox-input { font-size: 22px; font-weight: 300; letter-spacing: -0.02em; border: none; outline: none; background: transparent; color: var(--ink); padding: 0; width: 100%; font-family: var(--serif); }
+.enki-release-actions { display: flex; align-items: stretch; gap: 8px; }
+
+.enki-release-workspace { display: grid; grid-template-columns: 280px 1.1fr 1fr 1.2fr; gap: 1px; background: var(--rule); min-height: calc(100vh - 120px); }
+.enki-release-pane { background: var(--paper); padding: 22px 22px 32px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.enki-release-pane-settings { background: var(--paper-2); }
+.enki-release-pane-verify { background: var(--paper-2); }
+.enki-release-pane-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.enki-release-pane-num { font-size: 10px; color: var(--ember); letter-spacing: 0.18em; font-family: var(--mono); }
+.enki-release-pane-title { font-family: var(--serif); font-size: 22px; font-weight: 300; letter-spacing: -0.01em; line-height: 1; }
+.enki-release-pane-meta { font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; margin-left: auto; font-family: var(--mono); }
+
+.enki-size-chip { padding: 5px 10px; border: 1px solid var(--rule); background: var(--paper); font-size: 11px; color: var(--ink-2); cursor: pointer; transition: all 0.12s; font-family: var(--mono); }
+.enki-size-chip.active { border-color: var(--ink); color: var(--ink); background: var(--paper-2); }
+
+.enki-x402-link { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--paper-2); border: 1px solid var(--rule); font-size: 12px; }
+
+/* Account / Settings */
+.enki-account-grid { padding: 32px 40px 80px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule); }
+.enki-account-tile { min-height: 180px; background: var(--paper); padding: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+.enki-account-label { color: var(--ink-3); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; font-family: var(--mono); }
+.enki-account-value { font-family: var(--serif); font-size: 42px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; }
+
+.enki-settings { padding: 32px 40px 96px; max-width: 980px; }
+.enki-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 22px 0; border-bottom: 1px solid var(--rule); color: var(--ink); }
+.enki-settings-title { font-size: 28px; font-weight: 300; line-height: 1.05; color: var(--ink); font-family: var(--serif); }
+.enki-settings-meta { margin-top: 6px; color: var(--ink-3); font-size: 11px; letter-spacing: .04em; font-family: var(--mono); }
+.enki-settings-input { width: min(340px, 44vw); min-height: 38px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); border-radius: 6px; padding: 0 12px; font: 500 13px/1 var(--sans); }
+
+/* Profile Page */
+.enki-profile-banner { position: relative; height: 280px; margin-bottom: 110px; overflow: visible; }
+.enki-profile-banner-art { position: absolute; inset: 0; background: radial-gradient(ellipse at 22% 30%, color-mix(in oklch, var(--ember) 22%, transparent), transparent 55%), radial-gradient(ellipse at 78% 70%, color-mix(in oklch, var(--ink) 18%, transparent), transparent 60%), linear-gradient(135deg, var(--paper-3) 0%, var(--paper-2) 100%); border-bottom: 1px solid var(--rule); }
+.enki-profile-avatar-overlap { position: absolute !important; left: 40px; bottom: -90px; z-index: 2; border: 6px solid var(--paper); box-shadow: 0 12px 40px rgba(0,0,0,0.18); border-radius: 50%; }
+.enki-profile-hero { padding: 0 40px 40px 240px; display: block; border-bottom: 1px solid var(--rule); }
+.enki-profile-avatar { width: 180px; height: 180px; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-style: italic; font-size: 64px; font-weight: 300; }
+.enki-profile-name { font-family: var(--serif); font-size: 88px; line-height: 0.95; font-weight: 300; letter-spacing: -0.03em; }
+.enki-profile-handle { font-family: var(--mono); font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
+.enki-profile-bio { font-family: var(--serif); font-size: 19px; color: var(--ink-2); font-style: italic; max-width: 540px; margin-top: 14px; }
+.enki-profile-stats { display: flex; gap: 40px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+.enki-profile-stat .num { font-family: var(--serif); font-size: 32px; line-height: 1; }
+.enki-profile-stat .label { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 4px; }
+
+/* Mobile Adaptations */
+@media (max-width: 760px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .enki-header { display: grid; grid-template-columns: 1fr 32px 32px; align-items: center; gap: 0 10px; padding: 0 20px; position: relative; top: 0; border-bottom: 0; z-index: 60; }
+  .enki-mobile-topline { display: block; grid-column: 1 / -1; height: 44px; color: var(--ink); font-size: 13px; font-weight: 600; padding-top: 14px; }
+  .enki-mobile-topline::after { content: ""; float: right; width: 40px; height: 12px; margin-top: 2px; background: linear-gradient(currentColor,currentColor) 0 7px/2.5px 4px no-repeat, linear-gradient(currentColor,currentColor) 4px 5px/2.5px 6px no-repeat, linear-gradient(currentColor,currentColor) 8px 3px/2.5px 8px no-repeat, linear-gradient(currentColor,currentColor) 12px 1px/2.5px 10px no-repeat, linear-gradient(currentColor,currentColor) 25px 3px/14px 7px no-repeat; opacity: .88; }
+  .enki-logo { grid-column: 1; grid-row: 2; font-size: 0; height: 40px; align-items: center; }
+  .enki-logo::before { content: "Enki"; font-size: 24px; }
+  .enki-logo::after { content: "."; font-size: 24px; color: var(--ink); }
+  .enki-nav, .enki-release-cta, .enki-header-actions .enki-icon-btn, .enki-search input, .enki-search-kbd { display: none; }
+  .enki-search { grid-column: 2; grid-row: 2; order: initial; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: transparent; justify-content: center; flex: none; border: 0; }
+  .enki-header-actions { grid-column: 3; grid-row: 2; justify-content: flex-end; }
+  .enki-avatar { width: 32px; height: 32px; font-size: 11px; }
+
+  .enki-page-title { padding: 3px 20px 8px; border-bottom: 0; }
+  .enki-page-eyebrow { font-size: 10px; letter-spacing: 1.4px; color: var(--ink-3); font-weight: 600; margin-bottom: 8px; }
+  .enki-page-h1 { font-size: 36px; font-weight: 600; letter-spacing: 0; line-height: 1.05; }
+  .enki-mobile-tabs { display: flex; gap: 18px; padding: 0 20px; border-bottom: 1px solid rgba(24,20,18,.08); }
+  .enki-mobile-tabs a { padding: 8px 0; margin-bottom: -1px; font: 500 13px/1 var(--sans); color: var(--ink-3); border-bottom: 2px solid transparent; }
+  .enki-mobile-tabs a.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .enki-mobile-tabs span { font-size: 10px; opacity: .6; margin-left: 3px; }
+
+  .enki-mobile-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; display: grid; grid-template-columns: repeat(5, 1fr); background: color-mix(in oklch, var(--paper) 94%, transparent); border-top: 1px solid var(--rule); backdrop-filter: blur(16px); padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); }
+  .enki-mobile-nav a { min-width: 0; min-height: 48px; color: var(--ink-3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 9px; letter-spacing: .02em; }
+  .enki-mobile-nav a.active { color: var(--ember); }
+
+  .enki-filters { padding: 20px 20px 12px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; border-bottom: 0; }
+  .enki-filters::-webkit-scrollbar { display: none; }
+  .enki-filter-divider, .enki-sort, .enki-desktop-feed { display: none; }
+  .enki-chip { padding: 7px 12px; font-size: 12px; font-weight: 500; color: var(--ink); background: transparent; border-radius: 999px; }
+
+  .enki-mobile-feed { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 104px; }
+  .enki-mobile-feed-offset { padding-top: 30px; }
+  .enki-card { margin-bottom: 10px; display: inline-block; width: 100%; }
+  .enki-card:nth-child(n) { margin-top: 0; }
+  .enki-card-img { border-radius: 10px; height: 180px; }
+  .enki-card:nth-child(6n+2) .enki-card-img { height: 240px; }
+  .enki-card:nth-child(6n+3) .enki-card-img { height: 200px; }
+  .enki-card:nth-child(6n+4) .enki-card-img { height: 280px; }
+  .enki-card-img img { height: 100%; object-fit: cover; }
+  .enki-card-overlay { display: none; }
+  .enki-card-mobile-meta { display: block; padding: 7px 2px 0; }
+  .enki-card-mobile-title { font-size: 13px; font-weight: 500; line-height: 1.25; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .enki-card-mobile-row { margin-top: 4px; font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between; gap: 8px; }
+  .enki-card-badge { display: none; }
+
+  .enki-panel { inset: 0; width: 100vw; height: 100dvh; border-left: 0; padding-bottom: 78px; }
+  .enki-panel-hero-stack { padding: 0; border-bottom: 0; }
+  .enki-panel-hero-main { max-height: none; height: min(58dvh, 500px); aspect-ratio: auto; margin: 0; background: var(--ink); }
+  .enki-panel-hero-main img { object-fit: cover; }
+  .enki-panel-body { padding: 22px 16px 96px; }
+  .enki-panel-title { font-size: 34px; }
+
+  .enki-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 120; margin: 0; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in oklch, var(--paper) 94%, transparent); border-top: 1px solid var(--rule); backdrop-filter: blur(16px); display: flex; gap: 10px; }
+  .enki-actions .enki-btn { flex: 1; min-height: 44px; padding: 10px 12px; font-size: 12px; }
+
+  .enki-qc { position: fixed; left: 20px; right: 20px; bottom: 22px; z-index: 70; border-top: 0; background: transparent; }
+  .enki-qc.open { inset: 0; z-index: 140; background: rgba(24,20,18,.45); backdrop-filter: blur(2px); }
+  .enki-qc-bar { width: 100%; padding: 16px 22px; border-radius: 999px; background: var(--ink); color: var(--paper); box-shadow: 0 14px 28px -10px rgba(24,20,18,.45); }
+  .enki-qc.open > .enki-qc-bar { display: none; }
+  .enki-qc-bar-bolt { background: transparent; color: currentColor; width: 16px; height: 16px; }
+  .enki-qc-bar-label { color: var(--paper); font-family: var(--sans); font-size: 15px; font-weight: 600; }
+  .enki-qc-bar-hint { margin-left: auto; color: rgba(250,248,244,.72); font-family: var(--serif); font-style: italic; font-size: 13px; letter-spacing: 0; }
+  .enki-qc:not(.open) .enki-qc-bar-hint { font-size: 0; }
+  .enki-qc:not(.open) .enki-qc-bar-hint::after { content: "new image"; font-size: 13px; }
+  .enki-qc-bar-chev { display: none; }
+  .enki-qc-panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: min(700px, calc(100dvh - 78px)); padding: 0; overflow: auto; background: var(--paper); border-radius: 22px 22px 0 0; box-shadow: 0 -20px 60px rgba(0,0,0,.25); }
+  .enki-qc-sheet-handle { display: block; width: 36px; height: 4px; border-radius: 999px; background: var(--rule); margin: 10px auto 6px; }
+  .enki-qc-grid { display: block; }
+  .enki-qc-col + .enki-qc-col { margin-top: 18px; }
+  .enki-qc-cost { margin-left: -22px; margin-right: -22px; padding: 12px 22px 20px; background: var(--paper); position: sticky; bottom: 0; }
+  .enki-qc-cost-line { padding: 10px 12px; border-radius: 8px; background: rgba(24,20,18,.04); }
+  .enki-qc-generate { border-radius: 999px; padding: 15px 22px; }
+
+  .enki-account-grid, .enki-settings { padding: 22px 20px 90px; }
+  .enki-account-grid { grid-template-columns: 1fr; }
+  .enki-settings-row { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .enki-settings-input { width: 100%; }
+
+  .enki-release-bar { display: block; padding: 12px 14px; position: sticky; top: 0; z-index: 50; }
+  .enki-release-titlebox { margin-bottom: 10px; }
+  .enki-release-titlebox-input { font-size: 18px; }
+  .enki-release-workspace { display: block; min-height: 0; background: var(--paper); padding-bottom: 86px; }
+  .enki-release-pane { margin: 12px 12px 0; padding: 16px; border: 1px solid var(--rule); background: var(--paper); }
+}
+
+/* Side Panel - Detail Parity */
+.enki-panel-hero-stack { background: var(--paper-2); padding: 16px 16px 12px; border-bottom: 1px solid var(--rule); }
+.enki-panel-hero-main { position: relative; background: var(--paper-3); margin-bottom: 8px; cursor: zoom-in; aspect-ratio: 4/5; max-height: 480px; width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.enki-hero-overlay-hint { position: absolute; left: 12px; bottom: 12px; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: white; background: rgba(0,0,0,0.55); padding: 6px 10px; border-radius: 2px; pointer-events: none; z-index: 2; }
+.enki-panel-hero-main img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.enki-hero-maximize { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); }
+.enki-panel-hero-thumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.enki-hero-thumb { position: relative; cursor: pointer; border: 2px solid transparent; background: var(--paper-3); transition: all 0.15s; aspect-ratio: 1; overflow: hidden; }
+.enki-hero-thumb:hover { border-color: var(--ink-3); }
+.enki-hero-thumb.active { border-color: var(--ember); }
+.enki-hero-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.enki-hero-thumb-label { position: absolute; bottom: 4px; left: 4px; font-size: 9px; background: rgba(0,0,0,0.6); color: white; padding: 1px 5px; letter-spacing: 0.04em; }
+
+.enki-user-gens { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.enki-user-gen { cursor: pointer; }
+.enki-user-gen img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--paper-2); transition: opacity 0.15s; }
+.enki-user-gen:hover img { opacity: 0.85; }
+.enki-user-gen-meta { margin-top: 5px; font-size: 10px; color: var(--ink-3); display: flex; gap: 5px; letter-spacing: 0.02em; }
+
+.enki-tag-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.enki-tag-pill { padding: 4px 10px; border: 1px solid var(--rule); font-size: 11px; color: var(--ink-3); border-radius: 2px; }
+
+.enki-prompt-margin { display: grid; grid-template-columns: 1fr 240px; gap: 24px; align-items: start; margin-top: 8px; }
+.enki-prompt-text { font-family: var(--serif); font-size: 19px; line-height: 1.65; color: var(--ink-2); letter-spacing: -0.005em; padding: 22px 24px; background: var(--paper-2); border-left: 2px solid var(--ember); position: relative; }
+.enki-prompt-comments { display: flex; flex-direction: column; gap: 0; position: relative; padding-top: 10px; }
+.enki-comment { position: relative; padding: 10px 12px; background: var(--paper); border: 1px solid var(--rule); border-left: 2px solid var(--teal); font-family: var(--sans); margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
+.enki-comment:hover { border-color: var(--ink-3); }
+.enki-comment.active { border-left-color: var(--ember); box-shadow: 0 1px 0 var(--ember); background: var(--ember-soft); }
+.enki-comment-name { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-transform: lowercase; letter-spacing: 0.04em; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+.enki-comment-type { font-size: 9px; color: var(--teal); text-transform: uppercase; letter-spacing: 0.1em; }
+.enki-comment-input { width: 100%; padding: 4px 6px; border: 1px solid var(--rule); background: var(--paper); font-family: var(--sans); font-size: 12px; color: var(--ink); border-radius: 2px; }
+.enki-comment-input:focus { outline: none; border-color: var(--ember); }
+.enki-comment::before { content: ''; position: absolute; left: -24px; top: 14px; width: 22px; height: 1px; background: var(--rule); }
+.enki-comment.active::before { background: var(--ember); }
+
+.enki-var { display: inline; padding: 1px 6px; margin: 0 1px; background: var(--teal-soft); color: var(--teal); font-family: var(--serif); font-style: italic; font-size: inherit; cursor: pointer; border-bottom: 1px dashed var(--teal); transition: all 0.15s; }
+.enki-var:hover, .enki-var.active { background: var(--ember-soft); color: var(--ember); border-bottom-color: var(--ember); }
+.enki-var.checkbox::before { content: '☐ '; font-style: normal; }
+.enki-var.checkbox.checked::before { content: '☑ '; font-style: normal; color: var(--ember); }
+
+.enki-size-picker { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.enki-size-row { display: flex; align-items: center; gap: 14px; }
+.enki-size-label { font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; min-width: 70px; font-family: var(--mono); }
+.enki-size-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.enki-card-tl-hover { position: absolute; top: 38px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; z-index: 3; opacity: 0; transform: translateY(-4px); transition: opacity 0.18s ease, transform 0.18s ease; pointer-events: none; }
+.enki-card:hover .enki-card-tl-hover { opacity: 1; transform: translateY(0); }
+.enki-card-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; letter-spacing: 0.04em; color: white; background: rgba(0,0,0,0.55); padding: 3px 7px; border-radius: 2px; backdrop-filter: blur(4px); font-family: var(--mono); }
+.enki-card-stat-price { background: rgba(255,255,255,0.94); color: #1a1a1c; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .enki-masonry { column-count: 1; padding: 16px; }
+}

@@ -56,6 +56,11 @@ textarea {
   max-width: 100%;
 }
 
+/* No blinking cursor except in actual text inputs / textareas / contenteditable */
+*:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0, 0, 0, 0.1);

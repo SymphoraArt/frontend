@@ -1,6 +1,6 @@
 "use client";
 
-import Navbar from "@/components/Navbar";
+
 import { useActiveAccount } from "thirdweb/react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -135,7 +135,7 @@ export default function MyGalleryPage() {
   if (!authenticated || !userKey) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
             <CardHeader>
@@ -155,7 +155,7 @@ export default function MyGalleryPage() {
 
   return (
     <div className="min-h-screen bg-background pt-16">
-      <Navbar />
+
       <main className="w-full px-6 lg:px-8 py-6 max-w-6xl mx-auto">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
@@ -214,8 +214,8 @@ export default function MyGalleryPage() {
         ) : (() => {
           const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
           const filtered = mediaFilter === "all" ? items
-            : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl))
-            : items.filter(c => isVideo(c.imageUrl));
+            : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl || ""))
+            : items.filter(c => isVideo(c.imageUrl || ""));
 
           return filtered.length === 0 ? (
           <Card className="border border-border/60 bg-card/60 backdrop-blur">
@@ -233,7 +233,7 @@ export default function MyGalleryPage() {
               >
                 <div className="aspect-[4/3] bg-muted relative">
                   <img
-                    src={c.imageUrl}
+                    src={c.imageUrl || ""}
                     alt={(c as any).isUploaded ? "Uploaded" : "Generated"}
                     className="w-full h-full object-cover"
                   />

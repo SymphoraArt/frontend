@@ -220,6 +220,13 @@ export async function PUT(
       );
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { error: "Failed to retrieve user data" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       settings: {

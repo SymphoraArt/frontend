@@ -14,6 +14,16 @@ import {
   type ArtworkComment,
   type InsertArtworkComment,
 } from "@shared/schema";
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  promptCount?: number;
+  featured?: boolean;
+}
+
 import { getDb } from "./db";
 import { ObjectId, Db } from "mongodb";
 import { encryptPrompt, decryptPrompt } from "./encryption";
@@ -93,6 +103,10 @@ export interface IStorage {
 
   getCommentsByArtworkId(artworkId: string): Promise<ArtworkComment[]>;
   createComment(comment: InsertArtworkComment): Promise<ArtworkComment>;
+  getCategories(): Promise<Category[]>;
+  getPopularTags(limit: number): Promise<string[]>;
+  searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<Prompt[]>;
+  getAllListedPrompts(limit: number, cursor?: string): Promise<Prompt[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -585,6 +599,64 @@ export class DatabaseStorage implements IStorage {
     if (!comment) throw new Error('Failed to create comment');
     return toSchemaType<ArtworkComment>(comment);
   }
+
+  // ==================== Categories ====================
+  async getCategories(): Promise<Category[]> {
+    const tags = [
+      { id: "portrait", name: "Portrait", description: "Studio and candid portraiture", icon: "👤", featured: true },
+      { id: "cinematic", name: "Cinematic", description: "Film-like quality and lighting", icon: "🎬", featured: true },
+      { id: "infographic", name: "Infographic", description: "Data visualization and diagrams", icon: "📊", featured: false },
+      { id: "landscape", name: "Landscape", description: "Natural scenery and environments", icon: "🌄", featured: true },
+      { id: "architecture", name: "Architecture", description: "Buildings and structural design", icon: "🏢", featured: false },
+      { id: "editorial", name: "Editorial", description: "Magazine and publication style", icon: "📖", featured: true },
+      { id: "abstract", name: "Abstract", description: "Non-representative art and forms", icon: "🎨", featured: false },
+      { id: "product", name: "Product", description: "Commercial product photography", icon: "📦", featured: false },
+      { id: "fashion", name: "Fashion", description: "Apparel and style photography", icon: "👗", featured: false },
+      { id: "sci-fi", name: "Sci-Fi", description: "Science fiction and futuristic art", icon: "🚀", featured: false },
+    ];
+    return tags;
+  }
+
+  async getPopularTags(limit: number): Promise<string[]> {
+    return [
+      "portrait", "cinematic", "infographic", "landscape", "architecture",
+      "editorial", "abstract", "product", "fashion", "sci-fi",
+      "cyberpunk", "fantasy", "realistic", "minimalist", "retro",
+      "vaporwave", "brutalism", "surreal", "oil painting", "watercolor"
+    ].slice(0, limit);
+  }
+
+  async searchPrompts(query: any, sort: any, limit: number, cursor?: string): Promise<Prompt[]> {
+    const db = getDatabase();
+    if (!db) return [];
+
+    let finalQuery = { ...query };
+    if (cursor) {
+      try {
+        finalQuery._id = { $lt: new ObjectId(cursor) };
+      } catch {
+        // Invalid cursor
+      }
+    }
+
+    try {
+      const prompts = await db.collection(COLLECTIONS.PROMPTS)
+        .find(finalQuery)
+        .sort(sort)
+        .limit(limit)
+        .toArray();
+
+      return prompts.map((p: any) => toSchemaType<Prompt>(p));
+    } catch (error) {
+      console.error('Error searching prompts:', error);
+      return [];
+    }
+  }
+
+  async getAllListedPrompts(limit: number, cursor?: string): Promise<Prompt[]> {
+    return this.searchPrompts({ isListed: true }, { listedAt: -1 }, limit, cursor);
+  }
 }
+
 
 export const storage = new DatabaseStorage();

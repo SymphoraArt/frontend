@@ -204,14 +204,12 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     id={prompt.id}
                     title={prompt.title}
                     artist={creator.displayName}
-                    priceUsdCents={prompt.priceUsdCents}
-                    isListed={true}
-                    licenseType={prompt.licenseType}
-                    totalSales={prompt.totalSales}
-                    rating={prompt.avgRating}
-                    downloads={prompt.totalSales}
-                    thumbnail={prompt.previewImageUrl || ""}
+                    price={(prompt.priceUsdCents || 0) / 100}
                     isFree={prompt.priceUsdCents === 0}
+                    rating={prompt.avgRating || 0}
+                    downloads={prompt.totalSales || 0}
+                    thumbnail={prompt.previewImageUrl || ""}
+                    category={prompt.category || "All"}
                     onClick={() => router.push(`/generator/${prompt.id}`)}
                   />
                 ))}

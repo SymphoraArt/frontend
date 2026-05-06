@@ -1,6 +1,6 @@
 "use client";
 
-import FilterBar from "@/components/FilterBar";
+
 import PromptCard from "@/components/PromptCard";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -9,10 +9,7 @@ import PromptDetailModal from "@/components/PromptDetailModal";
 import { useQuery, useQueries } from "@tanstack/react-query";
 
 // Dynamically import components that use browser-only hooks to prevent SSR errors
-const CompactPromptCreator = dynamic(
-  () => import("@/components/CompactPromptCreator"),
-  { ssr: false }
-);
+
 
 const ShowroomUploadZone = dynamic(
   () => import("@/components/ShowroomUploadZone"),
@@ -154,7 +151,7 @@ export default function Showcase() {
   if (!isMounted || (isLoading && allPrompts.length === 0)) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+
         <main className="w-full px-2 py-2 flex items-center justify-center">
           <p className="text-foreground text-lg">Loading prompts...</p>
         </main>
@@ -165,7 +162,7 @@ export default function Showcase() {
   if (visiblePrompts.length === 0) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+
         <main className="w-full px-2 py-8 flex flex-col items-center justify-center">
           <p className="text-foreground text-lg mb-4">
             No prompts available yet
@@ -174,7 +171,7 @@ export default function Showcase() {
             Be the first to create and release a prompt!
           </p>
         </main>
-        <CompactPromptCreator />
+
         <ShowroomUploadZone />
       </div>
     );
@@ -182,7 +179,7 @@ export default function Showcase() {
 
   return (
     <div className="min-h-screen bg-background pt-16">
-      <FilterBar onFilterChange={(f) => console.log("Filters:", f)} />
+
       <main className="w-full px-2 py-2">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 auto-rows-[200px]">
           {visiblePrompts.map((prompt, idx) => {
@@ -211,7 +208,7 @@ export default function Showcase() {
               : "You're all caught up."}
         </div>
       </main>
-      <CompactPromptCreator />
+
       <ShowroomUploadZone />
       <PromptDetailModal
         isOpen={!!selectedPromptData}

@@ -28,7 +28,7 @@ import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import { thirdwebClient, defaultChain } from "@/lib/thirdweb";
 
-export function ConnectWallet() {
+export function ConnectWallet({ className, label }: { className?: string; label?: string }) {
   const account = useActiveAccount();
 
   // #region agent log
@@ -72,8 +72,8 @@ export function ConnectWallet() {
         privacyPolicyUrl: "https://symphora.com/privacy",
       }}
       connectButton={{
-        label: "Connect Wallet",
-        className: "connect-wallet-button",
+        label: label || "Connect Wallet",
+        className: className || "connect-wallet-button",
       }}
       // Account abstraction disabled to show actual wallet addresses (EOA)
       // Users will see their MetaMask address or email wallet address directly

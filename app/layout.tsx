@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import {
+  Fraunces,
   Geist,
   Geist_Mono,
   Playfair_Display,
@@ -9,8 +10,11 @@ import {
   Outfit,
 } from "next/font/google";
 import "./globals.css";
+import "./enki-redesign.css";
 import { Providers } from "../providers";
-import Navbar from "@/components/Navbar";
+import ThemeSync from "@/components/ThemeSync";
+import EnkiHeader from "@/components/enki/EnkiHeader";
+import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +54,13 @@ const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -136,11 +147,16 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${outfit.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${outfit.variable} ${fraunces.variable} antialiased`}
       >
         <Providers>
-          <Navbar />
-          {children}
+          <ThemeSync>
+            <div className="enki">
+              <EnkiHeader />
+              {children}
+              <EnkiQuickCreate />
+            </div>
+          </ThemeSync>
         </Providers>
       </body>
     </html>

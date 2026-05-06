@@ -91,7 +91,7 @@ const Btn = ({ label, color, onClick }: { label: string; color?: string; onClick
   </button>
 );
 
-const Th = ({ children }: { children: React.ReactNode }) => (
+const Th = ({ children }: { children?: React.ReactNode }) => (
   <th style={{
     padding: "9px 14px", textAlign: "left",
     fontSize: 10, fontFamily: "'Outfit', sans-serif",
@@ -103,8 +103,8 @@ const Th = ({ children }: { children: React.ReactNode }) => (
     {children}
   </th>
 );
-const Td = ({ children, mono }: { children: React.ReactNode; mono?: boolean }) => (
-  <td style={{
+const Td = ({ children, mono, onClick }: { children: React.ReactNode; mono?: boolean; onClick?: (e: React.MouseEvent) => void }) => (
+  <td onClick={onClick} style={{
     padding: "11px 14px", fontSize: 13, color: "#3a3530",
     fontFamily: mono ? "monospace" : "'Outfit', sans-serif",
     borderBottom: "1px solid #f0ede6", verticalAlign: "middle",

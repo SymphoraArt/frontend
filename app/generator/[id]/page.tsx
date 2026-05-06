@@ -1,6 +1,6 @@
 "use client";
 
-import Navbar from "@/components/Navbar";
+
 import GeneratorInterface from "@/components/GeneratorInterface";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -33,7 +33,7 @@ export default function Generator() {
   if (promptLoading) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-4 flex items-center justify-center">
           <p className="text-foreground text-lg" data-testid="text-loading">
             Loading prompt...
@@ -46,7 +46,7 @@ export default function Generator() {
   if (promptError || !prompt) {
     return (
       <div className="min-h-screen bg-background pt-16">
-        <Navbar />
+
         <main className="w-full px-6 lg:px-8 py-4 flex flex-col items-center justify-center gap-4">
           <p className="text-foreground text-lg" data-testid="text-error">
             Prompt not found
