@@ -888,6 +888,20 @@ export default function AlgencyPromptEditor() {
           </div>
         </section>
 
+        {/* ═══ BRIDGE COLUMN — Stack Variables ═══ */}
+        <div className="alg-bridge-col">
+          {variables.length > 0 && (
+            <button
+              className={`alg-bridge-btn ${ui.showVerificationCard ? "alg-bridge-btn--done" : ""}`}
+              onClick={() => setUi(prev => ({ ...prev, showVerificationCard: true }))}
+              title="Stack variables and verify"
+            >
+              <span className="alg-bridge-btn__arrow">↑</span>
+              Stack · Verify
+            </button>
+          )}
+        </div>
+
         {/* ═══ PANEL 04 — Verify ═══ */}
         <section className="alg-panel alg-panel--verify" style={{ background: "var(--alg-bg)" }}>
           <div className="alg-panel__header" style={{ paddingBottom: 16 }}>
