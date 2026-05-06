@@ -617,9 +617,9 @@ export default function AlgencyPromptEditor() {
       setVariables(prev => prev.map(v =>
         filled[v.name] ? { ...v, defaultValue: filled[v.name] } : v
       ));
-      toast({ title: "Grok filled variables", description: `Filled ${Object.keys(filled).length} variable(s).` });
+      toast({ title: "Auto filled variables", description: `Filled ${Object.keys(filled).length} variable(s).` });
     } catch {
-      toast({ title: "Grok fill failed", description: "Could not auto-fill. Try again.", variant: "destructive" });
+      toast({ title: "Auto fill failed", description: "Could not auto-fill. Try again.", variant: "destructive" });
     } finally {
       setUi(prev => ({ ...prev, isGrokFilling: false }));
       handleCreateEmptySlots();
@@ -1243,7 +1243,7 @@ export default function AlgencyPromptEditor() {
                   disabled={ui.isGrokFilling}
                 >
                   <Sparkles size={10} />
-                  {ui.isGrokFilling ? "Filling..." : "Grok fill"}
+                  {ui.isGrokFilling ? "Filling..." : "Auto Fill"}
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <button

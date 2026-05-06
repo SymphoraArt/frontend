@@ -3018,3 +3018,12 @@ https://nextjs.org/docs/messages/module-not-found
 [02:55:54.227] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
 [02:55:54.497] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
 [02:55:54.497] Browser LOG     ✅ Wallet state repaired successfully
+[03:00:04.747] Server  LOG     ○ Compiling /showcase ...
+[03:00:04.997] Server  WARN    ⚠️  Supabase not configured - returning empty prompts list
+[03:00:04.997] Server  WARN    ⚠️  Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env to enable prompts
+[03:00:05.080] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[10:35:46.578] Server  LOG     ✓ Compiled in 186ms
+[10:36:41.769] Server  WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[10:36:42.175] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[10:36:42.449] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
+[10:36:42.449] Browser LOG     ✅ Wallet state repaired successfully
