@@ -82,11 +82,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     <header style={{
       position: "fixed", top: 24, left: "50%", zIndex: 50,
       width: "calc(100% - 80px)",
-      background: "rgba(255, 255, 255, 0.4)",
-      backdropFilter: "blur(24px) saturate(200%)",
-      WebkitBackdropFilter: "blur(24px) saturate(200%)",
-      border: "1px solid rgba(255, 255, 255, 0.5)",
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.06)",
+      background: "rgba(0, 0, 0, 0.75)",
+      backdropFilter: "blur(48px) saturate(200%)",
+      WebkitBackdropFilter: "blur(48px) saturate(200%)",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
       borderRadius: 9999,
       transform: "translate(-50%, 0)",
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
@@ -95,7 +95,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
         {/* Logo */}
         <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#111" }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#fff" }}>
             Enki Art
           </span>
           <span style={{ color: "#d94f3d", fontSize: 22, lineHeight: 1, marginLeft: 1 }}>·</span>
@@ -110,11 +110,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 background: "none", border: "none", cursor: "pointer",
                 padding: "0 16px", height: 56,
                 fontSize: 12, fontWeight: isActive ? 600 : 400,
-                letterSpacing: "0.5px", color: isActive ? "#111" : "#777",
+                letterSpacing: "0.5px", color: isActive ? "#fff" : "rgba(255, 255, 255, 0.5)",
                 transition: "color 0.2s ease",
               }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#777")}
+                onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
+                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#fff" : "rgba(255, 255, 255, 0.5)")}
               >
                 {label}
               </button>
@@ -130,9 +130,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             width: 38, height: 38, borderRadius: "50%",
             background: "none", border: "none",
             display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+            cursor: "pointer", color: "rgba(255, 255, 255, 0.7)", transition: "background 0.2s ease",
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)")}
           onMouseLeave={e => (e.currentTarget.style.background = "none")}>
             <Search size={16} />
           </button>
@@ -140,7 +140,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           {/* Release Prompt (Solid Pill) */}
           <button onClick={() => router.push("/editor")} style={{
             display: "flex", alignItems: "center", gap: 6,
-            padding: "0 20px", height: 40, background: "#111", color: "#fff",
+            padding: "0 20px", height: 40, background: "#fff", color: "#000",
             border: "none", borderRadius: 999, cursor: "pointer",
             fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
@@ -158,7 +158,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <DropdownMenuTrigger asChild>
               <button data-testid="button-user-menu" style={{
                 width: 40, height: 40, borderRadius: "50%",
-                background: "#111", border: "none",
+                background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.2)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
                 fontFamily: "monospace", letterSpacing: "0.5px",
@@ -169,11 +169,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   : <User size={16} />}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl">
+            <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/10 bg-black/75 backdrop-blur-[48px] shadow-xl text-white">
               {authenticated && walletAddress ? (
                 <div className="px-2 py-2 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 text-white">
+                    <Wallet className="h-4 w-4 opacity-70" />
                     <p className="text-sm font-medium">Wallet Connected</p>
                   </div>
                   <div className="flex items-center gap-1">
