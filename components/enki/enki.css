@@ -61,17 +61,23 @@
 .enki-catbar {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 8px 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  gap: 4px;
+  padding: 0 40px;
+  height: 60px;
+  background: var(--enki-paper); /* matches page cream #faf8f4 */
+  border-bottom: 1px solid var(--enki-rule-2);
   position: sticky;
-  top: 80px;
+  top: 80px; /* sits right below the floating navbar (24px top + 56px height) */
   z-index: 45;
   overflow-x: auto;
+  overflow-y: visible;
   scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-shrink: 0;
+}
+
+.enki-catbar::-webkit-scrollbar {
+  display: none;
 }
 
 .enki-catbar > * {
