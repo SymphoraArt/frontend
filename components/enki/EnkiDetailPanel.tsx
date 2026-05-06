@@ -85,15 +85,47 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
               </button>
             </div>
 
-            {/* CENTER SECTION (Dynamic Grid) */}
-            <div className="enki-detail-center">
-              <div className="enki-detail-dynamic-grid" style={gridStyle}>
-                {displayImages.map((img, i) => (
-                  <div key={i} className="enki-detail-grid-item" onClick={() => setLightboxImage(img)}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt={`Generated ${i + 1}`} />
+            {/* CENTER SECTION (Dynamic Grid + Public Gallery) */}
+            <div className="enki-detail-center hide-scrollbar">
+              <div className="enki-detail-grid-container">
+                <div className="enki-detail-dynamic-grid" style={gridStyle}>
+                  {displayImages.map((img, i) => (
+                    <div key={i} className="enki-detail-grid-item" onClick={() => setLightboxImage(img)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img} alt={`Generated ${i + 1}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Public Gallery & Comments (Below Grid) */}
+              <div className="enki-detail-public-section">
+                <div className="enki-detail-public-title">Other public images created with this prompt</div>
+                <div className="enki-detail-public-gallery hide-scrollbar">
+                  {publicGallery.map((img, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={`pub-${i}`}
+                      src={img}
+                      alt={`Public ${i + 1}`}
+                      className={`enki-detail-public-img ${displayImages.includes(img) && displayImages.length === 1 ? "active" : ""}`}
+                      onClick={() => setDisplayImages([img])}
+                    />
+                  ))}
+                </div>
+
+                <div className="enki-detail-bottom-actions">
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button className="enki-detail-tab-btn" type="button" style={{ background: "rgba(255,255,255,0.2)" }}>
+                      <MessageSquare size={16} /> Comments
+                      <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Image)</span>
+                    </button>
+                    <button className="enki-detail-tab-btn" type="button">
+                      <Star size={16} /> Reviews
+                      <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Requires Purchase)</span>
+                    </button>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
 
@@ -113,37 +145,6 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* BOTTOM SECTION (Public Gallery & Comments) */}
-          <div className="enki-detail-bottom">
-            <div className="enki-detail-public-title">Other public images created with this prompt</div>
-            <div className="enki-detail-public-gallery hide-scrollbar">
-              {publicGallery.map((img, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={`pub-${i}`}
-                  src={img}
-                  alt={`Public ${i + 1}`}
-                  className={`enki-detail-public-img ${displayImages.includes(img) && displayImages.length === 1 ? "active" : ""}`}
-                  onClick={() => setDisplayImages([img])}
-                />
-              ))}
-            </div>
-
-            <div className="enki-detail-bottom-actions">
-              <div style={{ display: "flex", gap: 12 }}>
-                <button className="enki-detail-tab-btn" type="button" style={{ background: "rgba(255,255,255,0.2)" }}>
-                  <MessageSquare size={16} /> Comments
-                  <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Image)</span>
-                </button>
-                <button className="enki-detail-tab-btn" type="button">
-                  <Star size={16} /> Reviews
-                  <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Requires Purchase)</span>
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

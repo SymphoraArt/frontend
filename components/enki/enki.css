@@ -456,14 +456,21 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Center Section (Dynamic Grid) */
+/* Center Section (Dynamic Grid + Public Gallery) */
 .enki-detail-center {
   flex: 1;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
   padding: 0 40px 32px;
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+.enki-detail-grid-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  margin-bottom: 40px;
 }
 
 .enki-detail-dynamic-grid {
@@ -547,14 +554,13 @@
   border-color: var(--enki-ember);
 }
 
-/* Bottom Bar */
-.enki-detail-bottom {
+/* Public Gallery (Below Grid) */
+.enki-detail-public-section {
   display: flex;
   flex-direction: column;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 24px 40px;
-  flex-shrink: 0;
+  padding-top: 24px;
+  margin-top: auto; /* Push to bottom if grid is small */
 }
 
 .enki-detail-public-title {
