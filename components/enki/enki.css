@@ -61,56 +61,64 @@
 .enki-catbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 40px;
-  height: 60px;
-  background: var(--enki-paper); /* matches page cream #faf8f4 */
-  border-bottom: 1px solid var(--enki-rule-2);
-  position: sticky;
-  top: 80px; /* sits right below the floating navbar (24px top + 56px height) */
+  gap: 2px;
+  padding: 5px 6px;
+  background: rgba(15, 15, 15, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  position: fixed;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 45;
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  flex-shrink: 0;
+  pointer-events: all;
+  max-width: calc(100vw - 80px);
+  overflow: hidden;
+  /* Show/hide animation */
+  opacity: 1;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.enki-catbar::-webkit-scrollbar {
-  display: none;
+.enki-catbar--hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-12px);
+  pointer-events: none;
 }
 
 .enki-catbar > * {
   pointer-events: all;
+  flex-shrink: 0;
 }
 
 .enki-catbar-all {
-  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 18px;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 150ms ease;
   white-space: nowrap;
-  margin-right: 0;
+  letter-spacing: 0.01em;
 }
 
 .enki-catbar-all:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #111;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .enki-catbar-all.active {
-  background: #111;
-  color: #fff;
+  background: #fff;
+  color: #111;
 }
 
 .enki-catbar-all.active .enki-catbar-all-icon {
@@ -122,12 +130,19 @@
   align-items: center;
 }
 
+.enki-catbar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
 .enki-catbar-scroll {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   overflow-x: auto;
-  flex: 1;
   scrollbar-width: none;
   -ms-overflow-style: none;
   padding: 0 4px;
@@ -139,30 +154,29 @@
 
 .enki-catbar-chip {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 16px;
+  height: 38px;
+  padding: 0 15px;
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 150ms ease;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .enki-catbar-chip:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #111;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .enki-catbar-chip.active {
-  background: #111;
-  color: #fff;
+  background: #fff;
+  color: #111;
+  font-weight: 600;
 }
 
 .enki-catbar-thumb {
@@ -170,29 +184,26 @@
 }
 
 .enki-catbar-chip-label {
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: inherit;
 }
 
 .enki-catbar-more {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  margin-left: 4px;
   transition: all 150ms ease;
 }
 
 .enki-catbar-more:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #111;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .enki-masonry {

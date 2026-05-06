@@ -1,17 +1,17 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { LayoutGrid, MoreHorizontal } from "lucide-react";
 
 const CATEGORIES = [
-  { label: "All",              thumb: null },
-  { label: "Portrait",         thumb: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=80&h=80&fit=crop" },
-  { label: "Character",        thumb: "https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?w=80&h=80&fit=crop" },
-  { label: "Cinematic",        thumb: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=80&h=80&fit=crop" },
-  { label: "Architecture",     thumb: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=80&h=80&fit=crop" },
-  { label: "Abstract",         thumb: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=80&h=80&fit=crop" },
-  { label: "Product",          thumb: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=80&h=80&fit=crop" },
-  { label: "Minimal",          thumb: "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=80&h=80&fit=crop" },
-  { label: "Editorial",        thumb: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=80&h=80&fit=crop" },
+  { label: "Portrait" },
+  { label: "Character" },
+  { label: "Cinematic" },
+  { label: "Architecture" },
+  { label: "Abstract" },
+  { label: "Product" },
+  { label: "Minimal" },
+  { label: "Editorial" },
 ];
 
 type EnkiFiltersProps = {
@@ -21,26 +21,54 @@ type EnkiFiltersProps = {
 
 export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
   const allActive = active.length === 0;
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          const currentY = window.scrollY;
+          if (currentY < 80) {
+            // Always show near top
+            setVisible(true);
+          } else if (currentY < lastScrollY.current - 4) {
+            // Scrolling up
+            setVisible(true);
+          } else if (currentY > lastScrollY.current + 4) {
+            // Scrolling down
+            setVisible(false);
+          }
+          lastScrollY.current = currentY;
+          ticking.current = false;
+        });
+        ticking.current = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <div className="enki-catbar">
+    <div className={`enki-catbar${visible ? "" : " enki-catbar--hidden"}`}>
+      {/* All button */}
       <button
         className={`enki-catbar-all${allActive ? " active" : ""}`}
-        onClick={() => {
-          // clear all active tags when "All" is clicked
-          active.forEach((tag) => toggle(tag));
-        }}
+        onClick={() => active.forEach((tag) => toggle(tag))}
         type="button"
         aria-label="All categories"
       >
-        <span className="enki-catbar-all-icon">
-          <LayoutGrid size={16} />
-        </span>
+        <LayoutGrid size={14} />
         All
       </button>
 
+      <div className="enki-catbar-divider" />
+
+      {/* Category chips */}
       <div className="enki-catbar-scroll">
-        {CATEGORIES.slice(1).map((cat) => {
+        {CATEGORIES.map((cat) => {
           const key = cat.label.toLowerCase();
           const isActive = active.includes(key);
           return (
@@ -50,22 +78,16 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
               onClick={() => toggle(key)}
               type="button"
             >
-              {cat.thumb && (
-                <img
-                  src={cat.thumb}
-                  alt={cat.label}
-                  className="enki-catbar-thumb"
-                  loading="lazy"
-                />
-              )}
-              <span className="enki-catbar-chip-label">{cat.label}</span>
+              {cat.label}
             </button>
           );
         })}
       </div>
 
-      <button className="enki-catbar-more" type="button" aria-label="More categories">
-        <MoreHorizontal size={16} />
+      <div className="enki-catbar-divider" />
+
+      <button className="enki-catbar-more" type="button" aria-label="More">
+        <MoreHorizontal size={15} />
       </button>
     </div>
   );
