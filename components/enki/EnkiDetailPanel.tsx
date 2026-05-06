@@ -28,8 +28,15 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
     "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=400&auto=format&fit=crop",
   ];
 
-  const [activeImage, setActiveImage] = useState(historyImages[0]);
+  const [displayImages, setDisplayImages] = useState(historyImages);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // Dynamic grid calculation
+  const gridCols = Math.ceil(Math.sqrt(displayImages.length));
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+    gridTemplateRows: `repeat(${Math.ceil(displayImages.length / gridCols)}, 1fr)`,
+  };
 
   return (
     <>
@@ -78,30 +85,14 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
               </button>
             </div>
 
-            {/* CENTER SECTION (Main Image) */}
+            {/* CENTER SECTION (Dynamic Grid) */}
             <div className="enki-detail-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={activeImage} 
-                alt="Main view" 
-                className="enki-detail-hero-img" 
-                onClick={() => setLightboxImage(activeImage)}
-              />
-            </div>
-
-            {/* RIGHT SECTION (History) */}
-            <div className="enki-detail-right hide-scrollbar">
-              <div className="enki-detail-right-title">Prompt History</div>
-              <div className="enki-detail-thumb-strip">
-                {historyImages.map((img, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={`hist-${i}`}
-                    src={img}
-                    alt={`History ${i + 1}`}
-                    className={`enki-detail-thumb ${activeImage === img ? "active" : ""}`}
-                    onClick={() => setActiveImage(img)}
-                  />
+              <div className="enki-detail-dynamic-grid" style={gridStyle}>
+                {displayImages.map((img, i) => (
+                  <div key={i} className="enki-detail-grid-item" onClick={() => setLightboxImage(img)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img} alt={`Generated ${i + 1}`} />
+                  </div>
                 ))}
               </div>
             </div>
@@ -117,8 +108,8 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
                   key={`pub-${i}`}
                   src={img}
                   alt={`Public ${i + 1}`}
-                  className={`enki-detail-public-img ${activeImage === img ? "active" : ""}`}
-                  onClick={() => setActiveImage(img)}
+                  className={`enki-detail-public-img ${displayImages.includes(img) && displayImages.length === 1 ? "active" : ""}`}
+                  onClick={() => setDisplayImages([img])}
                 />
               ))}
             </div>

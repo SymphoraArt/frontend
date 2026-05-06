@@ -367,9 +367,7 @@
   width: 100%;
   max-width: 1400px;
   height: calc(100vh - 80px);
-  background: rgba(20, 20, 20, 0.7);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: #0d0d0d;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
@@ -458,7 +456,7 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Center Section */
+/* Center Section (Dynamic Grid) */
 .enki-detail-center {
   flex: 1;
   display: flex;
@@ -468,64 +466,42 @@
   overflow: hidden;
 }
 
-.enki-detail-hero-img {
+.enki-detail-dynamic-grid {
+  display: grid;
+  gap: 16px;
+  width: 100%;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+  aspect-ratio: 1; /* Maintain square shape for the overall grid block */
+  margin: 0 auto;
+}
+
+.enki-detail-grid-item {
+  position: relative;
   border-radius: 12px;
+  overflow: hidden;
+  background: #000;
   cursor: zoom-in;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
   transition: transform 0.3s;
 }
-.enki-detail-hero-img:hover {
+
+.enki-detail-grid-item:hover {
   transform: scale(1.02);
 }
 
-/* Right Section */
-.enki-detail-right {
-  width: 140px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  padding-left: 24px;
-  padding-bottom: 32px;
-  overflow-y: auto;
-}
-
-.enki-detail-right-title {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 12px;
-}
-
-.enki-detail-thumb-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.enki-detail-thumb {
+.enki-detail-grid-item img {
   width: 100%;
-  aspect-ratio: 1;
-  border-radius: 8px;
+  height: 100%;
   object-fit: cover;
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.2s, border 0.2s;
-  border: 2px solid transparent;
+  transition: opacity 0.2s;
 }
 
-.enki-detail-thumb:hover {
-  opacity: 0.8;
+.enki-detail-grid-item:hover img {
+  opacity: 0.9;
 }
 
-.enki-detail-thumb.active {
-  opacity: 1;
-  border-color: var(--enki-ember);
-}
+/* (Right column removed) */
 
 /* Bottom Bar */
 .enki-detail-bottom {
