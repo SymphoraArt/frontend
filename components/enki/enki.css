@@ -57,41 +57,137 @@
   display: none;
 }
 
-.enki-filters {
+/* ─── Category Bar ─────────────────────────────────────── */
+.enki-catbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--enki-rule);
+  background: var(--enki-paper);
+  overflow: hidden;
+  height: 64px;
+  position: sticky;
+  top: 80px;
+  z-index: 40;
+}
+
+.enki-catbar-all {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 40px;
-  border-bottom: 1px solid var(--enki-rule);
-  overflow-x: auto;
-  background: var(--enki-paper);
-}
-
-.enki-filter-label {
-  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--enki-ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  white-space: nowrap;
   margin-right: 8px;
-  color: var(--enki-ink-3);
-  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
-.enki-filter-chip {
+.enki-catbar-all:hover {
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
+}
+
+.enki-catbar-all.active {
+  background: #111;
+  color: #fff;
+}
+
+.enki-catbar-all.active .enki-catbar-all-icon {
+  color: #d94f3d;
+}
+
+.enki-catbar-all-icon {
+  display: flex;
+  align-items: center;
+}
+
+.enki-catbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0 4px;
+}
+
+.enki-catbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.enki-catbar-chip {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px 0 6px;
   border: 1px solid var(--enki-rule);
   border-radius: 999px;
   background: transparent;
   color: var(--enki-ink-2);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 12px;
-  padding: 7px 14px;
+  transition: background 150ms, border-color 150ms, color 150ms;
+  white-space: nowrap;
 }
 
-.enki-filter-chip.active {
-  border-color: var(--enki-ink);
-  background: var(--enki-ink);
-  color: var(--enki-paper);
+.enki-catbar-chip:hover {
+  border-color: var(--enki-ink-3);
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
+}
+
+.enki-catbar-chip.active {
+  border-color: #d94f3d;
+  background: #d94f3d;
+  color: #fff;
+}
+
+.enki-catbar-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+
+.enki-catbar-chip-label {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.enki-catbar-more {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--enki-ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 150ms;
+}
+
+.enki-catbar-more:hover {
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
 }
 
 .enki-masonry {

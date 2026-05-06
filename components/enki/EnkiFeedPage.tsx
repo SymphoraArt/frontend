@@ -71,12 +71,13 @@ export default function EnkiFeedPage() {
         : [...current, tag]
     ));
   };
-
+  return (
     <main className="enki">
 
       {visible.length > 0 ? (
         <>
           <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
+          <EnkiFilters active={tags} toggle={toggleTag} />
           <section className="enki-masonry">
           {visible.map((prompt) => (
             <EnkiCard
@@ -87,7 +88,8 @@ export default function EnkiFeedPage() {
               toggleFav={toggleFav}
             />
           ))}
-        </section>
+          </section>
+        </>
       ) : (
         <section className="enki-empty-state">
           <div className="enki-account-card">
