@@ -62,20 +62,20 @@
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 0 40px;
+  padding: 0 20px;
   background: transparent;
   overflow: visible;
   height: 64px;
   position: fixed;
-  top: 96px;
-  left: 0;
-  right: 0;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 40;
-  pointer-events: none; /* allow clicks through the transparent gap */
+  pointer-events: none;
 }
 
 .enki-catbar > * {
-  pointer-events: all; /* re-enable on actual pill elements */
+  pointer-events: all;
 }
 
 .enki-catbar-all {
@@ -210,7 +210,7 @@
 .enki-masonry {
   column-count: var(--cols, 4);
   column-gap: 4px;
-  padding: 176px 40px 90px; /* 96px navbar+gap + 64px catbar + 16px breathing room */
+  padding: 8px 40px 90px;
 }
 
 .enki-card {
