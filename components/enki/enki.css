@@ -153,15 +153,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
-  opacity: 0;
   pointer-events: none;
-  transform: translateY(-4px);
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.enki-card:hover .enki-card-tl-hover {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .enki-card-stat {
