@@ -122,6 +122,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Security & Account Recovery
+
+Enki Art employs a highly secure, three-tiered recovery architecture aligned with enterprise-grade standards (e.g., Turnkey):
+
+- **Layer 1 (Mnemonic):** A 24-word BIP39 recovery phrase generated at account creation. Serves as the ultimate offline master key.
+- **Layer 2 (Social Recovery with ZK Passcode):** Users can designate specific guardians (wallets, emails, or other Enki handles). Recovery requires submitting a high-entropy Guardian Passcode, which initiates a 48-hour timelock and cancellation routing across all connected user channels before granting access based on an M-of-N guardian approval threshold.
+- **Layer 3 (Manual Review):** A fallback human-in-the-loop escalation path for edge cases, processed securely via the Enki Art Admin Panel.
+
+All security interfaces feature a unified, premium aesthetic with specific device and guardian identification (e.g., "MacBook Pro" or "Ethereum Wallet") to ensure maximum transparency.
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
