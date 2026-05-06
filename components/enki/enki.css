@@ -64,11 +64,18 @@
   gap: 0;
   padding: 0 40px;
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
   height: 64px;
-  position: sticky;
-  top: 96px; /* Gap below the 80px tall navbar */
+  position: fixed;
+  top: 96px;
+  left: 0;
+  right: 0;
   z-index: 40;
+  pointer-events: none; /* allow clicks through the transparent gap */
+}
+
+.enki-catbar > * {
+  pointer-events: all; /* re-enable on actual pill elements */
 }
 
 .enki-catbar-all {
@@ -203,7 +210,7 @@
 .enki-masonry {
   column-count: var(--cols, 4);
   column-gap: 4px;
-  padding: 8px 40px 90px;
+  padding: 176px 40px 90px; /* 96px navbar+gap + 64px catbar + 16px breathing room */
 }
 
 .enki-card {
