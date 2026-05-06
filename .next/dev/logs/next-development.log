@@ -2999,3 +2999,7 @@ https://nextjs.org/docs/messages/module-not-found
 [02:40:09.930] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
 [02:40:10.196] Browser WARN    ⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. Copy .env.example to .env.local and fill in your Thirdweb client ID.
 [02:40:10.304] Browser LOG     ✅ Wallet state repaired successfully
+[02:42:27.717] Server  LOG     ✓ Compiled in 139ms
+[02:44:20.271] Server  LOG     ✓ Compiled in 114ms
+[02:45:27.839] Server  LOG     ✓ Compiled in 77ms
+[02:46:02.234] Server  LOG     ✓ Compiled in 145ms

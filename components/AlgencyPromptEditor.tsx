@@ -726,24 +726,6 @@ export default function AlgencyPromptEditor() {
         </div>
       </nav>
 
-      {/* ═══ TITLE BAR ═══ */}
-      <div className="alg-titlebar desktop-only">
-        <div className="alg-titlebar__left">
-          <span className="alg-titlebar__label">PROMPT TITLE</span>
-          <input
-            className="alg-titlebar__title"
-            value={promptData.title}
-            onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Untitled Prompt"
-          />
-        </div>
-        <div className="alg-titlebar__right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontFamily: 'var(--font-jetbrains-mono), monospace', color: 'var(--alg-muted)', fontWeight: 500 }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: 'var(--alg-accent)' }} />
-            {verifiedCount}/1+ verified
-          </div>
-        </div>
-      </div>
 
       {/* ═══ 4-COLUMN GRID ═══ */}
       <div className="alg-grid desktop-only">
@@ -757,6 +739,16 @@ export default function AlgencyPromptEditor() {
             </div>
           </div>
           <div className="alg-panel__body">
+            {/* Prompt Title */}
+            <div className="alg-label">PROMPT TITLE</div>
+            <input
+              className="alg-input"
+              value={promptData.title}
+              onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="Untitled Prompt"
+              style={{ width: "100%", marginBottom: 16 }}
+            />
+
             {/* Display Mode */}
             <div className="alg-label">DISPLAY MODE</div>
             <div
