@@ -317,37 +317,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate image using Gemini Nano Banana Pro
-    console.log('🎨 Generating image with Gemini...');
-    
-    // Map resolution to Gemini image size (1K, 2K, 4K)
-    const resolution = body.resolution || '2K';
-    const imageSize = resolution === '1K' ? '1K' : resolution === '4K' ? '4K' : '2K';
-    
-    // Map aspect ratio
-    const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-    
-    // Use Gemini 3 Pro Image Preview (Nano Banana Pro) for high-quality generation
-    const geminiRequest: ImageGenerationRequest = {
-      prompt: enhancedPrompt,
-      aspectRatio,
-      numImages: 1,
-      modelVersion: 'gemini-3-pro-image-preview', // Nano Banana Pro
-      imageSize: imageSize as '1K' | '2K' | '4K',
-    };
+    // Generate image using Grok testing only
+    console.log('🎨 Generating image with Grok...');
 
-    const geminiResult = await generateImagesWithGemini(geminiRequest);
+    const xaiKey = process.env.XAI_API_KEY;
+    if (!xaiKey) throw new Error("XAI_API_KEY not set");
 
-    if (!geminiResult.success || !geminiResult.imageBuffers || geminiResult.imageBuffers.length === 0) {
-      console.error('❌ Gemini image generation failed:', geminiResult.error);
-      return NextResponse.json(
-        { 
-          error: geminiResult.error || 'Image generation failed',
-          retryable: geminiResult.retryable,
-        },
-        { status: 500 }
-      );
+    const xaiResponse = await fetch("https://api.x.ai/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${xaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-imagine-image",
+        prompt: enhancedPrompt,
+        n: 1,
+      }),
+    });
+
+    if (!xaiResponse.ok) {
+      const errTxt = await xaiResponse.text();
+      console.error('❌ Grok image generation failed:', errTxt);
+      return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
     }
+
+    const xaiData = await xaiResponse.json();
+    const grokUrl = xaiData.data?.[0]?.url;
+
+    if (!grokUrl) {
+      return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
+    }
+
+    // Fetch the image to get a buffer
+    const imgRes = await fetch(grokUrl);
+    if (!imgRes.ok) throw new Error("Failed to download image from Grok");
+    const arrayBuffer = await imgRes.arrayBuffer();
+    const imageBuffer = Buffer.from(arrayBuffer);
+
+    const geminiResult = {
+      success: true,
+      imageBuffers: [imageBuffer],
+      metadata: { model: 'grok-imagine-image' },
+      generationTime: 0
+    };
 
     // Upload image buffer to Vercel Blob storage
     let imageUrl: string;
