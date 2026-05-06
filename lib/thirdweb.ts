@@ -10,12 +10,15 @@ import { baseSepolia, base, polygon, optimism, arbitrum } from "thirdweb/chains"
 
 // Validate client ID
 if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
-  throw new Error("Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID");
+  console.warn(
+    "⚠️ Missing NEXT_PUBLIC_THIRDWEB_CLIENT_ID — wallet features will be disabled. " +
+    "Copy .env.example to .env.local and fill in your Thirdweb client ID."
+  );
 }
 
-// Create client instance
+// Create client instance (uses empty string fallback so the app can still render)
 export const thirdwebClient = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "missing-client-id",
 });
 
 /**

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { useTheme } from "../providers/ThemeProvider";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
@@ -93,8 +94,7 @@ export default function Navbar({
   const { toast } = useToast();
   const [showNav, setShowNav] = useState(true);
   const lastScrollYRef = useRef(0);
-  const themeTransitionTimeoutRef = useRef<number | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
 
   const walletAddress = walletInfo.address;
@@ -134,41 +134,6 @@ export default function Navbar({
     }
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const stored = localStorage.getItem("theme");
-    if (stored === "light" || stored === "dark") {
-      setTheme(stored);
-    } else {
-      setTheme("light");
-    }
-  }, []);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.add("theme-transition");
-    if (themeTransitionTimeoutRef.current) {
-      window.clearTimeout(themeTransitionTimeoutRef.current);
-    }
-
-    if (theme === "dark") root.classList.add("dark");
-    else root.classList.remove("dark");
-    localStorage.setItem("theme", theme);
-
-    themeTransitionTimeoutRef.current = window.setTimeout(() => {
-      root.classList.remove("theme-transition");
-      themeTransitionTimeoutRef.current = null;
-    }, 320);
-
-    return () => {
-      if (themeTransitionTimeoutRef.current) {
-        window.clearTimeout(themeTransitionTimeoutRef.current);
-        themeTransitionTimeoutRef.current = null;
-      }
-      root.classList.remove("theme-transition");
-    };
-  }, [theme]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -239,7 +204,7 @@ export default function Navbar({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={toggleTheme}
                 aria-label="Toggle theme"
                 data-testid="button-theme-toggle"
               >

@@ -9,7 +9,6 @@ import {
 import "./globals.css";
 import { Providers } from "../providers";
 import Navbar from "@/components/Navbar";
-import ThemeSync from "@/components/ThemeSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -125,10 +124,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} antialiased`}
       >
         <Providers>
-          <ThemeSync>
-            <Navbar />
-            {children}
-          </ThemeSync>
+          <Navbar />
+          {children}
         </Providers>
       </body>
     </html>

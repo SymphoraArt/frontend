@@ -34,3 +34,6 @@ service-account*.json
 # Documentation files - ignore all .md files except README.md
 *.md
 !README.md
+# Local environment files
+.env.local
+.env*.local
