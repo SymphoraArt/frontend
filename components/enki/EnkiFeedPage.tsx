@@ -72,44 +72,47 @@ export default function EnkiFeedPage() {
     ));
   };
   return (
-    <main className="enki">
-
-      {visible.length > 0 ? (
-        <>
-          <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
-          <EnkiFilters active={tags} toggle={toggleTag} />
-          <section className="enki-masonry">
-          {visible.map((prompt) => (
-            <EnkiCard
-              key={prompt.id}
-              prompt={prompt}
-              onOpen={setOpen}
-              faved={Boolean(favs[prompt.id])}
-              toggleFav={toggleFav}
-            />
-          ))}
+    <>
+      <main className="enki">
+        {visible.length > 0 ? (
+          <>
+            <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
+            <section className="enki-masonry">
+            {visible.map((prompt) => (
+              <EnkiCard
+                key={prompt.id}
+                prompt={prompt}
+                onOpen={setOpen}
+                faved={Boolean(favs[prompt.id])}
+                toggleFav={toggleFav}
+              />
+            ))}
+            </section>
+          </>
+        ) : (
+          <section className="enki-empty-state">
+            <div className="enki-account-card">
+              <div className="serif" style={{ fontSize: 28, marginBottom: 8 }}>No prompts here yet.</div>
+              <p style={{ margin: 0, color: "var(--enki-ink-2)" }}>
+                Adjust your filters to widen the results.
+              </p>
+            </div>
           </section>
-        </>
-      ) : (
-        <section className="enki-empty-state">
-          <div className="enki-account-card">
-            <div className="serif" style={{ fontSize: 28, marginBottom: 8 }}>No prompts here yet.</div>
-            <p style={{ margin: 0, color: "var(--enki-ink-2)" }}>
-              Adjust your filters to widen the results.
-            </p>
-          </div>
-        </section>
-      )}
+        )}
 
-      <EnkiQuickCreate />
-      {open && (
-        <EnkiDetailPanel
-          prompt={open}
-          onClose={() => setOpen(null)}
-          faved={Boolean(favs[open.id])}
-          toggleFav={toggleFav}
-        />
-      )}
-    </main>
+        <EnkiQuickCreate />
+        {open && (
+          <EnkiDetailPanel
+            prompt={open}
+            onClose={() => setOpen(null)}
+            faved={Boolean(favs[open.id])}
+            toggleFav={toggleFav}
+          />
+        )}
+      </main>
+
+      {/* Fixed bottom dock — rendered outside <main> so position:fixed works */}
+      <EnkiFilters active={tags} toggle={toggleTag} />
+    </>
   );
 }
