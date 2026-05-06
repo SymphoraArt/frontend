@@ -63,6 +63,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const lastScrollYRef = useRef(0);
   const pathname = usePathname();
   const walletAddress = walletInfo.address;
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -87,10 +88,15 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
   const NAV_LINKS = [
     { label: "DISCOVER",  href: "/" },
-    { label: "IMAGES",    href: "/showcase" },
-    { label: "VIDEOS",    href: "/showcase" },
-    { label: "FAVORITES", href: "/my-gallery" },
+    { label: "IMAGES",    href: "/images" },
+    { label: "VIDEOS",    href: "/videos" },
+    { label: "FAVORITES", href: "/favorites" },
   ];
+
+  const submitSearch = () => {
+    const value = searchQuery.trim();
+    if (value) router.push(`/search?q=${encodeURIComponent(value)}`);
+  };
 
   return (
     <header style={{
@@ -116,7 +122,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         {/* Nav Links */}
         <nav style={{ display: "flex", marginRight: 20, flexShrink: 0 }}>
           {NAV_LINKS.map(({ label, href }) => {
-            const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
+            const isActive = pathname === href;
             return (
               <button key={label} onClick={() => router.push(href)} style={{
                 background: "none", border: "none", cursor: "pointer",
@@ -141,7 +147,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           <input
             type="search"
             placeholder="Search prompts, tags, artists..."
-            onChange={(e) => onSearch?.(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              onSearch?.(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitSearch();
+            }}
             style={{
               width: "100%", padding: "7px 52px 7px 34px",
               background: "#eceae3", border: "none", borderRadius: 8,
@@ -160,7 +173,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 16, flexShrink: 0 }}>
 
           {/* + Release prompt */}
-          <button onClick={() => router.push("/editor")} style={{
+          <button onClick={() => router.push("/release")} style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "7px 16px", background: "#111", color: "#fff",
             border: "none", borderRadius: 20, cursor: "pointer",
@@ -242,8 +255,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </div>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/my-gallery")}>My Gallery</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/my-prompts")}>My Prompts</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/profile")}>My Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/favorites")}>Favorites</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/released")}>Released Prompts</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/earnings")}>Earnings</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
               {authenticated && account && (
                 <>
