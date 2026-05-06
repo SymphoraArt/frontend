@@ -62,20 +62,21 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 5px 6px;
-  background: rgba(255, 255, 255, 0.75);
+  padding: 5px 40px;
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(24px) saturate(200%);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 0;
+  box-shadow: none;
   position: fixed;
-  top: 66px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 56px;
+  left: 0;
+  right: 0;
+  width: 100%;
   z-index: 45;
   pointer-events: all;
-  max-width: calc(100vw - 80px);
   overflow: hidden;
   opacity: 1;
   transition: opacity 0.25s ease, transform 0.25s ease;
@@ -83,7 +84,7 @@
 
 .enki-catbar--hidden {
   opacity: 0;
-  transform: translateX(-50%) translateY(-12px);
+  transform: translateY(-12px);
   pointer-events: none;
 }
 
@@ -208,7 +209,7 @@
 .enki-masonry {
   column-count: var(--cols, 4);
   column-gap: 4px;
-  padding: 8px 40px 90px;
+  padding: 116px 40px 90px; /* 56px navbar + 52px catbar + 8px gap */
 }
 
 .enki-card {
