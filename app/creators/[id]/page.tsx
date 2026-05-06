@@ -70,7 +70,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     <div className="min-h-screen bg-background pt-16">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header Section */}
-        <Card className="mb-6">
+        <Card className="mb-6 bg-black overflow-hidden">
           <CardContent className="p-6">
             <div className="flex items-start gap-6">
               <Avatar className="h-24 w-24">
