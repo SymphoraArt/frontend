@@ -82,7 +82,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     <header style={{
       position: "fixed", top: 24, left: "50%", zIndex: 50,
       width: "calc(100% - 80px)",
-      background: "rgba(255, 255, 255, 0.85)",
+      background: "rgba(255, 255, 255, 0.4)",
       backdropFilter: "blur(24px) saturate(200%)",
       WebkitBackdropFilter: "blur(24px) saturate(200%)",
       border: "1px solid rgba(255, 255, 255, 0.5)",
