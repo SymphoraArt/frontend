@@ -1,88 +1,91 @@
+# AIgency — The Premium Prompt Marketplace
+
+AIgency is a high-fidelity creative marketplace and AI generation platform designed for modern art direction. It enables artists to discover, refine, and generate stunning AI-generated visuals using a variable-based prompt system.
+
 <div align="center">
-
-<!-- Dynamic Header -->
-<a href="https://github.com/Sarthakx12">
-  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=600&size=26&pause=1000&color=FFFFFF&center=true&vCenter=true&width=600&lines=Hi%2C+I'm+Sarthak+Verma+%E2%9C%A8;Full+Stack+Engineer;AI+%26+Web3+Builder;Crafting+Modern+Digital+Experiences" alt="Typing SVG" />
-</a>
-
-**`sarthak verma`** · **`india`** · **`building in public`**
-
-<br />
-
-<!-- Sleek Minimalist Badges -->
-<a href="https://github.com/Sarthakx12"><img src="https://img.shields.io/badge/GitHub-111111?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"></a>
-<a href="https://twitter.com/sarthakx12"><img src="https://img.shields.io/badge/X_(Twitter)-111111?style=for-the-badge&logo=x&logoColor=white" alt="X"></a>
-<a href="https://linkedin.com/in/sarthakx12"><img src="https://img.shields.io/badge/LinkedIn-111111?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn"></a>
-<a href="https://github.com/Sarthakx12"><img src="https://komarev.com/ghpvc/?username=Sarthakx12&style=for-the-badge&color=111111&label=VIEWS&labelColor=111111" alt="Profile Views"></a>
-
-<br />
-<br />
-
-*ship fast. learn hard. level up.*
-
+  <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Gemini_AI-Enabled-orange?style=for-the-badge&logo=google-gemini" alt="Gemini">
+  <img src="https://img.shields.io/badge/Solana-Web3-9945FF?style=for-the-badge&logo=solana" alt="Solana">
 </div>
 
 ---
 
-### 💻 /sys/profile/sarthak.ts
+## ✨ Features
 
-```typescript
-const sarthak = {
-  role:     "Full Stack Engineer",
-  focus:    ["AI Integrations", "Web3 / Onchain Apps", "Systems Design"],
-  stack:    ["Next.js", "TypeScript", "Claude API", "Supabase", "Solana"],
-  status:   "Open to hackathons & serious collabs",
-  location: "India"
-} as const;
+### 🌌 Enki Discover Feed
+A curated, high-density editorial grid of AI-generated images and videos. The feed focuses on "prompts worth keeping," featuring a minimalist, high-contrast design inspired by modern design journals.
+
+### ⚡ Variable-Based Prompting
+Unlike standard marketplaces, AIgency uses a "bracket system" (e.g., `[subject]`, `[mood]`) allowing users to customize prompt templates before generation.
+
+### 🛡️ Social Recovery Stack
+A three-tiered security system for account management:
+- **Social Recovery**: Guardian-based account restoration.
+- **ZK-Proofs**: Zero-knowledge proof verification for private setup.
+- **SLIP-39**: Shamir's Secret Sharing scheme for distributed key management.
+
+### 🎨 Premium Design System
+- **Typography**: A harmonious blend of *Playfair Display* (Serif), *Inter* (UI), and *JetBrains Mono* (Code).
+- **Aesthetics**: Glassmorphism components, subtle micro-animations, and a "paper" texture design language.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend**: [Next.js 16](https://nextjs.org/) (Turbopack), [React 19](https://react.dev/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/), Vanilla CSS for custom Enki components
+- **Auth/Web3**: [Turnkey](https://turnkey.com/), [Thirdweb](https://thirdweb.com/), [Solana](https://solana.com/)
+- **AI Integration**: [Google Gemini Pro Vision](https://ai.google.dev/)
+- **Database**: [Supabase](https://supabase.com/) & [Drizzle ORM](https://orm.drizzle.team/)
+- **Components**: [Radix UI](https://www.radix-ui.com/), [Lucide Icons](https://lucide.dev/)
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+- Node.js 20+
+- npm / pnpm / bun
+
+### 2. Installation
+```bash
+git clone https://github.com/Sarthakx12/frontend.git
+cd frontend
+npm install
 ```
 
----
+### 3. Environment Setup
+Create a `.env.local` file with the following:
+```env
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_TURNKEY_ORGANIZATION_ID=your_org_id
+# Add other necessary keys
+```
 
-### ⚡ current_stack
-
-<p align="center">
-  <a href="https://skillicons.dev">
-    <img src="https://skillicons.dev/icons?i=ts,react,nextjs,tailwind,nodejs,prisma,supabase,postgres,solana,git,docker,figma&perline=12&theme=dark" alt="Tech Stack Icons" />
-  </a>
-</p>
-
-<div align="center">
-
-| Domain | Technologies |
-| :--- | :--- |
-| **Frontend** | Next.js, React, TypeScript, Tailwind, Framer Motion |
-| **Backend**  | Node.js, tRPC, Prisma, Supabase, PostgreSQL |
-| **AI**       | Claude API, Prompt Engineering, Agent Systems |
-| **Web3**     | Solana, Ethers.js, Smart Contracts, Hardhat, Foundry |
-
-</div>
+### 4. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 ---
 
-### 🚀 active_projects
+## 🏗️ Project Structure
 
-| | Project | Description | Status |
-| :--: | :--- | :--- | :--: |
-| 🌌 | [**LifeOS**](https://github.com/Sarthakx12/lifeos) | Gamified RPG life OS — quests, habits, AI soul sync | `🔨 building` |
-| 🗳️ | [**NexusVote**](https://github.com/Sarthakx12/decentralized-voting-app) | Decentralized on-chain governance & voting | `🟢 live` |
+- `/app`: Next.js App Router pages and API routes.
+- `/components`: Reusable UI components (Enki, Settings, Modals).
+- `/lib`: Utility functions and prompt adapters.
+- `/providers`: Context providers for Web3 and Query clients.
+- `/styles`: Global styles and design system tokens.
 
 ---
 
-### 📊 github_metrics
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 <div align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=Sarthakx12&show_icons=true&theme=github_dark&hide_border=true&title_color=ffffff&text_color=a3a3a3&icon_color=ffffff&bg_color=0d1117" height="150" alt="stats"/>
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=Sarthakx12&layout=compact&theme=github_dark&hide_border=true&title_color=ffffff&text_color=a3a3a3&bg_color=0d1117" height="150" alt="top langs"/>
-</div>
-
-<br/>
-
-<div align="center">
-  <img src="https://streak-stats.demolab.com?user=Sarthakx12&theme=github-dark-blue&hide_border=true&background=0d1117&ring=ffffff&fire=ffffff&currStreakLabel=ffffff&sideLabels=a3a3a3&dates=a3a3a3&currStreakNum=ffffff&sideNums=ffffff&stroke=30363d" height="150" alt="streak"/>
-</div>
-
-<br/>
-
-<div align="center">
-  <img src="https://github-readme-activity-graph.vercel.app/graph?username=Sarthakx12&bg_color=0d1117&color=ffffff&line=ffffff&point=ffffff&area=true&area_color=1a1a2e&hide_border=true&radius=4" width="800" alt="activity graph"/>
+  <br />
+  Built with ❤️ by the AIgency Team
 </div>
