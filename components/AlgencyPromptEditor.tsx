@@ -483,6 +483,92 @@ export default function AlgencyPromptEditor() {
     setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
   };
 
+  /* ─── Pricing helpers ─── */
+  const getPricePerSlot = (): number => {
+    if (models.selected.length > 0 && models.available.length > 0) {
+      const m = models.available.find(x => models.selected.includes(x.id));
+      if (m?.price) return parseFloat(String(m.price));
+    }
+    return 0.10; // fallback $0.10 per image
+  };
+
+  const formatCost = (n: number): string => `$${n.toFixed(2)} USDC`;
+
+  const getBatchCost = (slotCount: number): string =>
+    formatCost(getPricePerSlot() * slotCount);
+
+  const getRefillCost = (slotCount: number): string =>
+    formatCost(getPricePerSlot() * slotCount * 0.8);
+
+  /* ─── Pay & Generate — UX shows total cost, fires sequential per-slot x402 ─── */
+  const handlePayAndGenerate = () => {
+    const idleCards = versions.filter(v => v.status === "idle");
+    if (idleCards.length === 0) {
+      toast({ title: "No idle slots", description: "Stack variables first." });
+      return;
+    }
+    const cost = getBatchCost(idleCards.length);
+    const total = idleCards.length;
+    // Mark all as queued immediately
+    setVersions(prev => prev.map(v => {
+      const pos = idleCards.findIndex(c => c.id === v.id);
+      if (pos === -1) return v;
+      return { ...v, status: "queued", queuePosition: pos + 1 };
+    }));
+    setUi(prev => ({ ...prev, queueTotal: total }));
+    toast({
+      title: `Paying ${cost} for ${total} image${total > 1 ? "s" : ""}`,
+      description: "Each slot will process a micro-payment via Thirdweb.",
+    });
+    // Fire each with 400ms stagger — each triggers its own x402 payment
+    idleCards.forEach((card, i) => {
+      setTimeout(() => {
+        setVersions(prev => prev.map(v =>
+          v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
+        ));
+        handleGenerateVersion(card.id);
+      }, i * 400);
+    });
+  };
+
+  /* ─── Refill & Generate — delete selected + pay 80% price for those slots ─── */
+  const handleRefillAndGenerate = () => {
+    if (ui.selectedCards.length === 0) return;
+    const refillCount = ui.selectedCards.length;
+    const cost = getRefillCost(refillCount);
+    // Delete selected cards
+    setVersions(prev => prev.filter(v => !ui.selectedCards.includes(v.id)));
+    setUi(prev => ({ ...prev, selectedCards: [] }));
+    // Create fresh idle snapshots for refill slots (use current variable defaults)
+    const baseSnapshot: Record<string, string> = {};
+    variables.forEach(v => { baseSnapshot[v.name] = (v.defaultValue as string) || v.name; });
+    const baseId = versions.filter(v => !ui.selectedCards.includes(v.id)).length > 0
+      ? Math.max(...versions.filter(v => !ui.selectedCards.includes(v.id)).map(v => v.id))
+      : 0;
+    const refillCards: VersionCard[] = Array.from({ length: refillCount }, (_, i) => ({
+      id: baseId + i + 1,
+      variableSnapshot: { ...baseSnapshot },
+      imageUrl: null,
+      status: "queued" as const,
+      queuePosition: i + 1,
+    }));
+    setVersions(prev => [...prev, ...refillCards]);
+    setUi(prev => ({ ...prev, queueTotal: refillCount }));
+    toast({
+      title: `Refill pack · ${cost}`,
+      description: `${refillCount} slot${refillCount > 1 ? "s" : ""} queued at 20% refill discount.`,
+    });
+    refillCards.forEach((card, i) => {
+      setTimeout(() => {
+        setVersions(prev => prev.map(v =>
+          v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
+        ));
+        handleGenerateVersion(card.id);
+      }, i * 400);
+    });
+  };
+
+
   const toggleVersionCheckbox = (id: number) => {
     setUi(prev => ({
       ...prev,
@@ -999,14 +1085,38 @@ export default function AlgencyPromptEditor() {
                     )}
                   </div>
                 ))}
-                <button
-                  style={{ marginTop: 14, width: "100%", background: "#1C1A18", color: "white", border: "none", padding: "8px 0", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, letterSpacing: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                  onClick={handleGrokFill}
-                  disabled={ui.isGrokFilling}
-                >
-                  <Sparkles size={11} />
-                  {ui.isGrokFilling ? "Filling with Grok..." : "Looks good → Generate"}
-                </button>
+                {/* Pay & Generate CTA */}
+                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* Cost summary */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13, fontWeight: 700, color: "#1C1A18" }}>
+                        {getBatchCost(Math.max(versions.filter(v => v.status === "idle").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
+                    </div>
+                  </div>
+                  <button
+                    className="alg-pay-btn"
+                    onClick={handlePayAndGenerate}
+                    disabled={isPaymentPending}
+                  >
+                    {isPaymentPending ? (
+                      <>● Processing payment...</>
+                    ) : (
+                      <>
+                        <Zap size={11} />
+                        Pay &amp; Generate
+                        <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
+                          {versions.filter(v => v.status === "idle").length > 0
+                            ? `${versions.filter(v => v.status === "idle").length} slots`
+                            : "stack first"}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1072,22 +1182,32 @@ export default function AlgencyPromptEditor() {
               <div style={{ height: 24, flexShrink: 0 }} />
             </div>
 
-            {/* Multi-select delete bar */}
+            {/* Multi-select action bar — Delete only OR Delete & Refill */}
             {ui.selectedCards.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--alg-border)", marginTop: 8 }}>
-                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#5A5550" }}>{ui.selectedCards.length} selected</span>
-                <div style={{ display: "flex", gap: 8 }}>
+              <div className="alg-refill-bar">
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#1C1A18", fontWeight: 600 }}>{ui.selectedCards.length} selected</span>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#9A9590" }}>refill discount applies</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button
-                    style={{ background: "#E07045", color: "white", border: "none", padding: "6px 14px", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, cursor: "pointer", letterSpacing: 0.5 }}
+                    className="alg-refill-bar__delete"
                     onClick={deleteSelectedVersions}
                   >
-                    Delete
+                    Delete only
                   </button>
                   <button
-                    style={{ background: "transparent", color: "#5A5550", border: "1px solid var(--alg-border)", padding: "6px 14px", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, cursor: "pointer" }}
+                    className="alg-refill-bar__refill"
+                    onClick={handleRefillAndGenerate}
+                  >
+                    Delete &amp; Refill
+                    <span className="alg-refill-bar__cost">{getRefillCost(ui.selectedCards.length)}</span>
+                  </button>
+                  <button
+                    className="alg-refill-bar__cancel"
                     onClick={() => setUi(prev => ({ ...prev, selectedCards: [] }))}
                   >
-                    Cancel
+                    ✕
                   </button>
                 </div>
               </div>
@@ -1099,15 +1219,31 @@ export default function AlgencyPromptEditor() {
       {/* ═══ STICKY FOOTER ═══ */}
       <div className="alg-workspace-footer">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Pay & Generate Batch */}
+          <button
+            className="alg-pay-btn alg-pay-btn--footer"
+            onClick={handlePayAndGenerate}
+            disabled={isPaymentPending || versions.filter(v => v.status === "idle").length === 0}
+          >
+            <Zap size={12} color="white" fill="white" />
+            {isPaymentPending ? "Processing..." : "Pay & Generate"}
+            {versions.filter(v => v.status === "idle").length > 0 && (
+              <span className="alg-pay-btn__badge">
+                {getBatchCost(versions.filter(v => v.status === "idle").length)}
+                &nbsp;&middot;&nbsp;
+                {versions.filter(v => v.status === "idle").length} image{versions.filter(v => v.status === "idle").length > 1 ? "s" : ""}
+              </span>
+            )}
+          </button>
+          {/* Grok fill stays as a ghost secondary */}
           <button
             className="alg-btn alg-btn--ghost alg-btn--sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', color: '#1C1A18', fontFamily: "var(--font-jetbrains-mono), monospace" }}
-            onClick={handleBatchGenerate}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10 }}
+            onClick={handleGrokFill}
             disabled={ui.isGrokFilling}
           >
-            <Sparkles size={12} color="#1C1A18" />
-            {ui.isGrokFilling ? "Filling..." : "Generate all slots"}
-            <span style={{ fontSize: 9, color: '#B0AAA2', marginLeft: 4, fontWeight: 600 }}>{versions.filter(v => v.status === "idle").length} idle</span>
+            <Sparkles size={10} />
+            {ui.isGrokFilling ? "Filling..." : "Grok fill"}
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1116,7 +1252,7 @@ export default function AlgencyPromptEditor() {
           </span>
           <button
             className="alg-btn alg-btn--ghost alg-btn--sm"
-            style={{ padding: '7px 16px', color: '#1C1A18' }}
+            style={{ padding: "7px 16px", color: "#1C1A18" }}
             onClick={() => savePromptMutation.mutate()}
             disabled={savePromptMutation.isPending}
           >
@@ -1124,7 +1260,7 @@ export default function AlgencyPromptEditor() {
           </button>
           <button
             className="alg-btn alg-btn--primary alg-btn--sm"
-            style={{ padding: '7px 20px', background: isPublishDisabled ? '#D5D1CB' : '#1C1A18', borderColor: isPublishDisabled ? '#D5D1CB' : '#1C1A18', color: 'white', opacity: 1, cursor: isPublishDisabled ? 'not-allowed' : 'pointer' }}
+            style={{ padding: "7px 20px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer" }}
             disabled={isPublishDisabled}
           >
             Publish prompt

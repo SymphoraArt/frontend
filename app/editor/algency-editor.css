@@ -783,3 +783,55 @@
   outline: 2px solid #E07045;
   outline-offset: -2px;
 }
+
+/* ─── Pay & Generate Button ─── */
+.alg-pay-btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: #E07045; color: #FFFFFF; border: none; cursor: pointer;
+  padding: 10px 16px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  transition: background 0.15s ease;
+}
+.alg-pay-btn:hover:not(:disabled) { background: #C85E35; }
+.alg-pay-btn:disabled { background: #D5D1CB; cursor: not-allowed; }
+.alg-pay-btn--footer {
+  width: auto; padding: 8px 18px;
+}
+.alg-pay-btn__badge {
+  background: rgba(255,255,255,0.15);
+  padding: 2px 8px; border-radius: 2px;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+  margin-left: 6px;
+}
+
+/* ─── Refill Action Bar ─── */
+.alg-refill-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-top: 1px solid var(--alg-border); margin-top: 8px;
+  flex-shrink: 0;
+}
+.alg-refill-bar__delete {
+  background: transparent; color: #9A9590;
+  border: 1px solid var(--alg-border); padding: 5px 12px;
+  font-family: var(--font-jetbrains-mono), monospace; font-size: 9px; cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.alg-refill-bar__delete:hover { color: #E07045; border-color: #E07045; }
+.alg-refill-bar__refill {
+  background: #1C1A18; color: #FFFFFF; border: none; cursor: pointer;
+  padding: 6px 14px; display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-jetbrains-mono), monospace; font-size: 9px;
+  font-weight: 600; letter-spacing: 0.5px; transition: background 0.15s;
+}
+.alg-refill-bar__refill:hover { background: #E07045; }
+.alg-refill-bar__cost {
+  background: rgba(255,255,255,0.12); padding: 1px 6px; font-size: 9px;
+  color: #E8B89A; border-radius: 2px;
+}
+.alg-refill-bar__cancel {
+  background: none; border: none; cursor: pointer;
+  color: #B0AAA2; font-size: 14px; padding: 4px 8px; line-height: 1;
+}
+.alg-refill-bar__cancel:hover { color: #1C1A18; }
