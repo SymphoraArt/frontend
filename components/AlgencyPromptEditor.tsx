@@ -433,11 +433,15 @@ export default function AlgencyPromptEditor() {
   const handleStackVariables = () => {
     const textVars = variables.filter(v => v.type === "text");
     const stackSize = Math.max(1, ...textVars.map(v => (v.values.length > 0 ? v.values.length : 1)));
-    const baseId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) : 0;
-    const newCards: VersionCard[] = [];
-    for (let i = 0; i < stackSize; i++) {
-      const snapshot: Record<string, string> = {};
-      variables.forEach(v => {
+    
+    setVersions(prev => {
+      // Remove failed cards to allow re-submission
+      const activeVersions = prev.filter(v => v.status !== "failed");
+      const baseId = activeVersions.length > 0 ? Math.max(...activeVersions.map(v => v.id)) : 0;
+      const newCards: VersionCard[] = [];
+      for (let i = 0; i < stackSize; i++) {
+        const snapshot: Record<string, string> = {};
+        variables.forEach(v => {
         if (v.type === "checkbox") {
           snapshot[v.name] = v.defaultValue ? v.description || "on" : "off";
         } else {
@@ -447,7 +451,8 @@ export default function AlgencyPromptEditor() {
       });
       newCards.push({ id: baseId + i + 1, variableSnapshot: snapshot, imageUrl: null, status: "idle" });
     }
-    setVersions(prev => [...prev, ...newCards]);
+    return [...activeVersions, ...newCards];
+    });
     setUi(prev => ({ ...prev, showVerificationCard: true }));
   };
 
@@ -1040,12 +1045,13 @@ export default function AlgencyPromptEditor() {
         <div className="alg-bridge-col">
           {variables.length > 0 && (
             <button
-              className={`alg-bridge-btn ${ui.showVerificationCard ? "alg-bridge-btn--done" : ""}`}
+              className="alg-bridge-btn"
               onClick={handleStackVariables}
               title="Stack variables and verify"
+              disabled={versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed")}
             >
-              <span className="alg-bridge-btn__arrow">↑</span>
-              Stack · Verify
+              <Zap size={10} color={versions.length > 0 && !versions.some(v => v.status === "idle" || v.status === "failed") ? "#A09A95" : "#FFFFFF"} fill="currentColor" />
+              Stack &amp; Verify
             </button>
           )}
         </div>
