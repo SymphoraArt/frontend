@@ -6,6 +6,7 @@ import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import EnkiFilters from "@/components/enki/EnkiFilters";
 import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
+import EnkiFeaturedCarousel from "@/components/enki/EnkiFeaturedCarousel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import {
   getFallbackEnkiPrompts,
@@ -71,19 +72,12 @@ export default function EnkiFeedPage() {
     ));
   };
 
-  return (
     <main className="enki">
-      <section className="enki-page-title">
-        <div className="enki-page-eyebrow">Curated / this week / {visible.length} prompts</div>
-        <h1 className="enki-page-h1 serif">
-          <em>Discover</em> prompts<br />worth keeping.
-        </h1>
-      </section>
-
-      <EnkiFilters active={tags} toggle={toggleTag} />
 
       {visible.length > 0 ? (
-        <section className="enki-masonry">
+        <>
+          <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
+          <section className="enki-masonry">
           {visible.map((prompt) => (
             <EnkiCard
               key={prompt.id}

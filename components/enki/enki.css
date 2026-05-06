@@ -97,7 +97,7 @@
 .enki-masonry {
   column-count: var(--cols, 4);
   column-gap: 4px;
-  padding: 32px 40px 90px;
+  padding: 8px 40px 90px;
 }
 
 .enki-card {
