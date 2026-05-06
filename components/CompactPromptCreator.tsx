@@ -8,6 +8,7 @@ import {
   Star,
   Heart,
   ImageIcon,
+  ImagePlus,
   ChevronUp,
   ChevronDown,
   PanelRightClose,
@@ -858,8 +859,22 @@ export default function CompactPromptCreator() {
               </div>
             </div>
 
-            {/* Right: Example & Generate */}
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs gap-1 text-muted-foreground"
+                onClick={() => {
+                  toast({
+                    title: "Image Upload",
+                    description: "Image upload functionality is coming soon.",
+                  });
+                }}
+                data-testid="button-quick-add-image"
+              >
+                <ImagePlus className="h-3 w-3" />
+                Image
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
