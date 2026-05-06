@@ -1,142 +1,88 @@
-# AIgency
+<div align="center">
 
-An AI art generation and prompt marketplace platform powered by Supabase.
+<!-- Dynamic Header -->
+<a href="https://github.com/Sarthakx12">
+  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=600&size=26&pause=1000&color=FFFFFF&center=true&vCenter=true&width=600&lines=Hi%2C+I'm+Sarthak+Verma+%E2%9C%A8;Full+Stack+Engineer;AI+%26+Web3+Builder;Crafting+Modern+Digital+Experiences" alt="Typing SVG" />
+</a>
 
-## Installation & Setup
+**`sarthak verma`** · **`india`** · **`building in public`**
 
-### Prerequisites
+<br />
 
-- Node.js 20 or higher
-- npm
-- Supabase project
+<!-- Sleek Minimalist Badges -->
+<a href="https://github.com/Sarthakx12"><img src="https://img.shields.io/badge/GitHub-111111?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"></a>
+<a href="https://twitter.com/sarthakx12"><img src="https://img.shields.io/badge/X_(Twitter)-111111?style=for-the-badge&logo=x&logoColor=white" alt="X"></a>
+<a href="https://linkedin.com/in/sarthakx12"><img src="https://img.shields.io/badge/LinkedIn-111111?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn"></a>
+<a href="https://github.com/Sarthakx12"><img src="https://komarev.com/ghpvc/?username=Sarthakx12&style=for-the-badge&color=111111&label=VIEWS&labelColor=111111" alt="Profile Views"></a>
 
-### Environment Variables
+<br />
+<br />
 
-Create a `.env.local` file in the root directory:
+*ship fast. learn hard. level up.*
 
-```bash
-# Supabase (required)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+</div>
 
-# Encryption (required for prompt content)
-FIELD_ENCRYPTION_KEY_B64=your-32-byte-base64-key
+---
 
-# Thirdweb (required for wallet connection and payments)
-NEXT_PUBLIC_THIRDWEB_CLIENT_ID=your_thirdweb_client_id
-THIRDWEB_SECRET_KEY=your_thirdweb_secret_key
+### 💻 /sys/profile/sarthak.ts
 
-# Gemini (optional - for prompt enhancement)
-GEMINI_API_KEY=
+```typescript
+const sarthak = {
+  role:     "Full Stack Engineer",
+  focus:    ["AI Integrations", "Web3 / Onchain Apps", "Systems Design"],
+  stack:    ["Next.js", "TypeScript", "Claude API", "Supabase", "Solana"],
+  status:   "Open to hackathons & serious collabs",
+  location: "India"
+} as const;
 ```
 
-### Supabase Schema
+---
 
-Run this SQL in your Supabase SQL Editor:
+### ⚡ current_stack
 
-```sql
--- Users table
-CREATE TABLE IF NOT EXISTS public.users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  username text UNIQUE NOT NULL,
-  display_name text,
-  bio text,
-  avatar_url text,
-  stats jsonb DEFAULT '{}',
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+<p align="center">
+  <a href="https://skillicons.dev">
+    <img src="https://skillicons.dev/icons?i=ts,react,nextjs,tailwind,nodejs,prisma,supabase,postgres,solana,git,docker,figma&perline=12&theme=dark" alt="Tech Stack Icons" />
+  </a>
+</p>
 
--- Prompts table
-CREATE TABLE IF NOT EXISTS public.prompts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title text NOT NULL,
-  encrypted_content text NOT NULL,
-  iv text NOT NULL,
-  auth_tag text NOT NULL,
-  user_id text,
-  category text,
-  tags text[],
-  ai_model text DEFAULT 'gemini',
-  price numeric DEFAULT 1,
-  aspect_ratio text,
-  photo_count integer DEFAULT 1,
-  prompt_type text DEFAULT 'create-now',
-  uploaded_photos text[],
-  resolution text,
-  is_free_showcase boolean DEFAULT false,
-  public_prompt_text text,
-  downloads integer DEFAULT 0,
-  rating numeric DEFAULT 0,
-  is_featured boolean DEFAULT false,
-  published_at timestamptz,
-  ai_settings jsonb,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+<div align="center">
 
--- Variables table
-CREATE TABLE IF NOT EXISTS public.variables (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  prompt_id uuid REFERENCES public.prompts(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  label text NOT NULL,
-  description text,
-  type text NOT NULL,
-  default_value jsonb,
-  required boolean DEFAULT false,
-  position integer DEFAULT 0,
-  min integer,
-  max integer,
-  options jsonb,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+| Domain | Technologies |
+| :--- | :--- |
+| **Frontend** | Next.js, React, TypeScript, Tailwind, Framer Motion |
+| **Backend**  | Node.js, tRPC, Prisma, Supabase, PostgreSQL |
+| **AI**       | Claude API, Prompt Engineering, Agent Systems |
+| **Web3**     | Solana, Ethers.js, Smart Contracts, Hardhat, Foundry |
 
--- Generations table (image history)
-CREATE TABLE IF NOT EXISTS public.generations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_key text NOT NULL,
-  prompt text,
-  image_url text NOT NULL,
-  provider text,
-  meta jsonb,
-  created_at timestamptz DEFAULT now()
-);
+</div>
 
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON public.prompts(user_id);
-CREATE INDEX IF NOT EXISTS idx_prompts_created_at ON public.prompts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_variables_prompt_id ON public.variables(prompt_id);
-CREATE INDEX IF NOT EXISTS idx_generations_user_key ON public.generations(user_key, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_users_username ON public.users(username);
-```
+---
 
-### Install & Run
+### 🚀 active_projects
 
-```bash
-npm install
-npm run dev
-```
+| | Project | Description | Status |
+| :--: | :--- | :--- | :--: |
+| 🌌 | [**LifeOS**](https://github.com/Sarthakx12/lifeos) | Gamified RPG life OS — quests, habits, AI soul sync | `🔨 building` |
+| 🗳️ | [**NexusVote**](https://github.com/Sarthakx12/decentralized-voting-app) | Decentralized on-chain governance & voting | `🟢 live` |
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+---
 
-## Security & Account Recovery
+### 📊 github_metrics
 
-Enki Art employs a highly secure, three-tiered recovery architecture aligned with enterprise-grade standards (e.g., Turnkey):
+<div align="center">
+  <img src="https://github-readme-stats.vercel.app/api?username=Sarthakx12&show_icons=true&theme=github_dark&hide_border=true&title_color=ffffff&text_color=a3a3a3&icon_color=ffffff&bg_color=0d1117" height="150" alt="stats"/>
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=Sarthakx12&layout=compact&theme=github_dark&hide_border=true&title_color=ffffff&text_color=a3a3a3&bg_color=0d1117" height="150" alt="top langs"/>
+</div>
 
-- **Layer 1 (Mnemonic):** A 24-word BIP39 recovery phrase generated at account creation. Serves as the ultimate offline master key.
-- **Layer 2 (Social Recovery with ZK Passcode):** Users can designate specific guardians (wallets, emails, or other Enki handles). Recovery requires submitting a high-entropy Guardian Passcode, which initiates a 48-hour timelock and cancellation routing across all connected user channels before granting access based on an M-of-N guardian approval threshold.
-- **Layer 3 (Manual Review):** A fallback human-in-the-loop escalation path for edge cases, processed securely via the Enki Art Admin Panel.
+<br/>
 
-All security interfaces feature a unified, premium aesthetic with specific device and guardian identification (e.g., "MacBook Pro" or "Ethereum Wallet") to ensure maximum transparency.
+<div align="center">
+  <img src="https://streak-stats.demolab.com?user=Sarthakx12&theme=github-dark-blue&hide_border=true&background=0d1117&ring=ffffff&fire=ffffff&currStreakLabel=ffffff&sideLabels=a3a3a3&dates=a3a3a3&currStreakNum=ffffff&sideNums=ffffff&stroke=30363d" height="150" alt="streak"/>
+</div>
 
-## Tech Stack
+<br/>
 
-- **Framework**: Next.js 16 (App Router)
-- **Database**: Supabase (PostgreSQL)
-- **Auth & Wallets**: Thirdweb (In-App Wallets with email, Google, phone, passkeys)
-- **Styling**: Tailwind CSS 4
-- **UI**: Radix UI + shadcn/ui
-- **Image Generation**: Pollinations API + Gemini (optional enhancement)
+<div align="center">
+  <img src="https://github-readme-activity-graph.vercel.app/graph?username=Sarthakx12&bg_color=0d1117&color=ffffff&line=ffffff&point=ffffff&area=true&area_color=1a1a2e&hide_border=true&radius=4" width="800" alt="activity graph"/>
+</div>
