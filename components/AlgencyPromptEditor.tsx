@@ -116,7 +116,6 @@ export default function AlgencyPromptEditor() {
     tooltip: null as { x: number, y: number, text: string } | null,
     tagInput: "",
     isGrokFilling: false,
-    showVerificationCard: false,
     queueTotal: 0,
     isEditingVersion: false,
     editingVersionId: null as number | null,
@@ -455,7 +454,6 @@ export default function AlgencyPromptEditor() {
     }
     return [...activeVersions, ...newCards];
     });
-    setUi(prev => ({ ...prev, showVerificationCard: true }));
   };
 
   /* ─── Batch Generate — assigns queue positions, fires sequentially ─── */
@@ -1123,71 +1121,15 @@ export default function AlgencyPromptEditor() {
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 16, lineHeight: 1.6 }}>
+            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 16, lineHeight: 1.6, flexShrink: 0 }}>
               {promptData.type === "free-prompt"
                 ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
                 : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
             </p>
 
-            {/* ─── Verification Card ─── */}
-            {ui.showVerificationCard && variables.length > 0 && (
-              <div style={{ border: "1px solid var(--alg-border)", background: "#FDFBF8", padding: "16px", marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, fontWeight: 600, color: "#5A5550", letterSpacing: 1.5, textTransform: "uppercase" }}>Before you generate</span>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>{variables.filter(v => v.type === "text" && !v.defaultValue).length} empty</span>
-                </div>
-                {variables.map(v => {
-                  const displayValue = v.type === "checkbox" 
-                    ? (v.defaultValue ? "on" : "off")
-                    : (v.values.length > 0 ? v.values.join(", ") : v.defaultValue);
-                  return (
-                    <div key={v.id} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: "1px solid #EDE8E0" }}>
-                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "var(--alg-hint)", letterSpacing: 1, textTransform: "uppercase", width: 72, flexShrink: 0 }}>{v.name}</span>
-                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: displayValue ? "#1C1A18" : "#B0AAA2", fontStyle: displayValue ? "normal" : "italic" }}>
-                        {displayValue ? String(displayValue) : "Not specified"}
-                      </span>
-                    </div>
-                  );
-                })}
-                {/* Pay & Generate CTA */}
-                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {/* Cost summary */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13, fontWeight: 700, color: "#1C1A18" }}>
-                        {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
-                      </span>
-                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
-                    </div>
-                  </div>
-                  <button
-                    className="alg-pay-btn"
-                    onClick={handlePayAndGenerate}
-                    disabled={isPaymentPending}
-                  >
-                    {isPaymentPending ? (
-                      <>● Processing payment...</>
-                    ) : (
-                      <>
-                        <Zap size={11} />
-                        Pay &amp; Generate
-                        <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
-                          {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0
-                            ? `${versions.filter(v => v.status === "idle" || v.status === "failed").length} slots`
-                            : "stack first"}
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {versions.map((slot) => {
-                const isSelected = ui.selectedCards.includes(slot.id);
-                return (
+            {versions.map((slot) => {
+              const isSelected = ui.selectedCards.includes(slot.id);
+              return (
                   <div
                     key={slot.id}
                     className={`alg-version-card ${slot.status === "generating" ? "alg-version-card--loading" : ""} ${slot.status === "failed" ? "alg-version-card--failed" : ""} ${isSelected ? "alg-version-card--selected" : ""}`}
@@ -1247,7 +1189,6 @@ export default function AlgencyPromptEditor() {
                 );
               })}
               <div style={{ height: 24, flexShrink: 0 }} />
-            </div>
 
             {/* Multi-select action bar — Delete only OR Delete & Refill */}
             {ui.selectedCards.length > 0 && (
@@ -1280,6 +1221,43 @@ export default function AlgencyPromptEditor() {
               </div>
             )}
           </div>
+
+          {/* Sticky Footer for Pay & Generate */}
+          {versions.some(v => v.status === "idle" || v.status === "failed") && (
+            <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "16px 24px", zIndex: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {/* Cost summary */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13, fontWeight: 700, color: "#1C1A18" }}>
+                      {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
+                    </span>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>via Thirdweb x402</span>
+                  </div>
+                </div>
+                <button
+                  className="alg-pay-btn"
+                  onClick={handlePayAndGenerate}
+                  disabled={isPaymentPending}
+                >
+                  {isPaymentPending ? (
+                    <>● Processing payment...</>
+                  ) : (
+                    <>
+                      <Zap size={11} />
+                      Pay &amp; Generate
+                      <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 9 }}>
+                        {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0
+                          ? `${versions.filter(v => v.status === "idle" || v.status === "failed").length} slots`
+                          : "stack first"}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
