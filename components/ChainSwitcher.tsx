@@ -57,36 +57,30 @@ export function ChainSwitcher() {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <Network className="h-4 w-4 text-muted-foreground" />
-      <Select
-        value={activeChain.id.toString()}
-        onValueChange={handleChainChange}
-      >
-        <SelectTrigger className="w-[180px] h-9 border-border/60">
-          <SelectValue>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">
-                {activeChain.name}
-              </Badge>
+    <Select
+      value={activeChain.id.toString()}
+      onValueChange={handleChainChange}
+    >
+      <SelectTrigger className="w-auto h-[38px] px-3 border-none bg-transparent hover:bg-black/5 rounded-full text-[13px] font-medium text-[#555] transition-colors shadow-none focus:ring-0 gap-2">
+        <SelectValue>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            {activeChain.name}
+          </div>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent className="rounded-[20px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl p-1">
+        {supportedChains.map((chain) => (
+          <SelectItem key={chain.id} value={chain.id.toString()} className="rounded-xl cursor-pointer">
+            <div className="flex items-center justify-between w-full">
+              <span>{chain.name}</span>
+              {chain.id === activeChain.id && (
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-2" />
+              )}
             </div>
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {supportedChains.map((chain) => (
-            <SelectItem key={chain.id} value={chain.id.toString()}>
-              <div className="flex items-center justify-between w-full">
-                <span>{chain.name}</span>
-                {chain.id === activeChain.id && (
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Active
-                  </Badge>
-                )}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

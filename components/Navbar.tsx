@@ -169,7 +169,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   : <User size={16} />}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl">
               {authenticated && walletAddress ? (
                 <div className="px-2 py-2 space-y-1">
                   <div className="flex items-center gap-2">
@@ -190,22 +190,22 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </div>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/my-gallery")}>My Gallery</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/my-prompts")}>My Prompts</DropdownMenuItem>
-              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer">My Gallery</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer">My Prompts</DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-black/5" />
               {/* Secondary Actions Moved Here */}
-              <DropdownMenuItem onClick={() => {}}>
+              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer">
                 <Coins className="h-4 w-4 mr-2 text-yellow-600" /> Hunt a prompt
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {}}>
+              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer">
                 <MessageSquareHeart className="h-4 w-4 mr-2 text-blue-600" /> Earn for feedback
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-black/5" />
+              <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer">Settings</DropdownMenuItem>
               
               {authenticated && account && (
                 <>
-                  <DropdownMenuSeparator />
+                  <DropdownMenuSeparator className="bg-black/5" />
                   <DropdownMenuItem
                     onClick={async () => {
                       try {
@@ -214,7 +214,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                         toast({ title: "Wallet disconnected" });
                       } catch { window.location.reload(); }
                     }}
-                    className="cursor-pointer text-destructive focus:text-destructive"
+                    className="cursor-pointer text-destructive focus:text-destructive rounded-xl mt-1"
                   >
                     <LogOut className="h-4 w-4 mr-2" /> Disconnect Wallet
                   </DropdownMenuItem>
