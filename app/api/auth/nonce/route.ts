@@ -8,6 +8,7 @@ import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import crypto from "crypto";
 import { z } from "zod";
 import { PublicKey } from "@solana/web3.js";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const nonceRequestSchema = z.object({
   walletAddress: z.string().min(1),
@@ -18,6 +19,9 @@ const NONCE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(request: NextRequest) {
   try {
+    const ipLimit = checkRequestRateLimit(rateLimitKey(request, "auth:nonce:ip"), 30, 60 * 1000);
+    if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
     const body = await request.json();
     const validation = nonceRequestSchema.safeParse(body);
 
@@ -25,8 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid wallet address",
-          details: validation.error.issues
+          error: "Invalid wallet address"
         },
         { status: 400 }
       );
@@ -50,6 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedAddress = walletAddress.toLowerCase();
+    const walletLimit = checkRequestRateLimit(rateLimitKey(request, "auth:nonce:wallet", normalizedAddress), 10, 5 * 60 * 1000);
+    if (!walletLimit.allowed) return rateLimitResponse(walletLimit.retryAfterSeconds);
 
     // Generate cryptographically secure nonce
     const nonce = crypto.randomBytes(32).toString("hex");

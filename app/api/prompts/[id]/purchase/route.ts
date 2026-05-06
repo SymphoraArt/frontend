@@ -65,7 +65,7 @@ export async function POST(
       return NextResponse.json(
         { 
           success: false, 
-          error: error instanceof Error ? error.message : "Prompt validation failed" 
+          error: error instanceof Error && error.message.includes('not found') ? "Prompt not found" : "Prompt validation failed"
         },
         { status: error instanceof Error && error.message.includes('not found') ? 404 : 400 }
       );
@@ -127,10 +127,10 @@ export async function POST(
         await revalidatePromptBeforePurchase(promptId);
       } catch (error) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Prompt validation failed' 
-          },
+        { 
+          success: false, 
+          error: 'Prompt is no longer available'
+        },
           { status: 410 } // 410 Gone
         );
       }
@@ -285,7 +285,7 @@ export async function POST(
       return NextResponse.json(
         { 
           success: false, 
-          error: error instanceof Error ? error.message : 'Prompt validation failed before payment' 
+          error: 'Prompt is no longer available'
         },
         { status: 410 } // 410 Gone
       );

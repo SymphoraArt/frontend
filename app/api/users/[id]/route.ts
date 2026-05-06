@@ -42,6 +42,7 @@ export async function GET(
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("GET /api/users/[id] error:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

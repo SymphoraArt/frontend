@@ -6,13 +6,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { storage } from "@/backend/storage";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authUser = await requireAuth(request);
     const { id: userId } = await params;
+
+    if (authUser.userId !== userId.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const supabase = getSupabaseServerClient();
 
@@ -135,11 +141,10 @@ export async function GET(
     });
 
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error('Error fetching user purchases:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { success: false, error: `Internal server error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

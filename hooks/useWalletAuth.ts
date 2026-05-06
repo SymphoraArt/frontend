@@ -70,7 +70,7 @@ export function useWalletAuth(): UseWalletAuthReturn {
       const signature = await account.signMessage({ message });
 
       // Step 4: Store auth headers for API requests
-      const headers = createAuthHeaders(walletAddress, signature, message, timestamp, nonce) as AuthHeaders;
+      const headers = createAuthHeaders(walletAddress, signature, message, timestamp, nonce) as unknown as AuthHeaders;
 
       setAuthHeaders(headers);
       setIsAuthenticating(false);

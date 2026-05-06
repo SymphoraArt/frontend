@@ -7,6 +7,7 @@ import { ApiKeyStamper } from "@turnkey/api-key-stamper";
 import { TurnkeyBrowserClient } from "@turnkey/sdk-browser";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { generateKeyPairSync, randomBytes } from "crypto";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const TURNKEY_BASE_URL = "https://api.turnkey.com";
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -45,6 +46,11 @@ export async function POST(req: NextRequest) {
   if (!otpId || !otpCode) {
     return NextResponse.json({ error: "otpId and otpCode are required" }, { status: 400 });
   }
+
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:delete-token:ip"), 30, 10 * 60 * 1000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+  const otpLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:delete-token:otp", otpId), 5, 10 * 60 * 1000);
+  if (!otpLimit.allowed) return rateLimitResponse(otpLimit.retryAfterSeconds);
 
   const supabase = getSupabaseServerClient();
 

@@ -3,6 +3,7 @@ import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import { TurnkeyBrowserClient, DEFAULT_SOLANA_ACCOUNTS } from '@turnkey/sdk-browser';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { requireAuth } from '@/lib/auth';
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from '@/lib/rate-limit';
 
 const TURNKEY_BASE_URL = 'https://api.turnkey.com';
 
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
 
   const orgId = process.env.TURNKEY_ORGANIZATION_ID!;
   const walletAddress = authUser.walletAddress;
+  const limit = checkRequestRateLimit(rateLimitKey(req, 'turnkey:init-user', walletAddress), 3, 10 * 60 * 1000);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
 
   // Check if already registered
   const supabase = getSupabaseServerClient();

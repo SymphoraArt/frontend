@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiKeyStamper } from "@turnkey/api-key-stamper";
 import { TurnkeyBrowserClient } from "@turnkey/sdk-browser";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const TURNKEY_BASE_URL = "https://api.turnkey.com";
 const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest) {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:otp:init:ip"), 20, 10 * 60 * 1000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+  const emailLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:otp:init:email", normalizedEmail), 5, 10 * 60 * 1000);
+  if (!emailLimit.allowed) return rateLimitResponse(emailLimit.retryAfterSeconds);
+
   const supabase = getSupabaseServerClient();
 
   // Check if user already has a Turnkey sub-org

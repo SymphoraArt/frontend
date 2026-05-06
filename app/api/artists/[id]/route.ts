@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/backend/storage";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * GET /api/artists/[id]
@@ -7,7 +8,7 @@ import { storage } from "@/backend/storage";
  * Returns a specific artist by ID
  */
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -34,60 +35,68 @@ export async function GET(
 /**
  * PATCH /api/artists/[id]
  *
- * Updates an artist
+ * Updates an artist — requires wallet auth + ownership
  */
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authUser = await requireAuth(request);
     const { id } = await params;
-    const body = await request.json();
-    const artist = await storage.updateArtist(id, body);
 
+    const artist = await storage.getArtist(id);
     if (!artist) {
-      return NextResponse.json(
-        { error: "Artist not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
 
-    return NextResponse.json(artist);
+    const artistUserId = (artist as any).userId || (artist as any).walletAddress || (artist as any).id;
+    if (artistUserId?.toLowerCase() !== authUser.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const updated = await storage.updateArtist(id, body);
+    return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("Failed to update artist:", error);
-    return NextResponse.json(
-      { error: "Failed to update artist" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update artist" }, { status: 500 });
   }
 }
 
 /**
  * DELETE /api/artists/[id]
  *
- * Deletes an artist
+ * Deletes an artist — requires wallet auth + ownership
  */
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authUser = await requireAuth(request);
     const { id } = await params;
-    const deleted = await storage.deleteArtist(id);
 
-    if (!deleted) {
-      return NextResponse.json(
-        { error: "Artist not found" },
-        { status: 404 }
-      );
+    const artist = await storage.getArtist(id);
+    if (!artist) {
+      return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
 
+    const artistUserId = (artist as any).userId || (artist as any).walletAddress || (artist as any).id;
+    if (artistUserId?.toLowerCase() !== authUser.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await storage.deleteArtist(id);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("Failed to delete artist:", error);
-    return NextResponse.json(
-      { error: "Failed to delete artist" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete artist" }, { status: 500 });
   }
 }

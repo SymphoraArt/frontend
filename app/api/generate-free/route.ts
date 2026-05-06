@@ -58,6 +58,6 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Generate free image error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Image generation failed" }, { status: 500 });
   }
 }

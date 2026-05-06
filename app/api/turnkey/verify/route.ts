@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { TurnkeyClient } from '@turnkey/http';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { requireAuth } from '@/lib/auth';
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from '@/lib/rate-limit';
 
 const TURNKEY_BASE_URL = 'https://api.turnkey.com';
 
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
   try {
     const { stamp } = await req.json();
     const walletAddress = authUser.walletAddress;
+    const limit = checkRequestRateLimit(rateLimitKey(req, 'turnkey:verify', walletAddress), 20, 60 * 1000);
+    if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
 
     if (!stamp?.stampHeaderName || !stamp?.stampHeaderValue) {
       return NextResponse.json({ error: 'Missing stamp' }, { status: 400 });

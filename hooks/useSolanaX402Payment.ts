@@ -25,6 +25,8 @@ import {
 import type { ChainKey } from "@/lib/payment-config";
 import { PAYMENT_CHAINS } from "@/lib/payment-config";
 
+const EXPECTED_SOLANA_PLATFORM_WALLET = process.env.NEXT_PUBLIC_SOLANA_PLATFORM_WALLET;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface SolanaPaymentRequirement {
@@ -75,9 +77,32 @@ export function useSolanaX402Payment() {
       if (!publicKey) throw new Error("Solana wallet not connected");
       if (!sendTransaction) throw new Error("Wallet does not support sendTransaction");
 
-      const usdcMint = new PublicKey(req.asset);
-      const recipient = new PublicKey(req.payTo);
+      // Validate network. The 402 response uses x402-facing names.
+      if (req.network !== "solana-devnet" && req.network !== "mainnet-beta") {
+        throw new Error(`Invalid Solana network in payment requirement: ${req.network}`);
+      }
+
+      // Validate USDC mint against known-good addresses
+      const chainKey = req.network === "mainnet-beta" ? "solana" : "solana-devnet";
+      const expectedMint = PAYMENT_CHAINS[chainKey].usdc;
+      if (req.asset !== expectedMint) {
+        throw new Error(`Invalid USDC mint in payment requirement: expected ${expectedMint}`);
+      }
+
+      // Validate amount is positive
       const amount = BigInt(req.maxAmountRequired);
+      if (amount <= BigInt(0)) {
+        throw new Error("Invalid payment amount: must be positive");
+      }
+
+      const usdcMint = new PublicKey(req.asset);
+      const recipient = new PublicKey(req.payTo); // throws if invalid base58
+      if (!EXPECTED_SOLANA_PLATFORM_WALLET) {
+        throw new Error("NEXT_PUBLIC_SOLANA_PLATFORM_WALLET is not configured");
+      }
+      if (recipient.toBase58() !== EXPECTED_SOLANA_PLATFORM_WALLET) {
+        throw new Error("Invalid payment recipient in Solana payment requirement");
+      }
 
       const senderAta = getAssociatedTokenAddressSync(usdcMint, publicKey);
       const recipientAta = getAssociatedTokenAddressSync(usdcMint, recipient);
@@ -111,8 +136,7 @@ export function useSolanaX402Payment() {
         "confirmed"
       );
 
-      const network = req.network === "mainnet-beta" ? "mainnet-beta" : "devnet";
-      return encodePaymentHeader(signature, publicKey.toBase58(), network);
+      return encodePaymentHeader(signature, publicKey.toBase58(), req.network);
     },
     [publicKey, sendTransaction, connection]
   );

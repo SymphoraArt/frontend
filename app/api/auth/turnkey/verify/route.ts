@@ -3,6 +3,7 @@ import { ApiKeyStamper } from "@turnkey/api-key-stamper";
 import { TurnkeyBrowserClient, DEFAULT_SOLANA_ACCOUNTS } from "@turnkey/sdk-browser";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { generateKeyPairSync } from "crypto";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const TURNKEY_BASE_URL = "https://api.turnkey.com";
 
@@ -50,6 +51,11 @@ export async function POST(req: NextRequest) {
   if (!otpId || !otpCode) {
     return NextResponse.json({ error: "otpId and otpCode are required" }, { status: 400 });
   }
+
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:otp:verify:ip"), 30, 10 * 60 * 1000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+  const otpLimit = checkRequestRateLimit(rateLimitKey(req, "turnkey:otp:verify:otp", otpId), 5, 10 * 60 * 1000);
+  if (!otpLimit.allowed) return rateLimitResponse(otpLimit.retryAfterSeconds);
 
   const supabase = getSupabaseServerClient();
 

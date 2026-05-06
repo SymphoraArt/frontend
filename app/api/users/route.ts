@@ -45,7 +45,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ users });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("GET /api/users error:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ id: data?.id }, { status: 201 });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("POST /api/users error:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
