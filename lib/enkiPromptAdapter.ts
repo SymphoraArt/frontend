@@ -80,40 +80,32 @@ const FALLBACK_TAGS = [
   "minimal",
 ];
 
+const UNSPLASH_IDS = [
+  "1507608172909-5c74232bd868", // minimal architecture
+  "1494438639946-1ebd1d20bf85", // minimal interior
+  "1513694203232-719a280e022f", // minimal room
+  "1600585154340-be6161a56a0c", // portrait
+  "1534528741775-53994a69daeb", // fashion
+  "1485965120184-e220f721d03e", // cinematic
+  "1518005020951-eccb494ad742", // abstract
+  "1500462918059-b1a0cb512f1d", // abstract colors
+  "1618005182384-a83a8bd57fbe", // product
+  "1523633589114-88e225471a4f", // editorial
+  "1493246507139-91e8fad9978e", // mountain minimal
+  "1470252656220-db63b3d11b33", // architectural curve
+];
+
 export function makeEnkiArtwork(seed: number): EnkiArtwork {
-  const swatch = SWATCHES[seed % SWATCHES.length];
   const ratios = ["3:4", "4:5", "1:1", "2:3", "4:3", "16:9"];
   const ratio = ratios[seed % ratios.length];
   const [a, b] = ratio.split(":").map(Number);
-  const base = 600;
+  const base = 800;
   const [width, height] = a > b ? [base, Math.round((base * b) / a)] : [Math.round((base * a) / b), base];
-  const variant = seed % 6;
-  let inner = "";
-
-  if (variant === 0) {
-    inner = `<rect x="0" y="${height * 0.6}" width="${width}" height="${height * 0.4}" fill="${swatch[2]}"/><circle cx="${width * 0.7}" cy="${height * 0.45}" r="${height * 0.12}" fill="${swatch[2]}" opacity="0.7"/>`;
-  } else if (variant === 1) {
-    inner = `<ellipse cx="${width * 0.5}" cy="${height * 0.6}" rx="${width * 0.18}" ry="${height * 0.28}" fill="${swatch[2]}" opacity="0.8"/><circle cx="${width * 0.5}" cy="${height * 0.32}" r="${width * 0.08}" fill="${swatch[2]}" opacity="0.85"/>`;
-  } else if (variant === 2) {
-    inner = `<rect x="${width * 0.15}" y="${height * 0.3}" width="${width * 0.3}" height="${height * 0.6}" fill="${swatch[2]}" opacity="0.6"/><rect x="${width * 0.5}" y="${height * 0.2}" width="${width * 0.35}" height="${height * 0.7}" fill="${swatch[2]}" opacity="0.4"/><rect x="${width * 0.2}" y="${height * 0.45}" width="${width * 0.05}" height="${height * 0.1}" fill="${swatch[0]}"/><rect x="${width * 0.6}" y="${height * 0.3}" width="${width * 0.05}" height="${height * 0.1}" fill="${swatch[0]}"/>`;
-  } else if (variant === 3) {
-    inner = `<circle cx="${width * 0.3}" cy="${height * 0.4}" r="${width * 0.25}" fill="${swatch[2]}" opacity="0.5"/><circle cx="${width * 0.7}" cy="${height * 0.65}" r="${width * 0.18}" fill="${swatch[1]}" opacity="0.7"/>`;
-  } else if (variant === 4) {
-    inner = `<path d="M0,${height * 0.7} Q${width * 0.3},${height * 0.55} ${width * 0.6},${height * 0.65} T${width},${height * 0.6} L${width},${height} L0,${height} Z" fill="${swatch[1]}"/><path d="M0,${height * 0.85} Q${width * 0.4},${height * 0.75} ${width},${height * 0.8} L${width},${height} L0,${height} Z" fill="${swatch[2]}"/>`;
-  } else {
-    inner = `<ellipse cx="${width * 0.5}" cy="${height * 0.55}" rx="${width * 0.32}" ry="${height * 0.4}" fill="${swatch[2]}" opacity="0.9"/><ellipse cx="${width * 0.42}" cy="${height * 0.48}" rx="${width * 0.03}" ry="${height * 0.015}" fill="${swatch[0]}"/><ellipse cx="${width * 0.58}" cy="${height * 0.48}" rx="${width * 0.03}" ry="${height * 0.015}" fill="${swatch[0]}"/>`;
-  }
-
-  const grain = Array.from({ length: 40 }, (_, index) => {
-    const x = (seed * 7 + index * 13) % 100;
-    const y = (seed * 11 + index * 17) % 100;
-    return `<circle cx="${x}%" cy="${y}%" r="0.5" fill="white" opacity="0.04"/>`;
-  }).join("");
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g${seed}" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="${swatch[0]}"/><stop offset="100%" stop-color="${swatch[1]}"/></linearGradient></defs><rect width="${width}" height="${height}" fill="url(#g${seed})"/>${inner}${grain}</svg>`;
-
+  
+  const imageId = UNSPLASH_IDS[seed % UNSPLASH_IDS.length];
+  
   return {
-    url: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    url: `https://images.unsplash.com/photo-${imageId}?auto=format&fit=crop&q=80&w=${width}&h=${height}`,
     width,
     height,
     ratio,
