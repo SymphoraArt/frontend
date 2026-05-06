@@ -568,13 +568,24 @@
 
 .enki-qc {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  right: auto;
+  bottom: 24px;
   z-index: 70;
-  border-top: 1px solid var(--enki-rule);
-  background: color-mix(in oklab, var(--enki-paper) 92%, transparent);
-  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+  width: calc(100% - 80px);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10);
+  border-radius: 9999px;
+  overflow: hidden;
+  transition: border-radius 0.25s ease;
+}
+
+.enki-qc.open {
+  border-radius: 20px;
 }
 
 .enki-qc-bar {
@@ -587,7 +598,7 @@
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  padding: 0 40px;
+  padding: 0 24px;
   transition: background 0.2s ease;
 }
 
@@ -599,16 +610,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   background: var(--enki-ember);
   color: #fff;
+  flex-shrink: 0;
 }
 
 .enki-qc-panel {
-  border-top: 1px solid var(--enki-rule);
-  padding: 18px 40px 24px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding: 18px 24px 24px;
 }
 
 .enki-qc-grid {
