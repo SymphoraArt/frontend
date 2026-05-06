@@ -19,9 +19,12 @@ import {
   AlertTriangle,
   Bell,
   Check,
-  Zap
+  Zap,
+  Sun,
+  Moon
 } from "lucide-react";
 import nlp from "compromise";
+import { useTheme } from "../providers/ThemeProvider";
 
 /* ─── Types ─── */
 type VariableType = "text" | "checkbox";
@@ -62,6 +65,7 @@ function EmptyVarIcon() {
 export default function AlgencyPromptEditor() {
   const router = useRouter();
   const account = useActiveAccount();
+  const { theme, toggleTheme } = useTheme();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
@@ -357,9 +361,9 @@ export default function AlgencyPromptEditor() {
   const getVarStyle = (varName: string) => {
     const isSelected = ui.selectedVariableId === varName;
     const variable = variables.find(v => v.name === varName);
-    if (isSelected) return { background: "#C7663A", color: "#1C1A18" };
-    if (variable?.type === "checkbox") return { background: "#E8E6F0", color: "#1C1A18" };
-    return { background: "#FCECDD", color: "#1C1A18" };
+    if (isSelected) return { background: "var(--alg-accent)", color: "var(--alg-panel)" };
+    if (variable?.type === "checkbox") return { background: "var(--alg-hover-bg)", color: "var(--alg-dark)" };
+    return { background: "var(--alg-peach-bg)", color: "var(--alg-dark)" };
   };
 
   const renderPromptWithTags = () => {
@@ -699,7 +703,10 @@ export default function AlgencyPromptEditor() {
             {savePromptMutation.isPending ? "Saving..." : "Release prompt"}
           </button>
         </div>
-        <div className="alg-navbar__right" style={{ position: 'relative' }}>
+        <div className="alg-navbar__right" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button className="alg-navbar__icon-btn" onClick={toggleTheme}>
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           <button className="alg-navbar__icon-btn">
             <Bell size={16} />
           </button>
@@ -731,8 +738,8 @@ export default function AlgencyPromptEditor() {
           />
         </div>
         <div className="alg-titlebar__right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontFamily: 'var(--font-jetbrains-mono), monospace', color: '#5A5550', fontWeight: 500 }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#E07045' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontFamily: 'var(--font-jetbrains-mono), monospace', color: 'var(--alg-muted)', fontWeight: 500 }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: 'var(--alg-accent)' }} />
             {verifiedCount}/1+ verified
           </div>
         </div>
@@ -745,7 +752,7 @@ export default function AlgencyPromptEditor() {
         <section className="alg-panel" style={{ background: "var(--alg-bg)" }}>
           <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span className="alg-panel__number" style={{ color: "#E07045" }}>01</span>
+              <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>01</span>
               <span className="alg-panel__title">Settings</span>
             </div>
           </div>
@@ -800,7 +807,7 @@ export default function AlgencyPromptEditor() {
             {/* Preferred Models */}
             <div className="alg-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>PREFERRED MODELS</span>
-              <span style={{ fontSize: 10, fontFamily: "var(--font-jetbrains-mono), monospace", color: "#7A7570", textTransform: 'lowercase', letterSpacing: 0, fontWeight: 500 }}>multi-select</span>
+              <span style={{ fontSize: 10, fontFamily: "var(--font-jetbrains-mono), monospace", color: "var(--alg-hint)", textTransform: 'lowercase', letterSpacing: 0, fontWeight: 500 }}>multi-select</span>
             </div>
             {models.available.length === 0 ? (
               <div style={{ fontSize: 13, color: "var(--alg-muted)" }}>No models available</div>
@@ -849,16 +856,16 @@ export default function AlgencyPromptEditor() {
               <span>REFERENCE IMAGES</span>
               <span className="alg-label__badge" style={{ background: "#C7663A", color: "white", borderRadius: 0, padding: "2px 6px" }}>ALLOWED</span>
             </div>
-            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "16px", background: "#FFFFFF", marginBottom: "8px" }}>
+            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "16px", background: "var(--alg-white)", marginBottom: "8px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                <span style={{ fontSize: 11, fontFamily: "var(--font-jetbrains-mono), monospace", color: "#7A7570" }}>Max images</span>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-jetbrains-mono), monospace", color: "var(--alg-hint)" }}>Max images</span>
                 <div className="alg-stepper">
                   <button className="alg-stepper__btn" onClick={() => setUi(prev => ({ ...prev, maxImages: Math.max(1, prev.maxImages - 1) }))}>−</button>
-                  <span className="alg-stepper__value" style={{ width: 32, textAlign: 'center', fontFamily: "var(--font-serif)", fontSize: 16, color: "#1C1A18", background: "#FFFFFF" }}>{ui.maxImages}</span>
+                  <span className="alg-stepper__value" style={{ width: 32, textAlign: 'center', fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--alg-dark)", background: "var(--alg-white)" }}>{ui.maxImages}</span>
                   <button className="alg-stepper__btn" onClick={() => setUi(prev => ({ ...prev, maxImages: Math.min(10, prev.maxImages + 1) }))}>+</button>
                 </div>
               </div>
-              <p className="alg-hint-text" style={{ fontStyle: "italic", fontFamily: "var(--font-jetbrains-mono), monospace", color: "#9A9590", margin: 0, lineHeight: 1.6 }}>
+              <p className="alg-hint-text" style={{ fontStyle: "italic", fontFamily: "var(--font-jetbrains-mono), monospace", color: "var(--alg-muted)", margin: 0, lineHeight: 1.6 }}>
                 Buyers can upload an image — or pick an NFT from their wallet — up to {ui.maxImages} per render.
               </p>
             </div>
@@ -867,8 +874,8 @@ export default function AlgencyPromptEditor() {
 
             {/* Pricing */}
             <div className="alg-label">PRICING</div>
-            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "16px", background: "#FFFFFF" }}>
-              <p style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontStyle: "italic", color: "#1C1A18", margin: 0, lineHeight: 1.5 }}>
+            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "16px", background: "var(--alg-white)" }}>
+              <p style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontStyle: "italic", color: "var(--alg-dark)", margin: 0, lineHeight: 1.5 }}>
                 Free prompts cost nothing to use.<br />Buyers run the prompt with their own API credits.
               </p>
             </div>
@@ -880,7 +887,7 @@ export default function AlgencyPromptEditor() {
         <section className="alg-panel">
           <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span className="alg-panel__number" style={{ color: "#E07045" }}>02</span>
+              <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>02</span>
               <span className="alg-panel__title">Prompt</span>
             </div>
             <button className="alg-btn alg-btn--ghost alg-btn--sm" onClick={() => insertAtCursor("[NewVariable]")}>
@@ -913,7 +920,7 @@ export default function AlgencyPromptEditor() {
                   position: "relative",
                   background: promptData.body.length > 0 ? "transparent" : undefined,
                   color: promptData.body.length > 0 ? "transparent" : "transparent",
-                  caretColor: "#1C1A18",
+                  caretColor: "var(--alg-dark)",
                   zIndex: 1,
                   minHeight: 200,
                 }}
@@ -934,7 +941,7 @@ export default function AlgencyPromptEditor() {
         <section className="alg-panel">
           <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span className="alg-panel__number" style={{ color: "#E07045" }}>03</span>
+              <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>03</span>
               <span className="alg-panel__title">Variables</span>
             </div>
             <span className="alg-panel__subtitle">defaults & types</span>
@@ -984,7 +991,7 @@ export default function AlgencyPromptEditor() {
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>
 
                       {/* Stacked values */}
-                      <div className="alg-var-card__label" style={{ marginTop: 8, marginBottom: 4 }}>STACK VALUES <span style={{ color: "#B0AAA2", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
+                      <div className="alg-var-card__label" style={{ marginTop: 8, marginBottom: 4 }}>STACK VALUES <span style={{ color: "var(--alg-hint)", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
                         {variable.values.map((val, idx) => (
                           <span key={idx} className="alg-val-chip">
@@ -1018,14 +1025,14 @@ export default function AlgencyPromptEditor() {
                     <>
                       <div className="alg-toggle-inserts-row">
                         <span className="alg-toggle-inserts-label">TOGGLE INSERTS</span>
-                        <label className="alg-checkbox" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#B0AAA2' }}>
+                        <label className="alg-checkbox" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--alg-hint)' }}>
                           <input
                             type="checkbox"
                             checked={variable.defaultValue as boolean}
                             onChange={(e) => updateVariable(variable.id, { defaultValue: e.target.checked })}
-                            style={{ accentColor: '#E07045', width: 14, height: 14, borderRadius: 3 }}
+                            style={{ accentColor: 'var(--alg-accent)', width: 14, height: 14, borderRadius: 3 }}
                           />
-                          <span>Default: <span style={{ fontWeight: 600, color: '#1C1A18' }}>{variable.defaultValue ? "on" : "off"}</span></span>
+                          <span>Default: <span style={{ fontWeight: 600, color: 'var(--alg-dark)' }}>{variable.defaultValue ? "on" : "off"}</span></span>
                         </label>
                       </div>
                       <div className="alg-toggle-inserts-block">
@@ -1091,15 +1098,15 @@ export default function AlgencyPromptEditor() {
 
           <div className="alg-panel__header" style={{ paddingBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span className="alg-panel__number" style={{ color: "#E07045" }}>04</span>
+              <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>04</span>
               <span className="alg-panel__title">Verify</span>
             </div>
-            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-hint)", letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
               {promptData.type === "free-prompt" ? `${verifiedCount} of 1 required, 4 recommended` : `${verifiedCount} of 4 required`}
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#7A7570", marginBottom: 8, lineHeight: 1.3, flexShrink: 0 }}>
+            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)", marginBottom: 8, lineHeight: 1.3, flexShrink: 0 }}>
               {promptData.type === "free-prompt"
                 ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
                 : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
@@ -1187,7 +1194,7 @@ export default function AlgencyPromptEditor() {
             {ui.selectedCards.length > 0 && (
               <div className="alg-refill-bar">
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#1C1A18", fontWeight: 600 }}>{ui.selectedCards.length} selected</span>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-dark)", fontWeight: 600 }}>{ui.selectedCards.length} selected</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button
@@ -1215,17 +1222,17 @@ export default function AlgencyPromptEditor() {
           </div>
 
           {/* Consolidated Action Bar */}
-          <div style={{ background: "#FDFBF8", borderTop: "1px solid var(--alg-border)", padding: "10px 12px", zIndex: 10, marginTop: "auto" }}>
+          <div style={{ background: "var(--alg-warm-white)", borderTop: "1px solid var(--alg-border)", padding: "10px 12px", zIndex: 10, marginTop: "auto" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Cost summary */}
               {versions.some(v => v.status === "idle" || v.status === "failed") && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "#F5F2EE", border: "1px solid var(--alg-border)" }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#5A5550", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "var(--alg-panel)", border: "1px solid var(--alg-border)" }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-muted)", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "#1C1A18" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "var(--alg-dark)" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "#B0AAA2" }}>via Thirdweb x402</span>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)" }}>via Thirdweb x402</span>
                   </div>
                 </div>
               )}
@@ -1233,7 +1240,7 @@ export default function AlgencyPromptEditor() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
                 <button
                   className="alg-btn alg-btn--ghost alg-btn--sm"
-                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 6px", color: "#5A5550", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, whiteSpace: "nowrap" }}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 6px", color: "var(--alg-muted)", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, whiteSpace: "nowrap" }}
                   onClick={handleGrokFill}
                   disabled={ui.isGrokFilling}
                 >
@@ -1263,7 +1270,7 @@ export default function AlgencyPromptEditor() {
                   </button>
                   <button
                     className="alg-btn alg-btn--primary alg-btn--sm"
-                    style={{ padding: "6px 8px", background: isPublishDisabled ? "#D5D1CB" : "#1C1A18", borderColor: isPublishDisabled ? "#D5D1CB" : "#1C1A18", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+                    style={{ padding: "6px 8px", background: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", borderColor: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
                     disabled={isPublishDisabled}
                   >
                     Publish
@@ -1293,7 +1300,7 @@ export default function AlgencyPromptEditor() {
       {isMobileViewport && !isMobileModalOpen && (
         <div style={{ position: "fixed", bottom: 24, left: 24, right: 24, zIndex: 150 }}>
           <button 
-            style={{ width: "100%", background: "#1C1A18", color: "white", padding: "16px 24px", borderRadius: 32, display: "flex", justifyContent: "space-between", alignItems: "center", border: "none", boxShadow: "0 12px 32px rgba(0,0,0,0.2)", cursor: "pointer" }}
+            style={{ width: "100%", background: "var(--alg-dark)", color: "white", padding: "16px 24px", borderRadius: 32, display: "flex", justifyContent: "space-between", alignItems: "center", border: "none", boxShadow: "0 12px 32px rgba(0,0,0,0.2)", cursor: "pointer" }}
             onClick={() => setIsMobileModalOpen(true)}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
