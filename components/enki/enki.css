@@ -63,12 +63,11 @@
   align-items: center;
   gap: 0;
   padding: 0 40px;
-  border-bottom: 1px solid var(--enki-rule);
-  background: var(--enki-paper);
+  background: transparent;
   overflow: hidden;
   height: 64px;
   position: sticky;
-  top: 80px;
+  top: 96px; /* Gap below the 80px tall navbar */
   z-index: 40;
 }
 
@@ -79,21 +78,25 @@
   gap: 8px;
   height: 44px;
   padding: 0 16px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
-  background: transparent;
-  color: var(--enki-ink-2);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #111;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 150ms, color 150ms;
+  transition: all 150ms ease;
   white-space: nowrap;
   margin-right: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .enki-catbar-all:hover {
-  background: var(--enki-paper-2);
-  color: var(--enki-ink);
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .enki-catbar-all.active {
@@ -132,21 +135,24 @@
   gap: 10px;
   height: 44px;
   padding: 0 16px 0 6px;
-  border: 1px solid var(--enki-rule);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
-  background: transparent;
-  color: var(--enki-ink-2);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #111;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 150ms, border-color 150ms, color 150ms;
+  transition: all 150ms ease;
   white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .enki-catbar-chip:hover {
-  border-color: var(--enki-ink-3);
-  background: var(--enki-paper-2);
-  color: var(--enki-ink);
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
 }
 
 .enki-catbar-chip.active {
@@ -173,21 +179,25 @@
   flex: 0 0 auto;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--enki-rule);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 50%;
-  background: transparent;
-  color: var(--enki-ink-2);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #111;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   margin-left: 8px;
-  transition: background 150ms;
+  transition: all 150ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .enki-catbar-more:hover {
-  background: var(--enki-paper-2);
-  color: var(--enki-ink);
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .enki-masonry {
