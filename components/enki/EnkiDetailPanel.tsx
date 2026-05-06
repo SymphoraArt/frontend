@@ -41,11 +41,11 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
   return (
     <>
       <div className="enki-detail-modal" onClick={onClose}>
-        <div className="enki-detail-card" onClick={(e) => e.stopPropagation()}>
-          <button className="enki-detail-close" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
+        <button className="enki-detail-close" onClick={onClose} aria-label="Close">
+          <X size={20} />
+        </button>
 
+        <div className="enki-detail-card" onClick={(e) => e.stopPropagation()}>
           <div className="enki-detail-body">
             {/* LEFT SECTION (Settings & Actions) */}
             <div className="enki-detail-left hide-scrollbar">

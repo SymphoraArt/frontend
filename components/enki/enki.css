@@ -380,9 +380,9 @@
 }
 
 .enki-detail-close {
-  position: absolute;
+  position: fixed;
   top: 32px;
-  right: 32px;
+  right: 40px;
   z-index: 10;
   width: 44px;
   height: 44px;
