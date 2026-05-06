@@ -305,7 +305,7 @@ export default function PromptSettingsPanel({
                     ),
                   })
                 }
-                className="h-8 text-sm"
+                className="h-8 text-sm font-mono"
                 data-testid="input-price"
               />
             </div>
