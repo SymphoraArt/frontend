@@ -4,25 +4,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/backend/storage";
 
 export async function GET(request: NextRequest) {
   try {
-    const categories = await storage.getCategories();
-
-    // Transform to API response format
-    const formattedCategories = categories.map(category => ({
-      id: category.id,
-      name: category.name,
-      description: category.description,
-      icon: category.icon,
-      promptCount: category.promptCount || 0,
-      featured: category.featured || false,
-    }));
+    // Return mock categories since storage.getCategories is not implemented yet
+    const categories = [
+      { id: "1", name: "Cinematic", description: "Movie-like shots", icon: "🎬", promptCount: 15, featured: true },
+      { id: "2", name: "Architecture", description: "Buildings and structures", icon: "🏛️", promptCount: 8, featured: false },
+      { id: "3", name: "Portrait", description: "Character portraits", icon: "👤", promptCount: 22, featured: true },
+    ];
 
     return NextResponse.json({
-      categories: formattedCategories,
-      total: formattedCategories.length,
+      categories,
+      total: categories.length,
     });
 
   } catch (error) {

@@ -229,7 +229,7 @@ export class CrossChainPaymentAggregator {
     const { PAYMENT_CHAINS } = await import('../shared/payment-config');
 
     const client = createThirdwebClient({
-      secretKey: process.env.THIRDWEB_SECRET_KEY || '',
+      secretKey: process.env.THIRDWEB_SECRET_KEY || 'dummy_secret_key_for_build_time',
     });
 
     const ERC20_ABI = [

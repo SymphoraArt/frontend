@@ -1156,8 +1156,9 @@ export default function AlgencyPromptEditor() {
                       {/* Metadata panel */}
                       <div className="alg-version-card__info">
                         {Object.entries(slot.variableSnapshot).map(([key, val]) => {
-                          const isCheckbox = val === "true" || val === "false" || val === true || val === false;
-                          const isChecked = val === "true" || val === true;
+                          const valAny = val as unknown;
+                          const isCheckbox = valAny === "true" || valAny === "false" || valAny === true || valAny === false;
+                          const isChecked = valAny === "true" || valAny === true;
                           
                           if (isCheckbox) {
                             return (

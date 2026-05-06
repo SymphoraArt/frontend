@@ -224,8 +224,8 @@ export async function PUT(
       success: true,
       settings: {
         ...getDefaultSettings(),
-        ...(data.preferences as UserSettings || {}),
-        displayName: data.display_name || "",
+        ...(data?.preferences as UserSettings || {}),
+        displayName: data?.display_name || "",
       },
     });
 

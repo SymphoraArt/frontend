@@ -204,10 +204,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     id={prompt.id}
                     title={prompt.title}
                     artist={creator.displayName}
-                    priceUsdCents={prompt.priceUsdCents}
-                    isListed={true}
-                    licenseType={prompt.licenseType}
-                    totalSales={prompt.totalSales}
+                    price={prompt.priceUsdCents / 100}
+                    category={prompt.category || "General"}
                     rating={prompt.avgRating}
                     downloads={prompt.totalSales}
                     thumbnail={prompt.previewImageUrl || ""}

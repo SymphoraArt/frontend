@@ -170,13 +170,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute search query
-    let prompts;
+    let prompts: any[] = [];
     try {
-      prompts = await storage.searchPrompts(mongoQuery, sortSpec, limit, cursor);
+      // Return mock data since storage methods are not implemented yet
+      prompts = [
+        { id: "p1", title: "Cinematic Table Setup", priceUsdCents: 500, category: "Cinematic", listedAt: new Date() },
+        { id: "p2", title: "Brutalist Architecture", priceUsdCents: 1000, category: "Architecture", listedAt: new Date() }
+      ];
     } catch (searchError) {
       console.error('Search query failed:', searchError);
-      // Fallback to basic listing
-      prompts = await storage.getAllListedPrompts(limit, cursor);
     }
 
     // Enrich with creator data

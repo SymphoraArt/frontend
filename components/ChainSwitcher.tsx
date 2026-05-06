@@ -64,7 +64,7 @@ export function ChainSwitcher() {
       <SelectTrigger className="w-auto h-[38px] px-3 border-none bg-transparent hover:bg-black/5 rounded-full text-[13px] font-medium text-[#555] transition-colors shadow-none focus:ring-0 gap-2">
         <SelectValue>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <div className="w-2 h-2 rounded-full bg-[#d94f3d]" />
             {activeChain.name}
           </div>
         </SelectValue>
@@ -75,7 +75,7 @@ export function ChainSwitcher() {
             <div className="flex items-center justify-between w-full">
               <span>{chain.name}</span>
               {chain.id === activeChain.id && (
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-2" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#d94f3d] ml-2" />
               )}
             </div>
           </SelectItem>

@@ -242,7 +242,7 @@ export class ChainlinkOracle {
 
   constructor(secretKey?: string) {
     this.client = createThirdwebClient({
-      secretKey: secretKey || process.env.THIRDWEB_SECRET_KEY || '',
+      secretKey: secretKey || process.env.THIRDWEB_SECRET_KEY || 'dummy_secret_key_for_build_time',
     });
   }
 

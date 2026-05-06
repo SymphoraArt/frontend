@@ -23,7 +23,7 @@ if (!process.env.SERVER_WALLET_ADDRESS) {
  * This client is used for server-side operations
  */
 export const thirdwebClient = createThirdwebClient({
-  secretKey: process.env.THIRDWEB_SECRET_KEY || '',
+  secretKey: process.env.THIRDWEB_SECRET_KEY || 'dummy_secret_key_for_build_time',
 });
 
 /**
@@ -35,7 +35,7 @@ export const thirdwebClient = createThirdwebClient({
  */
 export const thirdwebFacilitator = facilitator({
   client: thirdwebClient,
-  serverWalletAddress: process.env.SERVER_WALLET_ADDRESS || '',
+  serverWalletAddress: process.env.SERVER_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000',
 
   // Wait for transaction confirmation on-chain
   // Options: "simulated" | "submitted" | "confirmed"

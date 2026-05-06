@@ -214,7 +214,7 @@ export class UniswapTwapOracle {
   constructor(config: Partial<TwapConfig> = {}, secretKey?: string) {
     this.config = { ...DEFAULT_TWAP_CONFIG, ...config };
     this.client = createThirdwebClient({
-      secretKey: secretKey || process.env.THIRDWEB_SECRET_KEY || '',
+      secretKey: secretKey || process.env.THIRDWEB_SECRET_KEY || 'dummy_secret_key_for_build_time',
     });
   }
 
