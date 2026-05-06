@@ -92,42 +92,44 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     { label: "FAVORITES", href: "/my-gallery" },
   ];
 
-  return (
     <header style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-      background: "rgba(245, 243, 238, 0.92)",
-      backdropFilter: "blur(12px)",
-      WebkitBackdropFilter: "blur(12px)",
-      borderBottom: "1px solid #e0ddd5",
-      transition: "transform 0.3s ease",
-      transform: showNav ? "translateY(0)" : "translateY(-100%)",
+      position: "fixed", top: 24, left: "50%", zIndex: 50,
+      width: "calc(100% - 48px)", maxWidth: 1040,
+      background: "rgba(255, 255, 255, 0.72)",
+      backdropFilter: "blur(20px) saturate(180%)",
+      WebkitBackdropFilter: "blur(20px) saturate(180%)",
+      border: "1px solid rgba(255, 255, 255, 0.8)",
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.06)",
+      borderRadius: 9999,
+      transition: "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease",
+      transform: showNav ? "translate(-50%, 0)" : "translate(-50%, -150%)",
+      opacity: showNav ? 1 : 0,
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
-      <div style={{ padding: "0 32px", height: 52, display: "flex", alignItems: "center", gap: 0 }}>
+      <div style={{ padding: "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
 
         {/* Logo */}
-        <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", marginRight: 28, flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 18, color: "#111" }}>
+        <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#111" }}>
             Enki Art
           </span>
-          <span style={{ color: "#d94f3d", fontSize: 20, lineHeight: 1, marginLeft: 1 }}>·</span>
+          <span style={{ color: "#d94f3d", fontSize: 22, lineHeight: 1, marginLeft: 1 }}>·</span>
         </div>
 
-        {/* Nav Links */}
-        <nav style={{ display: "flex", marginRight: 20, flexShrink: 0 }}>
+        {/* Nav Links (Centered Absolutely) */}
+        <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
           {NAV_LINKS.map(({ label, href }) => {
             const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
             return (
               <button key={label} onClick={() => router.push(href)} style={{
                 background: "none", border: "none", cursor: "pointer",
-                padding: "0 12px", height: 52,
-                fontSize: 11, fontWeight: isActive ? 700 : 400,
-                letterSpacing: "0.7px", color: isActive ? "#111" : "#999",
-                textDecoration: isActive ? "underline" : "none",
-                textUnderlineOffset: "4px", transition: "color 0.15s",
+                padding: "0 16px", height: 56,
+                fontSize: 12, fontWeight: isActive ? 600 : 400,
+                letterSpacing: "0.5px", color: isActive ? "#111" : "#777",
+                transition: "color 0.2s ease",
               }}
                 onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#999")}
+                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#777")}
               >
                 {label}
               </button>
@@ -135,94 +137,51 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           })}
         </nav>
 
-        {/* Search */}
-        <div style={{ flex: 1, maxWidth: 320, position: "relative" }}>
-          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#aaa" }} />
-          <input
-            type="search"
-            placeholder="Search prompts, tags, artists..."
-            onChange={(e) => onSearch?.(e.target.value)}
-            style={{
-              width: "100%", padding: "7px 52px 7px 34px",
-              background: "#eceae3", border: "none", borderRadius: 8,
-              fontSize: 13, color: "#333", outline: "none",
-              fontFamily: "inherit", boxSizing: "border-box",
-              transition: "background 0.2s ease",
-            }}
-            onFocus={(e) => (e.target.style.background = "#e6e4dc")}
-            onBlur={(e) => (e.target.style.background = "#eceae3")}
-          />
-          <span style={{
-            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-            fontSize: 10, color: "#666", fontWeight: 500, fontFamily: "var(--font-jetbrains-mono), monospace",
-            background: "#e0ddd5", padding: "3px 6px", borderRadius: 4,
-            pointerEvents: "none",
-          }}>⌘ K</span>
-        </div>
-
         {/* Right Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 16, flexShrink: 0 }}>
-
-          {/* + Release prompt */}
-          <button onClick={() => router.push("/editor")} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "7px 16px", background: "#111", color: "#fff",
-            border: "none", borderRadius: 20, cursor: "pointer",
-            fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-          }}>
-            <Plus size={14} /> Release prompt
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, zIndex: 2 }}>
+          
+          {/* Search Icon */}
+          <button style={{
+            width: 38, height: 38, borderRadius: "50%",
+            background: "none", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+            <Search size={16} />
           </button>
 
-          {/* Hunt */}
-          <HuntPromptPopover>
-            <button style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "6px 13px", background: "#fffaf0", color: "#b8860b",
-              border: "1px solid #f5e6cc", borderRadius: 20, cursor: "pointer",
-              fontSize: 12, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-            }}>
-              <Coins size={13} /> Hunt a prompt, earn 50%
-            </button>
-          </HuntPromptPopover>
-
-          {/* Feedback */}
-          <FeedbackPopover>
-            <button style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "6px 13px", background: "#f0f8ff", color: "#4169e1",
-              border: "1px solid #e6f0fa", borderRadius: 20, cursor: "pointer",
-              fontSize: 12, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-            }}>
-              <MessageSquareHeart size={13} /> Earn $100 for feedback
-            </button>
-          </FeedbackPopover>
+          {/* Release Prompt (Solid Pill) */}
+          <button onClick={() => router.push("/editor")} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "0 20px", height: 40, background: "#111", color: "#fff",
+            border: "none", borderRadius: 999px, cursor: "pointer",
+            fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
+          onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+            Release
+          </button>
 
           {/* Chain Switcher */}
           {authenticated && <ChainSwitcher />}
 
-          {/* Bell */}
-          <button style={{
-            width: 34, height: 34, borderRadius: "50%",
-            background: "none", border: "1px solid #e0ddd5",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#666",
-          }}>
-            <Bell size={15} />
-          </button>
-
-          {/* Avatar */}
+          {/* Avatar & Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button data-testid="button-user-menu" style={{
-                width: 34, height: 34, borderRadius: "50%",
-                background: "#111", border: "none",
+                width: 40, height: 40, borderRadius: "50%",
+                background: "#f0ede6", border: "1px solid #e0ddd5",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "#fff", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", color: "#111", fontSize: 13, fontWeight: 600,
                 fontFamily: "monospace", letterSpacing: "0.5px",
+                marginLeft: 4
               }}>
                 {authenticated && walletAddress
                   ? walletAddress.slice(2, 4).toUpperCase()
-                  : <User size={15} />}
+                  : <User size={16} />}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
@@ -248,7 +207,17 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/my-gallery")}>My Gallery</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/my-prompts")}>My Prompts</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {/* Secondary Actions Moved Here */}
+              <DropdownMenuItem onClick={() => {}}>
+                <Coins className="h-4 w-4 mr-2 text-yellow-600" /> Hunt a prompt
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {}}>
+                <MessageSquareHeart className="h-4 w-4 mr-2 text-blue-600" /> Earn for feedback
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
+              
               {authenticated && account && (
                 <>
                   <DropdownMenuSeparator />
