@@ -84,7 +84,8 @@ export default function AlgencyPromptEditor() {
   const [promptData, setPromptData] = useState({
     title: "Quiet Window, Late Afternoon",
     body: "A photograph of [subject], [mood], lit by [lighting]. [grain]\nEditorial. Restrained.",
-    type: "free-prompt" as PromptType
+    type: "free-prompt" as PromptType,
+    tags: [] as string[],
   });
 
   const [models, setModels] = useState<{ available: any[], selected: string[] }>({
@@ -113,7 +114,9 @@ export default function AlgencyPromptEditor() {
     maxImages: 2,
     currentPromptId: null as string | null,
     showAvatarDropdown: false,
-    tooltip: null as { x: number, y: number, text: string } | null
+    tooltip: null as { x: number, y: number, text: string } | null,
+    tagInput: "",
+    isGrokFilling: false,
   });
 
   /* ─── Model Sync ─── */
@@ -452,6 +455,44 @@ export default function AlgencyPromptEditor() {
     }));
   };
 
+  /* ─── Grok auto-fill empty variables ─── */
+  const handleGrokFill = async () => {
+    const emptyVars = variables.filter(v => v.type === "text" && !v.defaultValue);
+    if (emptyVars.length === 0) {
+      // No empty vars — just create an empty slot
+      handleCreateEmptySlots();
+      return;
+    }
+    setUi(prev => ({ ...prev, isGrokFilling: true }));
+    try {
+      const res = await fetch("/api/grok-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptData.body, variables: emptyVars.map(v => v.name) }),
+      });
+      const filled = await res.json() as Record<string, string>;
+      setVariables(prev => prev.map(v =>
+        filled[v.name] ? { ...v, defaultValue: filled[v.name] } : v
+      ));
+      toast({ title: "Grok filled variables", description: `Filled ${Object.keys(filled).length} variable(s).` });
+    } catch {
+      toast({ title: "Grok fill failed", description: "Could not auto-fill. Try again.", variant: "destructive" });
+    } finally {
+      setUi(prev => ({ ...prev, isGrokFilling: false }));
+      handleCreateEmptySlots();
+    }
+  };
+
+  /* ─── Tags ─── */
+  const addTag = (raw: string) => {
+    const tag = raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!tag || promptData.tags.includes(tag)) return;
+    setPromptData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
+  };
+  const removeTag = (tag: string) => {
+    setPromptData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
+  };
+
   const deleteSelectedVersions = () => {
     setVersions(prev => prev.filter(v => !ui.selectedCards.includes(v.id)));
     setUi(prev => ({ ...prev, selectedCards: [] }));
@@ -466,6 +507,7 @@ export default function AlgencyPromptEditor() {
         userId: null,
         promptType: promptData.type,
         aiModel: models.selected[0],
+        tags: promptData.tags,
         variables: variables.map((v) => ({
           name: v.name, label: v.label, description: v.description,
           type: v.type, defaultValue: v.defaultValue, required: v.required, position: v.position,
@@ -554,17 +596,6 @@ export default function AlgencyPromptEditor() {
             <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#E07045' }} />
             {verifiedCount}/1+ verified
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="alg-btn alg-btn--ghost alg-btn--sm" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', color: '#1C1A18' }} onClick={handleCreateEmptySlots}>
-              <Sparkles size={12} color="#1C1A18" /> Generate empty slots <span style={{ fontSize: '9px', color: '#B0AAA2', marginLeft: '4px', fontWeight: 600 }}>-1</span>
-            </button>
-            <button className="alg-btn alg-btn--ghost alg-btn--sm" style={{ padding: '6px 12px', color: '#1C1A18' }}>
-              Connect wallet
-            </button>
-            <button className="alg-btn alg-btn--disabled alg-btn--sm" style={{ padding: '6px 12px', background: '#D5D1CB', borderColor: '#D5D1CB', color: 'white', opacity: 1 }}>
-              Publish prompt
-            </button>
-          </div>
         </div>
       </div>
 
@@ -595,6 +626,34 @@ export default function AlgencyPromptEditor() {
             >
               <div className="alg-mode-card__title">Premium prompt</div>
               <div className="alg-mode-card__desc">Body locked · buyer fills variables and pays per render</div>
+            </div>
+
+            <div className="alg-divider" />
+
+            {/* Tags */}
+            <div className="alg-label">TAGS</div>
+            <div className="alg-tag-input-wrap">
+              <div className="alg-tag-chips">
+                {promptData.tags.map(tag => (
+                  <span key={tag} className="alg-tag-chip">
+                    {tag}
+                    <button className="alg-tag-chip__remove" onClick={() => removeTag(tag)}>×</button>
+                  </span>
+                ))}
+              </div>
+              <input
+                className="alg-tag-input"
+                placeholder="Add tag, press Enter"
+                value={ui.tagInput}
+                onChange={(e) => setUi(prev => ({ ...prev, tagInput: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addTag(ui.tagInput);
+                    setUi(prev => ({ ...prev, tagInput: '' }));
+                  }
+                }}
+              />
             </div>
 
             <div className="alg-divider" />
@@ -826,9 +885,39 @@ export default function AlgencyPromptEditor() {
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 24, lineHeight: 1.6 }}>
+            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 16, lineHeight: 1.6 }}>
               Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize.
             </p>
+
+            {/* ─── Verification Card ─── */}
+            {variables.length > 0 && (
+              <div style={{ border: "1px solid var(--alg-border)", background: "#FDFBF8", padding: "16px", marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, fontWeight: 600, color: "#5A5550", letterSpacing: 1.5, textTransform: "uppercase" }}>Before you generate</span>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>{variables.filter(v => v.type === "text" && !v.defaultValue).length} empty</span>
+                </div>
+                {variables.map(v => (
+                  <div key={v.id} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: "1px solid #EDE8E0" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "var(--alg-hint)", letterSpacing: 1, textTransform: "uppercase", width: 72, flexShrink: 0 }}>{v.name}</span>
+                    {v.type === "checkbox" ? (
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: "#1C1A18" }}>{v.defaultValue ? "on" : "off"}</span>
+                    ) : (
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: v.defaultValue ? "#1C1A18" : "#B0AAA2", fontStyle: v.defaultValue ? "normal" : "italic" }}>
+                        {v.defaultValue ? String(v.defaultValue) : "Not specified"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                <button
+                  style={{ marginTop: 14, width: "100%", background: "#1C1A18", color: "white", border: "none", padding: "8px 0", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, letterSpacing: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                  onClick={handleGrokFill}
+                  disabled={ui.isGrokFilling}
+                >
+                  <Sparkles size={11} />
+                  {ui.isGrokFilling ? "Filling with Grok..." : "Looks good → Generate"}
+                </button>
+              </div>
+            )}
 
             <div style={{ flex: 1, overflowY: "auto" }}>
               {versions.map((slot) => {
@@ -898,8 +987,65 @@ export default function AlgencyPromptEditor() {
               })}
               <div style={{ height: 24, flexShrink: 0 }} />
             </div>
+
+            {/* Multi-select delete bar */}
+            {ui.selectedCards.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--alg-border)", marginTop: 8 }}>
+                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#5A5550" }}>{ui.selectedCards.length} selected</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    style={{ background: "#E07045", color: "white", border: "none", padding: "6px 14px", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, cursor: "pointer", letterSpacing: 0.5 }}
+                    onClick={deleteSelectedVersions}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    style={{ background: "transparent", color: "#5A5550", border: "1px solid var(--alg-border)", padding: "6px 14px", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, cursor: "pointer" }}
+                    onClick={() => setUi(prev => ({ ...prev, selectedCards: [] }))}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
+      </div>
+
+      {/* ═══ STICKY FOOTER ═══ */}
+      <div className="alg-workspace-footer">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            className="alg-btn alg-btn--ghost alg-btn--sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', color: '#1C1A18', fontFamily: "var(--font-jetbrains-mono), monospace" }}
+            onClick={handleGrokFill}
+            disabled={ui.isGrokFilling}
+          >
+            <Sparkles size={12} color="#1C1A18" />
+            {ui.isGrokFilling ? "Filling..." : "Generate empty slots"}
+            <span style={{ fontSize: 9, color: '#B0AAA2', marginLeft: 4, fontWeight: 600 }}>✦ Grok</span>
+          </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#9A9590" }}>
+            {verifiedCount}/1+ verified
+          </span>
+          <button
+            className="alg-btn alg-btn--ghost alg-btn--sm"
+            style={{ padding: '7px 16px', color: '#1C1A18' }}
+            onClick={() => savePromptMutation.mutate()}
+            disabled={savePromptMutation.isPending}
+          >
+            {savePromptMutation.isPending ? "Saving..." : "Release prompt"}
+          </button>
+          <button
+            className="alg-btn alg-btn--primary alg-btn--sm"
+            style={{ padding: '7px 20px', background: isPublishDisabled ? '#D5D1CB' : '#1C1A18', borderColor: isPublishDisabled ? '#D5D1CB' : '#1C1A18', color: 'white', opacity: 1, cursor: isPublishDisabled ? 'not-allowed' : 'pointer' }}
+            disabled={isPublishDisabled}
+          >
+            Publish prompt
+          </button>
+        </div>
       </div>
     </div>
   );
