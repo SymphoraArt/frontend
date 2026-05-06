@@ -96,6 +96,23 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
                 ))}
               </div>
             </div>
+
+            {/* RIGHT SECTION (History) */}
+            <div className="enki-detail-right hide-scrollbar">
+              <div className="enki-detail-right-title">Your History</div>
+              <div className="enki-detail-thumb-strip">
+                {historyImages.map((img, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={`hist-${i}`}
+                    src={img}
+                    alt={`History ${i + 1}`}
+                    className={`enki-detail-thumb ${displayImages.includes(img) && displayImages.length > 1 ? "active" : ""}`}
+                    onClick={() => setDisplayImages(historyImages)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* BOTTOM SECTION (Public Gallery & Comments) */}
