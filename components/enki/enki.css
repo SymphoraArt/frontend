@@ -102,7 +102,8 @@
 
 .enki-card {
   break-inside: avoid;
-  display: block;
+  display: inline-block;
+  width: 100%;
   margin-bottom: 24px;
   position: relative;
   cursor: pointer;
@@ -215,7 +216,7 @@
   justify-content: flex-end;
   padding: 12px 14px;
   color: #fff;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.78) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0.85) 100%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 160ms ease;
