@@ -208,7 +208,7 @@
 }
 .alg-panel__subtitle { font-size: 10px; color: var(--alg-hint); font-weight: 500; }
 .alg-panel__body {
-  flex: 1; overflow-y: auto; padding: 16px 24px 0;
+  flex: 1; overflow-y: auto; padding: 16px 24px 48px;
   scrollbar-width: thin; scrollbar-color: var(--alg-border) transparent;
 }
 
