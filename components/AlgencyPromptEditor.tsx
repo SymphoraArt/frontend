@@ -1027,18 +1027,7 @@ export default function AlgencyPromptEditor() {
               ))
             )}
 
-            {/* ─── Stack Variables Bridge Button — flush to bottom divider ─── */}
-            {variables.length > 0 && (
-              <button
-                className="alg-stack-btn"
-                style={{ marginTop: "auto" }}
-                onClick={handleStackVariables}
-              >
-                <span className="alg-stack-btn__label">Stack variables</span>
-                <span className="alg-stack-btn__arrow">→ Verify</span>
-                <span className="alg-stack-btn__count">{variables.length} var{variables.length !== 1 ? 's' : ''}</span>
-              </button>
-            )}
+
           </div>
         </section>
 
