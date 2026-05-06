@@ -1054,12 +1054,14 @@ export default function AlgencyPromptEditor() {
               <span className="alg-panel__title">Verify</span>
             </div>
             <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", letterSpacing: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
-              3 of 1 required, 4 recommended
+              {promptData.type === "free-prompt" ? `${verifiedCount} of 1 required, 4 recommended` : `${verifiedCount} of 4 required`}
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
             <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "#7A7570", marginBottom: 16, lineHeight: 1.6 }}>
-              Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize.
+              {promptData.type === "free-prompt"
+                ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
+                : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
             </p>
 
             {/* ─── Verification Card ─── */}
@@ -1069,18 +1071,19 @@ export default function AlgencyPromptEditor() {
                   <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, fontWeight: 600, color: "#5A5550", letterSpacing: 1.5, textTransform: "uppercase" }}>Before you generate</span>
                   <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#B0AAA2" }}>{variables.filter(v => v.type === "text" && !v.defaultValue).length} empty</span>
                 </div>
-                {variables.map(v => (
-                  <div key={v.id} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: "1px solid #EDE8E0" }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "var(--alg-hint)", letterSpacing: 1, textTransform: "uppercase", width: 72, flexShrink: 0 }}>{v.name}</span>
-                    {v.type === "checkbox" ? (
-                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: "#1C1A18" }}>{v.defaultValue ? "on" : "off"}</span>
-                    ) : (
-                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: v.defaultValue ? "#1C1A18" : "#B0AAA2", fontStyle: v.defaultValue ? "normal" : "italic" }}>
-                        {v.defaultValue ? String(v.defaultValue) : "Not specified"}
+                {variables.map(v => {
+                  const displayValue = v.type === "checkbox" 
+                    ? (v.defaultValue ? "on" : "off")
+                    : (v.values.length > 0 ? v.values.join(", ") : v.defaultValue);
+                  return (
+                    <div key={v.id} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: "1px solid #EDE8E0" }}>
+                      <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "var(--alg-hint)", letterSpacing: 1, textTransform: "uppercase", width: 72, flexShrink: 0 }}>{v.name}</span>
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: displayValue ? "#1C1A18" : "#B0AAA2", fontStyle: displayValue ? "normal" : "italic" }}>
+                        {displayValue ? String(displayValue) : "Not specified"}
                       </span>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
                 {/* Pay & Generate CTA */}
                 <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
                   {/* Cost summary */}
