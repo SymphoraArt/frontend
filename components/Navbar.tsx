@@ -56,8 +56,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const authenticated = !!account && walletInfo.isConnected;
   const router = useRouter();
   const { toast } = useToast();
-  const [showNav, setShowNav] = useState(true);
-  const lastScrollYRef = useRef(0);
   const pathname = usePathname();
   const walletAddress = walletInfo.address;
 
@@ -71,16 +69,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     }
   };
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const y = window.scrollY;
-      if (y > lastScrollYRef.current && y > 50) setShowNav(false);
-      else if (y < lastScrollYRef.current) setShowNav(true);
-      lastScrollYRef.current = y;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+
 
   const NAV_LINKS = [
     { label: "DISCOVER",  href: "/" },
@@ -99,9 +88,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
       border: "1px solid rgba(255, 255, 255, 0.8)",
       boxShadow: "0 8px 32px rgba(0, 0, 0, 0.06)",
       borderRadius: 9999,
-      transition: "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease",
-      transform: showNav ? "translate(-50%, 0)" : "translate(-50%, -150%)",
-      opacity: showNav ? 1 : 0,
+      transform: "translate(-50%, 0)",
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
       <div style={{ padding: "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
