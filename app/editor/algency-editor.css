@@ -679,3 +679,37 @@
   color: var(--alg-text);
 }
 .alg-tag-input::placeholder { color: var(--alg-hint); }
+
+/* ─── Stack Variables Button ─── */
+.alg-stack-btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  background: #1C1A18;
+  border: none; border-radius: 0;
+  padding: 13px 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative; overflow: hidden;
+}
+.alg-stack-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 60%, rgba(224,112,69,0.12) 100%);
+  pointer-events: none;
+}
+.alg-stack-btn:hover { background: #2A2826; }
+.alg-stack-btn__label {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+  text-transform: uppercase; color: #FFFFFF;
+}
+.alg-stack-btn__arrow {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10px; color: #E07045; letter-spacing: 1px;
+  font-weight: 500;
+}
+.alg-stack-btn__count {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 9px; color: #6A6560; letter-spacing: 0.5px;
+  position: absolute; right: 20px; bottom: 5px;
+}
