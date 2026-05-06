@@ -66,6 +66,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4",
     "thirdweb": "^5.116.1",
+    "viem": "^2.48.8",
     "zod": "^4.3.4"
   },
   "devDependencies": {
