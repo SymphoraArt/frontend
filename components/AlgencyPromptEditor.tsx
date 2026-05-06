@@ -159,14 +159,16 @@ export default function AlgencyPromptEditor() {
     });
   };
 
-  /* ─── Real-time Variable Sync ─── */
+  /* ─── Real-time Variable Sync — detects [], {}, and <> brackets ─── */
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const regex = /\[([a-z_0-9]+)\]/gi;
+      // Universal bracket regex: [name], {name}, <name>
+      const regex = /(?:\[([a-z_0-9]+)\]|\{([a-z_0-9]+)\}|<([a-z_0-9]+)>)/gi;
       const uniqueVarNames = new Set<string>();
       let match;
       while ((match = regex.exec(promptData.body)) !== null) {
-        uniqueVarNames.add(match[1]);
+        const varName = match[1] || match[2] || match[3];
+        if (varName) uniqueVarNames.add(varName);
       }
 
       setVariables((prev) => {
@@ -345,11 +347,12 @@ export default function AlgencyPromptEditor() {
   };
 
   const renderPromptWithTags = () => {
-    const parts = promptData.body.split(/(\[[a-z_0-9]+\])/i);
+    // Split on [], {}, and <> bracket groups
+    const parts = promptData.body.split(/((?:\[[a-z_0-9]+\]|\{[a-z_0-9]+\}|<[a-z_0-9]+>))/i);
     return parts.map((part, index) => {
-      const match = part.match(/\[([a-z_0-9]+)\]/i);
+      const match = part.match(/(?:\[([a-z_0-9]+)\]|\{([a-z_0-9]+)\}|<([a-z_0-9]+)>)/i);
       if (match) {
-        const varName = match[1];
+        const varName = match[1] || match[2] || match[3];
         const style = getVarStyle(varName);
         return (
           <span
@@ -358,7 +361,7 @@ export default function AlgencyPromptEditor() {
             style={style}
             onClick={() => setUi(prev => ({ ...prev, selectedVariableId: varName }))}
           >
-            [{varName}]
+            {part}
           </span>
         );
       }
@@ -406,10 +409,23 @@ export default function AlgencyPromptEditor() {
     }
   };
 
+  /* ─── Resolve variable default value by name ─── */
+  const getVarDefault = (name: string): string => {
+    const v = variables.find(x => x.name === name);
+    if (!v) return name;
+    if (v.type === "checkbox") return v.defaultValue ? "on" : "off";
+    return (v.defaultValue as string) || name;
+  };
+
   const handleGenerateClick = () => {
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
     const newVersion: VersionCard = {
-      id: newId, subject: "subject", mood: "mood", lighting: "lighting", grain: true, imageUrl: null, status: "idle"
+      id: newId,
+      subject: getVarDefault("subject"),
+      mood: getVarDefault("mood"),
+      lighting: getVarDefault("lighting"),
+      grain: variables.find(x => x.name === "grain")?.defaultValue === true,
+      imageUrl: null, status: "idle"
     };
     setVersions(prev => [...prev, newVersion]);
     handleGenerateVersion(newId);
@@ -418,7 +434,12 @@ export default function AlgencyPromptEditor() {
   const handleCreateEmptySlots = () => {
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
     setVersions(prev => [...prev, {
-      id: newId, subject: "subject", mood: "mood", lighting: "lighting", grain: true, imageUrl: null, status: "idle"
+      id: newId,
+      subject: getVarDefault("subject"),
+      mood: getVarDefault("mood"),
+      lighting: getVarDefault("lighting"),
+      grain: variables.find(x => x.name === "grain")?.defaultValue === true,
+      imageUrl: null, status: "idle"
     }]);
   };
 
@@ -707,19 +728,6 @@ export default function AlgencyPromptEditor() {
               />
             </div>
 
-            {/* Tag pills */}
-            {variables.length > 0 && (
-              <div className="alg-tag-pills" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {variables.map((v) => {
-                  const isActive = ui.selectedVariableId === v.id;
-                  return (
-                    <span key={v.id} className={`alg-tag-pill ${isActive ? "alg-tag-pill--active" : ""}`} onClick={() => setUi(prev => ({ ...prev, selectedVariableId: v.id }))}>
-                      {v.type === "checkbox" && <span style={{ marginRight: 4, opacity: 0.6 }}>☑</span>}[{v.name}]
-                    </span>
-                  );
-                })}
-              </div>
-            )}
             <div style={{ height: 24, flexShrink: 0 }} />
           </div>
         </section>
@@ -747,8 +755,10 @@ export default function AlgencyPromptEditor() {
                   className={`alg-var-card alg-var-card--entering ${ui.selectedVariableId === variable.id ? "alg-var-card--active" : ""}`}
                   onClick={() => setUi(prev => ({ ...prev, selectedVariableId: variable.id }))}
                 >
-                  <div className="alg-var-card__label">VARIABLE NAME</div>
-                  <div className="alg-var-card__name">{variable.label}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+                    <div className="alg-var-card__name">{variable.label}</div>
+                    <div className="alg-var-card__label" style={{ marginBottom: 0 }}>VARIABLE NAME</div>
+                  </div>
 
                   {/* Type toggle */}
                   <div className="alg-type-toggle">
@@ -875,7 +885,6 @@ export default function AlgencyPromptEditor() {
                           checked={slot.grain}
                           style={{ accentColor: '#E07045', width: 14, height: 14, borderRadius: 3 }}
                           onChange={(e) =>
-
                             setVersions((prev) =>
                               prev.map((s) => s.id === slot.id ? { ...s, grain: e.target.checked } : s)
                             )
