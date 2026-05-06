@@ -82,12 +82,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     <header style={{
       position: "fixed", top: 24, left: "50%", zIndex: 50,
       width: "calc(100% - 80px)",
-      background: "rgba(255, 255, 255, 0.4)",
+      background: "rgba(255, 255, 255, 0.82)",
       backdropFilter: "blur(24px) saturate(200%)",
       WebkitBackdropFilter: "blur(24px) saturate(200%)",
-      border: "1px solid rgba(255, 255, 255, 0.5)",
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.06)",
-      borderRadius: 9999,
+      border: "none",
+      boxShadow: "0 2px 20px rgba(0, 0, 0, 0.08)",
+      borderRadius: 18,
       transform: "translate(-50%, 0)",
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
@@ -109,12 +109,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <button key={label} onClick={() => router.push(href)} style={{
                 background: "none", border: "none", cursor: "pointer",
                 padding: "0 16px", height: 56,
-                fontSize: 12, fontWeight: isActive ? 600 : 400,
-                letterSpacing: "0.5px", color: isActive ? "#111" : "#777",
+                fontSize: 12.5, fontWeight: isActive ? 600 : 400,
+                letterSpacing: "0.4px", color: isActive ? "#111" : "#555",
                 transition: "color 0.2s ease",
               }}
                 onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#777")}
+                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#555")}
               >
                 {label}
               </button>
