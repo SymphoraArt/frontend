@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Play } from "lucide-react";
+import { Heart, Play, Image as ImageIcon, Film } from "lucide-react";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import "./enki.css";
 
@@ -17,7 +17,10 @@ export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardP
       <div className="enki-card-img">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={prompt.art.url} alt={prompt.title} />
-        <span className={`enki-card-badge${prompt.isVideo ? " video" : ""}`}>{prompt.isVideo ? "Video" : "Image"}</span>
+        <span className={`enki-card-badge${prompt.isVideo ? " video" : " image"}`}>
+          {prompt.isVideo ? <Film size={12} style={{ color: "var(--enki-ember)" }} /> : <ImageIcon size={12} style={{ color: "var(--enki-ink-3)" }} />}
+          {prompt.isVideo ? "Video" : "Image"}
+        </span>
         <div className="enki-card-tl-hover">
           <span className="enki-card-stat mono">
             <Heart size={10} fill="currentColor" />
@@ -28,6 +31,7 @@ export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardP
         <button
           className={`enki-heart${faved ? " active" : ""}`}
           onClick={(event) => {
+            event.preventDefault();
             event.stopPropagation();
             toggleFav(prompt.id);
           }}

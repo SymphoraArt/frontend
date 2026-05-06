@@ -139,11 +139,9 @@
   padding: 4px 8px;
   text-transform: uppercase;
   backdrop-filter: blur(4px);
-}
-
-.enki-card-badge.video::before {
-  content: "▶ ";
-  color: var(--enki-ember);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .enki-card-tl-hover {
