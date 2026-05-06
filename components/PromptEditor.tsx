@@ -1287,7 +1287,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           />
         </div>
 
-        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[760px] lg:w-auto lg:max-w-none lg:shrink">
+        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[760px] lg:w-auto lg:max-w-none lg:shrink hover:translate-y-0 hover:shadow-sm">
           <CardHeader className="pb-2 px-4 shrink-0 flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-base">Prompt Editor</CardTitle>
             <div className="flex items-center gap-2">
@@ -1511,7 +1511,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         </Card>
 
         {promptType === "paid-prompt" && (
-          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 w-full md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-full lg:max-w-full lg:shrink" style={{ contain: 'inline-size' }}>
+          <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 w-full md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-full lg:max-w-full lg:shrink hover:translate-y-0 hover:shadow-sm" style={{ contain: 'inline-size' }}>
             <CardHeader className="pb-2 px-4 shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-sm">Variables</CardTitle>
@@ -1750,11 +1750,11 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   return (
                                     <Card
                                       key={index}
-                                      className={
+                                      className={`hover:translate-y-0 hover:shadow-sm ${
                                         isDefault
                                           ? "border-primary/50"
-                                          : undefined
-                                      }
+                                          : ""
+                                      }`}
                                     >
                                       <CardContent className="p-3 space-y-2">
                                         <div className="flex items-center gap-2">
@@ -1817,7 +1817,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   );
                                 })}
 
-                                <Card>
+                                <Card className="hover:translate-y-0 hover:shadow-sm">
                                   <CardContent className="p-3 space-y-2">
                                     <Input
                                       value={
@@ -1959,7 +1959,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
           </Card>
         )}
 
-        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink">
+        <Card className="flex flex-col overflow-hidden min-h-0 min-w-0 md:snap-start md:shrink-0 md:w-[88vw] md:max-w-[520px] lg:w-auto lg:max-w-none lg:shrink hover:translate-y-0 hover:shadow-sm">
           <CardHeader className="pb-2 px-4 shrink-0">
             <CardTitle className="text-sm">Generation</CardTitle>
           </CardHeader>
@@ -2486,7 +2486,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
                                   return (
                                     <Card
                                       key={index}
-                                      className={`p-2 w-full max-w-full overflow-x-hidden ${isDefault ? "border-teal-500/50 bg-teal-500/5" : ""}`}
+                                      className={`p-2 w-full max-w-full overflow-x-hidden hover:translate-y-0 hover:shadow-sm ${isDefault ? "border-teal-500/50 bg-teal-500/5" : ""}`}
                                     >
                                       <div className="space-y-2 w-full max-w-full overflow-x-hidden">
                                         <div className="flex items-center gap-2">
