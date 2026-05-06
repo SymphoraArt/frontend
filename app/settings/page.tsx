@@ -12,6 +12,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
 import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
+import TurnkeyRemoveDeviceModal, { type TurnkeyRecoveryDevice } from "@/components/settings/TurnkeyRemoveDeviceModal";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
@@ -30,8 +31,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [deviceToRemove, setDeviceToRemove] = useState<TurnkeyRecoveryDevice | null>(null);
   const [isAwaitingModalOpen, setIsAwaitingModalOpen] = useState(false);
   const [showLivenessBanner, setShowLivenessBanner] = useState(true);
+  const [recoveryDevices, setRecoveryDevices] = useState<TurnkeyRecoveryDevice[]>([
+    { id: "macbook-pro", name: "MacBook Pro", method: "Touch ID", lastUsed: "Active now", isCurrentDevice: true },
+    { id: "iphone-15", name: "iPhone 15", method: "Face ID", lastUsed: "Used 2 days ago", isCurrentDevice: false },
+  ]);
   const [guardiansList, setGuardiansList] = useState([
     { id: "g1", name: "@lune_lab",  type: "handle", sub: "Enki Art User", status: "confirmed" },
     { id: "g2", name: "0xA1B2…C3D4", type: "wallet", sub: "Ethereum Wallet", status: "confirmed" },
@@ -83,6 +89,21 @@ export default function SettingsPage() {
     toast({
       title: "Action required",
       description: "Please check your email or authenticator app to confirm account deletion.",
+    });
+  };
+
+  const handleConfirmRemoveDevice = (device: TurnkeyRecoveryDevice) => {
+    setRecoveryDevices(prev => prev.filter(item => item.id !== device.id));
+    toast({
+      title: "Device removal queued",
+      description: `${device.name} will be removed after Turnkey confirmation is wired.`,
+    });
+  };
+
+  const handleFallbackRecovery = (device: TurnkeyRecoveryDevice) => {
+    toast({
+      title: "Fallback recovery started",
+      description: `Master-password verification placeholder opened for ${device.name}.`,
     });
   };
 
@@ -424,22 +445,21 @@ export default function SettingsPage() {
                 <div className="px-6 pb-4">
                   <button className="set-btn set-btn-dark" onClick={() => setDeviceModalOpen(true)}>+ Add a device</button>
                 </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon"><Laptop size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">MacBook Pro &middot; Touch ID <span className="set-badge-dark">THIS DEVICE</span></div>
-                    <div className="set-item-sub">Active now</div>
+                {recoveryDevices.map((device) => (
+                  <div className="set-list-item" key={device.id}>
+                    <div className="set-item-icon">
+                      {device.method.includes("Face") ? <Smartphone size={14} /> : <Laptop size={14} />}
+                    </div>
+                    <div className="set-item-content">
+                      <div className="set-item-title">
+                        {device.name} &middot; {device.method}
+                        {device.isCurrentDevice && <span className="set-badge-dark">THIS DEVICE</span>}
+                      </div>
+                      <div className="set-item-sub">{device.lastUsed}</div>
+                    </div>
+                    <button className="set-btn set-btn-outline" onClick={() => setDeviceToRemove(device)}>Remove</button>
                   </div>
-                  <button className="set-btn set-btn-outline">Remove</button>
-                </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon"><Smartphone size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">iPhone 15 &middot; Face ID</div>
-                    <div className="set-item-sub">Used 2 days ago</div>
-                  </div>
-                  <button className="set-btn set-btn-outline">Remove</button>
-                </div>
+                ))}
                 <div className="set-list-item" style={{ background: '#f5f2ec' }}>
                   <div className="set-item-icon" style={{ background: '#fff' }}><Mail size={14} /></div>
                   <div className="set-item-content">
@@ -544,6 +564,14 @@ export default function SettingsPage() {
         </div>
         
         <TurnkeyDeviceModal isOpen={deviceModalOpen} onClose={() => setDeviceModalOpen(false)} />
+        <TurnkeyRemoveDeviceModal
+          isOpen={Boolean(deviceToRemove)}
+          device={deviceToRemove}
+          currentDeviceName={recoveryDevices.find(device => device.isCurrentDevice)?.name || "your current device"}
+          onClose={() => setDeviceToRemove(null)}
+          onConfirmRemove={handleConfirmRemoveDevice}
+          onFallbackRecovery={handleFallbackRecovery}
+        />
         <AwaitingConfirmationModal 
           isOpen={isAwaitingModalOpen} 
           onClose={() => setIsAwaitingModalOpen(false)} 
