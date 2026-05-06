@@ -22,7 +22,7 @@ export default function EnkiFeaturedCarousel({ prompts }: { prompts: EnkiPrompt[
   if (!prompts || prompts.length === 0) return null;
 
   return (
-    <div className="enki-carousel-container relative w-full pt-[104px] mb-8 group">
+    <div className="enki-carousel-container relative w-full pt-[152px] mb-4 group">
       <button
         onClick={scrollLeft}
         className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md border border-white/20 hover:bg-black/60"
