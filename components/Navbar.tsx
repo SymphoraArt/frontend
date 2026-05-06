@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Plus, User, LogOut, Bell, Wallet, Copy } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,14 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect, useRef, createContext, useContext } from "react";
-import { useTheme } from "../providers/ThemeProvider";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
-import HuntPromptPopover from "./HuntPromptPopover";
-import FeedbackPopover from "./FeedbackPopover";
 import { Coins, MessageSquareHeart } from "lucide-react";
 
 interface NavbarProps {
@@ -92,9 +89,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     { label: "FAVORITES", href: "/my-gallery" },
   ];
 
+  return (
     <header style={{
       position: "fixed", top: 24, left: "50%", zIndex: 50,
-      width: "calc(100% - 48px)", maxWidth: 1040,
+      width: "calc(100% - 80px)",
       background: "rgba(255, 255, 255, 0.72)",
       backdropFilter: "blur(20px) saturate(180%)",
       WebkitBackdropFilter: "blur(20px) saturate(180%)",
