@@ -49,7 +49,7 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
           <div className="enki-detail-body">
             {/* LEFT SECTION (Settings & Actions) */}
             <div className="enki-detail-left hide-scrollbar">
-              <h2 className="serif" style={{ fontSize: 24, marginBottom: 24, lineHeight: 1.2 }}>
+              <h2>
                 {prompt.title}
               </h2>
 

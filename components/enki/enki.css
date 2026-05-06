@@ -360,6 +360,7 @@
   align-items: center;
   justify-content: center;
   padding: 40px;
+  overscroll-behavior: contain;
 }
 
 .enki-detail-card {
@@ -367,7 +368,9 @@
   width: 100%;
   max-width: 1400px;
   height: calc(100vh - 80px);
-  background: #0d0d0d;
+  background: rgba(10, 10, 10, 0.75);
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
@@ -378,24 +381,27 @@
 
 .enki-detail-close {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: 32px;
+  right: 32px;
   z-index: 10;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .enki-detail-close:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
 }
 
 .enki-detail-body {
@@ -418,14 +424,24 @@
   color: #fff;
 }
 
+.enki-detail-left h2 {
+  font-family: var(--font-instrument-serif), serif;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 400;
+  margin-bottom: 32px;
+  color: #fff;
+}
+
 .enki-detail-setting-group {
   margin-bottom: 24px;
 }
 
 .enki-detail-setting-label {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: rgba(255, 255, 255, 0.5);
   margin-bottom: 8px;
 }
@@ -489,8 +505,8 @@
   overflow: hidden;
   background: #000;
   cursor: zoom-in;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s;
+  will-change: transform;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .enki-detail-grid-item:hover {
