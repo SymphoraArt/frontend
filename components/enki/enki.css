@@ -9,6 +9,7 @@
   --enki-rule-2: #ebe5d8;
   --enki-ember: #c96838;
   min-height: 100vh;
+  padding-top: 108px; /* 56px navbar + 52px catbar */
   background: var(--enki-paper);
   color: var(--enki-ink);
   font-family: var(--font-inter), var(--font-outfit), system-ui, sans-serif;
@@ -210,7 +211,7 @@
 .enki-masonry {
   column-count: var(--cols, 4);
   column-gap: 4px;
-  padding: 116px 40px 90px; /* 56px navbar + 52px catbar + 8px gap */
+  padding: 8px 40px 90px;
 }
 
 .enki-card {

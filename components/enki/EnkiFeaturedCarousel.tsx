@@ -22,7 +22,7 @@ export default function EnkiFeaturedCarousel({ prompts }: { prompts: EnkiPrompt[
   if (!prompts || prompts.length === 0) return null;
 
   return (
-    <div className="enki-carousel-container relative w-full pt-[152px] mb-4 group">
+    <div className="enki-carousel-container relative w-full mb-4 group">
       <button
         onClick={scrollLeft}
         className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md border border-white/20 hover:bg-black/60"
@@ -32,13 +32,13 @@ export default function EnkiFeaturedCarousel({ prompts }: { prompts: EnkiPrompt[
 
       <div
         ref={scrollRef}
-        className="flex overflow-x-auto gap-4 px-10 snap-x snap-mandatory hide-scrollbar"
+        className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {prompts.map((prompt) => (
           <div
             key={prompt.id}
-            className="flex-shrink-0 w-[600px] h-[340px] rounded-2xl relative overflow-hidden snap-center cursor-pointer group/card"
+            className="flex-shrink-0 w-screen h-[380px] relative overflow-hidden snap-center cursor-pointer group/card"
             onClick={() => {}}
           >
             <img
