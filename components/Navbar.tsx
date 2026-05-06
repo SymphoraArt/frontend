@@ -82,10 +82,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     <header style={{
       position: "fixed", top: 24, left: "50%", zIndex: 50,
       width: "calc(100% - 80px)",
-      background: "rgba(255, 255, 255, 0.72)",
-      backdropFilter: "blur(20px) saturate(180%)",
-      WebkitBackdropFilter: "blur(20px) saturate(180%)",
-      border: "1px solid rgba(255, 255, 255, 0.8)",
+      background: "rgba(255, 255, 255, 0.4)",
+      backdropFilter: "blur(24px) saturate(200%)",
+      WebkitBackdropFilter: "blur(24px) saturate(200%)",
+      border: "1px solid rgba(255, 255, 255, 0.5)",
       boxShadow: "0 8px 32px rgba(0, 0, 0, 0.06)",
       borderRadius: 9999,
       transform: "translate(-50%, 0)",
@@ -158,9 +158,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <DropdownMenuTrigger asChild>
               <button data-testid="button-user-menu" style={{
                 width: 40, height: 40, borderRadius: "50%",
-                background: "#f0ede6", border: "1px solid #e0ddd5",
+                background: "#111", border: "none",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "#111", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
                 fontFamily: "monospace", letterSpacing: "0.5px",
                 marginLeft: 4
               }}>
@@ -190,18 +190,18 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </div>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer">My Gallery</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer">My Prompts</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Gallery</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Prompts</DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/5" />
               {/* Secondary Actions Moved Here */}
-              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer">
-                <Coins className="h-4 w-4 mr-2 text-yellow-600" /> Hunt a prompt
+              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                <Coins className="h-4 w-4 mr-2 text-[#d94f3d]" /> Hunt a prompt
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer">
-                <MessageSquareHeart className="h-4 w-4 mr-2 text-blue-600" /> Earn for feedback
+              <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111]" /> Earn for feedback
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/5" />
-              <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer">Settings</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">Settings</DropdownMenuItem>
               
               {authenticated && account && (
                 <>
@@ -214,7 +214,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                         toast({ title: "Wallet disconnected" });
                       } catch { window.location.reload(); }
                     }}
-                    className="cursor-pointer text-destructive focus:text-destructive rounded-xl mt-1"
+                    className="cursor-pointer text-red-500 focus:text-red-600 focus:bg-red-50 rounded-xl mt-1"
                   >
                     <LogOut className="h-4 w-4 mr-2" /> Disconnect Wallet
                   </DropdownMenuItem>
