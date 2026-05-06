@@ -145,6 +145,7 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
                 ))}
               </div>
             </div>
+          </div>
         </div>
       </div>
 
