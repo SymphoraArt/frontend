@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Bookmark, Copy, Heart, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { MessageSquare, Star, X } from "lucide-react";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 
 type EnkiDetailPanelProps = {
@@ -12,142 +11,117 @@ type EnkiDetailPanelProps = {
   toggleFav: (id: string) => void;
 };
 
-export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: EnkiDetailPanelProps) {
-  const router = useRouter();
-  const [vars, setVars] = useState<Record<string, string | boolean>>(() =>
-    Object.fromEntries(prompt.variables.map((variable) => [variable.name, variable.value]))
-  );
-  const [ratio, setRatio] = useState("4:5");
-  const [resolution, setResolution] = useState("2K");
+export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProps) {
+  // We'll use prompt.versions if available, otherwise just duplicate the main art to simulate multiple images for the demo
+  const images = prompt.versions?.length
+    ? prompt.versions.map((v) => v.url)
+    : [prompt.art.url, prompt.art.url, prompt.art.url, prompt.art.url];
 
-  const tokens = useMemo(() => {
-    const out: { type: "text" | "var"; text?: string; name?: string }[] = [];
-    let last = 0;
-    const re = /\[(\w+)\]/g;
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(prompt.promptTemplate))) {
-      if (match.index > last) out.push({ type: "text", text: prompt.promptTemplate.slice(last, match.index) });
-      out.push({ type: "var", name: match[1] });
-      last = match.index + match[0].length;
-    }
-    if (last < prompt.promptTemplate.length) out.push({ type: "text", text: prompt.promptTemplate.slice(last) });
-    return out;
-  }, [prompt.promptTemplate]);
+  const v2Covers = [
+    "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=400&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?q=80&w=400&auto=format&fit=crop"
+  ];
+
+  const [activeImage, setActiveImage] = useState(images[0]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
 
   return (
     <>
-      <div className="enki-overlay" onClick={onClose} />
-      <aside className="enki-panel" onClick={(event) => event.stopPropagation()}>
-        <button className="enki-panel-close" onClick={onClose} title="Close" type="button">
-          <X size={14} />
-        </button>
-        <div className="enki-panel-hero-main">
+      <div className="enki-detail-modal" onClick={onClose}>
+        <div className="enki-detail-card" onClick={(e) => e.stopPropagation()}>
+          <button className="enki-detail-close" onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+
+          <div className="enki-detail-body">
+            {/* CENTER SECTION */}
+            <div className="enki-detail-center hide-scrollbar">
+              {/* 4 Images Side-by-Side */}
+              <div className="enki-detail-img-grid">
+                {images.slice(0, 4).map((img, i) => (
+                  <div key={i} className="enki-detail-img-wrapper" onClick={() => setLightboxImage(img)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img} alt={`Image ${i + 1}`} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Version 2 Covers */}
+              <div className="enki-detail-v2-section">
+                <div className="enki-detail-v2-title">Version 2</div>
+                <div className="enki-detail-v2-grid hide-scrollbar">
+                  {v2Covers.map((cover, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={cover} alt={`V2 Cover ${i + 1}`} className="enki-detail-v2-cover" />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT SECTION: Thumbnails */}
+            <div className="enki-detail-right hide-scrollbar">
+              <div className="enki-detail-thumb-strip">
+                {images.map((img, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={i}
+                    src={img}
+                    alt={`Thumbnail ${i + 1}`}
+                    className={`enki-detail-thumb ${activeImage === img ? "active" : ""}`}
+                    onClick={() => setActiveImage(img)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* BOTTOM SECTION */}
+          <div className="enki-detail-bottom">
+            <div className="enki-detail-bottom-left">
+              <span style={{ fontSize: 14, fontWeight: 500 }}>Make Public</span>
+              <input
+                type="checkbox"
+                className="enki-toggle-switch"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+              />
+            </div>
+            <div className="enki-detail-bottom-right">
+              <button className="enki-detail-tab-btn" type="button">
+                <MessageSquare size={16} /> Comments
+                <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Image)</span>
+              </button>
+              <button className="enki-detail-tab-btn" type="button">
+                <Star size={16} /> Reviews
+                <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 4 }}>(Prompt)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div className="enki-lightbox" onClick={() => setLightboxImage(null)}>
+          <button className="enki-lightbox-close" onClick={() => setLightboxImage(null)}>
+            <X size={24} />
+          </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={prompt.art.url} alt={prompt.title} />
+          <img src={lightboxImage} alt="Fullscreen" onClick={(e) => e.stopPropagation()} />
         </div>
-        <div className="enki-panel-body">
-          <div className="enki-panel-eyebrow">
-            {prompt.isVideo ? "Video prompt" : "Image prompt"} / {prompt.publishedAt} / {prompt.downloads.toLocaleString()} uses
-          </div>
-          <h1 className="enki-panel-title serif">
-            <em>{prompt.title}</em>
-          </h1>
+      )}
 
-          <div className="enki-panel-by">
-            <div className="enki-panel-avatar">{prompt.artist.avatar}</div>
-            <div>
-              <div>By <strong>{prompt.artist.name}</strong></div>
-              <div className="mono" style={{ color: "var(--enki-ink-3)", fontSize: 11 }}>
-                @{prompt.artist.handle} / {prompt.model}
-              </div>
-            </div>
-            <button
-              className={`enki-icon-btn${faved ? " active" : ""}`}
-              onClick={() => toggleFav(prompt.id)}
-              type="button"
-              style={{ marginLeft: "auto" }}
-            >
-              <Heart size={14} fill={faved ? "currentColor" : "none"} />
-            </button>
-          </div>
-
-          <div className="enki-tag-pills">
-            {prompt.tags.map((tag) => <span key={tag} className="enki-tag-pill">{tag}</span>)}
-          </div>
-          <div className="enki-rule" />
-
-          <div className="enki-panel-section-label">
-            {prompt.visibility === "vars-only" ? "Variables / prompt body locked" : "The prompt"}
-          </div>
-          {prompt.visibility === "vars-only" ? (
-            <div className="enki-vars-stack">
-              {prompt.variables.map((variable) => (
-                <label key={variable.name} className="enki-var-row">
-                  <span>{variable.label}</span>
-                  {variable.type === "checkbox" ? (
-                    <input
-                      type="checkbox"
-                      checked={Boolean(vars[variable.name])}
-                      onChange={(event) => setVars((prev) => ({ ...prev, [variable.name]: event.target.checked }))}
-                    />
-                  ) : (
-                    <input
-                      className="enki-var-row-input"
-                      value={String(vars[variable.name] ?? "")}
-                      onChange={(event) => setVars((prev) => ({ ...prev, [variable.name]: event.target.value }))}
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
-          ) : (
-            <div className="enki-prompt-text serif">
-              {tokens.map((token, index) => {
-                if (token.type === "text") return <span key={index}>{token.text}</span>;
-                const variable = prompt.variables.find((item) => item.name === token.name);
-                return (
-                  <span key={index} className="enki-var">
-                    {String(vars[token.name || ""] ?? variable?.label ?? token.name)}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="enki-rule" />
-          <div className="enki-size-picker">
-            <div className="enki-size-row">
-              <span className="enki-size-label mono">Aspect</span>
-              <div className="enki-size-chips">
-                {["3:4", "4:5", "1:1", "16:9"].map((item) => (
-                  <button key={item} className={`enki-size-chip mono${ratio === item ? " active" : ""}`} onClick={() => setRatio(item)} type="button">
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="enki-size-row">
-              <span className="enki-size-label mono">Resolution</span>
-              <div className="enki-size-chips">
-                {["1K", "2K", "4K"].map((item) => (
-                  <button key={item} className={`enki-size-chip mono${resolution === item ? " active" : ""}`} onClick={() => setResolution(item)} type="button">
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="enki-rule" />
-          <div className="enki-actions">
-            <button className="enki-btn" onClick={() => router.push(`/generator/${prompt.id}`)} type="button">
-              Generate / ${prompt.price.toFixed(2)}
-            </button>
-            <button className="enki-btn enki-btn-secondary" type="button"><Bookmark size={14} /> Save</button>
-            <button className="enki-btn enki-btn-secondary" type="button"><Copy size={13} /> Share</button>
-          </div>
-        </div>
-      </aside>
+      <style jsx>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </>
   );
 }
