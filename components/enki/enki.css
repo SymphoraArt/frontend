@@ -102,7 +102,7 @@
 
 .enki-card {
   break-inside: avoid;
-  display: inline-block;
+  display: block;
   width: 100%;
   margin-bottom: 4px;
   position: relative;
