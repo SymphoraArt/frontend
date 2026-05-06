@@ -735,7 +735,7 @@
   padding: 2px 8px; font-size: 9px;
   font-family: var(--font-jetbrains-mono), monospace;
   letter-spacing: 0.5px; border-radius: 2px;
-  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%; word-break: break-word; white-space: normal;
 }
 .alg-val-chip__remove {
   background: none; border: none; cursor: pointer;
