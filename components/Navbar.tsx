@@ -136,7 +136,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         </nav>
 
         {/* Search */}
-        <div style={{ flex: 1, maxWidth: 420, position: "relative" }}>
+        <div style={{ flex: 1, maxWidth: 320, position: "relative" }}>
           <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#aaa" }} />
           <input
             type="search"
@@ -145,14 +145,18 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             style={{
               width: "100%", padding: "7px 52px 7px 34px",
               background: "#eceae3", border: "none", borderRadius: 8,
-              fontSize: 13, color: "#555", outline: "none",
+              fontSize: 13, color: "#333", outline: "none",
               fontFamily: "inherit", boxSizing: "border-box",
+              transition: "background 0.2s ease",
             }}
+            onFocus={(e) => (e.target.style.background = "#e6e4dc")}
+            onBlur={(e) => (e.target.style.background = "#eceae3")}
           />
           <span style={{
             position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-            fontSize: 10, color: "#aaa", fontFamily: "monospace",
-            background: "#e0ddd5", padding: "2px 6px", borderRadius: 4,
+            fontSize: 10, color: "#666", fontWeight: 500, fontFamily: "var(--font-jetbrains-mono), monospace",
+            background: "#e0ddd5", padding: "3px 6px", borderRadius: 4,
+            pointerEvents: "none",
           }}>⌘ K</span>
         </div>
 
