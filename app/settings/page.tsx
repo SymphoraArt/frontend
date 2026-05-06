@@ -11,6 +11,7 @@ import SettingsNav, { TabItem } from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
+import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
@@ -28,6 +29,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false); // keeping it fast since we mock mostly
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [isAwaitingModalOpen, setIsAwaitingModalOpen] = useState(false);
 
   // --- Mock States ---
   const [settings, setSettings] = useState({
@@ -45,8 +48,6 @@ export default function SettingsPage() {
     sendMoneyCheck: true
   });
   
-  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-
   // --- Change Detection ---
   useEffect(() => {
     const isDifferent = JSON.stringify(settings) !== JSON.stringify(initialSettings);
@@ -409,7 +410,7 @@ export default function SettingsPage() {
                     <div className="set-item-title">Recovery email <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 'normal', color: '#666' }}>eli@enki.studio</span></div>
                     <div className="set-item-sub">If all your devices are gone, we'll send a one-time code here so you can sign in again.</div>
                   </div>
-                  <button className="set-btn set-btn-outline">Change email</button>
+                  <button className="set-btn set-btn-outline" onClick={() => setIsAwaitingModalOpen(true)}>Change email</button>
                 </div>
               </SettingsSection>
 
@@ -507,6 +508,12 @@ export default function SettingsPage() {
         </div>
         
         <TurnkeyDeviceModal isOpen={deviceModalOpen} onClose={() => setDeviceModalOpen(false)} />
+        <AwaitingConfirmationModal 
+          isOpen={isAwaitingModalOpen} 
+          onClose={() => setIsAwaitingModalOpen(false)} 
+          email="eli@enki.studio"
+          device="MacBook Pro"
+        />
       </div>
     </>
   );
