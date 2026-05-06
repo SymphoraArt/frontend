@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import type { TimeSeriesSaleRow, PromptPurchaseSelect, PromptPurchaseRecentSelect, TopPrompt, RecentActivity } from "@/shared/types";
+import type { TimeSeriesSaleRow, PromptPurchaseSelect, PromptPurchaseRecentSelect, TopPrompt, RecentActivity } from "@shared/types";
 
 export async function GET(
   request: NextRequest,

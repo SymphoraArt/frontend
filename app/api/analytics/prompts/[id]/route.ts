@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { storage } from "@/backend/storage";
 import { requireAuth } from "@/lib/auth";
-import type { PromptAnalyticsEventSelect, PromptAnalyticsEventDemographicSelect, DailyMetricRow, DemographicRow } from "@/shared/types";
+import type { PromptAnalyticsEventSelect, PromptAnalyticsEventDemographicSelect, DailyMetricRow, DemographicRow } from "@shared/types";
 
 export async function GET(
   request: NextRequest,
