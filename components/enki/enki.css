@@ -1,0 +1,687 @@
+.enki {
+  --enki-paper: #faf8f4;
+  --enki-paper-2: #f3efe7;
+  --enki-paper-3: #e8e2d6;
+  --enki-ink: #1a1715;
+  --enki-ink-2: #3d3a36;
+  --enki-ink-3: #6b665e;
+  --enki-rule: #d8d2c5;
+  --enki-rule-2: #ebe5d8;
+  --enki-ember: #c96838;
+  min-height: 100vh;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-inter), var(--font-outfit), system-ui, sans-serif;
+}
+
+.enki .serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+.enki .mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+.enki-page-title {
+  padding: 96px 40px 22px;
+  border-bottom: 1px solid var(--enki-rule);
+}
+
+.enki-page-eyebrow {
+  margin-bottom: 10px;
+  color: var(--enki-ink-3);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.enki-page-h1 {
+  margin: 0;
+  color: var(--enki-ink);
+  font-size: clamp(42px, 6vw, 76px);
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.enki-page-lede {
+  max-width: 560px;
+  margin-top: 14px;
+  color: var(--enki-ink-2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.enki-tabs {
+  display: none;
+}
+
+.enki-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 40px;
+  border-bottom: 1px solid var(--enki-rule);
+  overflow-x: auto;
+  background: var(--enki-paper);
+}
+
+.enki-filter-label {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  color: var(--enki-ink-3);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.enki-filter-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--enki-ink-2);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 7px 14px;
+}
+
+.enki-filter-chip.active {
+  border-color: var(--enki-ink);
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+}
+
+.enki-masonry {
+  column-count: var(--cols, 4);
+  column-gap: 24px;
+  padding: 32px 40px 90px;
+}
+
+.enki-card {
+  break-inside: avoid;
+  display: block;
+  margin-bottom: 24px;
+  position: relative;
+  cursor: pointer;
+}
+
+.enki-card-img {
+  position: relative;
+  overflow: hidden;
+  background: var(--enki-paper-3);
+}
+
+.enki-card-img img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 240ms ease;
+}
+
+.enki-card:hover .enki-card-img img {
+  transform: scale(1.025);
+}
+
+.enki-card-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--enki-ink);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+}
+
+.enki-card-badge.video::before {
+  content: "▶ ";
+  color: var(--enki-ember);
+}
+
+.enki-card-tl-hover {
+  position: absolute;
+  top: 38px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.enki-card:hover .enki-card-tl-hover {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.enki-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  backdrop-filter: blur(4px);
+}
+
+.enki-card-stat-price {
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--enki-ink);
+  font-weight: 600;
+}
+
+.enki-heart {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--enki-ink-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.enki-heart.active {
+  color: var(--enki-ember);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.enki-card-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.78) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.enki-card:hover .enki-card-overlay {
+  opacity: 1;
+}
+
+.enki-card-overlay-title {
+  color: #fff;
+  font-size: 17px;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.enki-card-overlay-artist {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.enki-video-icon {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.enki-card-mobile-meta {
+  display: none;
+}
+
+.enki-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.enki-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  width: min(760px, 100vw);
+  overflow-y: auto;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  box-shadow: -24px 0 64px rgba(0, 0, 0, 0.24);
+}
+
+.enki-panel-close {
+  position: sticky;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  cursor: pointer;
+}
+
+.enki-panel-hero-main {
+  position: relative;
+  background: var(--enki-paper-2);
+}
+
+.enki-panel-hero-main img {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  object-fit: cover;
+}
+
+.enki-panel-body {
+  padding: 26px 34px 42px;
+}
+
+.enki-panel-eyebrow,
+.enki-panel-section-label {
+  color: var(--enki-ink-3);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.enki-panel-title {
+  margin: 8px 0 18px;
+  font-size: clamp(36px, 5vw, 58px);
+  font-weight: 400;
+  line-height: 0.98;
+}
+
+.enki-panel-by {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.enki-panel-avatar,
+.enki-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.enki-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.enki-tag-pill {
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  color: var(--enki-ink-2);
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.enki-rule {
+  height: 1px;
+  background: var(--enki-rule);
+  margin: 22px 0;
+}
+
+.enki-prompt-text {
+  border-left: 2px solid var(--enki-ember);
+  background: var(--enki-paper-2);
+  color: var(--enki-ink-2);
+  font-size: 19px;
+  line-height: 1.65;
+  padding: 20px 22px;
+}
+
+.enki-var {
+  border-radius: 4px;
+  background: var(--enki-ember);
+  color: #fff;
+  cursor: pointer;
+  padding: 1px 4px;
+}
+
+.enki-vars-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.enki-var-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper-2);
+  padding: 12px;
+}
+
+.enki-var-row-input,
+.enki-comment-input {
+  width: 100%;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  padding: 8px 10px;
+}
+
+.enki-size-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.enki-size-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.enki-size-label {
+  width: 80px;
+  color: var(--enki-ink-3);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.enki-size-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.enki-size-chip {
+  border: 1px solid var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-2);
+  cursor: pointer;
+  padding: 6px 9px;
+}
+
+.enki-size-chip.active {
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+}
+
+.enki-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.enki-btn,
+.enki-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--enki-ink);
+  border-radius: 999px;
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 9px 16px;
+  text-decoration: none;
+}
+
+.enki-btn-secondary,
+.enki-icon-btn {
+  border-color: var(--enki-rule);
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
+}
+
+.enki-qc {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  border-top: 1px solid var(--enki-rule);
+  background: color-mix(in oklab, var(--enki-paper) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.enki-qc-bar {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--enki-ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 40px;
+}
+
+.enki-qc-bar-bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--enki-ember);
+  color: #fff;
+}
+
+.enki-qc-panel {
+  border-top: 1px solid var(--enki-rule);
+  padding: 18px 40px 24px;
+}
+
+.enki-qc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  gap: 18px;
+}
+
+.enki-qc-section-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--enki-ink-3);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.enki-qc-textarea,
+.enki-qc-var-input,
+.enki-qc-select {
+  width: 100%;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  padding: 10px 12px;
+}
+
+.enki-qc-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.enki-qc-settings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.enki-qc-vars {
+  display: grid;
+  gap: 8px;
+}
+
+.enki-empty-state,
+.enki-account {
+  padding: 28px 40px 90px;
+}
+
+.enki-account-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.enki-account-card {
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper-2);
+  padding: 18px;
+}
+
+@media (max-width: 900px) {
+  .enki-page-title {
+    padding: 78px 18px 18px;
+  }
+
+  .enki-filters,
+  .enki-masonry,
+  .enki-qc-bar,
+  .enki-qc-panel,
+  .enki-empty-state,
+  .enki-account {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .enki-masonry {
+    column-count: 2 !important;
+    column-gap: 12px;
+    padding-top: 14px;
+    padding-bottom: 96px;
+  }
+
+  .enki-card-overlay {
+    display: none;
+  }
+
+  .enki-card {
+    margin-bottom: 12px;
+  }
+
+  .enki-card-img {
+    height: 260px;
+  }
+
+  .enki-card:nth-child(6n+2) .enki-card-img {
+    height: 240px;
+  }
+
+  .enki-card:nth-child(6n+3) .enki-card-img {
+    height: 200px;
+  }
+
+  .enki-card:nth-child(6n+4) .enki-card-img {
+    height: 280px;
+  }
+
+  .enki-card:nth-child(6n+5) .enki-card-img {
+    height: 220px;
+  }
+
+  .enki-card:nth-child(6n+6) .enki-card-img {
+    height: 260px;
+  }
+
+  .enki-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .enki-card-mobile-meta {
+    display: block;
+    padding: 10px 0 16px;
+  }
+
+  .enki-card-mobile-title {
+    font-size: 18px;
+    line-height: 1.1;
+  }
+
+  .enki-card-mobile-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--enki-ink-3);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .enki-tabs {
+    display: flex;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--enki-rule);
+  }
+
+  .enki-tabs a {
+    color: var(--enki-ink-3);
+    text-decoration: none;
+  }
+
+  .enki-tabs a.active {
+    color: var(--enki-ink);
+  }
+
+  .enki-panel {
+    width: 100vw;
+  }
+
+  .enki-panel-body {
+    padding: 22px 18px 86px;
+  }
+
+  .enki-qc-grid,
+  .enki-qc-settings,
+  .enki-account-grid {
+    grid-template-columns: 1fr;
+  }
+}
