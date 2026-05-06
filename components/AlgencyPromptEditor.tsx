@@ -33,16 +33,14 @@ interface PromptVariable {
   description: string;
   type: VariableType;
   defaultValue: string | boolean;
+  values: string[]; // stack of multiple values for batch generation
   required: boolean;
   position: number;
 }
 
 interface VersionCard {
   id: number;
-  subject: string;
-  mood: string;
-  lighting: string;
-  grain: boolean;
+  variableSnapshot: Record<string, string>; // dynamic per-card variable values
   imageUrl: string | null;
   status: "idle" | "generating" | "complete" | "failed";
 }
@@ -99,10 +97,10 @@ export default function AlgencyPromptEditor() {
   });
 
   const [variables, setVariables] = useState<PromptVariable[]>([
-    { id: "subject", name: "subject", label: "Subject", description: "", type: "text", defaultValue: "a young woman, dark hair", required: true, position: 0 },
-    { id: "mood", name: "mood", label: "Mood", description: "", type: "text", defaultValue: "contemplative, soft", required: true, position: 1 },
-    { id: "lighting", name: "lighting", label: "Lighting", description: "", type: "text", defaultValue: "e.g a young woman, dark hair...", required: true, position: 2 },
-    { id: "grain", name: "grain", label: "Add film grain", description: "Add a soft, grainy film texture — like an old 35mm", type: "checkbox", defaultValue: true, required: false, position: 3 },
+    { id: "subject", name: "subject", label: "Subject", description: "", type: "text", defaultValue: "a young woman, dark hair", values: ["a young woman, dark hair"], required: true, position: 0 },
+    { id: "mood", name: "mood", label: "Mood", description: "", type: "text", defaultValue: "contemplative, soft", values: ["contemplative, soft"], required: true, position: 1 },
+    { id: "lighting", name: "lighting", label: "Lighting", description: "", type: "text", defaultValue: "e.g a young woman, dark hair...", values: [], required: true, position: 2 },
+    { id: "grain", name: "grain", label: "Add film grain", description: "Add a soft, grainy film texture — like an old 35mm", type: "checkbox", defaultValue: true, values: [], required: false, position: 3 },
   ]);
 
   const [versions, setVersions] = useState<VersionCard[]>([]);
@@ -183,7 +181,7 @@ export default function AlgencyPromptEditor() {
           if (!existingNames.has(varName)) {
             newVars.push({
               id: varName, name: varName, label: varName, description: "",
-              type: "text", defaultValue: "", required: true, position: existingVars.length + newVars.length,
+              type: "text", defaultValue: "", values: [], required: true, position: existingVars.length + newVars.length,
             });
           }
         });
@@ -291,7 +289,7 @@ export default function AlgencyPromptEditor() {
       setPromptData(prev => ({ ...prev, body: newVal }));
       setVariables(prev => [...prev, {
         id: varName, name: varName, label: varName, description: "",
-        type: "text", defaultValue: text, required: true, position: prev.length
+        type: "text", defaultValue: text, values: [text], required: true, position: prev.length
       }]);
       setUi(prev => ({ ...prev, tooltip: null, selectedVariableId: varName }));
 
@@ -373,24 +371,32 @@ export default function AlgencyPromptEditor() {
     });
   };
 
-  /* ─── Generate Image (Version specific) ─── */
+  /* ─── Generate Image — uses per-card snapshot for interpolation ─── */
   const handleGenerateVersion = async (versionId: number) => {
-    const previewText = renderPreviewWithDefaults();
+    // Get this card's snapshot to build the prompt
+    const card = versions.find(v => v.id === versionId) ??
+      { variableSnapshot: {} as Record<string, string> };
+    const snapshot = card.variableSnapshot;
+
+    let previewText = promptData.body;
+    variables.forEach((variable) => {
+      const placeholder = `[${variable.name}]`;
+      const val = snapshot[variable.name] ??
+        (variable.type === "text" ? (variable.defaultValue as string) : (variable.defaultValue ? variable.description : ""));
+      previewText = previewText.split(placeholder).join(val);
+    });
+
     if (!previewText.trim()) {
       toast({ title: "Error", description: "Please enter a prompt.", variant: "destructive" });
       return;
     }
-
     setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "generating" } : v));
-
     try {
       const data = await generateImageWithPayment(
         { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
         selectedChain
       ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
-
       setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: data.imageUrl } : v));
-
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
@@ -399,17 +405,17 @@ export default function AlgencyPromptEditor() {
             provider: typeof data.provider === "string" ? data.provider : "unknown",
             meta: { usedGemini: Boolean(data.usedGemini ?? false) },
           });
-        } catch { /* ignore persistence error */ }
+        } catch { /* ignore */ }
         addCreation(userKey, {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
           imageUrl: data.imageUrl, prompt: previewText, createdAt: new Date().toISOString(),
         });
       }
-      toast({ title: "Generation Complete", description: "Image generated." });
+      toast({ title: "Done", description: `Slot ${versionId} complete.` });
     } catch (error: unknown) {
       setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "failed" } : v));
       const msg = error instanceof Error ? error.message : String(error);
-      toast({ title: "Generation Failed", description: msg || "Error generating image.", variant: "destructive" });
+      toast({ title: "Failed", description: msg || "Error generating.", variant: "destructive" });
     }
   };
 
@@ -421,30 +427,45 @@ export default function AlgencyPromptEditor() {
     return (v.defaultValue as string) || name;
   };
 
-  const handleGenerateClick = () => {
-    const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
-    const newVersion: VersionCard = {
-      id: newId,
-      subject: getVarDefault("subject"),
-      mood: getVarDefault("mood"),
-      lighting: getVarDefault("lighting"),
-      grain: variables.find(x => x.name === "grain")?.defaultValue === true,
-      imageUrl: null, status: "idle"
-    };
-    setVersions(prev => [...prev, newVersion]);
-    handleGenerateVersion(newId);
+  /* ─── Stack Variables — bridge button pushes N cards into Verify ─── */
+  const handleStackVariables = () => {
+    const textVars = variables.filter(v => v.type === "text");
+    const stackSize = Math.max(1, ...textVars.map(v => (v.values.length > 0 ? v.values.length : 1)));
+    const baseId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) : 0;
+    const newCards: VersionCard[] = [];
+    for (let i = 0; i < stackSize; i++) {
+      const snapshot: Record<string, string> = {};
+      variables.forEach(v => {
+        if (v.type === "checkbox") {
+          snapshot[v.name] = v.defaultValue ? v.description || "on" : "off";
+        } else {
+          const pool = v.values.length > 0 ? v.values : [(v.defaultValue as string) || v.name];
+          snapshot[v.name] = pool[i % pool.length];
+        }
+      });
+      newCards.push({ id: baseId + i + 1, variableSnapshot: snapshot, imageUrl: null, status: "idle" });
+    }
+    setVersions(prev => [...prev, ...newCards]);
+    setUi(prev => ({ ...prev, showVerificationCard: true }));
+  };
+
+  /* ─── Batch Generate — fires only idle slots, 300ms stagger ─── */
+  const handleBatchGenerate = () => {
+    const idleCards = versions.filter(v => v.status === "idle");
+    if (idleCards.length === 0) {
+      toast({ title: "No idle slots", description: "Stack variables first." });
+      return;
+    }
+    idleCards.forEach((card, i) => {
+      setTimeout(() => handleGenerateVersion(card.id), i * 300);
+    });
   };
 
   const handleCreateEmptySlots = () => {
+    const snapshot: Record<string, string> = {};
+    variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
-    setVersions(prev => [...prev, {
-      id: newId,
-      subject: getVarDefault("subject"),
-      mood: getVarDefault("mood"),
-      lighting: getVarDefault("lighting"),
-      grain: variables.find(x => x.name === "grain")?.defaultValue === true,
-      imageUrl: null, status: "idle"
-    }]);
+    setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
   };
 
   const toggleVersionCheckbox = (id: number) => {
@@ -836,7 +857,7 @@ export default function AlgencyPromptEditor() {
                     </button>
                   </div>
 
-                  {/* Default value */}
+                  {/* Default value + stacked values */}
                   {variable.type === "text" ? (
                     <>
                       <div className="alg-var-card__label" style={{ marginTop: 12, marginBottom: 6 }}>DEFAULT VALUE</div>
@@ -844,6 +865,34 @@ export default function AlgencyPromptEditor() {
                         {(variable.defaultValue as string) || (ui.selectedVariableId === variable.id ? "e.g. a young woman, dark hair..." : "")}
                       </div>
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>
+
+                      {/* Stacked values */}
+                      <div className="alg-var-card__label" style={{ marginTop: 14, marginBottom: 6 }}>STACK VALUES <span style={{ color: "#B0AAA2", fontWeight: 400, textTransform: "lowercase", letterSpacing: 0 }}>({variable.values.length})</span></div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {variable.values.map((val, idx) => (
+                          <span key={idx} className="alg-val-chip">
+                            {val}
+                            <button className="alg-val-chip__remove" onClick={(e) => {
+                              e.stopPropagation();
+                              updateVariable(variable.id, { values: variable.values.filter((_, i) => i !== idx) });
+                            }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <input
+                        className="alg-val-add-input"
+                        placeholder="+ Add value, press Enter"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val && !variable.values.includes(val)) {
+                              updateVariable(variable.id, { values: [...variable.values, val] });
+                            }
+                            (e.target as HTMLInputElement).value = "";
+                          }
+                        }}
+                      />
                     </>
                   ) : (
                     <>
@@ -874,10 +923,10 @@ export default function AlgencyPromptEditor() {
             {/* ─── Stack Variables Bridge Button ─── */}
             {variables.length > 0 && (
               <div style={{ marginTop: "auto", paddingTop: 24 }}>
-                <button
-                  className="alg-stack-btn"
-                  onClick={() => setUi(prev => ({ ...prev, showVerificationCard: true }))}
-                >
+                  <button
+                    className="alg-stack-btn"
+                    onClick={handleStackVariables}
+                  >
                   <span className="alg-stack-btn__label">Stack variables</span>
                   <span className="alg-stack-btn__arrow">→ Verify</span>
                   <span className="alg-stack-btn__count">{variables.length} var{variables.length !== 1 ? 's' : ''}</span>
@@ -893,7 +942,7 @@ export default function AlgencyPromptEditor() {
           {variables.length > 0 && (
             <button
               className={`alg-bridge-btn ${ui.showVerificationCard ? "alg-bridge-btn--done" : ""}`}
-              onClick={() => setUi(prev => ({ ...prev, showVerificationCard: true }))}
+              onClick={handleStackVariables}
               title="Stack variables and verify"
             >
               <span className="alg-bridge-btn__arrow">↑</span>
@@ -982,34 +1031,15 @@ export default function AlgencyPromptEditor() {
                       <div className="alg-version-card__header">
                         <span className="alg-version-card__label">Version {String(slot.id).padStart(2, "0")}</span>
                         <span className="alg-version-card__status" style={slot.status === "idle" ? { color: "#B0AAA2", fontStyle: "italic", textTransform: "lowercase", fontWeight: 400 } : {}}>
-                          {slot.status === "complete" ? "● ready" : "optional"}
+                          {slot.status === "complete" ? "● ready" : slot.status === "generating" ? "● generating" : "idle"}
                         </span>
                       </div>
-                      <div className="alg-version-card__row">
-                        <span className="alg-version-card__key">SUBJECT</span>
-                        <span className="alg-version-card__val">{slot.subject}</span>
-                      </div>
-                      <div className="alg-version-card__row">
-                        <span className="alg-version-card__key">MOOD</span>
-                        <span className="alg-version-card__val">{slot.mood}</span>
-                      </div>
-                      <div className="alg-version-card__row">
-                        <span className="alg-version-card__key">LIGHTING</span>
-                        <span className="alg-version-card__val">{slot.lighting}</span>
-                      </div>
-                      <label className="alg-checkbox" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap', fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, color: "#5A5550", letterSpacing: 0.5 }}>
-                        <input
-                          type="checkbox"
-                          checked={slot.grain}
-                          style={{ accentColor: '#E07045', width: 14, height: 14, borderRadius: 3 }}
-                          onChange={(e) =>
-                            setVersions((prev) =>
-                              prev.map((s) => s.id === slot.id ? { ...s, grain: e.target.checked } : s)
-                            )
-                          }
-                        />
-                        <span style={{ fontSize: 11, marginLeft: 8 }}>Add film grain</span>
-                      </label>
+                      {Object.entries(slot.variableSnapshot).map(([key, val]) => (
+                        <div key={key} className="alg-version-card__row">
+                          <span className="alg-version-card__key">{key.toUpperCase()}</span>
+                          <span className="alg-version-card__val">{val || <span style={{ color: "var(--alg-hint)", fontStyle: "italic" }}>—</span>}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 );
@@ -1047,12 +1077,12 @@ export default function AlgencyPromptEditor() {
           <button
             className="alg-btn alg-btn--ghost alg-btn--sm"
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', color: '#1C1A18', fontFamily: "var(--font-jetbrains-mono), monospace" }}
-            onClick={handleGrokFill}
+            onClick={handleBatchGenerate}
             disabled={ui.isGrokFilling}
           >
             <Sparkles size={12} color="#1C1A18" />
-            {ui.isGrokFilling ? "Filling..." : "Generate empty slots"}
-            <span style={{ fontSize: 9, color: '#B0AAA2', marginLeft: 4, fontWeight: 600 }}>✦ Grok</span>
+            {ui.isGrokFilling ? "Filling..." : "Generate all slots"}
+            <span style={{ fontSize: 9, color: '#B0AAA2', marginLeft: 4, fontWeight: 600 }}>{versions.filter(v => v.status === "idle").length} idle</span>
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
