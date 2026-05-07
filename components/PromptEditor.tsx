@@ -58,6 +58,7 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import type { ChainKey } from "@/shared/payment-config";
+import { createAuthHeaders, generateAuthMessage } from "@/lib/auth";
 
 
 type VariableType =
@@ -179,6 +180,38 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const getErrorMessage = (e: unknown) => {
     if (e instanceof Error) return e.message;
     return String(e);
+  };
+
+  const getGenerationAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (!account?.address) throw new Error("Wallet not connected");
+    const nonceResponse = await fetch("/api/auth/nonce", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: account.address, walletType: "evm" }),
+    });
+    const nonceResult = await nonceResponse.json().catch(() => ({}));
+    if (!nonceResponse.ok || typeof nonceResult.nonce !== "string") {
+      throw new Error(nonceResult.error || "Failed to get authentication nonce");
+    }
+    const { message, timestamp } = generateAuthMessage(account.address, nonceResult.nonce);
+    const signature = await account.signMessage({ message });
+    return createAuthHeaders(account.address, signature, message, timestamp, nonceResult.nonce);
+  };
+
+  const persistGeneration = async (payload: Record<string, unknown>) => {
+    const authHeaders = await getGenerationAuthHeaders();
+    const res = await fetch("/api/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(typeof errBody.error === "string" ? errBody.error : "Failed to save generation");
+    }
   };
 
   const coerceVariableDefaultValue = (
@@ -895,8 +928,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
-          await apiRequest("POST", "/api/generations", {
-            userKey,
+          await persistGeneration({
+            promptId: currentPromptId,
             prompt: previewText,
             imageUrl: String(data.imageUrl),
             provider: typeof data.provider === "string" ? data.provider : "unknown",
@@ -950,8 +983,8 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
-          await apiRequest("POST", "/api/generations", {
-            userKey,
+          await persistGeneration({
+            promptId: currentPromptId,
             prompt: previewText,
             imageUrl: String(data.imageUrl),
             provider: typeof data.provider === "string" ? data.provider : "unknown",

@@ -1,6 +1,16 @@
 /**
  * Authentication & Authorization System
- * Wallet-based authentication with signature verification
+ * Wallet-based authentication with signature verification + session tokens.
+ *
+ * Preferred auth flow:
+ *   1. Client calls /api/auth/nonce → gets nonce.
+ *   2. Client signs message containing wallet + timestamp + nonce.
+ *   3. Client calls POST /api/auth/session → server verifies sig + consumes nonce → returns sessionToken.
+ *   4. Client sends X-Session-Token header on all subsequent authenticated requests.
+ *
+ * Legacy fallback (for backward compatibility):
+ *   - X-Wallet-Address + X-Wallet-Signature + X-Auth-Message + X-Timestamp + X-Wallet-Nonce
+ *   - Nonce is consumed on first use; timestamp must be within 10 min.
  */
 
 import { NextRequest } from 'next/server';
@@ -49,7 +59,7 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     throw new Error('Invalid authentication timestamp');
   }
   const currentTime = Date.now();
-  const timeWindow = 5 * 60 * 1000; // 5 minutes
+  const timeWindow = 10 * 60 * 1000; // 10 minutes (allows for clock skew + latency)
   if (Math.abs(currentTime - requestTime) > timeWindow) {
     throw new Error('Authentication timestamp expired');
   }
@@ -185,9 +195,40 @@ export function createAuthHeaders(
 }
 
 /**
- * Middleware helper to require authentication
+ * Resolve a session token to an authenticated user.
+ * Returns null if the token is missing, expired, or unknown.
+ */
+async function resolveSessionToken(token: string): Promise<AuthenticatedUser | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('auth_sessions')
+    .select('wallet_address, wallet_type, expires_at')
+    .eq('token', token)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    walletAddress: data.wallet_address,
+    userId: data.wallet_address,
+  };
+}
+
+/**
+ * Middleware helper to require authentication.
+ *
+ * Checks X-Session-Token first (preferred, issued by /api/auth/session).
+ * Falls back to full wallet-signature verification for backward compatibility.
  */
 export async function requireAuth(request: NextRequest): Promise<AuthenticatedUser> {
+  const sessionToken = request.headers.get('X-Session-Token');
+  if (sessionToken) {
+    const user = await resolveSessionToken(sessionToken);
+    if (user) return user;
+    throw new Error('Authentication failed: Invalid or expired session token');
+  }
+
   try {
     return await authenticateUser(request);
   } catch (error) {
@@ -213,10 +254,10 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
 export async function verifyPromptOwnership(
   promptId: string,
   userId: string,
-  storage: any
+  storage: { getPrompt: (id: string) => Promise<{ userId?: string; artistId?: string } | null> }
 ): Promise<boolean> {
   const prompt = await storage.getPrompt(promptId);
-  return prompt && (prompt.userId === userId || prompt.artistId === userId);
+  return !!prompt && (prompt.userId === userId || prompt.artistId === userId);
 }
 
 /**

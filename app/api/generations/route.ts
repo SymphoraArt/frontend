@@ -1,209 +1,339 @@
-// app/api/generations/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { substituteVariables } from "@/backend/services/variable-substitution";
-import { encryptPrompt } from "@/backend/encryption";
-import {
-  createGenerationSchema,
-  getGenerationsQuerySchema,
-  validateBody,
-  validateQuery,
-  createErrorResponse,
-  createSuccessResponse
-} from "../../middleware/validation";
+import { requireAuth } from "@/lib/auth";
+import { encryptString } from "@/lib/crypto";
 
-export async function GET(req: Request) {
+export const runtime = "nodejs";
+
+const ALLOWED_PROVIDERS = new Set(["gemini", "pollinations", "grok", "nano-banana"]);
+
+type CreateGenerationBody = {
+  promptId?: string | null;
+  sourcePromptId?: string | null;
+  prompt?: string;
+  finalPrompt?: string;
+  encryptedPrompt?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
+  provider?: string;
+  model?: string;
+  meta?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  variableValues?: unknown;
+  settings?: Record<string, unknown>;
+  transactionHash?: string | null;
+};
+
+type GenerationRow = Record<string, unknown>;
+
+function isUuid(value: string | null | undefined) {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function getImageUrl(row: GenerationRow) {
+  if (typeof row.storage_url === "string" && row.storage_url) return row.storage_url;
+  if (typeof row.image_url === "string" && row.image_url) return row.image_url;
+  if (typeof row.public_url === "string" && row.public_url) return row.public_url;
+  if (Array.isArray(row.image_urls) && row.image_urls[0]) return String(row.image_urls[0]);
+  return "";
+}
+
+function mapGeneration(row: GenerationRow) {
+  const imageUrl = getImageUrl(row);
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    prompt_id: row.prompt_id ?? row.source_prompt_id ?? null,
+    generation_id: row.generation_id,
+    status: row.status,
+    image_url: imageUrl,
+    image_urls: Array.isArray(row.image_urls) ? row.image_urls : imageUrl ? [imageUrl] : [],
+    settings: row.settings ?? row.metadata ?? {},
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    completed_at: row.completed_at,
+  };
+}
+
+async function ensureUserIdForWallet(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  walletAddress: string
+): Promise<string | null> {
+  const normalizedWallet = walletAddress.toLowerCase();
+  const { data, error } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", normalizedWallet)
+    .is("removed_at", null)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to resolve wallet user:", error);
+    return null;
+  }
+
+  if (typeof data?.user_id === "string") return data.user_id;
+
+  const userInsert = await supabase
+    .from("users")
+    .insert({})
+    .select("id")
+    .single();
+
+  if (userInsert.error || !userInsert.data?.id) {
+    console.error("Failed to create wallet user:", userInsert.error);
+    return null;
+  }
+
+  const walletInsert = await supabase.from("user_wallets").insert({
+    user_id: userInsert.data.id,
+    address: normalizedWallet,
+    chain_family: "evm",
+    wallet_type: "external_eoa",
+    is_primary: true,
+  });
+
+  if (!walletInsert.error) return userInsert.data.id;
+
+  if (walletInsert.error.code === "23505") {
+    const retry = await supabase
+      .from("user_wallets")
+      .select("user_id")
+      .eq("address", normalizedWallet)
+      .is("removed_at", null)
+      .maybeSingle();
+    return typeof retry.data?.user_id === "string" ? retry.data.user_id : null;
+  }
+
+  console.error("Failed to link wallet user:", walletInsert.error);
+  return null;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    const authUser = await requireAuth(req);
     const { searchParams } = new URL(req.url);
+    const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 100);
+    const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
+    const promptId = searchParams.get("promptId") || searchParams.get("sourcePromptId");
 
-    // Validate query parameters
-    const queryValidation = validateQuery(getGenerationsQuerySchema, searchParams);
-    if (!queryValidation.success) {
-      const errorMessages = queryValidation.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`);
-      return createErrorResponse('Invalid query parameters', 400, errorMessages);
-    }
-
-    const { limit = 50, offset = 0 } = queryValidation.data;
-    // Support both userKey (legacy) and userId
-    const userId = searchParams.get("userId") || searchParams.get("userKey");
-
-    if (!userId) {
-      return createErrorResponse('userId or userKey is required', 400);
+    if (promptId && !isUuid(promptId)) {
+      return NextResponse.json({ error: "Invalid promptId" }, { status: 400 });
     }
 
     const supabase = getSupabaseServerClient();
-    const { data, error, count } = await supabase
-      .from("generations")
-      .select("*", { count: 'exact' })
-      .eq("user_id", userId)
+    const userId = await ensureUserIdForWallet(supabase, authUser.walletAddress);
+    if (!userId) {
+      return NextResponse.json({ error: "Authenticated wallet is not linked to a user" }, { status: 403 });
+    }
+
+    const imageQuery = supabase
+      .from("generated_images")
+      .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (error) {
-      console.error('Database error:', error);
-      return createErrorResponse('Failed to fetch generations', 500, error.message);
+    imageQuery.eq("user_id", userId);
+    if (promptId) imageQuery.eq("prompt_id", promptId);
+
+    const imageResult = await imageQuery;
+    if (!imageResult.error) {
+      const generations = (imageResult.data || []).map((row) => mapGeneration(row as GenerationRow));
+      return NextResponse.json({
+        generations,
+        items: generations,
+        total: imageResult.count || 0,
+        limit,
+        offset,
+        source: "generated_images",
+      });
     }
 
-    return createSuccessResponse({
-      generations: Array.isArray(data) ? data : [],
+    const generationQuery = supabase
+      .from("generations")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    generationQuery.eq("user_id", userId);
+    if (promptId) generationQuery.eq("prompt_id", promptId);
+
+    const { data, error, count } = await generationQuery;
+    if (error) {
+      console.error("Failed to fetch generations:", {
+        generatedImagesError: imageResult.error.message,
+        generationsError: error.message,
+      });
+      return NextResponse.json({ error: "Failed to fetch generations" }, { status: 500 });
+    }
+
+    const generations = (data || []).map((row) => mapGeneration(row as GenerationRow));
+    return NextResponse.json({
+      generations,
+      items: generations,
       total: count || 0,
       limit,
-      offset
+      offset,
+      source: "generations",
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error('Error fetching generations:', message);
-    return createErrorResponse('Internal server error', 500);
+    if (message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("Error fetching generations:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const authUser = await requireAuth(req);
+    const body = (await req.json()) as CreateGenerationBody;
+    const promptText = String(body.prompt || body.finalPrompt || body.encryptedPrompt || "").trim();
+    const imageUrls = Array.isArray(body.imageUrls)
+      ? body.imageUrls.filter((url): url is string => typeof url === "string" && url.length > 0)
+      : typeof body.imageUrl === "string" && body.imageUrl
+        ? [body.imageUrl]
+        : [];
 
-    // Validate request body
-    const validation = validateBody(createGenerationSchema, body);
-    if (!validation.success) {
-      const errorMessages = validation.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`);
-      return createErrorResponse('Validation failed', 400, errorMessages);
+    if (!promptText && imageUrls.length === 0) {
+      return NextResponse.json({ error: "prompt or imageUrl is required" }, { status: 400 });
     }
 
-    const {
-      userId,
-      promptId,
-      encryptedPrompt,
-      variableValues,
-      settings,
-      transactionHash
-    } = validation.data;
+    const nowIso = new Date().toISOString();
+    const promptId = body.promptId || body.sourcePromptId || null;
+    if (!promptId) {
+      return NextResponse.json({ error: "promptId is required for secure generation persistence" }, { status: 400 });
+    }
 
-    // 2. Substitute variables
-    const substitution = await substituteVariables(
-      encryptedPrompt,
-      variableValues,
-      [] // TODO: Fetch variable definitions from prompts table when available
+    if (!isUuid(promptId)) {
+      return NextResponse.json({ error: "Invalid promptId" }, { status: 400 });
+    }
+
+    const supabase = getSupabaseServerClient();
+    const userId = await ensureUserIdForWallet(supabase, authUser.walletAddress);
+    if (!userId) {
+      return NextResponse.json({ error: "Authenticated wallet is not linked to a user" }, { status: 403 });
+    }
+
+    const encryptedPrompt = encryptString(promptText, `generation:${userId}:${promptId}`);
+    const encryptedVariables = encryptString(
+      JSON.stringify(Array.isArray(body.variableValues) ? body.variableValues : []),
+      `generation:variables:${userId}:${promptId}`
     );
-
-    if (!substitution.success) {
-      return createErrorResponse('Variable substitution failed', 400, substitution.errors);
-    }
-
-    // 3. Encrypt final prompt for storage
-    const encryptedFinalPrompt = encryptPrompt(substitution.finalPrompt!);
-
-    // 4. Prepare generation data
-    const generationData = {
-      user_id: userId,
-      prompt_id: promptId,
-      final_prompt: encryptedFinalPrompt.encryptedContent,
-      variable_values: variableValues,
-      settings: settings,
-      transaction_hash: transactionHash || null,
-      payment_verified: !transactionHash, // For now, assume free if no transaction hash
-      amount_paid: null, // TODO: Get from prompt price when payment verification is implemented
-      status: 'payment_verified', // TODO: Implement proper payment verification flow
-      image_urls: [],
+    const provider = typeof body.provider === "string" && ALLOWED_PROVIDERS.has(body.provider)
+      ? body.provider
+      : null;
+    const settings = {
+      ...(body.settings || {}),
+      provider,
+      model: body.model || body.settings?.model || null,
+      metadata: body.metadata || body.meta || {},
     };
 
-    // 5. Store in database
-    const supabase = getSupabaseServerClient();
+    const generationRow = {
+      user_id: userId,
+      prompt_id: promptId,
+      final_prompt_ct: encryptedPrompt.encrypted,
+      final_prompt_iv: encryptedPrompt.iv,
+      final_prompt_tag: encryptedPrompt.authTag,
+      final_prompt_kid: encryptedPrompt.kid || "field-v1",
+      variable_values_ct: encryptedVariables.encrypted,
+      variable_values_iv: encryptedVariables.iv,
+      variable_values_tag: encryptedVariables.authTag,
+      variable_values_kid: encryptedVariables.kid || "field-v1",
+      aspect_ratio: typeof body.settings?.aspectRatio === "string" ? body.settings.aspectRatio : null,
+      resolution: typeof body.settings?.resolution === "string" ? body.settings.resolution : null,
+      provider,
+      provider_model: typeof settings.model === "string" ? settings.model : null,
+      transaction_hash: body.transactionHash || null,
+      created_at: nowIso,
+    };
+
     const { data, error } = await supabase
-      .from('generations')
-      .insert([generationData])
-      .select('id, user_id, prompt_id, status, created_at')
+      .from("generations")
+      .insert([generationRow])
+      .select("*")
       .single();
 
     if (error) {
-      console.error('Database error:', error);
-      return createErrorResponse('Failed to create generation', 500, error.message);
+      console.error("Failed to save generation:", error);
+      return NextResponse.json({ error: "Failed to save generation" }, { status: 500 });
     }
 
-    // 6. Trigger async processing for payment-verified generations
-    if (validation.data.transactionHash) {
-      // For now, assume payment verification is handled elsewhere
-      // TODO: Integrate with payment verification service (Phase 2C)
-      console.log(`💳 Generation ${data.id} created with transaction hash: ${validation.data.transactionHash}`);
+    if (imageUrls.length && data?.id) {
+      const imageRows = imageUrls.map((url, index) => ({
+        user_id: userId,
+        prompt_id: promptId,
+        generation_id: data.id,
+        sequence_index: index,
+        storage_provider: url.startsWith("data:") ? "data_url" : "vercel_blob",
+        storage_url: url,
+        mime_type: "image/png",
+        is_uploaded: false,
+        visibility: "private",
+        created_at: nowIso,
+      }));
 
-      // Mark as payment verified for now (will be replaced with real verification)
-      await supabase
-        .from('generations')
-        .update({
-          payment_verified: true,
-          status: 'payment_verified',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.id);
-
-      console.log(`✅ Marked generation ${data.id} as payment verified`);
-    } else {
-      // Free generation - mark as payment verified and trigger processing
-      console.log(`🆓 Free generation ${data.id} - marking as payment verified`);
-      await supabase
-        .from('generations')
-        .update({
-          payment_verified: true,
-          status: 'payment_verified',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.id);
+      const imageInsert = await supabase.from("generated_images").insert(imageRows).select("*");
+      if (imageInsert.error) {
+        console.error("Failed to save generated images:", imageInsert.error);
+        await supabase
+          .from("generations")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", data.id)
+          .eq("user_id", userId);
+        return NextResponse.json({ error: "Failed to save generated images" }, { status: 500 });
+      }
     }
 
-    // 7. Trigger background processing asynchronously
-    // This will be picked up by the generation worker
-    console.log(`🚀 Generation ${data.id} ready for background processing`);
-
-    // 7. Return generation ID and status
-    return createSuccessResponse({
-      success: true,
-      generationId: data.id,
-      status: data.status,
-      message: 'Generation created and variables substituted successfully'
-    }, 201);
-
+    return NextResponse.json(
+      {
+        success: true,
+        generationId: data.id,
+        generation: mapGeneration(data as GenerationRow),
+      },
+      { status: 201 }
+    );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error('Generation creation error:', message);
-    return createErrorResponse('Internal server error', 500);
+    if (message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("Generation save error:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// Get generation statistics
-export async function GET_STATS(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
     const supabase = getSupabaseServerClient();
+    const authUser = await requireAuth(req);
+    const userId = await ensureUserIdForWallet(supabase, authUser.walletAddress);
+    if (!userId) {
+      return NextResponse.json({ error: "Authenticated wallet is not linked to a user" }, { status: 403 });
+    }
 
-    const { data, error } = await supabase
-      .from('generations')
-      .select('id, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(1000);
+    await supabase.from("generated_images").delete().eq("user_id", userId);
+    const { error } = await supabase
+      .from("generations")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("deleted_at", null);
 
-    if (error) throw error;
+    if (error) {
+      return NextResponse.json({ error: "Failed to clear generations" }, { status: 500 });
+    }
 
-    const stats = {
-      total: data.length,
-      byStatus: {
-        pending: data.filter(g => g.status === 'pending').length,
-        payment_verified: data.filter(g => g.status === 'payment_verified').length,
-        generating: data.filter(g => g.status === 'generating').length,
-        completed: data.filter(g => g.status === 'completed').length,
-        failed: data.filter(g => g.status === 'failed').length,
-      },
-      recentActivity: data.slice(0, 10).map(g => ({
-        id: g.id,
-        status: g.status,
-        createdAt: g.created_at
-      }))
-    };
-
-    return createSuccessResponse(stats);
-  } catch (error: any) {
-    console.error('Error fetching generation stats:', error);
-    return createErrorResponse('Failed to fetch statistics', 500);
+    return NextResponse.json({ success: true });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (message.startsWith("Authentication failed")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("Generation clear error:", message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
-
-// Legacy support - redirect old API calls
-export async function DELETE(req: Request) {
-  return createErrorResponse("DELETE method not supported for enhanced generations API", 405);
 }

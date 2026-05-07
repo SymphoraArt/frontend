@@ -2,7 +2,7 @@
 
 import Navbar from "@/components/Navbar";
 import { useActiveAccount } from "thirdweb/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   clearCreations,
   getUserKeyFromAccount,
@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ConnectWallet";
+import { createAuthHeaders, generateAuthMessage } from "@/lib/auth";
 
 type SupabaseGeneration = {
   id: string;
@@ -22,21 +23,41 @@ type SupabaseGeneration = {
   final_prompt?: string | null;
   settings?: {
     origin?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   status?: string;
   created_at: string;
+};
+
+type GalleryCreation = StoredCreation & {
+  isUploaded?: boolean;
 };
 
 export default function MyGalleryPage() {
   const account = useActiveAccount();
   const authenticated = !!account;
   const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
-  const [items, setItems] = useState<StoredCreation[]>([]);
+  const [items, setItems] = useState<GalleryCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [mediaFilter, setMediaFilter] = useState<"all" | "images" | "videos">("all");
+
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    if (!account?.address) throw new Error("Wallet not connected");
+    const nonceResponse = await fetch("/api/auth/nonce", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: account.address, walletType: "evm" }),
+    });
+    const nonceResult = await nonceResponse.json().catch(() => ({}));
+    if (!nonceResponse.ok || typeof nonceResult.nonce !== "string") {
+      throw new Error(nonceResult.error || "Failed to get authentication nonce");
+    }
+    const { message, timestamp } = generateAuthMessage(account.address, nonceResult.nonce);
+    const signature = await account.signMessage({ message });
+    return createAuthHeaders(account.address, signature, message, timestamp, nonceResult.nonce);
+  }, [account]);
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -50,7 +71,7 @@ export default function MyGalleryPage() {
 
   useEffect(() => {
     if (!userKey) {
-      setItems([]);
+      queueMicrotask(() => setItems([]));
       return;
     }
 
@@ -60,7 +81,8 @@ export default function MyGalleryPage() {
       setIsLoading(true);
       setFetchError(null);
       try {
-        const res = await fetch(`/api/generations?userKey=${encodeURIComponent(userKey)}`);
+        const authHeaders = await getAuthHeaders();
+        const res = await fetch("/api/generations", { headers: authHeaders });
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           throw new Error(errBody.error || `Server responded with ${res.status}`);
@@ -68,16 +90,16 @@ export default function MyGalleryPage() {
         const json = (await res.json()) as { generations?: SupabaseGeneration[] };
         const generations = Array.isArray(json.generations) 
           ? json.generations 
-          : Array.isArray((json as any).items) 
-            ? (json as any).items 
+          : Array.isArray((json as { items?: unknown }).items) 
+            ? ((json as { items: SupabaseGeneration[] }).items) 
             : [];
         
-        const mapped: StoredCreation[] = generations.map((g: SupabaseGeneration) => {
+        const mapped: GalleryCreation[] = generations.map((g: SupabaseGeneration) => {
           const imageUrl = g.image_urls && g.image_urls.length > 0
             ? g.image_urls[0]
             : g.image_url || "";
           
-          const prompt = g.final_prompt || (g as any).prompt || "";
+          const prompt = g.final_prompt || "";
           
           return {
             id: String(g.id),
@@ -110,12 +132,13 @@ export default function MyGalleryPage() {
       cancelled = true;
       unsub();
     };
-  }, [userKey, refreshTrigger]);
+  }, [getAuthHeaders, userKey, refreshTrigger]);
 
   const handleClear = async () => {
     if (!userKey) return;
     try {
-      await fetch(`/api/generations?userKey=${encodeURIComponent(userKey)}`, { method: "DELETE" });
+      const authHeaders = await getAuthHeaders();
+      await fetch("/api/generations", { method: "DELETE", headers: authHeaders });
     } catch {
       // ignore
     }
@@ -125,7 +148,8 @@ export default function MyGalleryPage() {
   const handleRemove = async (id: string) => {
     if (!userKey) return;
     try {
-      await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const authHeaders = await getAuthHeaders();
+      await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders });
     } catch {
       // ignore
     }
@@ -234,10 +258,10 @@ export default function MyGalleryPage() {
                 <div className="aspect-[4/3] bg-muted relative">
                   <img
                     src={c.imageUrl}
-                    alt={(c as any).isUploaded ? "Uploaded" : "Generated"}
+                    alt={c.isUploaded ? "Uploaded" : "Generated"}
                     className="w-full h-full object-cover"
                   />
-                  {(c as any).isUploaded && (
+                  {c.isUploaded && (
                     <div className="absolute top-2 left-2">
                       <span className="text-xs bg-blue-500/80 text-white px-2 py-1 rounded">
                         Uploaded

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiKeyStamper } from "@turnkey/api-key-stamper";
 import { TurnkeyBrowserClient } from "@turnkey/sdk-browser";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
 import { generateKeyPairSync, randomBytes } from "crypto";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -36,6 +37,13 @@ function generateEphemeralPublicKeyHex(): string {
 }
 
 export async function POST(req: NextRequest) {
+  let authUser;
+  try {
+    authUser = await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let otpId: string, otpCode: string;
   try {
     ({ otpId, otpCode } = await req.json());
@@ -90,6 +98,7 @@ export async function POST(req: NextRequest) {
   const { error } = await supabase.from("delete_confirm_tokens").insert({
     token,
     user_email: userEmail,
+    wallet_address: authUser.walletAddress.toLowerCase(),
     expires_at: expiresAt,
   });
 

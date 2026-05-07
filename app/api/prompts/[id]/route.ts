@@ -189,14 +189,26 @@ export async function DELETE(
     .from("delete_confirm_tokens")
     .select("id, expires_at, used")
     .eq("token", deleteToken)
+    .eq("wallet_address", authUser.walletAddress.toLowerCase())
+    .eq("used", false)
     .maybeSingle();
 
-  if (!tokenRow || tokenRow.used || new Date(tokenRow.expires_at) < new Date()) {
+  if (!tokenRow || new Date(tokenRow.expires_at) < new Date()) {
     return NextResponse.json({ error: "Invalid or expired 2FA token" }, { status: 401 });
   }
 
   // Consume token atomically
-  await supabase.from("delete_confirm_tokens").update({ used: true }).eq("id", tokenRow.id);
+  const { data: consumedToken, error: consumeError } = await supabase
+    .from("delete_confirm_tokens")
+    .update({ used: true, used_at: new Date().toISOString() })
+    .eq("id", tokenRow.id)
+    .eq("used", false)
+    .select("id")
+    .maybeSingle();
+
+  if (consumeError || !consumedToken) {
+    return NextResponse.json({ error: "Invalid or expired 2FA token" }, { status: 401 });
+  }
 
   try {
     await supabase.from("prompts").delete().eq("id", id);

@@ -1,11 +1,16 @@
 /**
- * Client-side authentication hook
- * Handles wallet connection and signature-based authentication
+ * EVM wallet authentication hook (Thirdweb).
+ *
+ * Flow:
+ *  1. Request nonce from /api/auth/nonce
+ *  2. Sign auth message with connected wallet
+ *  3. Exchange signature for session token via /api/auth/session
+ *  4. Store session token; send X-Session-Token on every authenticated request
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { generateAuthMessage, createAuthHeaders } from '@/lib/auth';
+import { generateAuthMessage } from '@/lib/auth';
 import { AUTH_STORAGE_KEY } from '@/shared/app-config';
 
 export interface AuthState {
@@ -13,6 +18,32 @@ export interface AuthState {
   walletAddress: string | null;
   isLoading: boolean;
   error: string | null;
+}
+
+type StoredSession = {
+  walletAddress: string;
+  sessionToken: string;
+  expiresAt: string;
+};
+
+function loadStoredSession(walletAddress: string): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    if (
+      parsed.walletAddress?.toLowerCase() === walletAddress.toLowerCase() &&
+      parsed.sessionToken &&
+      new Date(parsed.expiresAt).getTime() - Date.now() > 60_000
+    ) {
+      return parsed;
+    }
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    return null;
+  } catch {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    return null;
+  }
 }
 
 export function useAuth() {
@@ -25,150 +56,109 @@ export function useAuth() {
     error: null,
   });
 
-  // Check if user is already authenticated (from localStorage)
+  // Restore session from localStorage when wallet address is known.
   useEffect(() => {
-    const checkExistingAuth = () => {
-      try {
-        const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-        if (storedAuth) {
-          const { walletAddress, timestamp, signature } = JSON.parse(storedAuth);
-
-          // Check if signature is still valid (within 24 hours)
-          const authTime = new Date(timestamp).getTime();
-          const now = Date.now();
-          const expiryTime = 24 * 60 * 60 * 1000; // 24 hours
-
-          if (now - authTime < expiryTime && walletAddress && signature) {
-            setAuthState({
-              isAuthenticated: true,
-              walletAddress,
-              isLoading: false,
-              error: null,
-            });
-            return;
-          } else {
-            // Clear expired auth
-            localStorage.removeItem(AUTH_STORAGE_KEY);
-          }
-        }
-      } catch (error) {
-        console.warn('Error checking existing auth:', error);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-      }
-    };
-
-    checkExistingAuth();
-  }, []);
-
-  // Auto-authenticate when wallet connects
-  useEffect(() => {
-    if (account?.address && !authState.isAuthenticated && !authState.isLoading) {
-      authenticate();
+    if (!account?.address) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAuthState(s => ({ ...s, isAuthenticated: false, walletAddress: null }));
+      return;
     }
+    const stored = loadStoredSession(account.address);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAuthState(s => ({
+      ...s,
+      isAuthenticated: !!stored,
+      walletAddress: stored?.walletAddress ?? account.address,
+    }));
   }, [account?.address]);
 
   const authenticate = useCallback(async (): Promise<boolean> => {
     if (!account?.address) {
-      setAuthState(prev => ({
-        ...prev,
-        error: 'Wallet not connected',
-      }));
+      setAuthState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return false;
     }
 
-    setAuthState(prev => ({
-      ...prev,
-      isLoading: true,
-      error: null,
-    }));
+    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const nonceResponse = await fetch('/api/auth/nonce', {
+      // Step 1: Get nonce
+      const nonceRes = await fetch('/api/auth/nonce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: account.address, walletType: 'evm' }),
       });
-      if (!nonceResponse.ok) {
-        const errorData = await nonceResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to get authentication nonce');
+      if (!nonceRes.ok) {
+        const err = await nonceRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || 'Failed to get nonce');
       }
-      const { nonce } = await nonceResponse.json();
-      if (typeof nonce !== 'string' || !nonce) {
-        throw new Error('Invalid authentication nonce');
-      }
+      const { nonce } = await nonceRes.json() as { nonce: string };
+      if (!nonce) throw new Error('Invalid nonce from server');
 
-      // Generate authentication message
+      // Step 2: Sign message
       const { message, timestamp } = generateAuthMessage(account.address, nonce);
-
-      // Sign the message
-      if (!account) {
-        throw new Error('No account connected');
-      }
       const signature = await account.signMessage({ message });
 
-      // Store authentication data
-      const authData = {
-        walletAddress: account.address,
-        signature,
-        message,
-        timestamp,
-        nonce,
-      };
-
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authData));
-
-      setAuthState({
-        isAuthenticated: true,
-        walletAddress: account.address,
-        isLoading: false,
-        error: null,
+      // Step 3: Exchange for session token
+      const sessionRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: account.address,
+          walletType: 'evm',
+          signature,
+          message,
+          timestamp,
+          nonce,
+        }),
       });
+      if (!sessionRes.ok) {
+        const err = await sessionRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || 'Session creation failed');
+      }
+      const { sessionToken, expiresAt } = await sessionRes.json() as { sessionToken: string; expiresAt: string };
 
+      const stored: StoredSession = {
+        walletAddress: account.address.toLowerCase(),
+        sessionToken,
+        expiresAt,
+      };
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored));
+
+      setAuthState({ isAuthenticated: true, walletAddress: stored.walletAddress, isLoading: false, error: null });
       return true;
     } catch (error) {
-      console.error('Authentication failed:', error);
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Authentication failed',
-      }));
+      const message = error instanceof Error ? error.message : 'Authentication failed';
+      setAuthState(prev => ({ ...prev, isLoading: false, error: message }));
       return false;
     }
   }, [account]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (raw) {
+      const { sessionToken } = JSON.parse(raw) as StoredSession;
+      await fetch('/api/auth/session', {
+        method: 'DELETE',
+        headers: { 'X-Session-Token': sessionToken },
+      }).catch(() => {});
+    }
     localStorage.removeItem(AUTH_STORAGE_KEY);
-    setAuthState({
-      isAuthenticated: false,
-      walletAddress: null,
-      isLoading: false,
-      error: null,
-    });
+    setAuthState({ isAuthenticated: false, walletAddress: null, isLoading: false, error: null });
   }, []);
 
   const getAuthHeaders = useCallback((): Record<string, string> | null => {
-    try {
-      const storedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!storedAuth) return null;
+    if (!account?.address) return null;
+    const stored = loadStoredSession(account.address);
+    if (!stored) return null;
+    return { 'X-Session-Token': stored.sessionToken };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
 
-      const { walletAddress, signature, message, timestamp, nonce } = JSON.parse(storedAuth);
-      return createAuthHeaders(walletAddress, signature, message, timestamp, nonce);
-    } catch (error) {
-      console.warn('Error getting auth headers:', error);
-      return null;
-    }
-  }, []);
-
-  return {
-    ...authState,
-    authenticate,
-    logout,
-    getAuthHeaders,
-  };
+  return { ...authState, authenticate, logout, getAuthHeaders };
 }
 
 /**
- * Hook for making authenticated API requests
+ * Hook for making authenticated API requests.
  */
 export function useAuthenticatedFetch() {
   const { getAuthHeaders, isAuthenticated } = useAuth();
@@ -177,24 +167,15 @@ export function useAuthenticatedFetch() {
     url: string,
     options: RequestInit = {}
   ): Promise<Response> => {
-    if (!isAuthenticated) {
-      throw new Error('User not authenticated');
-    }
+    if (!isAuthenticated) throw new Error('User not authenticated');
 
     const authHeaders = getAuthHeaders();
-    if (!authHeaders) {
-      throw new Error('Authentication headers not available');
-    }
+    if (!authHeaders) throw new Error('Authentication headers not available');
 
     const headers = new Headers(options.headers);
-    Object.entries(authHeaders).forEach(([key, value]) => {
-      headers.set(key, value);
-    });
+    Object.entries(authHeaders).forEach(([key, value]) => headers.set(key, value));
 
-    return fetch(url, {
-      ...options,
-      headers,
-    });
+    return fetch(url, { ...options, headers });
   }, [getAuthHeaders, isAuthenticated]);
 
   return { authenticatedFetch, isAuthenticated };

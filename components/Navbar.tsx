@@ -101,21 +101,6 @@ export default function Navbar({
   const shortAddress = walletInfo.shortAddress;
   const walletDescription = walletInfo.description;
 
-  // #region agent log
-  if (typeof window !== 'undefined' && wallet && authenticated) {
-    (async () => {
-      try {
-        let eoaAddress = null;
-        try {
-          const walletAccount = await wallet.getAccount();
-          eoaAddress = walletAccount?.address || null;
-        } catch (e) {}
-        fetch('http://127.0.0.1:7245/ingest/09072fc2-e9a8-4b0b-9748-5e9d2e8abc2b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Navbar.tsx:wallet-address',message:'Navbar displaying wallet address',data:{displayedAddress:walletAddress,walletEOA:eoaAddress,walletId:wallet.id,addressesMatch:walletAddress===eoaAddress,isSmartAccount:walletAddress!==eoaAddress},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      } catch (e) {}
-    })();
-  }
-  // #endregion
-
   // Copy address to clipboard
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -215,7 +200,7 @@ export default function Navbar({
                 )}
               </Button>
               
-              {/* Chain Switcher - Only show when wallet is connected */}
+              {/* Chain Switcher - Only show when EVM wallet is connected */}
               {authenticated && <ChainSwitcher />}
               
               <div className="flex gap-2">
@@ -374,14 +359,13 @@ export default function Navbar({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <div className="px-2 py-1.5">
-                          <div className="w-full [&_.connect-wallet-button]:w-full [&_.connect-wallet-button]:justify-center [&_.connect-wallet-button]:min-h-9 [&_.connect-wallet-button]:text-sm">
-                            <ConnectWallet />
-                          </div>
+                          <ConnectWallet />
                         </div>
                       </>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+
               </div>
             </div>
           </div>

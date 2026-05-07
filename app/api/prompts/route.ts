@@ -29,7 +29,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("prompts")
-      .select("id,title,created_at,category,tags,price,ai_model,is_free_showcase")
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -38,16 +38,19 @@ export async function GET() {
       throw error;
     }
 
-    const items: PromptListItem[] = (Array.isArray(data) ? data : []).map((d) => ({
-      id: String(d.id ?? ""),
-      title: String(d.title ?? ""),
-      createdAt: typeof d.created_at === "string" ? d.created_at : undefined,
-      category: typeof d.category === "string" ? d.category : undefined,
-      tags: Array.isArray(d.tags) ? (d.tags as string[]) : undefined,
-      price: typeof d.price === "number" ? d.price : undefined,
-      aiModel: typeof d.ai_model === "string" ? d.ai_model : undefined,
-      isFreeShowcase: Boolean(d.is_free_showcase ?? false),
-    }));
+    const items: PromptListItem[] = (Array.isArray(data) ? data : []).map((d) => {
+      const priceVal = d.price ?? d.price_per_generation ?? d.price_usd_cents ?? null;
+      return {
+        id: String(d.id ?? ""),
+        title: String(d.title ?? ""),
+        createdAt: typeof d.created_at === "string" ? d.created_at : undefined,
+        category: typeof d.category === "string" ? d.category : undefined,
+        tags: Array.isArray(d.tags) ? (d.tags as string[]) : undefined,
+        price: typeof priceVal === "number" ? priceVal : undefined,
+        aiModel: typeof d.ai_model === "string" ? d.ai_model : undefined,
+        isFreeShowcase: Boolean(d.is_free_showcase ?? false),
+      };
+    });
 
     return NextResponse.json(items);
   } catch (e: unknown) {

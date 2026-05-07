@@ -11,12 +11,60 @@ import {
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
 
+async function uploadBuffers(buffers: Buffer[]): Promise<string[]> {
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const urls: string[] = [];
+  for (const buf of buffers) {
+    try {
+      if (blobToken) {
+        const { put } = await import("@vercel/blob");
+        const filename = `generations/${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+        const { url } = await put(filename, buf, { access: "public", contentType: "image/png", addRandomSuffix: false });
+        urls.push(url);
+      } else {
+        urls.push(`data:image/png;base64,${buf.toString("base64")}`);
+      }
+    } catch {
+      urls.push(`data:image/png;base64,${buf.toString("base64")}`);
+    }
+  }
+  return urls;
+}
+
+const PLATFORM_FEE_RATE = 0.1; // 10 % added on top of raw API cost
+const MAX_QUANTITY = 4;
+
+// Raw API generation cost per image (before platform fee), by resolution
+const API_COST_PER_IMAGE: Record<string, number> = {
+  '1K': 0.05,
+  '2K': 0.09,
+  '4K': 0.23,
+};
+
+/** Total price per image = API cost * (1 + platform fee) */
+function pricePerImage(resolution: string): number {
+  const cost = API_COST_PER_IMAGE[resolution] ?? API_COST_PER_IMAGE['2K'];
+  return parseFloat((cost * (1 + PLATFORM_FEE_RATE)).toFixed(4));
+}
+
+/** Total price for a batch = pricePerImage * quantity, formatted as "$X.XX" */
+function totalPriceString(resolution: string, quantity: number): string {
+  return `$${(pricePerImage(resolution) * quantity).toFixed(2)}`;
+}
+
 type GenerateImageBody = {
   prompt?: string;
   aspectRatio?: string;
   resolution?: string;
-  useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
+  quantity?: number;          // 1–4 images per request (default: 1)
+  useUptoPayment?: boolean;   // Enable upto payment scheme for dynamic pricing
 };
+
+function redactIdentifier(value?: string | null, prefix = 8, suffix = 6): string | undefined {
+  if (!value) return undefined;
+  if (value.length <= prefix + suffix) return "[redacted]";
+  return `${value.slice(0, prefix)}...${value.slice(-suffix)}`;
+}
 
 /**
  * Enhance prompt using Gemini API and track token usage
@@ -75,11 +123,11 @@ async function enhancePromptWithGemini(prompt: string): Promise<{
       totalTokenCount?: number;
     };
   };
-  
+
   const data = (await res.json()) as GeminiResponse;
   const text: unknown = data.candidates?.[0]?.content?.parts?.[0]?.text;
   const enhancedPrompt = typeof text === "string" && text.trim() ? text.trim() : prompt;
-  
+
   // Extract token usage
   const usage = data.usageMetadata || {};
   const inputTokens = usage.promptTokenCount || 0;
@@ -108,6 +156,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
+    const quantity = Math.min(Math.max(Math.round(Number(body.quantity) || 1), 1), MAX_QUANTITY);
+    const resolution = body.resolution || '2K';
+
     const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
     if (!serverWalletAddress) {
       return NextResponse.json(
@@ -118,16 +169,16 @@ export async function POST(request: NextRequest) {
 
     // Construct full URL for X402 payment (requires absolute URL)
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    
+
     if (!baseUrl) {
       const protocol = requestUrl.protocol || 'http:';
       const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
       baseUrl = `${protocol}//${host}`;
     }
-    
+
     baseUrl = baseUrl.replace(/\/$/, '');
     const resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
-    
+
     // Validate URL format
     try {
       const testUrl = new URL(resourceUrl);
@@ -142,23 +193,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Pricing: (API cost per image + 10% platform fee) * quantity
+    const basePrice = totalPriceString(resolution, quantity);
+
     // Determine if we should use upto payment scheme
-    // Use upto if: Gemini is enabled AND user requested it OR it's the default
-    // Check for both GEMINI_API_KEY and GOOGLE_GEMINI_API_KEY for compatibility
     const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY);
     const useUpto = body.useUptoPayment !== false && hasGeminiKey;
-    
-    // Pricing configuration
-    const prices: Record<string, string> = {
-      '1K': '$0.05',
-      '2K': '$0.10',
-      '4K': '$0.25',
-    };
-    const basePrice = prices[body.resolution || '2K'] || '$0.10';
 
-    // For upto scheme: max price is base price + 50% buffer for Gemini tokens
-    // Min price is base price (for Pollinations image generation)
-    const maxPrice = useUpto 
+    // For upto scheme: max price adds 50% buffer for Gemini prompt-enhancement tokens
+    const maxPrice = useUpto
       ? `$${(parseFloat(basePrice.replace('$', '')) * 1.5).toFixed(2)}`
       : basePrice;
     const minPrice = basePrice;
@@ -198,6 +241,7 @@ export async function POST(request: NextRequest) {
       }
 
       const priceNum = parseFloat(basePrice.replace("$", ""));
+      // basePrice already includes platform fee and quantity factor
       const minAmountMicro = Math.round(priceNum * 1_000_000);
 
       const verification = await verifySolanaUsdcTransfer({
@@ -229,12 +273,12 @@ export async function POST(request: NextRequest) {
 
       // Payment verified — fall through to image generation below
       console.log("✅ Solana payment verified:", {
-        signature: payload.signature,
-        buyer: verification.buyerAddress,
+        signature: redactIdentifier(payload.signature),
+        buyer: redactIdentifier(verification.buyerAddress, 6, 4),
         amountPaid: verification.amountPaid,
       });
 
-      // Generate image directly (skip EVM paymentEngine)
+      // Generate images directly (skip EVM paymentEngine)
       try {
         const enhancedResult = await enhancePromptWithGemini(prompt).catch(() => ({
           enhancedPrompt: prompt,
@@ -243,13 +287,12 @@ export async function POST(request: NextRequest) {
           outputTokens: 0,
         }));
         const enhancedPrompt = enhancedResult.enhancedPrompt;
-        const resolution = body?.resolution || "2K";
         const aspectRatio = (body?.aspectRatio || "1:1") as "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
         const geminiRequest: ImageGenerationRequest = {
           prompt: enhancedPrompt,
           aspectRatio,
-          numImages: 1,
+          numImages: quantity,
           modelVersion: "gemini-3-pro-image-preview",
           imageSize: resolution as "1K" | "2K" | "4K",
         };
@@ -262,36 +305,19 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        let imageUrl: string;
-        try {
-          const { put } = await import("@vercel/blob");
-          const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-          if (!blobToken) {
-            const base64 = geminiResult.imageBuffers[0].toString("base64");
-            imageUrl = `data:image/png;base64,${base64}`;
-          } else {
-            const filename = `generations/${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
-            const { url } = await put(filename, geminiResult.imageBuffers[0], {
-              access: "public",
-              contentType: "image/png",
-              addRandomSuffix: false,
-            });
-            imageUrl = url;
-          }
-        } catch {
-          const base64 = geminiResult.imageBuffers[0].toString("base64");
-          imageUrl = `data:image/png;base64,${base64}`;
-        }
+        const imageUrls = await uploadBuffers(geminiResult.imageBuffers);
 
         return NextResponse.json({
-          imageUrl,
+          imageUrl: imageUrls[0],
+          imageUrls,
+          quantity: imageUrls.length,
           prompt: enhancedPrompt,
           provider: "gemini",
           model: geminiResult.metadata?.model || "gemini-3-pro-image-preview",
           generationTime: geminiResult.generationTime,
           paymentScheme: "solana-exact",
           metadata: {
-            solanaTxSignature: payload.signature,
+            solanaTxSignature: redactIdentifier(payload.signature),
             chainName: "Solana",
             chainKey: solanaChain,
           },
@@ -418,7 +444,7 @@ export async function POST(request: NextRequest) {
       status: paymentResult.status,
       scheme: useUpto ? 'upto' : 'exact',
       hasMetadata: !!paymentResult.metadata,
-      txHash: paymentResult.metadata?.txHash,
+      hasTxHash: !!paymentResult.metadata?.txHash,
       actualPrice: paymentResult.metadata?.actualPrice,
     });
 
@@ -430,22 +456,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate image using Gemini Nano Banana Pro
     console.log('🎨 Generating image with Gemini...');
-    
-    // Map resolution to Gemini image size (1K, 2K, 4K)
-    const resolution = body.resolution || '2K';
-    const imageSize = resolution === '1K' ? '1K' : resolution === '4K' ? '4K' : '2K';
-    
-    // Map aspect ratio
+
     const aspectRatio = (body.aspectRatio || '1:1') as '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-    
-    // Use Gemini 3 Pro Image Preview (Nano Banana Pro) for high-quality generation
+    const imageSize = resolution === '1K' ? '1K' : resolution === '4K' ? '4K' : '2K';
+
     const geminiRequest: ImageGenerationRequest = {
       prompt: enhancedPrompt,
       aspectRatio,
-      numImages: 1,
-      modelVersion: 'gemini-3-pro-image-preview', // Nano Banana Pro
+      numImages: quantity,
+      modelVersion: 'gemini-3-pro-image-preview',
       imageSize: imageSize as '1K' | '2K' | '4K',
     };
 
@@ -454,7 +474,7 @@ export async function POST(request: NextRequest) {
     if (!geminiResult.success || !geminiResult.imageBuffers || geminiResult.imageBuffers.length === 0) {
       console.error('❌ Gemini image generation failed:', geminiResult.error);
       return NextResponse.json(
-        { 
+        {
           error: geminiResult.error || 'Image generation failed',
           retryable: geminiResult.retryable,
         },
@@ -462,45 +482,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload image buffer to Vercel Blob storage
-    let imageUrl: string;
-    try {
-      const { put } = await import('@vercel/blob');
-      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-      
-      if (!blobToken) {
-        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not set, using data URL fallback');
-        // Fallback to data URL if blob storage not configured
-        const base64 = geminiResult.imageBuffers[0].toString('base64');
-        imageUrl = `data:image/png;base64,${base64}`;
-      } else {
-        // Create unique filename
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(2, 9);
-        const filename = `generations/${timestamp}_${randomSuffix}.png`;
+    const imageUrls = await uploadBuffers(geminiResult.imageBuffers);
 
-        // Upload to Vercel Blob
-        const { url } = await put(filename, geminiResult.imageBuffers[0], {
-          access: 'public',
-          contentType: 'image/png',
-          addRandomSuffix: false,
-        });
-
-        imageUrl = url;
-        console.log(`✅ Image uploaded to blob storage: ${url}`);
-      }
-    } catch (uploadError: any) {
-      console.error('❌ Failed to upload image to blob storage:', uploadError);
-      // Fallback to data URL if upload fails
-      const base64 = geminiResult.imageBuffers[0].toString('base64');
-      imageUrl = `data:image/png;base64,${base64}`;
-      console.warn('⚠️ Using data URL fallback due to upload error');
-    }
-
-    // Return image with payment metadata and headers
     return NextResponse.json(
       {
-        imageUrl,
+        imageUrl: imageUrls[0],
+        imageUrls,
+        quantity: imageUrls.length,
         prompt: enhancedPrompt,
         provider: "gemini",
         model: geminiResult.metadata?.model || 'gemini-3-pro-image-preview',
@@ -508,6 +496,12 @@ export async function POST(request: NextRequest) {
         geminiTokens: usedGemini ? geminiTokens : undefined,
         generationTime: geminiResult.generationTime,
         paymentScheme: useUpto ? 'upto' : 'exact',
+        pricingDetail: {
+          pricePerImage: `$${pricePerImage(resolution).toFixed(2)}`,
+          quantity,
+          platformFeeRate: PLATFORM_FEE_RATE,
+          totalCharged: basePrice,
+        },
         metadata: {
           ...paymentResult.metadata,
           ...(useUpto && {

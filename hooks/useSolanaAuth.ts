@@ -1,40 +1,46 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { generateAuthMessage, createAuthHeaders } from '@/lib/auth';
+import { generateAuthMessage } from '@/lib/auth';
 
-const SOLANA_AUTH_KEY = 'solana-auth-data';
-const AUTH_TTL = 24 * 60 * 60 * 1000;
+const SOLANA_AUTH_KEY = 'solana-auth-session';
+
+type StoredSession = {
+  walletAddress: string;
+  sessionToken: string;
+  expiresAt: string;
+};
+
+function loadSession(publicKeyBase58: string): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(SOLANA_AUTH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    if (
+      parsed.walletAddress === publicKeyBase58 &&
+      new Date(parsed.expiresAt).getTime() - Date.now() > 60_000
+    ) {
+      return parsed;
+    }
+    localStorage.removeItem(SOLANA_AUTH_KEY);
+    return null;
+  } catch {
+    localStorage.removeItem(SOLANA_AUTH_KEY);
+    return null;
+  }
+}
 
 export function useSolanaAuth() {
   const { publicKey, signMessage, connected } = useWallet();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<StoredSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SOLANA_AUTH_KEY);
-      if (!stored) return;
-      const { walletAddress, timestamp } = JSON.parse(stored);
-      if (
-        publicKey?.toBase58() === walletAddress &&
-        Date.now() - new Date(timestamp).getTime() < AUTH_TTL
-      ) {
-        setIsAuthenticated(true);
-      } else {
-        localStorage.removeItem(SOLANA_AUTH_KEY);
-      }
-    } catch {
-      localStorage.removeItem(SOLANA_AUTH_KEY);
-    }
-  }, [publicKey]);
-
-  // Clear auth when wallet disconnects
-  useEffect(() => {
-    if (!connected) {
-      setIsAuthenticated(false);
-    }
-  }, [connected]);
+    // Restore or clear session whenever the connected public key changes
+    const next = publicKey ? loadSession(publicKey.toBase58()) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSession(next);
+  }, [publicKey, connected]);
 
   const authenticate = useCallback(async (): Promise<boolean> => {
     if (!publicKey || !signMessage) {
@@ -47,34 +53,41 @@ export function useSolanaAuth() {
 
     try {
       const walletAddress = publicKey.toBase58();
-      const nonceResponse = await fetch('/api/auth/nonce', {
+
+      // Step 1: Get nonce
+      const nonceRes = await fetch('/api/auth/nonce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress, walletType: 'solana' }),
       });
-      if (!nonceResponse.ok) {
-        const errorData = await nonceResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to get authentication nonce');
+      if (!nonceRes.ok) {
+        const err = await nonceRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || 'Failed to get nonce');
       }
-      const { nonce } = await nonceResponse.json();
-      if (typeof nonce !== 'string' || !nonce) {
-        throw new Error('Invalid authentication nonce');
-      }
+      const { nonce } = await nonceRes.json() as { nonce: string };
+      if (!nonce) throw new Error('Invalid nonce from server');
 
+      // Step 2: Sign message
       const { message, timestamp } = generateAuthMessage(walletAddress, nonce);
       const msgBytes = new TextEncoder().encode(message);
       const sigBytes = await signMessage(msgBytes);
       const signature = Buffer.from(sigBytes).toString('base64');
 
-      localStorage.setItem(SOLANA_AUTH_KEY, JSON.stringify({
-        walletAddress,
-        signature,
-        message,
-        timestamp,
-        nonce,
-      }));
+      // Step 3: Exchange for session token
+      const sessionRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, walletType: 'solana', signature, message, timestamp, nonce }),
+      });
+      if (!sessionRes.ok) {
+        const err = await sessionRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || 'Session creation failed');
+      }
+      const { sessionToken, expiresAt } = await sessionRes.json() as { sessionToken: string; expiresAt: string };
 
-      setIsAuthenticated(true);
+      const stored: StoredSession = { walletAddress, sessionToken, expiresAt };
+      localStorage.setItem(SOLANA_AUTH_KEY, JSON.stringify(stored));
+      setSession(stored);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -84,30 +97,29 @@ export function useSolanaAuth() {
     }
   }, [publicKey, signMessage]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const raw = localStorage.getItem(SOLANA_AUTH_KEY);
+    if (raw) {
+      const { sessionToken } = JSON.parse(raw) as StoredSession;
+      await fetch('/api/auth/session', {
+        method: 'DELETE',
+        headers: { 'X-Session-Token': sessionToken },
+      }).catch(() => {});
+    }
     localStorage.removeItem(SOLANA_AUTH_KEY);
-    setIsAuthenticated(false);
+    setSession(null);
   }, []);
 
   const getAuthHeaders = useCallback((): Record<string, string> | null => {
-    try {
-      const stored = localStorage.getItem(SOLANA_AUTH_KEY);
-      if (!stored) return null;
-      const { walletAddress, signature, message, timestamp, nonce } = JSON.parse(stored);
-      return {
-        ...createAuthHeaders(walletAddress, signature, message, timestamp, nonce),
-        'X-Wallet-Type': 'solana',
-      };
-    } catch {
-      return null;
-    }
-  }, []);
+    if (!session) return null;
+    return { 'X-Session-Token': session.sessionToken };
+  }, [session]);
 
   return {
-    isAuthenticated,
+    isAuthenticated: !!session,
     isLoading,
     error,
-    walletAddress: publicKey?.toBase58() ?? null,
+    walletAddress: session?.walletAddress ?? publicKey?.toBase58() ?? null,
     connected,
     authenticate,
     logout,

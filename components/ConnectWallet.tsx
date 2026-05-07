@@ -61,8 +61,9 @@ export function ConnectWallet() {
       connectModal={{
         size: "wide",
         title: `Sign in to ${APP_NAME}`,
-        titleIcon: "/favicon.svg", // Your app logo
+        titleIcon: "/favicon.svg",
         showThirdwebBranding: false,
+        // Prevent modal from re-opening automatically after user dismisses
         ...(TERMS_URL ? { termsOfServiceUrl: TERMS_URL } : {}),
         ...(PRIVACY_URL ? { privacyPolicyUrl: PRIVACY_URL } : {}),
       }}

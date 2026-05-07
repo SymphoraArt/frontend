@@ -1,17 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
+import {
+  checkRequestRateLimit,
+  rateLimitKey,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 
 /**
  * Free image generation endpoint (dev/testing)
- * 
+ *
  * Uses Pollinations.ai (free, no API key needed)
  * No payment required, no database needed.
- * 
+ *
  * POST /api/generate-free
  * Body: { prompt: string, aspectRatio?: string, resolution?: string }
  */
 export async function POST(request: NextRequest) {
   try {
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ENABLE_FREE_GENERATION !== "true"
+    ) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const rateLimit = checkRequestRateLimit(
+      rateLimitKey(request, "generate-free"),
+      5,
+      60_000
+    );
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds);
+    }
+
     const body = await request.json();
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
 

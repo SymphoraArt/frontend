@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
 import { createErrorResponse, createSuccessResponse } from "../../../middleware/validation";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -62,9 +63,10 @@ async function uploadToBlob(file: File, userId: string): Promise<string> {
 
     console.log(`✅ Image uploaded to blob storage: ${url}`);
     return url;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Failed to upload to blob storage:', error);
-    throw new Error(`Failed to upload image: ${error.message || 'Unknown error'}`);
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Failed to upload image: ${message}`);
   }
 }
 
@@ -79,22 +81,78 @@ function sanitizeString(input: string | null | undefined, maxLength: number = 10
     .replace(/[<>]/g, ''); // Remove potential HTML tags
 }
 
+async function ensureUserIdForWallet(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  walletAddress: string
+): Promise<string | null> {
+  const normalizedWallet = walletAddress.toLowerCase();
+  const { data, error } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", normalizedWallet)
+    .is("removed_at", null)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to resolve wallet user:", error);
+    return null;
+  }
+
+  if (typeof data?.user_id === "string") return data.user_id;
+
+  const userInsert = await supabase
+    .from("users")
+    .insert({})
+    .select("id")
+    .single();
+
+  if (userInsert.error || !userInsert.data?.id) {
+    console.error("Failed to create wallet user:", userInsert.error);
+    return null;
+  }
+
+  const walletInsert = await supabase.from("user_wallets").insert({
+    user_id: userInsert.data.id,
+    address: normalizedWallet,
+    chain_family: "evm",
+    wallet_type: "external_eoa",
+    is_primary: true,
+  });
+
+  if (!walletInsert.error) return userInsert.data.id;
+
+  if (walletInsert.error.code === "23505") {
+    const retry = await supabase
+      .from("user_wallets")
+      .select("user_id")
+      .eq("address", normalizedWallet)
+      .is("removed_at", null)
+      .maybeSingle();
+    return typeof retry.data?.user_id === "string" ? retry.data.user_id : null;
+  }
+
+  console.error("Failed to link wallet user:", walletInsert.error);
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const authUser = await requireAuth(req);
+    const supabase = getSupabaseServerClient();
+    const userId = await ensureUserIdForWallet(supabase, authUser.walletAddress);
+    if (!userId) {
+      return createErrorResponse("Authenticated wallet is not linked to a user", 403);
+    }
+
     // Parse FormData
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const userId = formData.get('userId') as string | null;
     const prompt = formData.get('prompt') as string | null;
     const metadata = formData.get('metadata') as string | null;
 
     // Validate required fields
     if (!file) {
       return createErrorResponse('File is required', 400);
-    }
-
-    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
-      return createErrorResponse('userId is required', 400);
     }
 
     // Validate file
@@ -113,32 +171,26 @@ export async function POST(req: NextRequest) {
 
     // Prepare generation data
     const nowIso = new Date().toISOString();
-    const generationData: any = {
+    const imageRow = {
       user_id: userId,
-      prompt_id: null, // No prompt ID for uploaded images
-      final_prompt: sanitizedPrompt || null,
-      variable_values: [],
-      settings: {
-        origin: 'uploaded',
-        uploadedAt: nowIso,
-        ...(sanitizedMetadata ? { metadata: JSON.parse(sanitizedMetadata) } : {})
-      },
-      transaction_hash: null,
-      payment_verified: true, // Uploads are free
-      amount_paid: null,
-      status: 'uploaded',
-      image_urls: [imageUrl],
-      completed_at: nowIso,
+      generation_id: null,
+      prompt_id: null,
+      sequence_index: 0,
+      storage_provider: imageUrl.startsWith("data:") ? "data_url" : "vercel_blob",
+      storage_url: imageUrl,
+      mime_type: file.type === "image/jpg" ? "image/jpeg" : file.type,
+      is_uploaded: true,
+      visibility: "private",
+      description: sanitizedPrompt || null,
+      title: sanitizedMetadata ? null : null,
       created_at: nowIso,
-      updated_at: nowIso
     };
 
     // Store in database
-    const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
-      .from('generations')
-      .insert([generationData])
-      .select('id, user_id, status, image_urls, created_at')
+      .from('generated_images')
+      .insert([imageRow])
+      .select('id, user_id, storage_url, created_at')
       .single();
 
     if (error) {
@@ -157,8 +209,11 @@ export async function POST(req: NextRequest) {
 
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
+    if (message.startsWith("Authentication failed")) {
+      return createErrorResponse("Unauthorized", 401);
+    }
     console.error('❌ Upload error:', message);
-    return createErrorResponse('Internal server error', 500, message);
+    return createErrorResponse('Internal server error', 500);
   }
 }
 
