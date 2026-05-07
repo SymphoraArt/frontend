@@ -17,6 +17,12 @@ import { getProgramId } from "../shared/app-config";
 import { getSupabaseServerClient } from "../lib/supabaseServer";
 
 const MAX_TX_AGE_SECONDS = 3600; // 1 hour
+const TX_LOOKUP_RETRIES = 8;
+const TX_LOOKUP_RETRY_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ─── Replay Protection ──────────────────────────────────────────────────────
 
@@ -37,8 +43,6 @@ export async function checkAndRecordSolanaSignature(
 ): Promise<{ isNew: boolean; error?: string }> {
   try {
     const supabase = getSupabaseServerClient();
-    const chain = PAYMENT_CHAINS[chainKey];
-
     // Check if this signature has already been recorded
     const { data: existing } = await supabase
       .from("payment_verifications")
@@ -55,10 +59,10 @@ export async function checkAndRecordSolanaSignature(
       .from("payment_verifications")
       .insert({
         transaction_hash: signature,
+        chain_key: chainKey,
+        verifier_id: "solana-x402",
         verified: true,
-        verification_method: "solana-rpc",
-        chain_id: chain.id,
-        chain_name: chain.name,
+        verification_method: "rpc_logs",
         verification_error: context,
         verified_at: new Date().toISOString(),
       });
@@ -204,14 +208,26 @@ export async function verifySolanaUsdcTransfer(params: {
   const usdcMint = new PublicKey(chain.usdc);
   const recipient = new PublicKey(params.recipientAddress);
 
-  let tx: ParsedTransactionWithMeta | null;
-  try {
-    tx = await connection.getParsedTransaction(params.signature, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
-    });
-  } catch (e) {
-    return { verified: false, error: `Failed to fetch transaction: ${e}` };
+  let tx: ParsedTransactionWithMeta | null = null;
+  let lookupError: unknown;
+  for (let attempt = 1; attempt <= TX_LOOKUP_RETRIES; attempt += 1) {
+    try {
+      tx = await connection.getParsedTransaction(params.signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      if (tx) break;
+    } catch (e) {
+      lookupError = e;
+    }
+
+    if (attempt < TX_LOOKUP_RETRIES) {
+      await sleep(TX_LOOKUP_RETRY_DELAY_MS);
+    }
+  }
+
+  if (!tx && lookupError) {
+    return { verified: false, error: `Failed to fetch transaction: ${lookupError}` };
   }
 
   if (!tx) {

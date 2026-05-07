@@ -15,11 +15,13 @@ import { useState, useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
-  Transaction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
   createTransferCheckedInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { ChainKey } from "@/lib/payment-config";
@@ -57,14 +59,19 @@ export interface SolanaPaymentState {
 
 function encodePaymentHeader(signature: string, buyerAddress: string, network: string): string {
   const payload = JSON.stringify({ signature, buyerAddress, network });
-  return Buffer.from(payload).toString("base64");
+  const bytes = new TextEncoder().encode(payload);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useSolanaX402Payment() {
   const { connection } = useConnection();
-  const { publicKey, signTransaction, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +82,7 @@ export function useSolanaX402Payment() {
   const sendUsdcPayment = useCallback(
     async (req: SolanaPaymentRequirement): Promise<string> => {
       if (!publicKey) throw new Error("Solana wallet not connected");
-      if (!sendTransaction) throw new Error("Wallet does not support sendTransaction");
+      if (!signTransaction) throw new Error("Wallet does not support signTransaction");
 
       // Validate network. The 402 response uses x402-facing names.
       if (req.network !== "solana-devnet" && req.network !== "mainnet-beta") {
@@ -107,38 +114,94 @@ export function useSolanaX402Payment() {
       const senderAta = getAssociatedTokenAddressSync(usdcMint, publicKey);
       const recipientAta = getAssociatedTokenAddressSync(usdcMint, recipient);
 
+      try {
+        const senderBalance = await connection.getTokenAccountBalance(senderAta, "confirmed");
+        if (BigInt(senderBalance.value.amount) < amount) {
+          throw new Error(
+            `Insufficient devnet USDC balance. Need ${(Number(amount) / 1_000_000).toFixed(6)} USDC.`
+          );
+        }
+      } catch (balanceErr) {
+        if (balanceErr instanceof Error && balanceErr.message.startsWith("Insufficient")) {
+          throw balanceErr;
+        }
+        throw new Error("Devnet USDC token account not found. Add devnet USDC to this wallet before generating.");
+      }
+
+      const solBalance = await connection.getBalance(publicKey, "confirmed");
+      if (solBalance < 5_000) {
+        throw new Error("Insufficient devnet SOL for transaction fees.");
+      }
+
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
-      const tx = new Transaction({
-        feePayer: publicKey,
-        recentBlockhash: blockhash,
-      }).add(
+      const instructions = [
+        // Create recipient ATA if it doesn't exist (idempotent)
+        createAssociatedTokenAccountIdempotentInstruction(
+          publicKey,
+          recipientAta,
+          recipient,
+          usdcMint,
+        ),
         createTransferCheckedInstruction(
           senderAta,
           usdcMint,
           recipientAta,
           publicKey,
           amount,
-          6, // USDC decimals
+          6,
           [],
           TOKEN_PROGRAM_ID
-        )
-      );
+        ),
+      ];
 
-      const signature = await sendTransaction(tx, connection, {
-        skipPreflight: false,
-        preflightCommitment: "confirmed",
-      });
+      const message = new TransactionMessage({
+        payerKey: publicKey,
+        recentBlockhash: blockhash,
+        instructions,
+      }).compileToV0Message();
 
-      // Wait for confirmation
-      await connection.confirmTransaction(
-        { signature, blockhash, lastValidBlockHeight },
-        "confirmed"
-      );
+      const tx = new VersionedTransaction(message);
+
+      let signedTx: VersionedTransaction;
+      try {
+        signedTx = await signTransaction(tx);
+      } catch (signErr: unknown) {
+        const e = signErr as { message?: string };
+        throw new Error(`Wallet signing failed: ${e?.message ?? "unknown error"}`);
+      }
+
+      let signature: string;
+      try {
+        signature = await connection.sendRawTransaction(signedTx.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: "confirmed",
+          maxRetries: 3,
+        });
+      } catch (sendErr: unknown) {
+        const e = sendErr as { message?: string; logs?: string[] };
+        throw new Error(`Transaction send failed: ${e?.message ?? "unknown error"}`);
+      }
+
+      // Poll for confirmation (WebSocket unreliable on public devnet RPC)
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const { value } = await connection.getSignatureStatuses([signature]);
+        const status = value[0];
+        if (status) {
+          if (status.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(status.err)}`);
+          if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") break;
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      const { value: finalStatus } = await connection.getSignatureStatuses([signature]);
+      if (!finalStatus[0]) {
+        throw new Error("Transaction confirmation timed out. Check the signature in Solana Explorer and try again.");
+      }
 
       return encodePaymentHeader(signature, publicKey.toBase58(), req.network);
     },
-    [publicKey, sendTransaction, connection]
+    [publicKey, signTransaction, connection]
   );
 
   /**

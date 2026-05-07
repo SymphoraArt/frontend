@@ -1,117 +1,49 @@
 /**
- * Wallet Authentication Hook
+ * Unified wallet auth hook — EVM primary, Solana layered on top.
  *
- * Provides nonce-bound signature authentication for wallet users.
+ * Both produce X-Session-Token. This hook tries EVM first, falls back to Solana.
+ * Use this instead of useAuth() / useSolanaAuth() in pages that need to work for both.
  */
 
-import { useState, useCallback } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
-import { createAuthHeaders, generateAuthMessage } from '@/lib/auth';
+import { useCallback } from 'react';
+import { useAuth } from './useAuth';
+import { useSolanaAuth } from './useSolanaAuth';
 
-interface AuthHeaders {
-  'X-Wallet-Address': string;
-  'X-Wallet-Signature': string;
-  'X-Auth-Message': string;
-  'X-Timestamp': string;
-  'X-Wallet-Nonce': string;
+export function useWalletAuth() {
+  const evm = useAuth();
+  const solana = useSolanaAuth();
+
+  const isAuthenticated = evm.isAuthenticated || solana.isAuthenticated;
+  const isLoading = evm.isLoading || solana.isLoading;
+  const walletAddress = evm.walletAddress ?? solana.walletAddress ?? null;
+
+  const getAuthHeaders = useCallback((): Record<string, string> | null => {
+    return evm.getAuthHeaders() ?? solana.getAuthHeaders() ?? null;
+  }, [evm, solana]);
+
+  const logout = useCallback(async () => {
+    if (evm.isAuthenticated) await evm.logout();
+    if (solana.isAuthenticated) await solana.logout();
+  }, [evm, solana]);
+
+  return { isAuthenticated, isLoading, walletAddress, getAuthHeaders, logout };
 }
 
-interface UseWalletAuthReturn {
-  isAuthenticated: boolean;
-  isAuthenticating: boolean;
-  authHeaders: AuthHeaders | null;
-  authenticate: () => Promise<boolean>;
-  clearAuth: () => void;
-  error: string | null;
-}
+/** Authenticated fetch using whichever session (EVM or Solana) is active */
+export function useAuthenticatedFetch() {
+  const { getAuthHeaders, isAuthenticated } = useWalletAuth();
 
-/**
- * Hook for wallet-based authentication using signed nonce messages.
- */
-export function useWalletAuth(): UseWalletAuthReturn {
-  const account = useActiveAccount();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authHeaders, setAuthHeaders] = useState<AuthHeaders | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const authenticatedFetch = useCallback(async (
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> => {
+    if (!isAuthenticated) throw new Error('Not authenticated');
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) throw new Error('Auth headers unavailable');
+    const headers = new Headers(options.headers);
+    Object.entries(authHeaders).forEach(([k, v]) => headers.set(k, v));
+    return fetch(url, { ...options, headers });
+  }, [getAuthHeaders, isAuthenticated]);
 
-  const authenticate = useCallback(async (): Promise<boolean> => {
-    if (!account) {
-      setError('No wallet connected');
-      return false;
-    }
-
-    setIsAuthenticating(true);
-    setError(null);
-
-    try {
-      const walletAddress = account.address;
-
-      // Step 1: Request nonce from server
-      const nonceResponse = await fetch('/api/auth/nonce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress, walletType: 'evm' }),
-      });
-
-      if (!nonceResponse.ok) {
-        const errorData = await nonceResponse.json();
-        throw new Error(errorData.error || 'Failed to get authentication nonce');
-      }
-
-      const { nonce } = await nonceResponse.json();
-      if (typeof nonce !== 'string' || !nonce) {
-        throw new Error('Invalid authentication nonce');
-      }
-
-      // Step 2: Create nonce-bound message
-      const { message, timestamp } = generateAuthMessage(walletAddress, nonce);
-
-      // Step 3: Sign message with wallet
-      const signature = await account.signMessage({ message });
-
-      // Step 4: Store auth headers for API requests
-      const headers = createAuthHeaders(walletAddress, signature, message, timestamp, nonce) as unknown as AuthHeaders;
-
-      setAuthHeaders(headers);
-      setIsAuthenticating(false);
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
-      setError(errorMessage);
-      setIsAuthenticating(false);
-      return false;
-    }
-  }, [account]);
-
-  const clearAuth = useCallback(() => {
-    setAuthHeaders(null);
-    setError(null);
-  }, []);
-
-  return {
-    isAuthenticated: !!authHeaders,
-    isAuthenticating,
-    authHeaders,
-    authenticate,
-    clearAuth,
-    error,
-  };
-}
-
-/**
- * Helper function to create authenticated fetch request
- */
-export async function authenticatedFetch(
-  url: string,
-  authHeaders: AuthHeaders,
-  options?: RequestInit
-): Promise<Response> {
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...options?.headers,
-      ...authHeaders,
-      'Content-Type': 'application/json',
-    },
-  });
+  return { authenticatedFetch, isAuthenticated };
 }

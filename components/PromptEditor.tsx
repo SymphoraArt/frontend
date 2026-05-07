@@ -58,7 +58,7 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import type { ChainKey } from "@/shared/payment-config";
-import { createAuthHeaders, generateAuthMessage } from "@/lib/auth";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 
 type VariableType =
@@ -111,13 +111,23 @@ interface PromptEditorProps {
 
 export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
   const account = useActiveAccount();
+  const { getAuthHeaders: getSessionAuthHeaders, isAuthenticated: walletAuthenticated } = useWalletAuth();
   const { connected: solanaConnected } = useWallet();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateWithSolana, isPending: isSolanaPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain, setSelectedChain] = useState<ChainKey>(bestChain || 'base-sepolia');
-  const [paymentMode, setPaymentMode] = useState<'evm' | 'solana'>('evm');
+  // Auto-detect: Solana if only Solana wallet is connected, EVM otherwise
+  const [paymentMode, setPaymentMode] = useState<'evm' | 'solana'>(
+    () => (solanaConnected && !account) ? 'solana' : 'evm'
+  );
   
+  // Keep payment mode in sync with wallet connection changes
+  useEffect(() => {
+    if (solanaConnected && !account) setPaymentMode('solana');
+    else if (account && !solanaConnected) setPaymentMode('evm');
+  }, [solanaConnected, account]);
+
   const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
   const [promptTitle, setPromptTitle] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -182,24 +192,9 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
     return String(e);
   };
 
-  const getGenerationAuthHeaders = async (): Promise<Record<string, string>> => {
-    if (!account?.address) throw new Error("Wallet not connected");
-    const nonceResponse = await fetch("/api/auth/nonce", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walletAddress: account.address, walletType: "evm" }),
-    });
-    const nonceResult = await nonceResponse.json().catch(() => ({}));
-    if (!nonceResponse.ok || typeof nonceResult.nonce !== "string") {
-      throw new Error(nonceResult.error || "Failed to get authentication nonce");
-    }
-    const { message, timestamp } = generateAuthMessage(account.address, nonceResult.nonce);
-    const signature = await account.signMessage({ message });
-    return createAuthHeaders(account.address, signature, message, timestamp, nonceResult.nonce);
-  };
-
   const persistGeneration = async (payload: Record<string, unknown>) => {
-    const authHeaders = await getGenerationAuthHeaders();
+    const authHeaders = getSessionAuthHeaders();
+    if (!authHeaders) throw new Error("Not authenticated");
     const res = await fetch("/api/generations", {
       method: "POST",
       headers: {

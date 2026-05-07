@@ -2,6 +2,7 @@
 
 import Navbar from "@/components/Navbar";
 import { useActiveAccount } from "thirdweb/react";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   clearCreations,
@@ -35,7 +36,7 @@ type GalleryCreation = StoredCreation & {
 
 export default function MyGalleryPage() {
   const account = useActiveAccount();
-  const authenticated = !!account;
+  const { isAuthenticated: authenticated, getAuthHeaders } = useWalletAuth();
   const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
   const [items, setItems] = useState<GalleryCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -43,21 +44,6 @@ export default function MyGalleryPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [mediaFilter, setMediaFilter] = useState<"all" | "images" | "videos">("all");
 
-  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    if (!account?.address) throw new Error("Wallet not connected");
-    const nonceResponse = await fetch("/api/auth/nonce", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walletAddress: account.address, walletType: "evm" }),
-    });
-    const nonceResult = await nonceResponse.json().catch(() => ({}));
-    if (!nonceResponse.ok || typeof nonceResult.nonce !== "string") {
-      throw new Error(nonceResult.error || "Failed to get authentication nonce");
-    }
-    const { message, timestamp } = generateAuthMessage(account.address, nonceResult.nonce);
-    const signature = await account.signMessage({ message });
-    return createAuthHeaders(account.address, signature, message, timestamp, nonceResult.nonce);
-  }, [account]);
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -81,7 +67,8 @@ export default function MyGalleryPage() {
       setIsLoading(true);
       setFetchError(null);
       try {
-        const authHeaders = await getAuthHeaders();
+        const authHeaders = getAuthHeaders();
+        if (!authHeaders) throw new Error("Not authenticated");
         const res = await fetch("/api/generations", { headers: authHeaders });
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
@@ -137,8 +124,8 @@ export default function MyGalleryPage() {
   const handleClear = async () => {
     if (!userKey) return;
     try {
-      const authHeaders = await getAuthHeaders();
-      await fetch("/api/generations", { method: "DELETE", headers: authHeaders });
+      const authHeaders = getAuthHeaders();
+      if (authHeaders) await fetch("/api/generations", { method: "DELETE", headers: authHeaders });
     } catch {
       // ignore
     }
@@ -148,8 +135,8 @@ export default function MyGalleryPage() {
   const handleRemove = async (id: string) => {
     if (!userKey) return;
     try {
-      const authHeaders = await getAuthHeaders();
-      await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders });
+      const authHeaders = getAuthHeaders();
+      if (authHeaders) await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders });
     } catch {
       // ignore
     }

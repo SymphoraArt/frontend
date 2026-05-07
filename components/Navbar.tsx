@@ -15,13 +15,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { useTheme } from "../providers/ThemeProvider";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
+import { WalletPickerModal } from "./WalletPickerModal";
 import { Wallet, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getChainExplorerUrl } from "@/lib/thirdweb";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
+import { useSolanaAuth } from "@/hooks/useSolanaAuth";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 interface NavbarProps {
   username?: string;
@@ -89,17 +91,27 @@ export default function Navbar({
   const account = useSafeActiveAccount();
   const wallet = useSafeActiveWallet();
   const walletInfo = useSafeWalletInfo();
-  const authenticated = !!account && walletInfo.isConnected;
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
+  const { isAuthenticated: solanaAuthenticated, authenticate: solanaAuthenticate, isLoading: solanaAuthLoading, logout: solanaLogout } = useSolanaAuth();
+  const solanaAuthTriedRef = useRef(false);
+
+  // Authenticated if EVM wallet connected OR Solana wallet authenticated
+  const evmAuthenticated = !!account && walletInfo.isConnected;
+  const authenticated = evmAuthenticated || solanaAuthenticated;
+
   const router = useRouter();
   const { toast } = useToast();
   const [showNav, setShowNav] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const lastScrollYRef = useRef(0);
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
 
-  const walletAddress = walletInfo.address;
-  const shortAddress = walletInfo.shortAddress;
-  const walletDescription = walletInfo.description;
+  // Use Solana address when EVM not connected
+  const walletAddress = walletInfo.address ?? (solanaAuthenticated ? solanaPublicKey?.toBase58() ?? null : null);
+  const shortAddress = walletAddress ? `${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}` : null;
+  const walletDescription = walletInfo.address ? walletInfo.description : solanaAuthenticated ? "Solana Wallet" : "No wallet connected";
 
   // Copy address to clipboard
   const handleCopyAddress = async () => {
@@ -120,6 +132,19 @@ export default function Navbar({
   };
 
 
+  useEffect(() => { setMounted(true); }, []);
+
+  // Auto-authenticate after Solana wallet connects (triggers sign message popup)
+  useEffect(() => {
+    if (solanaConnected && !solanaAuthenticated && !solanaAuthLoading && !solanaAuthTriedRef.current) {
+      solanaAuthTriedRef.current = true;
+      solanaAuthenticate();
+    }
+    if (!solanaConnected) {
+      solanaAuthTriedRef.current = false;
+    }
+  }, [solanaConnected, solanaAuthenticated, solanaAuthLoading, solanaAuthenticate]);
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -137,6 +162,7 @@ export default function Navbar({
   }, []);
 
   return (
+    <>
     <header
       className={`fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 transition-transform duration-300 ${
         showNav ? "translate-y-0" : "-translate-y-24"
@@ -193,7 +219,7 @@ export default function Navbar({
                 aria-label="Toggle theme"
                 data-testid="button-theme-toggle"
               >
-                {theme === "dark" ? (
+                {mounted && theme === "dark" ? (
                   <Sun className="h-4 w-4" />
                 ) : (
                   <Moon className="h-4 w-4" />
@@ -229,7 +255,7 @@ export default function Navbar({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
-                    {authenticated && walletInfo.isConnected && walletAddress ? (
+                    {authenticated && walletAddress ? (
                       <div className="px-2 py-2 space-y-2">
                         <div className="flex items-center gap-2">
                           <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -238,7 +264,7 @@ export default function Navbar({
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground">
-                              {walletInfo.description}
+                              {walletDescription}
                             </p>
                             <Badge variant="outline" className="text-xs font-mono">
                               {shortAddress}
@@ -301,17 +327,18 @@ export default function Navbar({
                         >
                           Settings
                         </DropdownMenuItem>
-                        {authenticated && account && (
+                        {authenticated && (evmAuthenticated ? account : solanaAuthenticated) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={async () => {
                                 try {
-                                  if (wallet) {
+                                  if (solanaAuthenticated) {
+                                    await solanaLogout();
+                                    await solanaDisconnect();
+                                  } else if (wallet) {
                                     await wallet.disconnect();
                                   } else {
-                                    // If wallet object not available, try to disconnect via account
-                                    // This handles In-App Wallets that might not expose wallet.disconnect()
                                     window.location.reload();
                                   }
                                   toast({
@@ -319,7 +346,6 @@ export default function Navbar({
                                     description: "You have been disconnected from your wallet",
                                   });
                                 } catch (error) {
-                                  // Fallback: reload page to clear state
                                   window.location.reload();
                                 }
                               }}
@@ -359,7 +385,13 @@ export default function Navbar({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <div className="px-2 py-1.5">
-                          <ConnectWallet />
+                          <Button
+                            className="w-full"
+                            size="sm"
+                            onClick={() => setShowWalletPicker(true)}
+                          >
+                            Connect Wallet
+                          </Button>
                         </div>
                       </>
                     )}
@@ -372,5 +404,11 @@ export default function Navbar({
         </div>
       </div>
     </header>
+
+    <WalletPickerModal
+      open={showWalletPicker}
+      onClose={() => setShowWalletPicker(false)}
+    />
+    </>
   );
 }

@@ -33,6 +33,7 @@ async function uploadBuffers(buffers: Buffer[]): Promise<string[]> {
 
 const PLATFORM_FEE_RATE = 0.1; // 10 % added on top of raw API cost
 const MAX_QUANTITY = 4;
+const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
 
 // Raw API generation cost per image (before platform fee), by resolution
 const API_COST_PER_IMAGE: Record<string, number> = {
@@ -64,6 +65,22 @@ function redactIdentifier(value?: string | null, prefix = 8, suffix = 6): string
   if (!value) return undefined;
   if (value.length <= prefix + suffix) return "[redacted]";
   return `${value.slice(0, prefix)}...${value.slice(-suffix)}`;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
 }
 
 /**
@@ -266,7 +283,7 @@ export async function POST(request: NextRequest) {
       );
       if (!replayCheck.isNew) {
         return NextResponse.json(
-          { error: "Transaction signature has already been used" },
+          { error: replayCheck.error || "Transaction signature has already been used" },
           { status: 402 }
         );
       }
@@ -280,6 +297,7 @@ export async function POST(request: NextRequest) {
 
       // Generate images directly (skip EVM paymentEngine)
       try {
+        console.log("🎨 Solana payment accepted. Starting image generation...");
         const enhancedResult = await enhancePromptWithGemini(prompt).catch(() => ({
           enhancedPrompt: prompt,
           tokensUsed: 0,
@@ -296,7 +314,11 @@ export async function POST(request: NextRequest) {
           modelVersion: "gemini-3-pro-image-preview",
           imageSize: resolution as "1K" | "2K" | "4K",
         };
-        const geminiResult = await generateImagesWithGemini(geminiRequest);
+        const geminiResult = await withTimeout(
+          generateImagesWithGemini(geminiRequest),
+          SOLANA_GENERATION_TIMEOUT_MS,
+          "Image generation timed out after payment. Please try again with a shorter prompt or lower resolution."
+        );
 
         if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
           return NextResponse.json(
@@ -305,6 +327,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        console.log("✅ Solana image generation completed. Uploading result...");
         const imageUrls = await uploadBuffers(geminiResult.imageBuffers);
 
         return NextResponse.json({
