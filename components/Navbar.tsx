@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, User, LogOut, Wallet, Copy } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
-import { Coins, MessageSquareHeart } from "lucide-react";
+import { Coins } from "lucide-react";
 
 interface NavbarProps {
   username?: string;
@@ -72,10 +72,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
 
   const NAV_LINKS = [
-    { label: "DISCOVER",  href: "/" },
-    { label: "IMAGES",    href: "/showcase" },
-    { label: "VIDEOS",    href: "/showcase" },
-    { label: "FAVORITES", href: "/my-gallery" },
+    { label: "DISCOVER",  href: "/",          disabled: false },
+    { label: "IMAGES",    href: "/showcase",   disabled: false },
+    { label: "VIDEOS",    href: "/showcase",   disabled: true, tooltip: "Video prompts will be implemented soon" },
+    { label: "FAVORITES", href: "/my-gallery", disabled: false },
   ];
 
   return (
@@ -103,18 +103,25 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
         {/* Nav Links (Centered Absolutely) */}
         <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-          {NAV_LINKS.map(({ label, href }) => {
+          {NAV_LINKS.map(({ label, href, disabled, tooltip }) => {
             const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
             return (
-              <button key={label} onClick={() => router.push(href)} style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: "0 16px", height: 56,
-                fontSize: 12.5, fontWeight: isActive ? 600 : 400,
-                letterSpacing: "0.4px", color: isActive ? "#111" : "#555",
-                transition: "color 0.2s ease",
-              }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#555")}
+              <button
+                key={label}
+                onClick={() => !disabled && router.push(href)}
+                title={disabled ? tooltip : undefined}
+                style={{
+                  background: "none", border: "none",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  padding: "0 16px", height: 56,
+                  fontSize: 12.5, fontWeight: isActive ? 600 : 400,
+                  letterSpacing: "0.4px",
+                  color: disabled ? "#bbb" : isActive ? "#111" : "#555",
+                  opacity: disabled ? 0.5 : 1,
+                  transition: "color 0.2s ease",
+                }}
+                onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = "#111"; }}
+                onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = isActive ? "#111" : "#555"; }}
               >
                 {label}
               </button>
@@ -147,7 +154,31 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           }}
           onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
           onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
-            Release
+            Release prompt
+          </button>
+
+          {/* Leaderboard */}
+          <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
+            width: 38, height: 38, borderRadius: "50%",
+            background: "none", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+            <Trophy size={16} />
+          </button>
+
+          {/* Notifications */}
+          <button title="Notifications" style={{
+            width: 38, height: 38, borderRadius: "50%",
+            background: "none", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+            <Bell size={16} />
           </button>
 
           {/* Chain Switcher */}
@@ -193,9 +224,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Gallery</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Prompts</DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/5" />
-              {/* Secondary Actions Moved Here */}
+              <DropdownMenuItem onClick={() => router.push("/leaderboard")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                <Trophy className="h-4 w-4 mr-2 text-[#d94f3d]" /> Leaderboard
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
-                <Coins className="h-4 w-4 mr-2 text-[#d94f3d]" /> Hunt a prompt
+                <Users className="h-4 w-4 mr-2 text-[#d94f3d]" /> Referrals
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
                 <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111]" /> Earn for feedback

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageSquare, Star, X, Bookmark, Copy, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
@@ -14,6 +14,13 @@ type EnkiDetailPanelProps = {
 
 export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: EnkiDetailPanelProps) {
   const router = useRouter();
+
+  // Lock body scroll when detail panel is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
   
   // Use versions for history or duplicate art if empty
   const historyImages = prompt.versions?.length
@@ -40,12 +47,12 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
 
   return (
     <>
-      <div className="enki-detail-modal" onClick={onClose}>
+      <div className="enki-detail-modal" onClick={onClose} style={{ background: "#000", backdropFilter: "none" }}>
         <button className="enki-detail-close" onClick={onClose} aria-label="Close">
           <X size={20} />
         </button>
 
-        <div className="enki-detail-card" onClick={(e) => e.stopPropagation()}>
+        <div className="enki-detail-card" onClick={(e) => e.stopPropagation()} style={{ background: "#0a0a0a", backdropFilter: "none", maxWidth: "95vw" }}>
           <div className="enki-detail-body">
             {/* LEFT SECTION (Settings & Actions) */}
             <div className="enki-detail-left hide-scrollbar">
@@ -86,7 +93,7 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
             </div>
 
             {/* CENTER SECTION (Dynamic Grid + Public Gallery) */}
-            <div className="enki-detail-center hide-scrollbar">
+            <div className="enki-detail-center hide-scrollbar" style={{ overflow: "hidden", overflowY: "auto" }}>
               <div className="enki-detail-grid-container">
                 <div className="enki-detail-dynamic-grid" style={gridStyle}>
                   {displayImages.map((img, i) => (
@@ -99,8 +106,8 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
               </div>
 
               {/* Public Gallery & Comments (Below Grid) */}
-              <div className="enki-detail-public-section">
-                <div className="enki-detail-public-title">Other public images created with this prompt</div>
+              <div className="enki-detail-public-section" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12, marginTop: 12 }}>
+                <div className="enki-detail-public-title">Community creations</div>
                 <div className="enki-detail-public-gallery hide-scrollbar">
                   {publicGallery.map((img, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
