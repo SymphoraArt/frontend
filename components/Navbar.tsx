@@ -14,9 +14,11 @@ import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
+import { WalletPickerModal } from "./WalletPickerModal";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
 import { Coins, MessageSquareHeart } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 interface NavbarProps {
   username?: string;
@@ -53,11 +55,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const account = useSafeActiveAccount();
   const wallet = useSafeActiveWallet();
   const walletInfo = useSafeWalletInfo();
-  const authenticated = !!account && walletInfo.isConnected;
+  const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
+  const evmAuthenticated = !!account && walletInfo.isConnected;
+  const authenticated = evmAuthenticated || solanaConnected;
   const router = useRouter();
   const { toast } = useToast();
   const pathname = usePathname();
-  const walletAddress = walletInfo.address;
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const walletAddress = walletInfo.address ?? solanaPublicKey?.toBase58() ?? null;
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -79,6 +84,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   ];
 
   return (
+    <>
     <header style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
       width: "100%",
@@ -151,7 +157,21 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           </button>
 
           {/* Chain Switcher */}
-          {authenticated && <ChainSwitcher />}
+          {evmAuthenticated && <ChainSwitcher />}
+
+          {!authenticated && (
+            <button onClick={() => setShowWalletPicker(true)} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "0 16px", height: 40, background: "#111", color: "#fff",
+              border: "none", borderRadius: 999, cursor: "pointer",
+              fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
+            onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+              Connect Wallet
+            </button>
+          )}
 
           {/* Avatar & Dropdown */}
           <DropdownMenu>
@@ -209,7 +229,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   <DropdownMenuItem
                     onClick={async () => {
                       try {
-                        if (wallet) await wallet.disconnect();
+                        if (solanaConnected) await solanaDisconnect();
+                        else if (wallet) await wallet.disconnect();
                         else window.location.reload();
                         toast({ title: "Wallet disconnected" });
                       } catch { window.location.reload(); }
@@ -222,7 +243,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               )}
               {!authenticated && (
                 <div className="px-2 py-1.5">
-                  <ConnectWallet />
+                  <Button className="w-full" size="sm" onClick={() => setShowWalletPicker(true)}>
+                    Connect Wallet
+                  </Button>
                 </div>
               )}
             </DropdownMenuContent>
@@ -230,5 +253,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         </div>
       </div>
     </header>
+    <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
+    </>
   );
 }

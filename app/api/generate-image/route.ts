@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
+import { isSolanaChain } from "@/shared/payment-config";
+import {
+  buildSolana402Response,
+  checkAndRecordSolanaSignature,
+  parseSolanaPaymentHeader,
+  verifySolanaUsdcTransfer,
+} from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
+
+const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
 
 type GenerateImageBody = {
   prompt?: string;
@@ -87,6 +96,28 @@ async function enhancePromptWithGemini(prompt: string): Promise<{
     inputTokens,
     outputTokens,
   };
+}
+
+function redactIdentifier(value?: string | null, prefix = 8, suffix = 6): string | undefined {
+  if (!value) return undefined;
+  if (value.length <= prefix + suffix) return "[redacted]";
+  return `${value.slice(0, prefix)}...${value.slice(-suffix)}`;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -192,13 +223,15 @@ export async function POST(request: NextRequest) {
     // Gemini pricing: $0.00001 per token (very affordable)
     const GEMINI_PRICE_PER_TOKEN = 0.00001;
 
+    const isSolanaPayment = isSolanaChain(chain);
+
     console.log('💳 X402 Payment Request:', {
       resourceUrl,
       method: 'POST',
       chain,
-      scheme: useUpto ? 'upto' : 'exact',
+      scheme: isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
       price: useUpto ? `${minPrice} - ${maxPrice}` : basePrice,
-      hasPaymentHeader: !!paymentHeader,
+      hasPaymentHeader: !!paymentHeader || !!request.headers.get("X-PAYMENT"),
       serverWallet: serverWalletAddress?.slice(0, 10) + '...',
     });
 
@@ -207,7 +240,90 @@ export async function POST(request: NextRequest) {
     let usedGemini = false;
     let geminiTokens = 0;
 
-    if (useUpto) {
+    if (isSolanaPayment) {
+      const solanaChain = chain as "solana" | "solana-devnet";
+      const solanaPlatformWallet = process.env.SOLANA_PLATFORM_WALLET;
+      if (!solanaPlatformWallet) {
+        return NextResponse.json(
+          { error: 'SOLANA_PLATFORM_WALLET is not configured' },
+          { status: 500 }
+        );
+      }
+
+      const solanaPaymentHeader = request.headers.get("X-PAYMENT");
+      if (!solanaPaymentHeader) {
+        const solana402 = buildSolana402Response({
+          chainKey: solanaChain,
+          resource: resourceUrl,
+          description: `Generate ${body.resolution || "2K"} image`,
+          priceUsdc: basePrice,
+          payTo: solanaPlatformWallet,
+          mimeType: "application/json",
+        });
+        return NextResponse.json(solana402.body, { status: 402, headers: solana402.headers });
+      }
+
+      const payload = parseSolanaPaymentHeader(solanaPaymentHeader);
+      if (!payload) {
+        return NextResponse.json({ error: "Invalid Solana payment header" }, { status: 402 });
+      }
+
+      const minAmountMicro = Math.round(parseFloat(basePrice.replace("$", "")) * 1_000_000);
+      const verification = await verifySolanaUsdcTransfer({
+        signature: payload.signature,
+        chainKey: solanaChain,
+        recipientAddress: solanaPlatformWallet,
+        minAmountMicro,
+      });
+
+      if (!verification.verified) {
+        return NextResponse.json(
+          { error: `Solana payment verification failed: ${verification.error}` },
+          { status: 402 }
+        );
+      }
+
+      const replayCheck = await checkAndRecordSolanaSignature(
+        payload.signature,
+        solanaChain,
+        "image-generation"
+      );
+      if (!replayCheck.isNew) {
+        return NextResponse.json(
+          { error: replayCheck.error || "Transaction signature has already been used" },
+          { status: 402 }
+        );
+      }
+
+      console.log("✅ Solana payment verified:", {
+        signature: redactIdentifier(payload.signature),
+        buyer: redactIdentifier(verification.buyerAddress, 6, 4),
+        amountPaid: verification.amountPaid,
+      });
+
+      paymentResult = {
+        success: true,
+        status: 200,
+        headers: {},
+        metadata: {
+          solanaTxSignature: redactIdentifier(payload.signature),
+          chainKey: solanaChain,
+          chainName: "Solana",
+        },
+      };
+
+      try {
+        const geminiResult = await enhancePromptWithGemini(prompt);
+        if (geminiResult.enhancedPrompt !== prompt) {
+          enhancedPrompt = geminiResult.enhancedPrompt;
+          usedGemini = true;
+          geminiTokens = geminiResult.tokensUsed;
+        }
+      } catch {
+        enhancedPrompt = prompt;
+        usedGemini = false;
+      }
+    } else if (useUpto) {
       // Use upto payment scheme: verify first, do work, then settle with actual price
       paymentResult = await paymentEngine.settleWithUpto(
         {
@@ -323,7 +439,7 @@ export async function POST(request: NextRequest) {
     const xaiKey = process.env.XAI_API_KEY;
     if (!xaiKey) throw new Error("XAI_API_KEY not set");
 
-    const xaiResponse = await fetch("https://api.x.ai/v1/images/generations", {
+    const xaiRequest = fetch("https://api.x.ai/v1/images/generations", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -335,6 +451,13 @@ export async function POST(request: NextRequest) {
         n: 1,
       }),
     });
+    const xaiResponse = isSolanaPayment
+      ? await withTimeout(
+          xaiRequest,
+          SOLANA_GENERATION_TIMEOUT_MS,
+          "Image generation timed out after payment. Please try again with a shorter prompt or lower resolution."
+        )
+      : await xaiRequest;
 
     if (!xaiResponse.ok) {
       const errTxt = await xaiResponse.text();
@@ -407,7 +530,7 @@ export async function POST(request: NextRequest) {
         usedGemini,
         geminiTokens: usedGemini ? geminiTokens : undefined,
         generationTime: geminiResult.generationTime,
-        paymentScheme: useUpto ? 'upto' : 'exact',
+        paymentScheme: isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
         metadata: {
           ...paymentResult.metadata,
           ...(useUpto && {
