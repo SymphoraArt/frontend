@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConnect } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { thirdwebClient, defaultChain } from "@/lib/thirdweb";
@@ -88,6 +88,9 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
       <DialogContent className="sm:max-w-xs p-4">
         <DialogHeader>
           <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          <DialogDescription className="sr-only">
+            Select a Solana or EVM wallet to connect to Symphora.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 space-y-1">

@@ -5,6 +5,10 @@
 
 import { NextRequest } from 'next/server';
 import { isAddress, verifyMessage } from 'viem';
+import { PublicKey } from '@solana/web3.js';
+import { ed25519 } from '@noble/curves/ed25519';
+import { getSupabaseServerClient } from '@/lib/supabaseServer';
+import { APP_NAME } from '@/shared/app-config';
 
 export interface AuthenticatedUser {
   walletAddress: string;
@@ -21,6 +25,7 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
   const signature = request.headers.get('X-Wallet-Signature');
   const message = request.headers.get('X-Auth-Message');
   const timestamp = request.headers.get('X-Timestamp');
+  const walletType = request.headers.get('X-Wallet-Type') || 'evm';
 
   // Validate required headers
   if (!walletAddress || !signature || !message) {
@@ -28,7 +33,13 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
   }
 
   // Validate wallet address format
-  if (!isAddress(walletAddress)) {
+  if (walletType === 'solana') {
+    try {
+      new PublicKey(walletAddress);
+    } catch {
+      throw new Error('Invalid Solana wallet address format');
+    }
+  } else if (!isAddress(walletAddress)) {
     throw new Error('Invalid wallet address format');
   }
 
@@ -44,7 +55,9 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
   }
 
   // Verify signature
-  const isValidSignature = await verifyWalletSignature(walletAddress, signature, message);
+  const isValidSignature = walletType === 'solana'
+    ? await verifySolanaWalletSignature(walletAddress, signature, message)
+    : await verifyWalletSignature(walletAddress, signature, message);
 
   if (!isValidSignature) {
     throw new Error('Invalid wallet signature');
@@ -57,6 +70,26 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     walletAddress: walletAddress.toLowerCase(),
     userId
   };
+}
+
+/**
+ * Verify Solana wallet signature (ed25519)
+ * Signature is base64-encoded, message is plain text
+ */
+export async function verifySolanaWalletSignature(
+  publicKeyBase58: string,
+  signatureBase64: string,
+  message: string
+): Promise<boolean> {
+  try {
+    const pubKeyBytes = new PublicKey(publicKeyBase58).toBytes();
+    const sigBytes = Buffer.from(signatureBase64, 'base64');
+    const msgBytes = new TextEncoder().encode(message);
+    return ed25519.verify(sigBytes, msgBytes, pubKeyBytes);
+  } catch (error) {
+    console.error('Solana signature verification error:', error);
+    return false;
+  }
 }
 
 /**
@@ -87,9 +120,25 @@ export async function verifyWalletSignature(
 export function generateAuthMessage(walletAddress: string): {
   message: string;
   timestamp: number;
+};
+export function generateAuthMessage(walletAddress: string, nonce: string): {
+  message: string;
+  timestamp: number;
+};
+export function generateAuthMessage(walletAddress: string, nonce?: string): {
+  message: string;
+  timestamp: number;
 } {
   const timestamp = Date.now();
-  const message = `Sign this message to authenticate with Symphora Marketplace.
+  const message = nonce
+    ? `Sign this message to authenticate with ${APP_NAME} Marketplace.
+
+Wallet: ${walletAddress}
+Timestamp: ${timestamp}
+Nonce: ${nonce}
+
+This signature proves ownership of this wallet and will be used to authenticate your marketplace actions.`
+    : `Sign this message to authenticate with Symphora Marketplace.
 
 Wallet: ${walletAddress}
 Timestamp: ${timestamp}
@@ -116,10 +165,34 @@ export function createAuthHeaders(
   };
 }
 
+async function resolveSessionToken(token: string): Promise<AuthenticatedUser | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('auth_sessions')
+    .select('wallet_address, expires_at')
+    .eq('token', token)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    walletAddress: data.wallet_address,
+    userId: data.wallet_address,
+  };
+}
+
 /**
  * Middleware helper to require authentication
  */
 export async function requireAuth(request: NextRequest): Promise<AuthenticatedUser> {
+  const sessionToken = request.headers.get('X-Session-Token');
+  if (sessionToken) {
+    const user = await resolveSessionToken(sessionToken);
+    if (user) return user;
+    throw new Error('Authentication failed: Invalid or expired session token');
+  }
+
   try {
     return await authenticateUser(request);
   } catch (error) {
@@ -133,6 +206,8 @@ export async function requireAuth(request: NextRequest): Promise<AuthenticatedUs
  */
 export async function getAuthenticatedUser(request: NextRequest): Promise<AuthenticatedUser | null> {
   try {
+    const sessionToken = request.headers.get('X-Session-Token');
+    if (sessionToken) return await resolveSessionToken(sessionToken);
     return await authenticateUser(request);
   } catch (error) {
     return null;

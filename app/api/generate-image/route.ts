@@ -433,57 +433,84 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate image using Grok testing only
-    console.log('🎨 Generating image with Grok...');
-
+    let geminiResult;
     const xaiKey = process.env.XAI_API_KEY;
-    if (!xaiKey) throw new Error("XAI_API_KEY not set");
 
-    const xaiRequest = fetch("https://api.x.ai/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${xaiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-imagine-image",
+    if (xaiKey) {
+      console.log('🎨 Generating image with Grok...');
+
+      const xaiRequest = fetch("https://api.x.ai/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${xaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "grok-imagine-image",
+          prompt: enhancedPrompt,
+          n: 1,
+        }),
+      });
+      const xaiResponse = isSolanaPayment
+        ? await withTimeout(
+            xaiRequest,
+            SOLANA_GENERATION_TIMEOUT_MS,
+            "Image generation timed out after payment. Please try again with a shorter prompt or lower resolution."
+          )
+        : await xaiRequest;
+
+      if (!xaiResponse.ok) {
+        const errTxt = await xaiResponse.text();
+        console.error('❌ Grok image generation failed:', errTxt);
+        return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
+      }
+
+      const xaiData = await xaiResponse.json();
+      const grokUrl = xaiData.data?.[0]?.url;
+
+      if (!grokUrl) {
+        return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
+      }
+
+      const imgRes = await fetch(grokUrl);
+      if (!imgRes.ok) throw new Error("Failed to download image from Grok");
+      const arrayBuffer = await imgRes.arrayBuffer();
+      const imageBuffer = Buffer.from(arrayBuffer);
+
+      geminiResult = {
+        success: true,
+        imageBuffers: [imageBuffer],
+        metadata: { model: 'grok-imagine-image' },
+        generationTime: 0
+      };
+    } else {
+      console.log('🎨 XAI_API_KEY not set, generating image with Gemini...');
+      const geminiRequest = generateImagesWithGemini({
         prompt: enhancedPrompt,
-        n: 1,
-      }),
-    });
-    const xaiResponse = isSolanaPayment
-      ? await withTimeout(
-          xaiRequest,
-          SOLANA_GENERATION_TIMEOUT_MS,
-          "Image generation timed out after payment. Please try again with a shorter prompt or lower resolution."
-        )
-      : await xaiRequest;
+        aspectRatio: (body.aspectRatio || body.ratio || "1:1") as ImageGenerationRequest["aspectRatio"],
+        imageSize: (body.resolution || "2K") as ImageGenerationRequest["imageSize"],
+        numImages: 1,
+      });
+      geminiResult = isSolanaPayment
+        ? await withTimeout(
+            geminiRequest,
+            SOLANA_GENERATION_TIMEOUT_MS,
+            "Image generation timed out after payment. Please try again with a shorter prompt or lower resolution."
+          )
+        : await geminiRequest;
 
-    if (!xaiResponse.ok) {
-      const errTxt = await xaiResponse.text();
-      console.error('❌ Grok image generation failed:', errTxt);
-      return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
+      if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
+        return NextResponse.json(
+          { error: geminiResult.error || 'Gemini image generation failed', retryable: geminiResult.retryable ?? true },
+          { status: 500 }
+        );
+      }
     }
 
-    const xaiData = await xaiResponse.json();
-    const grokUrl = xaiData.data?.[0]?.url;
-
-    if (!grokUrl) {
-      return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
+    const generatedImageBuffer = geminiResult.imageBuffers?.[0];
+    if (!generatedImageBuffer) {
+      return NextResponse.json({ error: 'No generated image buffer returned', retryable: true }, { status: 500 });
     }
-
-    // Fetch the image to get a buffer
-    const imgRes = await fetch(grokUrl);
-    if (!imgRes.ok) throw new Error("Failed to download image from Grok");
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const imageBuffer = Buffer.from(arrayBuffer);
-
-    const geminiResult = {
-      success: true,
-      imageBuffers: [imageBuffer],
-      metadata: { model: 'grok-imagine-image' },
-      generationTime: 0
-    };
 
     // Upload image buffer to Vercel Blob storage
     let imageUrl: string;
@@ -494,7 +521,7 @@ export async function POST(request: NextRequest) {
       if (!blobToken) {
         console.warn('⚠️ BLOB_READ_WRITE_TOKEN not set, using data URL fallback');
         // Fallback to data URL if blob storage not configured
-        const base64 = geminiResult.imageBuffers[0].toString('base64');
+        const base64 = generatedImageBuffer.toString('base64');
         imageUrl = `data:image/png;base64,${base64}`;
       } else {
         // Create unique filename
@@ -503,7 +530,7 @@ export async function POST(request: NextRequest) {
         const filename = `generations/${timestamp}_${randomSuffix}.png`;
 
         // Upload to Vercel Blob
-        const { url } = await put(filename, geminiResult.imageBuffers[0], {
+        const { url } = await put(filename, generatedImageBuffer, {
           access: 'public',
           contentType: 'image/png',
           addRandomSuffix: false,
@@ -515,7 +542,7 @@ export async function POST(request: NextRequest) {
     } catch (uploadError: any) {
       console.error('❌ Failed to upload image to blob storage:', uploadError);
       // Fallback to data URL if upload fails
-      const base64 = geminiResult.imageBuffers[0].toString('base64');
+      const base64 = generatedImageBuffer.toString('base64');
       imageUrl = `data:image/png;base64,${base64}`;
       console.warn('⚠️ Using data URL fallback due to upload error');
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, User, LogOut, Wallet, Copy } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy, Sun, Moon, Coins, MessageSquareHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,8 +17,8 @@ import { ChainSwitcher } from "./ChainSwitcher";
 import { WalletPickerModal } from "./WalletPickerModal";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
-import { Coins, MessageSquareHeart } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useTheme } from "../providers/ThemeProvider";
 
 interface NavbarProps {
   username?: string;
@@ -56,6 +56,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const wallet = useSafeActiveWallet();
   const walletInfo = useSafeWalletInfo();
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
+  const { theme, toggleTheme } = useTheme();
+  const [themeReady, setThemeReady] = useState(false);
   const evmAuthenticated = !!account && walletInfo.isConnected;
   const authenticated = evmAuthenticated || solanaConnected;
   const router = useRouter();
@@ -63,6 +65,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const pathname = usePathname();
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const walletAddress = walletInfo.address ?? solanaPublicKey?.toBase58() ?? null;
+  const isDark = themeReady && theme === "dark";
+
+  useEffect(() => {
+    setThemeReady(true);
+  }, []);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -88,11 +95,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     <header style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
       width: "100%",
-      background: "rgba(255, 255, 255, 0.82)",
+      background: isDark ? "rgba(13, 13, 13, 0.86)" : "rgba(255, 255, 255, 0.9)",
       backdropFilter: "blur(24px) saturate(200%)",
       WebkitBackdropFilter: "blur(24px) saturate(200%)",
       border: "none",
-      borderBottom: "1px solid rgba(0,0,0,0.06)",
+      borderBottom: isDark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)",
       boxShadow: "none",
       borderRadius: 0,
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
@@ -101,7 +108,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
         {/* Logo */}
         <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#111" }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: isDark ? "#f7f2eb" : "#111" }}>
             Enki Art
           </span>
           <span style={{ color: "#d94f3d", fontSize: 22, lineHeight: 1, marginLeft: 1 }}>·</span>
@@ -116,11 +123,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 background: "none", border: "none", cursor: "pointer",
                 padding: "0 16px", height: 56,
                 fontSize: 12.5, fontWeight: isActive ? 600 : 400,
-                letterSpacing: "0.4px", color: isActive ? "#111" : "#555",
+                letterSpacing: "0.4px", color: isActive ? (isDark ? "#fff" : "#111") : (isDark ? "#c8c1b8" : "#555"),
                 transition: "color 0.2s ease",
               }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#555")}
+                onMouseEnter={e => (e.currentTarget.style.color = isDark ? "#fff" : "#111")}
+                onMouseLeave={e => (e.currentTarget.style.color = isActive ? (isDark ? "#fff" : "#111") : (isDark ? "#c8c1b8" : "#555"))}
               >
                 {label}
               </button>
@@ -130,15 +137,29 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
         {/* Right Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, zIndex: 2 }}>
+          <button
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={toggleTheme}
+            style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "none", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: isDark ? "#f7f2eb" : "#555", transition: "background 0.2s ease, color 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "none")}
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           
           {/* Search Icon */}
           <button style={{
             width: 38, height: 38, borderRadius: "50%",
             background: "none", border: "none",
             display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+            cursor: "pointer", color: isDark ? "#f7f2eb" : "#555", transition: "background 0.2s ease",
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+          onMouseEnter={e => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)")}
           onMouseLeave={e => (e.currentTarget.style.background = "none")}>
             <Search size={16} />
           </button>
@@ -189,7 +210,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   : <User size={16} />}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl">
+            <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-black/15 bg-white text-[#111] shadow-2xl dark:border-white/15 dark:bg-[#171717] dark:text-white">
               {authenticated && walletAddress ? (
                 <div className="px-2 py-2 space-y-1">
                   <div className="flex items-center gap-2">
@@ -212,15 +233,15 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Gallery</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Prompts</DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-black/5" />
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {/* Secondary Actions Moved Here */}
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
                 <Coins className="h-4 w-4 mr-2 text-[#d94f3d]" /> Hunt a prompt
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
-                <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111]" /> Earn for feedback
+                <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111] dark:text-white" /> Earn for feedback
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-black/5" />
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">Settings</DropdownMenuItem>
               
               {authenticated && account && (

@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
+import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
 import AlgencyMobileGenerateModal from "./AlgencyMobileGenerateModal";
+import { WalletPickerModal } from "./WalletPickerModal";
 import {
   Search,
   Settings,
@@ -65,8 +68,11 @@ function EmptyVarIcon() {
 export default function AlgencyPromptEditor() {
   const router = useRouter();
   const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
   const { theme, toggleTheme } = useTheme();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
+  const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
   const { toast } = useToast();
@@ -128,6 +134,10 @@ export default function AlgencyPromptEditor() {
 
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const walletAddress = account?.address ?? solanaPublicKey?.toBase58() ?? null;
+  const walletConnected = Boolean(walletAddress) || solanaConnected;
+  const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending;
 
   useEffect(() => {
     const handleResize = () => setIsMobileViewport(window.innerWidth <= 768);
@@ -408,12 +418,26 @@ export default function AlgencyPromptEditor() {
       toast({ title: "Error", description: "Please enter a prompt.", variant: "destructive" });
       return;
     }
+    if (!walletConnected) {
+      setShowWalletPicker(true);
+      toast({ title: "Wallet required", description: "Connect a wallet to generate with x402.", variant: "destructive" });
+      return;
+    }
     setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "generating" } : v));
     try {
-      const data = await generateImageWithPayment(
-        { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
-        selectedChain
-      ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
+      const data = solanaConnected
+        ? await generateImageWithSolana({
+            prompt: previewText,
+            resolution: "2K",
+            chain: "solana-devnet",
+          }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
+        : await generateImageWithPayment(
+            { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
+            selectedChain
+          ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
+      if (!data?.imageUrl) {
+        throw new Error("Image generated, but no image URL was returned.");
+      }
       setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: data.imageUrl } : v));
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
@@ -424,10 +448,14 @@ export default function AlgencyPromptEditor() {
             meta: { usedGemini: Boolean(data.usedGemini ?? false) },
           });
         } catch { /* ignore */ }
-        addCreation(userKey, {
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          imageUrl: data.imageUrl, prompt: previewText, createdAt: new Date().toISOString(),
-        });
+        try {
+          addCreation(userKey, {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            imageUrl: data.imageUrl, prompt: previewText, createdAt: new Date().toISOString(),
+          });
+        } catch (storageError) {
+          console.warn("Creation generated but could not be saved locally:", storageError);
+        }
       }
       toast({ title: "Done", description: `Slot ${versionId} complete.` });
     } catch (error: unknown) {
@@ -721,17 +749,46 @@ export default function AlgencyPromptEditor() {
             className="alg-navbar__avatar"
             onClick={(e) => { e.stopPropagation(); setUi(prev => ({ ...prev, showAvatarDropdown: !prev.showAvatarDropdown })) }}
           >
-            {account?.address ? account.address.slice(2, 4).toUpperCase() : "SM"}
+            {walletAddress ? walletAddress.slice(0, 2).toUpperCase() : "SM"}
           </div>
           {ui.showAvatarDropdown && (
             <div className="alg-avatar-dropdown" onClick={(e) => e.stopPropagation()}>
-              <button className="alg-avatar-dropdown__item" onClick={() => { alert('Connect Wallet placeholder') }}>Connect Wallet</button>
+              {walletConnected && walletAddress ? (
+                <button className="alg-avatar-dropdown__item" title={walletAddress}>
+                  Wallet Connected
+                </button>
+              ) : (
+                <button
+                  className="alg-avatar-dropdown__item"
+                  onClick={() => {
+                    setShowWalletPicker(true);
+                    setUi(prev => ({ ...prev, showAvatarDropdown: false }));
+                  }}
+                >
+                  Connect Wallet
+                </button>
+              )}
               <button className="alg-avatar-dropdown__item">Profile Settings</button>
-              <button className="alg-avatar-dropdown__item">Sign Out</button>
+              {walletConnected && (
+                <button
+                  className="alg-avatar-dropdown__item"
+                  onClick={async () => {
+                    try {
+                      if (solanaConnected) await solanaDisconnect();
+                      else if (wallet) await wallet.disconnect();
+                    } finally {
+                      setUi(prev => ({ ...prev, showAvatarDropdown: false }));
+                    }
+                  }}
+                >
+                  Disconnect Wallet
+                </button>
+              )}
             </div>
           )}
         </div>
       </nav>
+      <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
 
       {/* ═══ 4-COLUMN GRID ═══ */}
@@ -1241,7 +1298,9 @@ export default function AlgencyPromptEditor() {
                     <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "var(--alg-dark)" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)" }}>via Thirdweb x402</span>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)" }}>
+                      via {solanaConnected ? "Solana" : "Thirdweb"} x402
+                    </span>
                   </div>
                 </div>
               )}
@@ -1260,10 +1319,10 @@ export default function AlgencyPromptEditor() {
                   <button
                     className="alg-pay-btn"
                     onClick={handlePayAndGenerate}
-                    disabled={isPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
+                    disabled={isGeneratingPaymentPending || versions.filter(v => v.status === "idle" || v.status === "failed").length === 0}
                     style={{ padding: "6px 8px", height: "auto", whiteSpace: "nowrap", fontSize: 9 }}
                   >
-                    {isPaymentPending ? (
+                    {isGeneratingPaymentPending ? (
                       <>● Processing...</>
                     ) : (
                       <>
