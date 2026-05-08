@@ -1084,7 +1084,7 @@ export default function AlgencyPromptEditor() {
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)", marginBottom: 8, lineHeight: 1.3, flexShrink: 0 }}>
+            <p style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontSize: "clamp(11px, 0.8vw + 6px, 14px)", color: "var(--alg-hint)", marginBottom: 12, lineHeight: 1.4, flexShrink: 0 }}>
               {promptData.type === "free-prompt"
                 ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
                 : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
