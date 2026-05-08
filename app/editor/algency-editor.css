@@ -411,7 +411,7 @@ html.dark {
 }
 
 .alg-var-card__label {
-  font-size: 8px; font-weight: 700; letter-spacing: 1.3px;
+  font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.3px;
   text-transform: uppercase; color: #B0AAA2; margin-bottom: 4px;
 }
 
@@ -424,14 +424,14 @@ html.dark {
 
 .alg-var-card__default-val {
   font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: 12px; font-weight: 500; color: #1C1A18;
+  font-size: clamp(14px, 1vw + 6px, 18px); font-weight: 500; color: #1C1A18;
 }
 .alg-var-card__default-val--italic {
   font-style: italic; color: #C4BDB5;
 }
 
 .alg-var-card__hint {
-  font-size: 11px; font-style: italic; color: #B0AAA2;
+  font-size: clamp(12px, 0.8vw + 6px, 16px); font-style: italic; color: #B0AAA2;
   margin-top: 4px; border-top: 1px solid #EDE8E0; padding-top: 6px;
 }
 
@@ -439,15 +439,15 @@ html.dark {
   display: flex; align-items: center; justify-content: space-between; margin-top: 12px; margin-bottom: 6px;
 }
 .alg-toggle-inserts-label {
-  font-size: 8px; font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
+  font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
 }
 .alg-toggle-inserts-block {
   border-left: 2.5px solid #E07045; padding-left: 10px; margin: 6px 0;
   font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: 13px; font-style: italic; color: #5A5550; line-height: 1.2;
+  font-size: clamp(14px, 1vw + 6px, 18px); font-style: italic; color: #5A5550; line-height: 1.2;
 }
 .alg-toggle-inserts-footer {
-  font-size: 10px; color: #B0AAA2; font-style: italic; margin-top: 4px;
+  font-size: clamp(11px, 0.8vw + 6px, 14px); color: #B0AAA2; font-style: italic; margin-top: 4px;
 }
 .alg-mono-span {
   font-family: monospace; background: #EDE8E0; padding: 1px 4px; border-radius: 3px; font-style: normal;
