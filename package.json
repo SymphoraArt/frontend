@@ -60,6 +60,8 @@
     "@turnkey/sdk-browser": "^6.0.0",
     "@turnkey/sdk-server": "^6.0.0",
     "@vercel/blob": "^2.0.0",
+    "@noble/curves": "^1.4.0",
+    "bs58": "^6.0.0",
     "bottleneck": "^2.19.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
