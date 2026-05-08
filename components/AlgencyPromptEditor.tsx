@@ -729,7 +729,7 @@ export default function AlgencyPromptEditor() {
             {/* Prompt Title */}
             <div className="alg-label">PROMPT TITLE</div>
             <input
-              className="alg-input"
+              className="alg-input alg-input--title"
               value={promptData.title}
               onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Untitled Prompt"
@@ -768,7 +768,7 @@ export default function AlgencyPromptEditor() {
               </div>
               <input
                 className="alg-tag-input"
-                placeholder="Add tag, press Enter"
+                placeholder="category, that's derived from the main categories"
                 value={ui.tagInput}
                 onChange={(e) => setUi(prev => ({ ...prev, tagInput: e.target.value }))}
                 onKeyDown={(e) => {
