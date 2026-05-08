@@ -62,12 +62,12 @@ export default function EnkiDetailPanel({ prompt, onClose, faved, toggleFav }: E
 
               <div className="enki-detail-setting-group">
                 <div className="enki-detail-setting-label">Aspect Ratio</div>
-                <div className="enki-detail-setting-value mono">4:5</div>
+                <div className="enki-detail-setting-value mono">{prompt.art.ratio || "3:4"}</div>
               </div>
-
+ 
               <div className="enki-detail-setting-group">
-                <div className="enki-detail-setting-label">Resolution</div>
-                <div className="enki-detail-setting-value mono">2K</div>
+                <div className="enki-detail-setting-label">Generator</div>
+                <div className="enki-detail-setting-value mono">{prompt.model}</div>
               </div>
 
               <div className="enki-detail-setting-group">

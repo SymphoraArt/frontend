@@ -174,56 +174,67 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
           {/* Release Prompt — full pill on desktop, icon on tablet, hidden on mobile (in dropdown) */}
           {isDesktop && (
-            <button onClick={() => router.push("/editor")} style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "0 20px", height: 40, background: "#111", color: "#fff",
-              border: "none", borderRadius: 999, cursor: "pointer",
-              fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
-            onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
-              Release prompt
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginRight: 8 }}>
+              <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Trophy size={18} />
+              </button>
+              <button onClick={() => router.push("/referrals")} title="Referrals" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Users size={18} />
+              </button>
+              <button onClick={() => router.push("/feedback")} title="Feedbacks" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <MessageSquareHeart size={18} />
+              </button>
+              <button title="Notifications" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Bell size={18} />
+              </button>
+              
+              <button onClick={() => router.push("/editor")} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "0 20px", height: 40, background: "#111", color: "#fff",
+                border: "none", borderRadius: 999, cursor: "pointer",
+                fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+                Release prompt
+              </button>
+            </div>
           )}
           {isTablet && (
-            <button onClick={() => router.push("/editor")} title="Release prompt" style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: "#111", border: "none",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: "#fff", transition: "transform 0.2s ease",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
-            onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
-              <PenLine size={15} />
-            </button>
-          )}          {/* Leaderboard — hidden on mobile (in dropdown) */}
-          {!isMobile && (
-            <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: "none", border: "none",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: "#555", transition: "background 0.2s ease",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-              <Trophy size={16} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 4 }}>
+              <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ color: "#555", background: "none", border: "none" }}>
+                <Trophy size={16} />
+              </button>
+              <button title="Notifications" style={{ color: "#555", background: "none", border: "none" }}>
+                <Bell size={16} />
+              </button>
+              <button onClick={() => router.push("/editor")} title="Release prompt" style={{
+                width: 36, height: 36, borderRadius: "50%",
+                background: "#111", border: "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "#fff", transition: "transform 0.2s ease",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+                <PenLine size={15} />
+              </button>
+            </div>
           )}
 
-          {/* Notifications — hidden on mobile */}
-          {!isMobile && (
-            <button title="Notifications" style={{
-              width: 38, height: 38, borderRadius: "50%",
-              background: "none", border: "none",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: "#555", transition: "background 0.2s ease",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-              <Bell size={16} />
-            </button>
-          )}
+
 
           {/* Chain Switcher */}
           {authenticated && <ChainSwitcher />}
@@ -283,6 +294,15 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <>
                   <DropdownMenuItem onClick={() => router.push("/editor")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
                     <PenLine className="h-4 w-4 mr-2 text-[#d94f3d]" /> Release prompt
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/leaderboard")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <Trophy className="h-4 w-4 mr-2 text-[#d94f3d]" /> Leaderboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/referrals")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <Users className="h-4 w-4 mr-2 text-[#d94f3d]" /> Referrals
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/feedback")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <MessageSquareHeart className="h-4 w-4 mr-2 text-[#d94f3d]" /> Feedback
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-black/5" />
                 </>
