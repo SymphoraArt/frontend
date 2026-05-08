@@ -1,6 +1,7 @@
 "use client";
 
 import { Heart, Play, Image as ImageIcon, Film } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import "./enki.css";
 
@@ -12,6 +13,7 @@ type EnkiCardProps = {
 };
 
 export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardProps) {
+  const router = useRouter();
   return (
     <article className="enki-card" onClick={() => onOpen?.(prompt)}>
       <div className="enki-card-img">
@@ -48,14 +50,37 @@ export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardP
         <div className="enki-card-overlay">
           <div className="enki-card-overlay-bottom">
             <div className="enki-card-overlay-title serif">{prompt.title}</div>
-            <div className="enki-card-overlay-artist mono">{prompt.artist.name}</div>
+            <div
+              className="enki-card-overlay-artist mono"
+              style={{ cursor: "pointer" }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (prompt.artist.id) {
+                  router.push(`/creators/${prompt.artist.handle}`);
+                }
+              }}
+            >
+              {prompt.artist.name}
+            </div>
           </div>
         </div>
       </div>
       <div className="enki-card-mobile-meta">
         <div className="enki-card-mobile-title serif">{prompt.title}</div>
         <div className="enki-card-mobile-row">
-          <span>{prompt.artist.name}</span>
+          <span
+            style={{ cursor: "pointer" }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (prompt.artist.id) {
+                router.push(`/creators/${prompt.artist.handle}`);
+              }
+            }}
+          >
+            {prompt.artist.name}
+          </span>
           <span className="mono">${prompt.price.toFixed(2)}</span>
         </div>
       </div>

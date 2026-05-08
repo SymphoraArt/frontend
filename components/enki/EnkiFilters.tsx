@@ -17,6 +17,8 @@ const CATEGORIES = [
 type EnkiFiltersProps = {
   active: string[];
   toggle: (tag: string) => void;
+  /** When true, only one category can be active at a time (radio behavior) */
+  exclusive?: boolean;
 };
 
 export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
