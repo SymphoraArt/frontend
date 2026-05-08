@@ -600,7 +600,7 @@ html.dark {
 
 /* ─── Hint Text ─── */
 .alg-hint-text {
-  font-size: 11px; color: var(--alg-hint); font-style: italic;
+  font-size: clamp(12px, 0.8vw + 6px, 16px); color: var(--alg-hint); font-style: normal;
   line-height: 1.4; margin-top: 6px;
 }
 
