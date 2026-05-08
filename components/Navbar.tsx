@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, User, LogOut, Wallet, Copy } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart, PenLine, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import { ConnectWallet } from "./ConnectWallet";
 import { ChainSwitcher } from "./ChainSwitcher";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
-import { Coins, MessageSquareHeart } from "lucide-react";
+import { Coins } from "lucide-react";
 
 interface NavbarProps {
   username?: string;
@@ -49,6 +49,26 @@ function useSafeWalletInfo() {
   }
 }
 
+/** Hook to track viewport width for responsive rendering */
+function useBreakpoint() {
+  const [width, setWidth] = useState(1200); // Safe default for SSR
+
+  useEffect(() => {
+    // Update after mount
+    setWidth(window.innerWidth);
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return {
+    isMobile: width <= 900,
+    isTablet: width > 900 && width < 1200,
+    isDesktop: width >= 1200,
+    width,
+  };
+}
+
 export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const account = useSafeActiveAccount();
   const wallet = useSafeActiveWallet();
@@ -58,6 +78,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { toast } = useToast();
   const pathname = usePathname();
   const walletAddress = walletInfo.address;
+  const { isMobile, isTablet, isDesktop } = useBreakpoint();
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -72,11 +93,16 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
 
   const NAV_LINKS = [
-    { label: "DISCOVER",  href: "/" },
-    { label: "IMAGES",    href: "/showcase" },
-    { label: "VIDEOS",    href: "/showcase" },
-    { label: "FAVORITES", href: "/my-gallery" },
+    { label: "DISCOVER",  href: "/",          disabled: false },
+    { label: "IMAGES",    href: "/showcase",   disabled: false },
+    { label: "VIDEOS",    href: "/showcase",   disabled: true, tooltip: "Video prompts will be implemented soon" },
+    { label: "FAVORITES", href: "/my-gallery", disabled: false },
   ];
+
+  // On tablet, hide the disabled VIDEOS link to save space
+  const visibleNavLinks = isTablet
+    ? NAV_LINKS.filter(l => !l.disabled)
+    : NAV_LINKS;
 
   return (
     <header style={{
@@ -91,39 +117,48 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
       borderRadius: 0,
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
-      <div style={{ padding: "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+      <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
 
         {/* Logo */}
         <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#111" }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: isMobile ? 17 : 19, color: "#111" }}>
             Enki Art
           </span>
           <span style={{ color: "#d94f3d", fontSize: 22, lineHeight: 1, marginLeft: 1 }}>·</span>
         </div>
 
-        {/* Nav Links (Centered Absolutely) */}
-        <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-          {NAV_LINKS.map(({ label, href }) => {
-            const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
-            return (
-              <button key={label} onClick={() => router.push(href)} style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: "0 16px", height: 56,
-                fontSize: 12.5, fontWeight: isActive ? 600 : 400,
-                letterSpacing: "0.4px", color: isActive ? "#111" : "#555",
-                transition: "color 0.2s ease",
-              }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#111")}
-                onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#111" : "#555")}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Nav Links — hidden on mobile, centered on tablet/desktop */}
+        {!isMobile && (
+          <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+            {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
+              const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
+              return (
+                <button
+                  key={label}
+                  onClick={() => !disabled && router.push(href)}
+                  title={disabled ? tooltip : undefined}
+                  style={{
+                    background: "none", border: "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    padding: isTablet ? "0 10px" : "0 16px", height: 56,
+                    fontSize: isTablet ? 11.5 : 12.5, fontWeight: isActive ? 600 : 400,
+                    letterSpacing: "0.4px",
+                    color: disabled ? "#bbb" : isActive ? "#111" : "#555",
+                    opacity: disabled ? 0.5 : 1,
+                    transition: "color 0.2s ease",
+                  }}
+                  onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = "#111"; }}
+                  onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = isActive ? "#111" : "#555"; }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Right Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, zIndex: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 2 : 6, flexShrink: 0, zIndex: 2 }}>
           
           {/* Search Icon */}
           <button style={{
@@ -137,18 +172,69 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <Search size={16} />
           </button>
 
-          {/* Release Prompt (Solid Pill) */}
-          <button onClick={() => router.push("/editor")} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "0 20px", height: 40, background: "#111", color: "#fff",
-            border: "none", borderRadius: 999, cursor: "pointer",
-            fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
-          onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
-            Release
-          </button>
+          {/* Release Prompt — full pill on desktop, icon on tablet, hidden on mobile (in dropdown) */}
+          {isDesktop && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginRight: 8 }}>
+              <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Trophy size={18} />
+              </button>
+              <button onClick={() => router.push("/referrals")} title="Referrals" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Users size={18} />
+              </button>
+              <button onClick={() => router.push("/feedback")} title="Feedbacks" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <MessageSquareHeart size={18} />
+              </button>
+              <button title="Notifications" style={{
+                background: "none", border: "none", cursor: "pointer", color: "#555",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                <Bell size={18} />
+              </button>
+              
+              <button onClick={() => router.push("/editor")} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "0 20px", height: 40, background: "#111", color: "#fff",
+                border: "none", borderRadius: 999, cursor: "pointer",
+                fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+                Release prompt
+              </button>
+            </div>
+          )}
+          {isTablet && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 4 }}>
+              <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ color: "#555", background: "none", border: "none" }}>
+                <Trophy size={16} />
+              </button>
+              <button title="Notifications" style={{ color: "#555", background: "none", border: "none" }}>
+                <Bell size={16} />
+              </button>
+              <button onClick={() => router.push("/editor")} title="Release prompt" style={{
+                width: 36, height: 36, borderRadius: "50%",
+                background: "#111", border: "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "#fff", transition: "transform 0.2s ease",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+                <PenLine size={15} />
+              </button>
+            </div>
+          )}
+
+
 
           {/* Chain Switcher */}
           {authenticated && <ChainSwitcher />}
@@ -156,18 +242,30 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           {/* Avatar & Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button data-testid="button-user-menu" style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: "#111", border: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
-                fontFamily: "monospace", letterSpacing: "0.5px",
-                marginLeft: 4
-              }}>
-                {authenticated && walletAddress
-                  ? walletAddress.slice(2, 4).toUpperCase()
-                  : <User size={16} />}
-              </button>
+              {isMobile ? (
+                <button data-testid="button-user-menu" style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  background: "none", border: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", color: "#333",
+                  marginLeft: 2,
+                }}>
+                  <Menu size={22} />
+                </button>
+              ) : (
+                <button data-testid="button-user-menu" style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  background: "#111", border: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
+                  fontFamily: "monospace", letterSpacing: "0.5px",
+                  marginLeft: 4
+                }}>
+                  {authenticated && walletAddress
+                    ? walletAddress.slice(2, 4).toUpperCase()
+                    : <User size={16} />}
+                </button>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl">
               {authenticated && walletAddress ? (
@@ -190,12 +288,34 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </div>
               )}
               <DropdownMenuSeparator />
+
+              {/* Mobile-only items: things hidden from the top bar */}
+              {isMobile && (
+                <>
+                  <DropdownMenuItem onClick={() => router.push("/editor")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <PenLine className="h-4 w-4 mr-2 text-[#d94f3d]" /> Release prompt
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/leaderboard")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <Trophy className="h-4 w-4 mr-2 text-[#d94f3d]" /> Leaderboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/referrals")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <Users className="h-4 w-4 mr-2 text-[#d94f3d]" /> Referrals
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/feedback")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <MessageSquareHeart className="h-4 w-4 mr-2 text-[#d94f3d]" /> Feedback
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-black/5" />
+                </>
+              )}
+
               <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Gallery</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Prompts</DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/5" />
-              {/* Secondary Actions Moved Here */}
+              <DropdownMenuItem onClick={() => router.push("/leaderboard")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                <Trophy className="h-4 w-4 mr-2 text-[#d94f3d]" /> Leaderboard
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
-                <Coins className="h-4 w-4 mr-2 text-[#d94f3d]" /> Hunt a prompt
+                <Users className="h-4 w-4 mr-2 text-[#d94f3d]" /> Referrals
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {}} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
                 <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111]" /> Earn for feedback
