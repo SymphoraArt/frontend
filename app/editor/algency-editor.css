@@ -431,7 +431,7 @@ html.dark {
 }
 
 .alg-var-card__hint {
-  font-size: clamp(12px, 0.8vw + 6px, 16px); font-style: italic; color: #B0AAA2;
+  font-size: clamp(10px, 0.5vw + 4px, 12px); font-style: italic; color: #B0AAA2;
   margin-top: 4px; border-top: 1px solid #EDE8E0; padding-top: 6px;
 }
 
