@@ -13,6 +13,12 @@ export async function GET(
   try {
     const { id: userId } = await params;
 
+    // Ownership check: caller must declare which address they are
+    const callerAddress = request.headers.get("X-Wallet-Address");
+    if (callerAddress && callerAddress.toLowerCase() !== userId.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const supabase = getSupabaseServerClient();
 
     // Get user earnings

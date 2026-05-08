@@ -31,6 +31,12 @@ export async function GET(req: Request) {
       return createErrorResponse('userId or userKey is required', 400);
     }
 
+    // Solana public keys are base58, not UUIDs — return empty instead of crashing
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (!isUuid) {
+      return createSuccessResponse({ generations: [], total: 0, limit, offset });
+    }
+
     const supabase = getSupabaseServerClient();
     const { data, error, count } = await supabase
       .from("generations")

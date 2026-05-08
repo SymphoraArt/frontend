@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ConnectWallet } from "@/components/ConnectWallet";
 import { Button } from "@/components/ui/button";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, DollarSign, ShoppingBag, FileText, ImageIcon, TrendingUp, Eye, Plus } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 interface DashboardData {
   earnings: {
@@ -39,13 +41,17 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const account = useActiveAccount();
-  const authenticated = !!account;
+  const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
+  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
+  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
 
   useEffect(() => {
     async function fetchDashboardData() {
-      if (!account?.address) {
+      if (!userAddress) {
         setLoading(false);
         return;
       }
@@ -53,12 +59,14 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
+        const authHeaders = { "X-Wallet-Address": userAddress };
+
         // Fetch earnings
-        const earningsResponse = await fetch(`/api/users/${account.address}/earnings`);
+        const earningsResponse = await fetch(`/api/users/${userAddress}/earnings`, { headers: authHeaders });
         const earningsData = earningsResponse.ok ? await earningsResponse.json() : null;
 
         // Fetch purchases
-        const purchasesResponse = await fetch(`/api/users/${account.address}/purchases`);
+        const purchasesResponse = await fetch(`/api/users/${userAddress}/purchases`, { headers: authHeaders });
         const purchasesData = purchasesResponse.ok ? await purchasesResponse.json() : null;
 
         setData({
@@ -88,7 +96,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [account?.address]);
+  }, [userAddress]);
 
   if (!authenticated) {
     return (
@@ -103,10 +111,11 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">
                 Connect your wallet to view your dashboard.
               </p>
-              <ConnectWallet />
+              <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
             </CardContent>
           </Card>
         </main>
+        <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </div>
     );
   }

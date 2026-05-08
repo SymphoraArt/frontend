@@ -1,13 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConnectWallet } from "@/components/ConnectWallet";
+import { Button } from "@/components/ui/button";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 export default function MyPromptsPage() {
   const account = useActiveAccount();
-  const authenticated = !!account;
+  const { connected: solanaConnected } = useWallet();
+  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
 
   if (!authenticated) {
     return (
@@ -22,10 +29,11 @@ export default function MyPromptsPage() {
               <p className="text-sm text-muted-foreground">
                 Connect your wallet to view and manage your saved prompts.
               </p>
-              <ConnectWallet />
+              <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
             </CardContent>
           </Card>
         </main>
+        <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </div>
     );
   }

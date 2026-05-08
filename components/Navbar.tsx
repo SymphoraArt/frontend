@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, User, LogOut, Wallet, Copy, Sun, Moon, Coins, MessageSquareHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTheme } from "../providers/ThemeProvider";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 interface NavbarProps {
   username?: string;
@@ -56,15 +57,18 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const wallet = useSafeActiveWallet();
   const walletInfo = useSafeWalletInfo();
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
+  const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
   const { theme, toggleTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const evmAuthenticated = !!account && walletInfo.isConnected;
-  const authenticated = evmAuthenticated || solanaConnected;
+  const authenticated = evmAuthenticated || solanaConnected || !!turnkeyAddress;
   const router = useRouter();
   const { toast } = useToast();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type");
   const [showWalletPicker, setShowWalletPicker] = useState(false);
-  const walletAddress = walletInfo.address ?? solanaPublicKey?.toBase58() ?? null;
+  const walletAddress = walletInfo.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const isDark = themeReady && theme === "dark";
 
   useEffect(() => {
@@ -85,8 +89,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
   const NAV_LINKS = [
     { label: "DISCOVER",  href: "/" },
-    { label: "IMAGES",    href: "/showcase" },
-    { label: "VIDEOS",    href: "/showcase" },
+    { label: "IMAGES",    href: "/showcase?type=images" },
+    { label: "VIDEOS",    href: "/showcase?type=videos" },
     { label: "FAVORITES", href: "/my-gallery" },
   ];
 
@@ -117,7 +121,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         {/* Nav Links (Centered Absolutely) */}
         <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
           {NAV_LINKS.map(({ label, href }) => {
-            const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
+            const isActive = (label === "DISCOVER" && pathname === "/") ||
+              (label === "IMAGES" && pathname === "/showcase" && typeParam !== "videos") ||
+              (label === "VIDEOS" && pathname === "/showcase" && typeParam === "videos");
             return (
               <button key={label} onClick={() => router.push(href)} style={{
                 background: "none", border: "none", cursor: "pointer",
@@ -244,12 +250,13 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">Settings</DropdownMenuItem>
               
-              {authenticated && account && (
+              {((authenticated && account) || solanaConnected || !!turnkeyAddress) && (
                 <>
                   <DropdownMenuSeparator className="bg-black/5" />
                   <DropdownMenuItem
                     onClick={async () => {
                       try {
+                        if (turnkeyAddress) { clearTurnkeyAuth(); toast({ title: "Signed out" }); return; }
                         if (solanaConnected) await solanaDisconnect();
                         else if (wallet) await wallet.disconnect();
                         else window.location.reload();
@@ -258,7 +265,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     }}
                     className="cursor-pointer text-red-500 focus:text-red-600 focus:bg-red-50 rounded-xl mt-1"
                   >
-                    <LogOut className="h-4 w-4 mr-2" /> Disconnect Wallet
+                    <LogOut className="h-4 w-4 mr-2" /> {turnkeyAddress ? "Sign Out" : "Disconnect Wallet"}
                   </DropdownMenuItem>
                 </>
               )}

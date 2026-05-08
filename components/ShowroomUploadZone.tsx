@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getUserKeyFromAccount } from "@/lib/creations";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 interface UploadPreview {
   file: File;
@@ -18,7 +18,9 @@ interface UploadPreview {
 
 export default function ShowroomUploadZone() {
   const account = useActiveAccount();
-  const authenticated = !!account;
+  const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
+  const authenticated = !!account || solanaConnected;
+  const userKey = account?.address ?? solanaPublicKey?.toBase58() ?? null;
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [uploads, setUploads] = useState<UploadPreview[]>([]);
@@ -26,8 +28,6 @@ export default function ShowroomUploadZone() {
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
-
-  const userKey = getUserKeyFromAccount(account);
 
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -138,6 +138,7 @@ export default function ShowroomUploadZone() {
 
         const response = await fetch('/api/gallery/upload', {
           method: 'POST',
+          headers: { "X-Wallet-Address": userKey },
           body: formData,
         });
 

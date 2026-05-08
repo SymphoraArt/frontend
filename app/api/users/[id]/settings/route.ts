@@ -121,6 +121,15 @@ export async function PUT(
       );
     }
 
+    // Ownership check: settings mutation requires the caller to identify themselves
+    const callerAddress = request.headers.get("X-Wallet-Address");
+    if (!callerAddress) {
+      return NextResponse.json({ error: "X-Wallet-Address header required" }, { status: 401 });
+    }
+    if (callerAddress.toLowerCase() !== userId.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json() as { settings: UserSettings };
 
     if (!body.settings) {

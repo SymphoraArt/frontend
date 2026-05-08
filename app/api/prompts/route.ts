@@ -29,7 +29,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("prompts")
-      .select("id,title,created_at,category,tags,price,ai_model,is_free_showcase")
+      .select("id,title,created_at,category,tags,ai_model,is_free_showcase")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -44,7 +44,6 @@ export async function GET() {
       createdAt: typeof d.created_at === "string" ? d.created_at : undefined,
       category: typeof d.category === "string" ? d.category : undefined,
       tags: Array.isArray(d.tags) ? (d.tags as string[]) : undefined,
-      price: typeof d.price === "number" ? d.price : undefined,
       aiModel: typeof d.ai_model === "string" ? d.ai_model : undefined,
       isFreeShowcase: Boolean(d.is_free_showcase ?? false),
     }));

@@ -39,7 +39,8 @@ import QuickVariableCreator from "./QuickVariableCreator";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccount } from "thirdweb/react";
-import { ConnectWallet } from "@/components/ConnectWallet";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
 
 type VariableType = "text" | "checkbox" | "slider" | "single-select" | "multi-select";
 
@@ -232,7 +233,9 @@ export default function CompactPromptCreator() {
 
   const { generateImage, isPending, getPaymentStatus } = useX402PaymentProduction();
   const account = useActiveAccount();
-  const authenticated = !!account;
+  const { connected: solanaConnected } = useWallet();
+  const authenticated = !!account || solanaConnected;
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
   const { toast } = useToast();
 
   // Extract variables from [name] / [name=value] / [name:type=value|...] syntax
@@ -447,7 +450,7 @@ export default function CompactPromptCreator() {
     }
 
     // Check authentication and wallet connection
-    if (!authenticated || !account) {
+    if (!authenticated) {
       toast({
         title: "Wallet required",
         description: "Please connect your wallet to generate images.",
@@ -897,22 +900,30 @@ export default function CompactPromptCreator() {
               </Button>
 
               {!authenticated && (
-                <ConnectWallet />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => setShowWalletPicker(true)}
+                >
+                  Connect Wallet
+                </Button>
               )}
 
               <Button
                 size="sm"
                 className="h-8 px-6 bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleGenerateImage}
-                disabled={isGenerating || isPending || !authenticated || !account}
+                onClick={authenticated ? handleGenerateImage : () => setShowWalletPicker(true)}
+                disabled={isGenerating || isPending}
                 data-testid="button-generate"
               >
-                {isGenerating || isPending 
-                  ? "Generating..." 
-                  : !authenticated 
-                    ? "Connect Wallet" 
+                {isGenerating || isPending
+                  ? "Generating..."
+                  : !authenticated
+                    ? "Connect Wallet"
                     : "Generate"}
               </Button>
+              <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
             </div>
           </div>
 

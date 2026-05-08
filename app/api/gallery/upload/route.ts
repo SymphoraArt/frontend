@@ -97,6 +97,15 @@ export async function POST(req: NextRequest) {
       return createErrorResponse('userId is required', 400);
     }
 
+    // Ownership check: X-Wallet-Address header must match userId in body
+    const callerAddress = req.headers.get("X-Wallet-Address");
+    if (!callerAddress) {
+      return createErrorResponse('X-Wallet-Address header required', 401);
+    }
+    if (callerAddress.toLowerCase() !== userId.toLowerCase()) {
+      return createErrorResponse('Forbidden', 403);
+    }
+
     // Validate file
     const fileValidation = validateFile(file);
     if (!fileValidation.valid) {

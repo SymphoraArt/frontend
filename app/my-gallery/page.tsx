@@ -2,10 +2,10 @@
 
 import Navbar from "@/components/Navbar";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   clearCreations,
-  getUserKeyFromAccount,
   listCreations,
   removeCreation,
   subscribeCreations,
@@ -13,7 +13,8 @@ import {
 } from "@/lib/creations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ConnectWallet } from "@/components/ConnectWallet";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 type SupabaseGeneration = {
   id: string;
@@ -30,8 +31,14 @@ type SupabaseGeneration = {
 
 export default function MyGalleryPage() {
   const account = useActiveAccount();
-  const authenticated = !!account;
-  const userKey = useMemo(() => getUserKeyFromAccount(account), [account]);
+  const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
+  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const userKey = useMemo(
+    () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
+    [account?.address, solanaPublicKey, turnkeyAddress]
+  );
   const [items, setItems] = useState<StoredCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,10 +152,11 @@ export default function MyGalleryPage() {
               <p className="text-sm text-muted-foreground">
                 Connect your wallet to view your private creations.
               </p>
-              <ConnectWallet />
+              <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
             </CardContent>
           </Card>
         </main>
+        <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </div>
     );
   }
@@ -156,6 +164,7 @@ export default function MyGalleryPage() {
   return (
     <div className="min-h-screen bg-background pt-16">
       <Navbar />
+      <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       <main className="w-full px-6 lg:px-8 py-6 max-w-6xl mx-auto">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>

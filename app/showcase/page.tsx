@@ -2,7 +2,7 @@
 
 import FilterBar from "@/components/FilterBar";
 import PromptCard from "@/components/PromptCard";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PromptDetailModal from "@/components/PromptDetailModal";
@@ -21,6 +21,8 @@ const ShowroomUploadZone = dynamic(
 
 export default function Showcase() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type"); // "images" | "videos" | null
   const PAGE_SIZE = 12;
   const [cursor, setCursor] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +106,8 @@ export default function Showcase() {
     return map;
   }, [creatorQueries]);
 
+  const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url ?? "");
+
   const visiblePrompts = useMemo(() => {
     return allPrompts
       .filter((p: any) => p.id)
@@ -127,8 +131,13 @@ export default function Showcase() {
           thumbnail: imageUrl,
           category: p.category || "",
         };
+      })
+      .filter((p) => {
+        if (typeParam === "videos") return isVideo(p.thumbnail);
+        if (typeParam === "images") return !isVideo(p.thumbnail);
+        return true;
       });
-  }, [allPrompts, creatorsMap]);
+  }, [allPrompts, creatorsMap, typeParam]);
 
   const hasMore = promptsData?.nextCursor !== null;
   const isLoadingMore = fetchStatus === "fetching" && cursor !== null;

@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ShoppingBag, ExternalLink, Download, Eye } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 interface Purchase {
   id: string;
@@ -32,14 +35,18 @@ interface PurchaseResponse {
 
 export default function MyPurchasesPage() {
   const account = useActiveAccount();
+  const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
+  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
 
   useEffect(() => {
     async function fetchPurchases() {
-      if (!account?.address) {
+      if (!userAddress) {
         setLoading(false);
         return;
       }
@@ -48,9 +55,10 @@ export default function MyPurchasesPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`/api/users/${account.address}/purchases`, {
+        const response = await fetch(`/api/users/${userAddress}/purchases`, {
           headers: {
             "Content-Type": "application/json",
+            "X-Wallet-Address": userAddress,
           },
         });
 
@@ -70,7 +78,7 @@ export default function MyPurchasesPage() {
     }
 
     fetchPurchases();
-  }, [account?.address]);
+  }, [userAddress]);
 
   if (loading) {
     return (
@@ -82,7 +90,7 @@ export default function MyPurchasesPage() {
     );
   }
 
-  if (!account) {
+  if (!userAddress) {
     return (
       <main className="container mx-auto px-4 py-8">
         <Card>
@@ -90,12 +98,14 @@ export default function MyPurchasesPage() {
             <CardTitle>My Purchases</CardTitle>
             <CardDescription>Connect your wallet to view your purchases</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Please connect your wallet to see your purchased prompts.
             </p>
+            <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
           </CardContent>
         </Card>
+        <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </main>
     );
   }
@@ -112,9 +122,9 @@ export default function MyPurchasesPage() {
             <Button onClick={() => {
               setError(null);
               setLoading(true);
-              if (account?.address) {
-                fetch(`/api/users/${account.address}/purchases`, {
-                  headers: { "Content-Type": "application/json" },
+              if (userAddress) {
+                fetch(`/api/users/${userAddress}/purchases`, {
+                  headers: { "Content-Type": "application/json", "X-Wallet-Address": userAddress },
                 })
                   .then(res => {
                     if (!res.ok) throw new Error("Failed to fetch purchases");

@@ -135,6 +135,8 @@ export default function AlgencyPromptEditor() {
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [themeReady, setThemeReady] = useState(false);
+  useEffect(() => { setThemeReady(true); }, []);
   const walletAddress = account?.address ?? solanaPublicKey?.toBase58() ?? null;
   const walletConnected = Boolean(walletAddress) || solanaConnected;
   const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending;
@@ -438,7 +440,21 @@ export default function AlgencyPromptEditor() {
       if (!data?.imageUrl) {
         throw new Error("Image generated, but no image URL was returned.");
       }
-      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: data.imageUrl } : v));
+      // Convert data URL to blob URL so browser can render large images inline
+      let displayUrl = data.imageUrl;
+      if (data.imageUrl.startsWith("data:")) {
+        try {
+          const [header, base64] = data.imageUrl.split(",");
+          const mime = header.split(":")[1].split(";")[0];
+          const byteChars = atob(base64);
+          const bytes = new Uint8Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+          displayUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+        } catch {
+          displayUrl = data.imageUrl;
+        }
+      }
+      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: displayUrl } : v));
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
@@ -740,7 +756,7 @@ export default function AlgencyPromptEditor() {
         </div>
         <div className="alg-navbar__right" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button className="alg-navbar__icon-btn" onClick={toggleTheme}>
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            {themeReady && theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button className="alg-navbar__icon-btn">
             <Bell size={16} />
@@ -1179,7 +1195,10 @@ export default function AlgencyPromptEditor() {
                       {/* Image panel — always visible */}
                       <div className="alg-version-card__thumb">
                         {slot.status === "complete" && slot.imageUrl && (
-                          <img src={slot.imageUrl} alt={`Version ${String(slot.id).padStart(2, "0")}`} />
+                          <img
+                            src={slot.imageUrl}
+                            alt={`Version ${String(slot.id).padStart(2, "0")}`}
+                          />
                         )}
                         {slot.status === "generating" && (
                           <div className="alg-spinner" />
@@ -1216,7 +1235,7 @@ export default function AlgencyPromptEditor() {
                           const valAny = val as unknown;
                           const isCheckbox = valAny === "true" || valAny === "false" || valAny === true || valAny === false;
                           const isChecked = valAny === "true" || valAny === true;
-                          
+
                           if (isCheckbox) {
                             return (
                               <div key={key} className="alg-version-card__checkbox-row">
@@ -1231,7 +1250,7 @@ export default function AlgencyPromptEditor() {
                               </div>
                             );
                           }
-                          
+
                           return (
                             <div key={key} className="alg-version-card__row">
                               <span className="alg-version-card__key">{key.toUpperCase()}</span>
@@ -1239,6 +1258,28 @@ export default function AlgencyPromptEditor() {
                             </div>
                           );
                         })}
+
+                        {/* Download link for complete cards */}
+                        {slot.status === "complete" && slot.imageUrl && (
+                          <div className="alg-version-card__row" style={{ paddingTop: 3, borderTop: "1px solid #d8d0c6" }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const a = document.createElement("a");
+                                a.href = slot.imageUrl!;
+                                a.download = `version-${slot.id}.png`;
+                                a.click();
+                              }}
+                              style={{
+                                background: "none", border: "none", padding: 0, cursor: "pointer",
+                                fontFamily: "monospace", fontSize: 8, color: "#c0542a",
+                                letterSpacing: "0.05em", textDecoration: "underline",
+                              }}
+                            >
+                              ↓ save
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

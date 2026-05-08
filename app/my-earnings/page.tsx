@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, TrendingUp, DollarSign, Package, Activity, ExternalLink } from "lucide-react";
+import { WalletPickerModal } from "@/components/WalletPickerModal";
 import Link from "next/link";
 import Image from "next/image";
+import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
 interface TopPrompt {
   promptId: string;
@@ -53,13 +56,17 @@ interface EarningsData {
 
 export default function MyEarningsPage() {
   const account = useActiveAccount();
+  const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
+  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [data, setData] = useState<EarningsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
 
   useEffect(() => {
     async function fetchEarnings() {
-      if (!account?.address) {
+      if (!userAddress) {
         setLoading(false);
         return;
       }
@@ -68,9 +75,10 @@ export default function MyEarningsPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`/api/users/${account.address}/earnings`, {
+        const response = await fetch(`/api/users/${userAddress}/earnings`, {
           headers: {
             "Content-Type": "application/json",
+            "X-Wallet-Address": userAddress,
           },
         });
 
@@ -89,7 +97,7 @@ export default function MyEarningsPage() {
     }
 
     fetchEarnings();
-  }, [account?.address]);
+  }, [userAddress]);
 
   if (loading) {
     return (
@@ -101,7 +109,7 @@ export default function MyEarningsPage() {
     );
   }
 
-  if (!account) {
+  if (!userAddress) {
     return (
       <main className="container mx-auto px-4 py-8">
         <Card>
@@ -109,12 +117,14 @@ export default function MyEarningsPage() {
             <CardTitle>Creator Earnings</CardTitle>
             <CardDescription>Connect your wallet to view your earnings</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Please connect your wallet to see your creator earnings and statistics.
             </p>
+            <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
           </CardContent>
         </Card>
+        <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </main>
     );
   }
@@ -131,9 +141,9 @@ export default function MyEarningsPage() {
             <Button onClick={() => {
               setError(null);
               setLoading(true);
-              if (account?.address) {
-                fetch(`/api/users/${account.address}/earnings`, {
-                  headers: { "Content-Type": "application/json" },
+              if (userAddress) {
+                fetch(`/api/users/${userAddress}/earnings`, {
+                  headers: { "Content-Type": "application/json", "X-Wallet-Address": userAddress },
                 })
                   .then(res => {
                     if (!res.ok) throw new Error("Failed to fetch earnings");

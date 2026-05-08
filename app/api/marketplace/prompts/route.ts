@@ -174,8 +174,18 @@ export async function GET(request: NextRequest) {
     try {
       // Return mock data since storage methods are not implemented yet
       prompts = [
-        { id: "p1", title: "Cinematic Table Setup", priceUsdCents: 500, category: "Cinematic", listedAt: new Date() },
-        { id: "p2", title: "Brutalist Architecture", priceUsdCents: 1000, category: "Architecture", listedAt: new Date() }
+        { id: "p1", title: "Cinematic Table Setup", priceUsdCents: 500, category: "Cinematic", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=720&h=960" }] },
+        { id: "p2", title: "Brutalist Architecture", priceUsdCents: 1000, category: "Architecture", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&q=80&w=720&h=960" }] },
+        { id: "p3", title: "Editorial Portrait", priceUsdCents: 800, category: "Portrait", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=720&h=960" }] },
+        { id: "p4", title: "Minimal Interior", priceUsdCents: 600, category: "Interior", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&q=80&w=720&h=960" }] },
+        { id: "p5", title: "Atmospheric Fashion", priceUsdCents: 1200, category: "Fashion", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&q=80&w=720&h=960" }] },
+        { id: "p6", title: "Abstract Color Study", priceUsdCents: 400, category: "Abstract", listedAt: new Date(),
+          previewImages: [{ url: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&q=80&w=720&h=960" }] },
       ];
     } catch (searchError) {
       console.error('Search query failed:', searchError);
