@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -49,6 +49,24 @@ function useSafeWalletInfo() {
   }
 }
 
+/** Hook to track viewport width for responsive rendering */
+function useBreakpoint() {
+  const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return {
+    isMobile: width <= 768,
+    isTablet: width > 768 && width < 1024,
+    isDesktop: width >= 1024,
+    width,
+  };
+}
+
 export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const account = useSafeActiveAccount();
   const wallet = useSafeActiveWallet();
@@ -58,6 +76,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { toast } = useToast();
   const pathname = usePathname();
   const walletAddress = walletInfo.address;
+  const { isMobile, isTablet, isDesktop } = useBreakpoint();
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -78,6 +97,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     { label: "FAVORITES", href: "/my-gallery", disabled: false },
   ];
 
+  // On tablet, hide the disabled VIDEOS link to save space
+  const visibleNavLinks = isTablet
+    ? NAV_LINKS.filter(l => !l.disabled)
+    : NAV_LINKS;
+
   return (
     <header style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
@@ -91,46 +115,48 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
       borderRadius: 0,
       fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
     }}>
-      <div style={{ padding: "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+      <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
 
         {/* Logo */}
         <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: 19, color: "#111" }}>
+          <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: isMobile ? 17 : 19, color: "#111" }}>
             Enki Art
           </span>
           <span style={{ color: "#d94f3d", fontSize: 22, lineHeight: 1, marginLeft: 1 }}>·</span>
         </div>
 
-        {/* Nav Links (Centered Absolutely) */}
-        <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-          {NAV_LINKS.map(({ label, href, disabled, tooltip }) => {
-            const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
-            return (
-              <button
-                key={label}
-                onClick={() => !disabled && router.push(href)}
-                title={disabled ? tooltip : undefined}
-                style={{
-                  background: "none", border: "none",
-                  cursor: disabled ? "not-allowed" : "pointer",
-                  padding: "0 16px", height: 56,
-                  fontSize: 12.5, fontWeight: isActive ? 600 : 400,
-                  letterSpacing: "0.4px",
-                  color: disabled ? "#bbb" : isActive ? "#111" : "#555",
-                  opacity: disabled ? 0.5 : 1,
-                  transition: "color 0.2s ease",
-                }}
-                onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = "#111"; }}
-                onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = isActive ? "#111" : "#555"; }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Nav Links — hidden on mobile, centered on tablet/desktop */}
+        {!isMobile && (
+          <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+            {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
+              const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
+              return (
+                <button
+                  key={label}
+                  onClick={() => !disabled && router.push(href)}
+                  title={disabled ? tooltip : undefined}
+                  style={{
+                    background: "none", border: "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    padding: isTablet ? "0 10px" : "0 16px", height: 56,
+                    fontSize: isTablet ? 11.5 : 12.5, fontWeight: isActive ? 600 : 400,
+                    letterSpacing: "0.4px",
+                    color: disabled ? "#bbb" : isActive ? "#111" : "#555",
+                    opacity: disabled ? 0.5 : 1,
+                    transition: "color 0.2s ease",
+                  }}
+                  onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = "#111"; }}
+                  onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = isActive ? "#111" : "#555"; }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Right Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, zIndex: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 2 : 6, flexShrink: 0, zIndex: 2 }}>
           
           {/* Search Icon */}
           <button style={{
@@ -144,32 +170,48 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <Search size={16} />
           </button>
 
-          {/* Release Prompt (Solid Pill) */}
-          <button onClick={() => router.push("/editor")} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "0 20px", height: 40, background: "#111", color: "#fff",
-            border: "none", borderRadius: 999, cursor: "pointer",
-            fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
-          onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
-            Release prompt
-          </button>
+          {/* Release Prompt — full pill on desktop, icon on tablet, hidden on mobile (in dropdown) */}
+          {isDesktop && (
+            <button onClick={() => router.push("/editor")} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "0 20px", height: 40, background: "#111", color: "#fff",
+              border: "none", borderRadius: 999, cursor: "pointer",
+              fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.02)")}
+            onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+              Release prompt
+            </button>
+          )}
+          {isTablet && (
+            <button onClick={() => router.push("/editor")} title="Release prompt" style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "#111", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "#fff", transition: "transform 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
+            onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
+              <PenLine size={15} />
+            </button>
+          )}
 
-          {/* Leaderboard */}
-          <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
-            width: 38, height: 38, borderRadius: "50%",
-            background: "none", border: "none",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-            <Trophy size={16} />
-          </button>
+          {/* Leaderboard — hidden on mobile (in dropdown) */}
+          {!isMobile && (
+            <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "none", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+              <Trophy size={16} />
+            </button>
+          )}
 
-          {/* Notifications */}
+          {/* Notifications — always visible */}
           <button title="Notifications" style={{
             width: 38, height: 38, borderRadius: "50%",
             background: "none", border: "none",
@@ -221,6 +263,17 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </div>
               )}
               <DropdownMenuSeparator />
+
+              {/* Mobile-only items: things hidden from the top bar */}
+              {isMobile && (
+                <>
+                  <DropdownMenuItem onClick={() => router.push("/editor")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
+                    <PenLine className="h-4 w-4 mr-2 text-[#d94f3d]" /> Release prompt
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-black/5" />
+                </>
+              )}
+
               <DropdownMenuItem onClick={() => router.push("/my-gallery")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Gallery</DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/my-prompts")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">My Prompts</DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/5" />
