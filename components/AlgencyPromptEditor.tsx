@@ -85,8 +85,8 @@ export default function AlgencyPromptEditor() {
 
   /* ─── Structured State ─── */
   const [promptData, setPromptData] = useState({
-    title: "Quiet Window, Late Afternoon",
-    body: "A photograph of [subject], [mood], lit by [lighting]. [grain]\nEditorial. Restrained.",
+    title: "",
+    body: "",
     type: "free-prompt" as PromptType,
     tags: [] as string[],
   });
@@ -101,12 +101,7 @@ export default function AlgencyPromptEditor() {
     selected: "Any ratio"
   });
 
-  const [variables, setVariables] = useState<PromptVariable[]>([
-    { id: "subject", name: "subject", label: "Subject", description: "", type: "text", defaultValue: "a young woman, dark hair", values: ["a young woman, dark hair"], required: true, position: 0 },
-    { id: "mood", name: "mood", label: "Mood", description: "", type: "text", defaultValue: "contemplative, soft", values: ["contemplative, soft"], required: true, position: 1 },
-    { id: "lighting", name: "lighting", label: "Lighting", description: "", type: "text", defaultValue: "e.g a young woman, dark hair...", values: [], required: true, position: 2 },
-    { id: "grain", name: "grain", label: "Add film grain", description: "Add a soft, grainy film texture — like an old 35mm", type: "checkbox", defaultValue: true, values: [], required: false, position: 3 },
-  ]);
+  const [variables, setVariables] = useState<PromptVariable[]>([]);
 
   const [versions, setVersions] = useState<VersionCard[]>([]);
 
