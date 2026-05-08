@@ -174,8 +174,18 @@ export async function GET(request: NextRequest) {
     try {
       // Return mock data since storage methods are not implemented yet
       prompts = [
-        { id: "p1", title: "Cinematic Table Setup", priceUsdCents: 500, category: "Cinematic", listedAt: new Date() },
-        { id: "p2", title: "Brutalist Architecture", priceUsdCents: 1000, category: "Architecture", listedAt: new Date() }
+        { id: "p1", title: "Cinematic Table Setup", priceUsdCents: 500, category: "Cinematic", tags: ["cinematic", "interior"], previewImageUrl: "https://images.unsplash.com/photo-1507608172909-5c74232bd868?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p2", title: "Brutalist Architecture", priceUsdCents: 1000, category: "Architecture", tags: ["architecture", "minimal"], previewImageUrl: "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p3", title: "Portrait of Light", priceUsdCents: 750, category: "Portrait", tags: ["portrait", "soft"], previewImageUrl: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p4", title: "Abstract Geometry", priceUsdCents: 1200, category: "Abstract", tags: ["abstract", "geometry"], previewImageUrl: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p5", title: "Modern Minimalist Lobby", priceUsdCents: 850, category: "Architecture", tags: ["architecture", "minimal"], previewImageUrl: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p6", title: "Editorial Fashion Shot", priceUsdCents: 1500, category: "Editorial", tags: ["editorial", "fashion"], previewImageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p7", title: "Quiet Window Study", priceUsdCents: 450, category: "Interior", tags: ["interior", "soft"], previewImageUrl: "https://images.unsplash.com/photo-1470252656220-db63b3d11b33?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p8", title: "Cyberpunk Street Still", priceUsdCents: 900, category: "Cinematic", tags: ["cinematic", "cyberpunk"], previewImageUrl: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p9", title: "Monochrome Archive", priceUsdCents: 600, category: "Abstract", tags: ["abstract", "monochrome"], previewImageUrl: "https://images.unsplash.com/photo-1500462918059-b1a0cb512f1d?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p10", title: "Zen Garden Architecture", priceUsdCents: 1100, category: "Architecture", tags: ["architecture", "zen"], previewImageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p11", title: "Vibrant Color Wash", priceUsdCents: 350, category: "Abstract", tags: ["abstract", "vibrant"], previewImageUrl: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
+        { id: "p12", title: "Product Focus Minimal", priceUsdCents: 550, category: "Product", tags: ["product", "minimal"], previewImageUrl: "https://images.unsplash.com/photo-1523633589114-88e225471a4f?auto=format&fit=crop&q=80&w=800", listedAt: new Date() },
       ];
     } catch (searchError) {
       console.error('Search query failed:', searchError);

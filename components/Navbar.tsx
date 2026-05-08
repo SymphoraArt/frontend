@@ -51,18 +51,20 @@ function useSafeWalletInfo() {
 
 /** Hook to track viewport width for responsive rendering */
 function useBreakpoint() {
-  const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  const [width, setWidth] = useState(1200); // Safe default for SSR
 
   useEffect(() => {
+    // Update after mount
+    setWidth(window.innerWidth);
     const handleResize = () => setWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return {
-    isMobile: width <= 768,
-    isTablet: width > 768 && width < 1024,
-    isDesktop: width >= 1024,
+    isMobile: width <= 900,
+    isTablet: width > 900 && width < 1200,
+    isDesktop: width >= 1200,
     width,
   };
 }
@@ -195,9 +197,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}>
               <PenLine size={15} />
             </button>
-          )}
-
-          {/* Leaderboard — hidden on mobile (in dropdown) */}
+          )}          {/* Leaderboard — hidden on mobile (in dropdown) */}
           {!isMobile && (
             <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{
               width: 38, height: 38, borderRadius: "50%",
@@ -211,17 +211,19 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             </button>
           )}
 
-          {/* Notifications — always visible */}
-          <button title="Notifications" style={{
-            width: 38, height: 38, borderRadius: "50%",
-            background: "none", border: "none",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#555", transition: "background 0.2s ease",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-            <Bell size={16} />
-          </button>
+          {/* Notifications — hidden on mobile */}
+          {!isMobile && (
+            <button title="Notifications" style={{
+              width: 38, height: 38, borderRadius: "50%",
+              background: "none", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "#555", transition: "background 0.2s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+              <Bell size={16} />
+            </button>
+          )}
 
           {/* Chain Switcher */}
           {authenticated && <ChainSwitcher />}
