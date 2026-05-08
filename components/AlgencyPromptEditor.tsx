@@ -17,14 +17,13 @@ import {
   Plus,
   Sparkles,
   AlertTriangle,
-  Bell,
-  Check,
   Zap,
   Sun,
   Moon
 } from "lucide-react";
 import nlp from "compromise";
 import { useTheme } from "../providers/ThemeProvider";
+import Navbar from "./Navbar";
 
 /* ─── Types ─── */
 type VariableType = "text" | "checkbox";
@@ -676,54 +675,7 @@ export default function AlgencyPromptEditor() {
   return (
     <div className="alg-page" onClick={() => { setUi(prev => ({ ...prev, showAvatarDropdown: false, tooltip: null })) }}>
       {/* ═══ NAVBAR ═══ */}
-      <nav className="alg-navbar">
-        <div className="alg-navbar__left">
-          <div className="alg-navbar__logo" onClick={() => router.push("/")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontFamily: "var(--font-serif), serif", fontSize: 24, fontWeight: 700, fontStyle: "italic" }}>Enki Art.</span>
-          </div>
-          <div className="alg-navbar__links">
-            <button className="alg-navbar__link" onClick={() => router.push("/")}>DISCOVER</button>
-            <button className="alg-navbar__link" onClick={() => router.push("/showcase")}>IMAGES</button>
-            <button className="alg-navbar__link" style={{ opacity: 0.5 }}>VIDEOS</button>
-            <button className="alg-navbar__link" onClick={() => router.push("/my-gallery")}>FAVORITES</button>
-          </div>
-        </div>
-        <div className="alg-navbar__center" style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1, paddingRight: '20px' }}>
-          <div className="alg-navbar__search">
-            <Search className="alg-navbar__search-icon" />
-            <input type="text" placeholder="Search prompts, tags, artists..." />
-          </div>
-          <button
-            className="alg-btn alg-btn--primary alg-btn--sm"
-            onClick={() => savePromptMutation.mutate()}
-            disabled={savePromptMutation.isPending || isPublishDisabled}
-            style={{ marginLeft: 'auto', background: isPublishDisabled ? "#ccc" : "#111", border: "none" }}
-          >
-            {savePromptMutation.isPending ? "Saving..." : "Release prompt"}
-          </button>
-        </div>
-        <div className="alg-navbar__right" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="alg-navbar__icon-btn" onClick={toggleTheme}>
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button className="alg-navbar__icon-btn">
-            <Bell size={16} />
-          </button>
-          <div
-            className="alg-navbar__avatar"
-            onClick={(e) => { e.stopPropagation(); setUi(prev => ({ ...prev, showAvatarDropdown: !prev.showAvatarDropdown })) }}
-          >
-            {account?.address ? account.address.slice(2, 4).toUpperCase() : "SM"}
-          </div>
-          {ui.showAvatarDropdown && (
-            <div className="alg-avatar-dropdown" onClick={(e) => e.stopPropagation()}>
-              <button className="alg-avatar-dropdown__item" onClick={() => { alert('Connect Wallet placeholder') }}>Connect Wallet</button>
-              <button className="alg-avatar-dropdown__item">Profile Settings</button>
-              <button className="alg-avatar-dropdown__item">Sign Out</button>
-            </div>
-          )}
-        </div>
-      </nav>
+      <Navbar />
 
 
       {/* ═══ 4-COLUMN GRID ═══ */}
@@ -1091,12 +1043,12 @@ export default function AlgencyPromptEditor() {
               <span className="alg-panel__number" style={{ color: "var(--alg-accent)" }}>04</span>
               <span className="alg-panel__title">Verify</span>
             </div>
-            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, color: "var(--alg-hint)", letterSpacing: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 1, minWidth: 0 }}>
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-hint)", letterSpacing: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 1, minWidth: 0 }}>
               {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
             </span>
           </div>
           <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column" }}>
-            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, color: "var(--alg-hint)", marginBottom: 8, lineHeight: 1.4, flexShrink: 0 }}>
+            <p style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)", marginBottom: 8, lineHeight: 1.3, flexShrink: 0 }}>
               {promptData.type === "free-prompt"
                 ? "Free prompts need at least one reference render. Four is recommended — buyers trust prompts that prove they generalize."
                 : "Premium prompts require exactly four reference renders to prove they generate consistently high-quality results."}
@@ -1215,8 +1167,8 @@ export default function AlgencyPromptEditor() {
           {/* Prompt Ownership Notice */}
           <div style={{ padding: "12px", background: "#fffaf0", borderTop: "1px solid #f5e6cc", borderBottom: "1px solid #f5e6cc" }}>
             <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-              <AlertTriangle size={16} style={{ color: "#b8860b", marginTop: "2px", flexShrink: 0 }} />
-              <p style={{ fontSize: "13px", color: "#8a6d3b", lineHeight: 1.5, margin: 0 }}>
+              <AlertTriangle size={14} style={{ color: "#b8860b", marginTop: "2px", flexShrink: 0 }} />
+              <p style={{ fontSize: "11px", color: "#8a6d3b", lineHeight: 1.5, margin: 0 }}>
                 <strong>Ownership Notice:</strong> Only mark prompts as your own property if you genuinely created them. We will be rolling out methods to verify prompt originality. Falsely claiming authorship will be flagged and may result in strikes against your account. See Terms of Service.
               </p>
             </div>
@@ -1228,12 +1180,12 @@ export default function AlgencyPromptEditor() {
               {/* Cost summary */}
               {versions.some(v => v.status === "idle" || v.status === "failed") && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "var(--alg-panel)", border: "1px solid var(--alg-border)" }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-muted)", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-muted)", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 12, fontWeight: 700, color: "var(--alg-dark)" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "var(--alg-dark)" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 10, color: "var(--alg-hint)" }}>via Thirdweb x402</span>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)" }}>via Thirdweb x402</span>
                   </div>
                 </div>
               )}
