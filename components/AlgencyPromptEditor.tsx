@@ -1227,9 +1227,9 @@ export default function AlgencyPromptEditor() {
 
           {/* Prompt Ownership Notice */}
           <div style={{ padding: "12px", background: "#fffaf0", borderTop: "1px solid #f5e6cc", borderBottom: "1px solid #f5e6cc" }}>
-            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-              <AlertTriangle size={14} style={{ color: "#b8860b", marginTop: "2px", flexShrink: 0 }} />
-              <p style={{ fontSize: "11px", color: "#8a6d3b", lineHeight: 1.5, margin: 0 }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+              <AlertTriangle size={18} style={{ color: "#b8860b", marginTop: "2px", flexShrink: 0 }} />
+              <p style={{ fontSize: "clamp(12px, 0.8vw + 6px, 15px)", color: "#8a6d3b", lineHeight: 1.5, margin: 0 }}>
                 <strong>Ownership Notice:</strong> Only mark prompts as your own property if you genuinely created them. We will be rolling out methods to verify prompt originality. Falsely claiming authorship will be flagged and may result in strikes against your account. See Terms of Service.
               </p>
             </div>
@@ -1240,13 +1240,13 @@ export default function AlgencyPromptEditor() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Cost summary */}
               {versions.some(v => v.status === "idle" || v.status === "failed") && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "var(--alg-panel)", border: "1px solid var(--alg-border)" }}>
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-muted)", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "var(--alg-panel)", border: "1px solid var(--alg-border)" }}>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(9px, 0.6vw + 6px, 12px)", color: "var(--alg-muted)", letterSpacing: 1, textTransform: "uppercase" }}>Batch cost</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, fontWeight: 700, color: "var(--alg-dark)" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(12px, 0.8vw + 8px, 16px)", fontWeight: 700, color: "var(--alg-dark)" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 8, color: "var(--alg-hint)" }}>
+                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(9px, 0.5vw + 6px, 11px)", color: "var(--alg-hint)" }}>
                       via {solanaConnected ? "Solana" : "Thirdweb"} x402
                     </span>
                   </div>
