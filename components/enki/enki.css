@@ -209,9 +209,23 @@
 }
 
 .enki-masonry {
-  column-count: var(--cols, 4);
+  column-count: 4;
   column-gap: 4px;
   padding: 8px 0 90px;
+}
+
+/* Responsive column counts */
+@media (max-width: 600px) {
+  .enki-masonry { column-count: 2; }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .enki-masonry { column-count: 2; }
+}
+@media (min-width: 901px) and (max-width: 1200px) {
+  .enki-masonry { column-count: 3; }
+}
+@media (min-width: 1201px) {
+  .enki-masonry { column-count: 4; }
 }
 
 .enki-card {
@@ -1001,7 +1015,7 @@
 
   .enki-masonry {
     column-count: 2 !important;
-    column-gap: 12px;
+    column-gap: 10px;
     padding-top: 14px;
     padding-bottom: 96px;
   }
@@ -1011,36 +1025,16 @@
   }
 
   .enki-card {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .enki-card-img {
-    height: 260px;
-  }
-
-  .enki-card:nth-child(6n+2) .enki-card-img {
-    height: 240px;
-  }
-
-  .enki-card:nth-child(6n+3) .enki-card-img {
-    height: 200px;
-  }
-
-  .enki-card:nth-child(6n+4) .enki-card-img {
-    height: 280px;
-  }
-
-  .enki-card:nth-child(6n+5) .enki-card-img {
-    height: 220px;
-  }
-
-  .enki-card:nth-child(6n+6) .enki-card-img {
-    height: 260px;
+    height: auto;
   }
 
   .enki-card-img img {
     width: 100%;
-    height: 100%;
+    height: auto;
     object-fit: cover;
   }
 

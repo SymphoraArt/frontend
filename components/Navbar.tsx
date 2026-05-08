@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart, PenLine } from "lucide-react";
+import { Search, User, LogOut, Wallet, Copy, Bell, Trophy, Users, MessageSquareHeart, PenLine, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -229,18 +229,30 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           {/* Avatar & Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button data-testid="button-user-menu" style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: "#111", border: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
-                fontFamily: "monospace", letterSpacing: "0.5px",
-                marginLeft: 4
-              }}>
-                {authenticated && walletAddress
-                  ? walletAddress.slice(2, 4).toUpperCase()
-                  : <User size={16} />}
-              </button>
+              {isMobile ? (
+                <button data-testid="button-user-menu" style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  background: "none", border: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", color: "#333",
+                  marginLeft: 2,
+                }}>
+                  <Menu size={22} />
+                </button>
+              ) : (
+                <button data-testid="button-user-menu" style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  background: "#111", border: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
+                  fontFamily: "monospace", letterSpacing: "0.5px",
+                  marginLeft: 4
+                }}>
+                  {authenticated && walletAddress
+                    ? walletAddress.slice(2, 4).toUpperCase()
+                    : <User size={16} />}
+                </button>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-white/60 bg-white/70 backdrop-blur-2xl shadow-xl">
               {authenticated && walletAddress ? (
