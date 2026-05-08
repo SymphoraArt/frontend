@@ -11,6 +11,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useAuth } from "@/hooks/useAuth";
+import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 
 interface Purchase {
   id: string;
@@ -36,7 +38,9 @@ interface PurchaseResponse {
 export default function MyPurchasesPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: turnkeyAddress, getAuthHeaders: getTurnkeyAuthHeaders } = useTurnkeyEmailAuth();
+  const { getAuthHeaders: getEvmAuthHeaders } = useAuth();
+  const { getAuthHeaders: getSolanaAuthHeaders } = useSolanaAuth();
   const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
@@ -55,10 +59,13 @@ export default function MyPurchasesPage() {
         setLoading(true);
         setError(null);
 
+        const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+        if (!authHeaders) throw new Error("Authentication required");
+
         const response = await fetch(`/api/users/${userAddress}/purchases`, {
           headers: {
             "Content-Type": "application/json",
-            "X-Wallet-Address": userAddress,
+            ...authHeaders,
           },
         });
 
@@ -123,8 +130,14 @@ export default function MyPurchasesPage() {
               setError(null);
               setLoading(true);
               if (userAddress) {
+                const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+                if (!authHeaders) {
+                  setError("Authentication required");
+                  setLoading(false);
+                  return;
+                }
                 fetch(`/api/users/${userAddress}/purchases`, {
-                  headers: { "Content-Type": "application/json", "X-Wallet-Address": userAddress },
+                  headers: { "Content-Type": "application/json", ...authHeaders },
                 })
                   .then(res => {
                     if (!res.ok) throw new Error("Failed to fetch purchases");

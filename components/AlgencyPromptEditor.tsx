@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
@@ -15,19 +15,14 @@ import type { ChainKey } from "@/shared/payment-config";
 import AlgencyMobileGenerateModal from "./AlgencyMobileGenerateModal";
 import { WalletPickerModal } from "./WalletPickerModal";
 import {
-  Search,
   Settings,
   Plus,
   Sparkles,
   AlertTriangle,
-  Bell,
-  Check,
   Zap,
-  Sun,
-  Moon
 } from "lucide-react";
 import nlp from "compromise";
-import { useTheme } from "../providers/ThemeProvider";
+import Navbar from "./Navbar";
 
 /* ─── Types ─── */
 type VariableType = "text" | "checkbox";
@@ -68,9 +63,7 @@ function EmptyVarIcon() {
 export default function AlgencyPromptEditor() {
   const router = useRouter();
   const account = useActiveAccount();
-  const wallet = useActiveWallet();
-  const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
-  const { theme, toggleTheme } = useTheme();
+  const { connected: solanaConnected } = useWallet();
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
@@ -135,10 +128,7 @@ export default function AlgencyPromptEditor() {
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
-  const [themeReady, setThemeReady] = useState(false);
-  useEffect(() => { setThemeReady(true); }, []);
-  const walletAddress = account?.address ?? solanaPublicKey?.toBase58() ?? null;
-  const walletConnected = Boolean(walletAddress) || solanaConnected;
+  const walletConnected = Boolean(account?.address) || solanaConnected;
   const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending;
 
   useEffect(() => {
@@ -720,90 +710,7 @@ export default function AlgencyPromptEditor() {
   return (
     <div className="alg-page" onClick={() => { setUi(prev => ({ ...prev, showAvatarDropdown: false, tooltip: null })) }}>
       {/* ═══ NAVBAR ═══ */}
-      <nav className="alg-navbar">
-        <div className="alg-navbar__left">
-          <div className="alg-navbar__logo" onClick={() => router.push("/")}>
-            <span className="alg-navbar__logo-icon">
-              <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <line x1="7" y1="26" x2="16" y2="7" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
-                <line x1="25" y1="26" x2="16" y2="7" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
-                <line x1="10.5" y1="19" x2="21.5" y2="19" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
-                <circle cx="16" cy="7" r="2" fill="white"/>
-              </svg>
-            </span>
-            Algency
-          </div>
-          <div className="alg-navbar__links">
-            <button className="alg-navbar__link" onClick={() => router.push("/showcase")}>DISCOVER</button>
-            <button className="alg-navbar__link">IMAGES</button>
-            <button className="alg-navbar__link">VIDEOS</button>
-            <button className="alg-navbar__link">FAVORITES</button>
-          </div>
-        </div>
-        <div className="alg-navbar__center" style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1, paddingRight: '20px' }}>
-          <div className="alg-navbar__search">
-            <Search className="alg-navbar__search-icon" />
-            <input type="text" placeholder="Search prompts, tags, artists..." />
-          </div>
-          <button
-            className="alg-btn alg-btn--primary alg-btn--sm"
-            onClick={() => savePromptMutation.mutate()}
-            disabled={savePromptMutation.isPending}
-            style={{ marginLeft: 'auto' }}
-          >
-            {savePromptMutation.isPending ? "Saving..." : "Release prompt"}
-          </button>
-        </div>
-        <div className="alg-navbar__right" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="alg-navbar__icon-btn" onClick={toggleTheme}>
-            {themeReady && theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button className="alg-navbar__icon-btn">
-            <Bell size={16} />
-          </button>
-          <div
-            className="alg-navbar__avatar"
-            onClick={(e) => { e.stopPropagation(); setUi(prev => ({ ...prev, showAvatarDropdown: !prev.showAvatarDropdown })) }}
-          >
-            {walletAddress ? walletAddress.slice(0, 2).toUpperCase() : "SM"}
-          </div>
-          {ui.showAvatarDropdown && (
-            <div className="alg-avatar-dropdown" onClick={(e) => e.stopPropagation()}>
-              {walletConnected && walletAddress ? (
-                <button className="alg-avatar-dropdown__item" title={walletAddress}>
-                  Wallet Connected
-                </button>
-              ) : (
-                <button
-                  className="alg-avatar-dropdown__item"
-                  onClick={() => {
-                    setShowWalletPicker(true);
-                    setUi(prev => ({ ...prev, showAvatarDropdown: false }));
-                  }}
-                >
-                  Connect Wallet
-                </button>
-              )}
-              <button className="alg-avatar-dropdown__item">Profile Settings</button>
-              {walletConnected && (
-                <button
-                  className="alg-avatar-dropdown__item"
-                  onClick={async () => {
-                    try {
-                      if (solanaConnected) await solanaDisconnect();
-                      else if (wallet) await wallet.disconnect();
-                    } finally {
-                      setUi(prev => ({ ...prev, showAvatarDropdown: false }));
-                    }
-                  }}
-                >
-                  Disconnect Wallet
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </nav>
+      <Navbar />
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
 
@@ -848,8 +755,8 @@ export default function AlgencyPromptEditor() {
 
             <div className="alg-divider" />
 
-            {/* Tags */}
-            <div className="alg-label">TAGS</div>
+            {/* Category */}
+            <div className="alg-label">CATEGORY</div>
             <div className="alg-tag-input-wrap">
               <div className="alg-tag-chips">
                 {promptData.tags.map(tag => (

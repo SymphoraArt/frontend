@@ -12,6 +12,8 @@ import { Loader2, DollarSign, ShoppingBag, FileText, ImageIcon, TrendingUp, Eye,
 import Link from "next/link";
 import Image from "next/image";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useAuth } from "@/hooks/useAuth";
+import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 
 interface DashboardData {
   earnings: {
@@ -42,7 +44,9 @@ interface DashboardData {
 export default function DashboardPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: turnkeyAddress, getAuthHeaders: getTurnkeyAuthHeaders } = useTurnkeyEmailAuth();
+  const { getAuthHeaders: getEvmAuthHeaders } = useAuth();
+  const { getAuthHeaders: getSolanaAuthHeaders } = useSolanaAuth();
   const authenticated = !!account || solanaConnected || !!turnkeyAddress;
   const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [data, setData] = useState<DashboardData | null>(null);
@@ -59,7 +63,8 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        const authHeaders = { "X-Wallet-Address": userAddress };
+        const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+        if (!authHeaders) throw new Error("Authentication required");
 
         // Fetch earnings
         const earningsResponse = await fetch(`/api/users/${userAddress}/earnings`, { headers: authHeaders });

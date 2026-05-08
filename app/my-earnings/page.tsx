@@ -11,6 +11,8 @@ import { WalletPickerModal } from "@/components/WalletPickerModal";
 import Link from "next/link";
 import Image from "next/image";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useAuth } from "@/hooks/useAuth";
+import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 
 interface TopPrompt {
   promptId: string;
@@ -57,7 +59,9 @@ interface EarningsData {
 export default function MyEarningsPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: turnkeyAddress, getAuthHeaders: getTurnkeyAuthHeaders } = useTurnkeyEmailAuth();
+  const { getAuthHeaders: getEvmAuthHeaders } = useAuth();
+  const { getAuthHeaders: getSolanaAuthHeaders } = useSolanaAuth();
   const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const [data, setData] = useState<EarningsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,10 +79,13 @@ export default function MyEarningsPage() {
         setLoading(true);
         setError(null);
 
+        const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+        if (!authHeaders) throw new Error("Authentication required");
+
         const response = await fetch(`/api/users/${userAddress}/earnings`, {
           headers: {
             "Content-Type": "application/json",
-            "X-Wallet-Address": userAddress,
+            ...authHeaders,
           },
         });
 
@@ -142,8 +149,14 @@ export default function MyEarningsPage() {
               setError(null);
               setLoading(true);
               if (userAddress) {
+                const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+                if (!authHeaders) {
+                  setError("Authentication required");
+                  setLoading(false);
+                  return;
+                }
                 fetch(`/api/users/${userAddress}/earnings`, {
-                  headers: { "Content-Type": "application/json", "X-Wallet-Address": userAddress },
+                  headers: { "Content-Type": "application/json", ...authHeaders },
                 })
                   .then(res => {
                     if (!res.ok) throw new Error("Failed to fetch earnings");

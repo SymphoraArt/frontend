@@ -8,6 +8,7 @@ interface TurnkeyWalletState {
   step: Step;
   walletAddress: string | null;
   subOrganizationId: string | null;
+  sessionToken: string | null;
   error: string | null;
 }
 
@@ -16,12 +17,13 @@ export function useTurnkeyWallet() {
     step: "idle",
     walletAddress: null,
     subOrganizationId: null,
+    sessionToken: null,
     error: null,
   });
   const [otpId, setOtpId] = useState<string | null>(null);
 
   async function sendOtp(email: string) {
-    setState({ step: "sending", walletAddress: null, subOrganizationId: null, error: null });
+    setState({ step: "sending", walletAddress: null, subOrganizationId: null, sessionToken: null, error: null });
 
     try {
       const res = await fetch("/api/auth/turnkey/init", {
@@ -67,6 +69,7 @@ export function useTurnkeyWallet() {
         step: "done",
         walletAddress: data.walletAddress,
         subOrganizationId: data.subOrganizationId,
+        sessionToken: data.sessionToken ?? null,
         error: null,
       });
     } catch {
@@ -76,7 +79,7 @@ export function useTurnkeyWallet() {
 
   function reset() {
     setOtpId(null);
-    setState({ step: "idle", walletAddress: null, subOrganizationId: null, error: null });
+    setState({ step: "idle", walletAddress: null, subOrganizationId: null, sessionToken: null, error: null });
   }
 
   return { ...state, sendOtp, verifyOtp, reset };
@@ -127,7 +130,12 @@ export function useTurnkeyDeleteConfirm() {
     try {
       const res = await fetch("/api/auth/turnkey/delete-token", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(localStorage.getItem("turnkey_session_token")
+            ? { "X-Session-Token": localStorage.getItem("turnkey_session_token") as string }
+            : {}),
+        },
         body: JSON.stringify({ otpId, otpCode }),
       });
 

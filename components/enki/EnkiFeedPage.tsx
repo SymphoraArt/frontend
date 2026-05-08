@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import EnkiFilters from "@/components/enki/EnkiFilters";
 import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
-import EnkiFeaturedCarousel from "@/components/enki/EnkiFeaturedCarousel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import {
   getFallbackEnkiPrompts,
@@ -66,9 +65,7 @@ export default function EnkiFeedPage() {
 
   const toggleTag = (tag: string) => {
     setTags((current) => (
-      current.includes(tag)
-        ? current.filter((item) => item !== tag)
-        : [...current, tag]
+      current.includes(tag) ? [] : [tag]
     ));
   };
   return (
@@ -76,7 +73,6 @@ export default function EnkiFeedPage() {
       <main className="enki">
         {visible.length > 0 ? (
           <>
-            <EnkiFeaturedCarousel prompts={visible.slice(0, 5)} />
             <section className="enki-masonry">
             {visible.map((prompt) => (
               <EnkiCard

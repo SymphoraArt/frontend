@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiKeyStamper } from "@turnkey/api-key-stamper";
 import { TurnkeyBrowserClient, DEFAULT_SOLANA_ACCOUNTS } from "@turnkey/sdk-browser";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { generateKeyPairSync } from "crypto";
+import { generateKeyPairSync, randomBytes } from "crypto";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const TURNKEY_BASE_URL = "https://api.turnkey.com";
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 function getTurnkeyClient(organizationId: string) {
   const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY;
@@ -99,9 +100,12 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (existingUser) {
+    const session = await createAuthSession(existingUser.wallet_address, "turnkey");
     return NextResponse.json({
       walletAddress: existingUser.wallet_address,
       subOrganizationId: existingUser.sub_organization_id,
+      sessionToken: session.sessionToken,
+      expiresAt: session.expiresAt,
     });
   }
 
@@ -153,16 +157,42 @@ export async function POST(req: NextRequest) {
         .eq("email", normalizedEmail)
         .maybeSingle();
       if (raceWinner) {
+        const session = await createAuthSession(raceWinner.wallet_address, "turnkey");
         return NextResponse.json({
           walletAddress: raceWinner.wallet_address,
           subOrganizationId: raceWinner.sub_organization_id,
+          sessionToken: session.sessionToken,
+          expiresAt: session.expiresAt,
         });
       }
     }
 
-    return NextResponse.json({ walletAddress, subOrganizationId: subOrgId });
+    const session = await createAuthSession(walletAddress, "turnkey");
+    return NextResponse.json({
+      walletAddress,
+      subOrganizationId: subOrgId,
+      sessionToken: session.sessionToken,
+      expiresAt: session.expiresAt,
+    });
   } catch (error) {
     console.error("Turnkey createSubOrganization error:", error);
     return NextResponse.json({ error: "Failed to create wallet" }, { status: 500 });
   }
+}
+
+async function createAuthSession(walletAddress: string, walletType: string) {
+  const supabase = getSupabaseServerClient();
+  const sessionToken = randomBytes(32).toString("hex");
+  const normalizedWallet = walletAddress.toLowerCase();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+
+  const { error } = await supabase.from("auth_sessions").insert({
+    token: sessionToken,
+    wallet_address: normalizedWallet,
+    wallet_type: walletType,
+    expires_at: expiresAt,
+  });
+  if (error) throw error;
+
+  return { sessionToken, expiresAt };
 }

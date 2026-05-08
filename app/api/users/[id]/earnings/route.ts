@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
@@ -13,9 +14,13 @@ export async function GET(
   try {
     const { id: userId } = await params;
 
-    // Ownership check: caller must declare which address they are
-    const callerAddress = request.headers.get("X-Wallet-Address");
-    if (callerAddress && callerAddress.toLowerCase() !== userId.toLowerCase()) {
+    let authUser;
+    try {
+      authUser = await requireAuth(request);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (authUser.walletAddress.toLowerCase() !== userId.toLowerCase()) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
 
 interface UserSettings {
   // Profile
@@ -45,6 +46,16 @@ export async function GET(
         { error: "User ID is required" },
         { status: 400 }
       );
+    }
+
+    let authUser;
+    try {
+      authUser = await requireAuth(request);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (authUser.walletAddress.toLowerCase() !== userId.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const supabase = getSupabaseServerClient();
@@ -121,12 +132,13 @@ export async function PUT(
       );
     }
 
-    // Ownership check: settings mutation requires the caller to identify themselves
-    const callerAddress = request.headers.get("X-Wallet-Address");
-    if (!callerAddress) {
-      return NextResponse.json({ error: "X-Wallet-Address header required" }, { status: 401 });
+    let authUser;
+    try {
+      authUser = await requireAuth(request);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (callerAddress.toLowerCase() !== userId.toLowerCase()) {
+    if (authUser.walletAddress.toLowerCase() !== userId.toLowerCase()) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

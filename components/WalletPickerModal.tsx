@@ -33,7 +33,7 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
 
   // Email / Turnkey state
   const { set: setTurnkeyAuth } = useTurnkeyEmailAuth();
-  const { step, error: turnkeyError, walletAddress: turnkeyWalletAddress, subOrganizationId, sendOtp, verifyOtp, reset: resetTurnkey } = useTurnkeyWallet();
+  const { step, error: turnkeyError, walletAddress: turnkeyWalletAddress, subOrganizationId, sessionToken, sendOtp, verifyOtp, reset: resetTurnkey } = useTurnkeyWallet();
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -41,11 +41,11 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   // On Turnkey success, persist wallet address and close
   useEffect(() => {
     if (step === "done" && turnkeyWalletAddress && subOrganizationId) {
-      setTurnkeyAuth(turnkeyWalletAddress, subOrganizationId);
+      setTurnkeyAuth(turnkeyWalletAddress, subOrganizationId, sessionToken ?? undefined);
       handleClose();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, turnkeyWalletAddress, subOrganizationId]);
+  }, [step, turnkeyWalletAddress, subOrganizationId, sessionToken]);
 
   // After select() updates state and currentWallet changes, call connect()
   useEffect(() => {

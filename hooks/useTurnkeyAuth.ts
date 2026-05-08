@@ -13,27 +13,38 @@ import { Turnkey } from "@turnkey/sdk-browser";
 export function useTurnkeyEmailAuth() {
   const [address, setAddress] = useState<string | null>(null);
   const [subOrgId, setSubOrgId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
     setAddress(localStorage.getItem("turnkey_wallet_address"));
     setSubOrgId(localStorage.getItem("turnkey_sub_org_id"));
+    setSessionToken(localStorage.getItem("turnkey_session_token"));
   }, []);
 
-  const set = (addr: string, orgId: string) => {
+  const set = (addr: string, orgId: string, token?: string) => {
     localStorage.setItem("turnkey_wallet_address", addr);
     localStorage.setItem("turnkey_sub_org_id", orgId);
+    if (token) localStorage.setItem("turnkey_session_token", token);
     setAddress(addr);
     setSubOrgId(orgId);
+    if (token) setSessionToken(token);
   };
 
   const clear = () => {
     localStorage.removeItem("turnkey_wallet_address");
     localStorage.removeItem("turnkey_sub_org_id");
+    localStorage.removeItem("turnkey_session_token");
     setAddress(null);
     setSubOrgId(null);
+    setSessionToken(null);
   };
 
-  return { address, subOrgId, set, clear };
+  const getAuthHeaders = (): Record<string, string> | null => {
+    const token = sessionToken || localStorage.getItem("turnkey_session_token");
+    return token ? { "X-Session-Token": token } : null;
+  };
+
+  return { address, subOrgId, sessionToken, set, clear, getAuthHeaders };
 }
 
 // ─── Passkey-based Turnkey auth (2FA / delete confirm) ──────────────────────
