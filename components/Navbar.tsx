@@ -144,7 +144,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         borderRadius: 0,
         fontFamily: "var(--font-sora), 'Sora', sans-serif",
       }}>
-        <div style={{ maxWidth: 1440, margin: "0 auto", padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", width: "100%" }}>
+        <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
           
           {/* Full Width Search Overlay */}
           {isSearchOpen && (
