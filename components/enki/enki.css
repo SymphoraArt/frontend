@@ -83,11 +83,10 @@
   border-radius: 0;
   box-shadow: none;
   position: fixed;
-  top: 104px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 48px);
-  max-width: 1440px;
+  top: 80px;
+  left: 0;
+  right: 0;
+  width: 100%;
   z-index: 45;
   pointer-events: all;
   opacity: 1;

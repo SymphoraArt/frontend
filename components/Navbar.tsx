@@ -134,15 +134,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   return (
     <>
       <header style={{
-        position: "fixed", top: isMobile ? 12 : 24, left: "50%", transform: "translateX(-50%)", zIndex: 50,
-        width: isMobile ? "calc(100% - 24px)" : "calc(100% - 48px)",
-        maxWidth: 1440,
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
+        width: "100%",
         background: isDark ? "rgba(19, 19, 24, 0.75)" : "rgba(255, 255, 255, 0.9)",
         backdropFilter: "blur(40px) saturate(200%)",
         WebkitBackdropFilter: "blur(40px) saturate(200%)",
-        border: isDark ? "1px solid rgba(168, 85, 247, 0.2)" : "1px solid rgba(0,0,0,0.08)",
+        borderBottom: isDark ? "1px solid rgba(168, 85, 247, 0.2)" : "1px solid rgba(0,0,0,0.08)",
         boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.4)" : "0 4px 12px rgba(0,0,0,0.05)",
-        borderRadius: 16,
+        borderRadius: 0,
         fontFamily: "var(--font-sora), 'Sora', sans-serif",
       }}>
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
