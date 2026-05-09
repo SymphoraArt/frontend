@@ -9,7 +9,7 @@
   --enki-rule-2: #ebe5d8;
   --enki-ember: #c96838;
   min-height: 100vh;
-  padding-top: 108px; /* 56px navbar + 52px catbar */
+  padding-top: 200px; /* 24px nav margin + 56px navbar + 24px space + 50px catbar + 46px breathing room */
   background: var(--enki-paper);
   color: var(--enki-ink);
   font-family: var(--font-inter), var(--font-outfit), system-ui, sans-serif;

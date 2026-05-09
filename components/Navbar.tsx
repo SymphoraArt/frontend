@@ -178,7 +178,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           </div>
 
           {!isMobile && (
-            <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+            <nav style={{ display: "flex", alignItems: "center", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 1 }}>
               {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
                 const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
                 return (
@@ -211,7 +211,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
               onClick={toggleTheme}
               style={{
-                width: 38, height: 38, borderRadius: "50%",
+                width: 36, height: 36, borderRadius: "50%",
                 background: "none", border: "none",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", color: iconColor, transition: "background 0.2s ease, color 0.2s ease",
@@ -223,7 +223,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             </button>
 
             <button style={{
-              width: 38, height: 38, borderRadius: "50%",
+              width: 36, height: 36, borderRadius: "50%",
               background: "none", border: "none",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: iconColor, transition: "background 0.2s ease",
@@ -297,9 +297,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             {!authenticated && (
               <button onClick={() => setShowWalletPicker(true)} style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "0 16px", height: 40, background: "#111", color: "#fff",
-                border: "none", borderRadius: 999, cursor: "pointer",
-                fontSize: 13, fontWeight: 500, fontFamily: "inherit", whiteSpace: "nowrap",
+                padding: "0 16px", height: 36, 
+                background: isDark ? "rgba(255,255,255,0.05)" : "#111", 
+                color: isDark ? "#fff" : "#fff",
+                border: isDark ? "1px solid rgba(255,255,255,0.1)" : "none", 
+                borderRadius: 8, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
                 boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
@@ -312,7 +315,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               <DropdownMenuTrigger asChild>
                 {isMobile ? (
                   <button data-testid="button-user-menu" style={{
-                    width: 40, height: 40, borderRadius: "50%",
+                    width: 36, height: 36, borderRadius: "50%",
                     background: "none", border: "none",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: isDark ? "#f7f2eb" : "#333",
@@ -322,7 +325,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   </button>
                 ) : (
                   <button data-testid="button-user-menu" style={{
-                    width: 40, height: 40, borderRadius: "50%",
+                    width: 36, height: 36, borderRadius: "50%",
                     background: "#111", border: "none",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: "#fff", fontSize: 13, fontWeight: 600,
