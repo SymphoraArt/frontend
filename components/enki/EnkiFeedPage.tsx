@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { Search, Mic } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
@@ -71,20 +70,7 @@ export default function EnkiFeedPage() {
   };
   return (
     <>
-      {/* Sticky Google-like Search Bar */}
-      <div style={{ position: "sticky", top: 56, zIndex: 40, background: "rgba(247, 242, 235, 0.9)", backdropFilter: "blur(12px)", padding: "16px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-        <div className="w-full max-w-2xl mx-auto px-4 relative">
-          <Search className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5 pointer-events-none" />
-          <input 
-            type="text" 
-            placeholder="Search for image styles, subjects, or concepts..." 
-            className="w-full h-12 pl-12 pr-12 rounded-full border border-gray-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-black/5 text-base transition-shadow hover:shadow-md"
-          />
-          <Mic className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5 cursor-pointer hover:text-black transition-colors" />
-        </div>
-      </div>
-
-      <main className="enki" style={{ paddingTop: 20 }}>
+      <main className="enki">
         {visible.length > 0 ? (
           <>
             <section className="enki-masonry">

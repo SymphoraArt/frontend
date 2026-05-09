@@ -91,6 +91,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { theme, toggleTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const evmAuthenticated = !!account && walletInfo.isConnected;
   const authenticated = evmAuthenticated || solanaConnected || !!turnkeyAddress;
   const router = useRouter();
@@ -144,6 +146,30 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
       }}>
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+          
+          {/* Full Width Search Overlay */}
+          {isSearchOpen && (
+            <div style={{ position: "absolute", inset: 0, padding: isMobile ? "0 12px" : "0 24px", display: "flex", alignItems: "center", background: isDark ? "rgba(13, 13, 13, 1)" : "#fff", zIndex: 10 }}>
+              <Search size={18} color={iconColor} style={{ flexShrink: 0 }} />
+              <input 
+                autoFocus
+                placeholder="Search Enki Art..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (onSearch) onSearch(searchQuery);
+                    setIsSearchOpen(false);
+                  }
+                }}
+                style={{ flex: 1, height: "100%", background: "transparent", border: "none", outline: "none", padding: "0 16px", color: isDark ? "#fff" : "#111", fontSize: 16, fontFamily: "inherit" }}
+              />
+              <button onClick={() => setIsSearchOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, padding: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 20, lineHeight: 1 }}>×</span>
+              </button>
+            </div>
+          )}
+
           <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
             <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 700, fontSize: isMobile ? 17 : 19, color: isDark ? "#f7f2eb" : "#111" }}>
               Enki Art
@@ -202,6 +228,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: iconColor, transition: "background 0.2s ease",
             }}
+            onClick={() => setIsSearchOpen(true)}
             onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
               <Search size={16} />
