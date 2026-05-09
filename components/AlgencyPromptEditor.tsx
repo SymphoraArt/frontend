@@ -708,6 +708,33 @@ export default function AlgencyPromptEditor() {
       <Navbar />
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
+      {/* ═══ PROMPT TITLE HEADER ═══ */}
+      <div style={{
+        padding: "24px 32px",
+        background: "var(--alg-bg)",
+        borderBottom: "1px solid var(--alg-border)",
+        display: "flex",
+        alignItems: "center"
+      }}>
+        <input
+          value={promptData.title}
+          onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
+          placeholder="Untitled Prompt"
+          style={{
+            width: "100%",
+            fontSize: "clamp(28px, 2.5vw + 12px, 42px)",
+            fontFamily: "var(--font-serif), 'Playfair Display', serif",
+            fontWeight: 500,
+            color: "var(--alg-dark)",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            padding: 0,
+            margin: 0,
+            lineHeight: 1.2
+          }}
+        />
+      </div>
 
       {/* ═══ 4-COLUMN GRID ═══ */}
       <div className="alg-grid desktop-only">
@@ -721,16 +748,6 @@ export default function AlgencyPromptEditor() {
             </div>
           </div>
           <div className="alg-panel__body">
-            {/* Prompt Title */}
-            <div className="alg-label">PROMPT TITLE</div>
-            <input
-              className="alg-input alg-input--title"
-              value={promptData.title}
-              onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Untitled Prompt"
-              style={{ width: "100%", marginBottom: 16 }}
-            />
-
             {/* Display Mode */}
             <div className="alg-label">DISPLAY MODE</div>
             <div
