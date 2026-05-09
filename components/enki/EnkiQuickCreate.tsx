@@ -37,7 +37,7 @@ export default function EnkiQuickCreate() {
         <span className="enki-qc-bar-bolt"><Zap size={12} /></span>
         <span className="serif" style={{ fontSize: 15 }}>Quick create</span>
         <span className="mono" style={{ color: "var(--enki-ink-3)", fontSize: 11 }}>
-          {open ? "wrap variables in [brackets]" : "Paste a prompt"}
+          {open ? "wrap variables in [brackets]" : ""}
         </span>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>

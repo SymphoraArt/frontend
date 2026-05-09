@@ -547,7 +547,7 @@ export default function CompactPromptCreator() {
           >
             <div>
               <div style={{ fontWeight: 600, fontSize: 13, color: "#111" }}>Quick Create</div>
-              <div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>Paste a prompt with [variables] to adjust quickly</div>
+              <div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>Wrap variables in [brackets] to adjust quickly</div>
             </div>
             <button
               onClick={() => setOpen(true)}
