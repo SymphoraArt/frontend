@@ -169,10 +169,10 @@ html.dark {
   letter-spacing: 1.2px; color: var(--alg-hint); line-height: 1;
 }
 .alg-titlebar__title {
-  font-family: var(--font-instrument-serif), 'Instrument Serif', serif;
-  font-size: clamp(22px, 1.8vw + 12px, 32px); font-weight: 400; font-style: italic; color: var(--alg-dark);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: clamp(22px, 1.8vw + 12px, 32px); font-weight: 300; font-style: italic; color: var(--alg-dark);
   border: none; background: none; padding: 0; outline: none;
-  width: 420px; line-height: 1.2;
+  width: 420px; line-height: 1.2; letter-spacing: -0.01em;
 }
 .alg-titlebar__title::placeholder { color: var(--alg-hint); }
 .alg-titlebar__right { display: flex; align-items: center; gap: 8px; }
@@ -191,7 +191,7 @@ html.dark {
 .alg-btn {
   display: inline-flex; align-items: center; justify-content: center;
   gap: 6px; border-radius: 3px;
-  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
   font-size: 12px; font-weight: 500; padding: 8px 16px;
   cursor: pointer; transition: all 0.15s ease;
   border: 1px solid transparent; white-space: nowrap;
@@ -242,8 +242,9 @@ html.dark {
   color: #C4BDB5; margin-right: 8px;
 }
 .alg-panel__title {
-  font-family: var(--font-instrument-serif), 'Instrument Serif', serif;
-  font-size: clamp(15px, 1vw + 7px, 20px); font-weight: 400; font-style: italic; color: var(--alg-dark);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: clamp(16px, 1vw + 8px, 22px); font-weight: 400; font-style: italic; color: var(--alg-dark);
+  letter-spacing: -0.01em;
 }
 .alg-panel__subtitle { font-size: 10px; color: var(--alg-hint); font-weight: 500; }
 .alg-panel__body {
@@ -253,10 +254,11 @@ html.dark {
 
 /* ─── Section Label ─── */
 .alg-label {
-  font-size: clamp(9px, 0.5vw + 6px, 12px); font-weight: 700; text-transform: uppercase;
-  letter-spacing: 1.3px; color: var(--alg-hint);
+  font-size: clamp(9px, 0.5vw + 6px, 11px); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--alg-hint);
   margin-bottom: 8px; margin-top: 18px;
   display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
 }
 .alg-label:first-child { margin-top: 0; }
 .alg-label__badge {
@@ -273,8 +275,8 @@ html.dark {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .alg-mode-card:hover { border-color: var(--alg-muted); box-shadow: 0 2px 6px rgba(0,0,0,0.07); }
-.alg-mode-card__title { font-family: var(--font-instrument-serif), serif; font-style: italic; font-size: clamp(16px, 1vw + 10px, 20px); font-weight: 400; margin-bottom: 4px; color: var(--alg-dark); }
-.alg-mode-card__desc { font-family: var(--font-inter), sans-serif; font-size: clamp(11px, 0.6vw + 6px, 13px); color: var(--alg-hint); line-height: 1.5; }
+.alg-mode-card__title { font-family: var(--font-cormorant), 'Cormorant Garamond', serif; font-style: italic; font-size: clamp(17px, 1vw + 11px, 22px); font-weight: 400; margin-bottom: 4px; color: var(--alg-dark); letter-spacing: -0.01em; }
+.alg-mode-card__desc { font-family: var(--font-dm-sans), 'DM Sans', sans-serif; font-size: clamp(11px, 0.6vw + 6px, 13px); color: var(--alg-hint); line-height: 1.5; font-weight: 400; }
 .alg-mode-card--active {
   background: var(--alg-white);
   border: 1.5px solid var(--alg-dark); color: var(--alg-dark);
@@ -290,7 +292,7 @@ html.dark {
 .alg-model-row:hover { background: var(--alg-bg); }
 .alg-model-row--active { border: 1px solid var(--alg-peach-border); background: var(--alg-peach-bg); color: var(--alg-dark); }
 .alg-model-row--active:hover { background: var(--alg-peach-bg); }
-.alg-model-row__name { font-weight: 500; font-family: var(--font-outfit), 'Outfit', sans-serif; }
+.alg-model-row__name { font-weight: 500; font-family: var(--font-dm-sans), 'DM Sans', sans-serif; }
 .alg-model-row__price { font-family: var(--font-jetbrains-mono), monospace; font-size: 11px; font-weight: 500; color: var(--alg-muted); }
 .alg-model-row--active .alg-model-row__price {
   color: var(--alg-accent); background: transparent; padding: 0; border-radius: 0;
@@ -369,21 +371,18 @@ html.dark {
   width: 100%; min-height: 200px; padding: 16px 18px;
   border: 1px solid var(--alg-input-border); border-radius: 6px;
   background: var(--alg-white);
-  font-size: clamp(14px, 1vw + 4px, 18px);
-  font-family: var(--font-instrument-serif), 'Instrument Serif', serif;
+  font-size: clamp(16px, 1.1vw + 6px, 20px);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-weight: 400;
   color: var(--alg-text); outline: none; resize: vertical;
   line-height: 1.7; transition: border-color 0.2s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04) inset;
+  letter-spacing: 0.01em;
 }
 .alg-textarea:focus { border-color: var(--alg-accent); box-shadow: 0 0 0 3px rgba(199,102,58,0.1); }
 .alg-textarea::placeholder { color: var(--alg-hint); }
 
-/* ─── Variable Tags (inline) ─── */
-.alg-var-tag {
-  display: inline; padding: 1px 5px; border-radius: 3px;
-  font-size: inherit; font-weight: 500; cursor: pointer; transition: opacity 0.15s;
-}
-.alg-var-tag:hover { opacity: 0.8; }
+
 
 /* ─── Tag Pills Row (below textarea) ─── */
 .alg-tag-pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; }
@@ -627,17 +626,31 @@ html.dark {
 
 /* ─── Prompt Overlay ─── */
 .alg-prompt-overlay {
-  position: absolute; inset: 0; padding: 14px 16px; pointer-events: none;
-  font-family: var(--font-serif), 'Playfair Display', serif;
-  font-size: clamp(14px, 1vw + 4px, 18px); line-height: 1.6;
+  position: absolute; inset: 0;
+  padding: 16px 18px;  /* must exactly match .alg-textarea padding */
+  pointer-events: none;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: clamp(16px, 1.1vw + 6px, 20px);
+  font-weight: 400;
+  line-height: 1.7;    /* must exactly match .alg-textarea line-height */
   white-space: pre-wrap; word-break: break-word;
   overflow: hidden; color: var(--alg-text);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  box-sizing: border-box;
+  letter-spacing: 0.01em;
 }
 .alg-prompt-overlay .alg-var-tag { pointer-events: auto; }
 .alg-var-tag {
-  display: inline-block; padding: 0 4px; margin: 0 1px;
-  border-radius: 3px; font-weight: 500; transition: all 0.15s;
+  display: inline;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  /* NO margins — inline elements must flow like regular text characters */
 }
+.alg-var-tag:hover { opacity: 0.8; }
 
 /* ─── Panel 04 ─── */
 .alg-panel--verify .alg-panel__body { display: flex; flex-direction: column; }

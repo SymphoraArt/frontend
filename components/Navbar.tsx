@@ -202,7 +202,19 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             </nav>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 2 : 6, flexShrink: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 2 : 4, flexShrink: 0, zIndex: 2 }}>
+            <button style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "none", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: iconColor, transition: "background 0.2s ease",
+            }}
+            onClick={() => setIsSearchOpen(true)}
+            onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+              <Search size={16} />
+            </button>
+
             <button
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
               onClick={toggleTheme}
@@ -218,20 +230,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               {isDark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
-            <button style={{
-              width: 36, height: 36, borderRadius: "50%",
-              background: "none", border: "none",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: iconColor, transition: "background 0.2s ease",
-            }}
-            onClick={() => setIsSearchOpen(true)}
-            onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-              <Search size={16} />
-            </button>
-
             {isDesktop && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginRight: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 4, marginRight: 6 }}>
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Trophy size={18} />
                 </button>

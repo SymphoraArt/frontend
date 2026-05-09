@@ -735,10 +735,10 @@ export default function AlgencyPromptEditor() {
           placeholder="Untitled Prompt"
           style={{
             width: "100%",
-            fontSize: "clamp(24px, 2vw + 12px, 34px)",
-            fontFamily: "var(--font-instrument-serif), 'Instrument Serif', serif",
+            fontSize: "clamp(28px, 2.5vw + 12px, 40px)",
+            fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
             fontStyle: "italic",
-            fontWeight: 400,
+            fontWeight: 300,
             color: "var(--alg-dark)",
             background: "transparent",
             border: "none",
@@ -751,29 +751,7 @@ export default function AlgencyPromptEditor() {
         />
       </div>
 
-      {/* ═══ 4-STEP WIZARD BAR ═══ */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 24px",
-        height: 40,
-        background: "var(--alg-panel)",
-        borderBottom: "1px solid var(--alg-border)",
-        flexShrink: 0,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-inter), sans-serif", fontSize: 12, color: "var(--alg-muted)" }}>
-          {["01 Settings", "02 Prompt", "03 Variables", "04 Verify"].map((step, i) => (
-            <>
-              <span key={step} style={{ color: "var(--alg-text)", fontWeight: 500 }}>{step}</span>
-              {i < 3 && <span key={`sep-${i}`} style={{ color: "var(--alg-border)", fontWeight: 300, fontSize: 14 }}>•</span>}
-            </>
-          ))}
-        </div>
-        <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 11, color: "var(--alg-hint)", letterSpacing: 0.5 }}>
-          {verifiedCount}/1 req · 4 rec
-        </span>
-      </div>
+
 
       {/* ═══ 4-COLUMN GRID ═══ */}
       <div className="alg-grid desktop-only">
