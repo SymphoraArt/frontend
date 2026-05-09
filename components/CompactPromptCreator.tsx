@@ -6,13 +6,7 @@ import {
   Plus,
   Search,
   Star,
-  Heart,
   ImageIcon,
-  ImagePlus,
-  ChevronUp,
-  ChevronDown,
-  PanelRightClose,
-  PanelRightOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Slider } from "@/components/ui/slider";
 import QuickVariableCreator from "./QuickVariableCreator";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useToast } from "@/hooks/use-toast";
@@ -525,547 +518,300 @@ export default function CompactPromptCreator() {
 
   return (
     <>
-      {/* Compact Prompt Creator UI */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[84%] max-w-4xl">
+      {/* ── Quick Create Panel ── */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(92vw, 480px)",
+          zIndex: 60,
+          fontFamily: "'Outfit', sans-serif",
+        }}
+      >
+        {/* Collapsed pill */}
         {!open ? (
-          <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-foreground">
-                  Quick Create
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  Paste a prompt with [variables] to adjust quickly
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setOpen(true)}
-                data-testid="button-open-quick-create"
-              >
-                <ChevronUp className="h-5 w-5 text-muted-foreground" />
-              </Button>
+          <div
+            style={{
+              background: "rgba(255,255,255,0.92)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: 14,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 16px",
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#111" }}>Quick Create</div>
+              <div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>Paste a prompt with [variables] to adjust quickly</div>
             </div>
+            <button
+              onClick={() => setOpen(true)}
+              style={{ background: "#111", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              data-testid="button-open-quick-create"
+            >
+              Open ↑
+            </button>
           </div>
         ) : (
-          <div className="bg-card/85 backdrop-blur-lg border border-border rounded-xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
-              <div className="text-sm font-semibold text-foreground">Quick Create</div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setOpen(false)}
-                data-testid="button-close-quick-create"
-              >
-                <ChevronDown className="h-5 w-5 text-muted-foreground" />
-              </Button>
-            </div>
-          {/* Selection popup */}
-          {selectionPosition && selectedText && (
-            <div
-              className="absolute bg-popover border border-border rounded-lg shadow-lg p-1 flex gap-1 z-50"
-              style={{ top: -45, left: 10 }}
-            >
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs gap-1"
-                onClick={createVariableFromSelection}
-                data-testid="button-add-variable-selection"
-              >
-                <Plus className="h-3 w-3" />
-                Variable
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs gap-1"
-                onClick={() => {
-                  setShowTemplateModal(true);
-                  setTemplateSearch(selectedText);
-                }}
-                data-testid="button-search-templates"
-              >
-                <Search className="h-3 w-3" />
-                Search Templates
-              </Button>
-            </div>
-          )}
-
-          <div className="flex min-w-0 overflow-hidden">
-            {/* Text Input Area */}
-            <div className="flex-1 p-4 min-w-0 flex flex-col">
-              <div className="flex-1 rounded-xl border border-border bg-background overflow-hidden">
-                <Textarea
-                  ref={textareaRef}
-                  value={promptText}
-                  onChange={(e) => setPromptText(e.target.value)}
-                  onMouseUp={handleTextSelect}
-                  onKeyUp={handleTextSelect}
-                  placeholder="Describe your image... Use [variable] to create adjustable variables"
-                  className="h-full min-h-[170px] max-h-[260px] resize-none bg-transparent border-0 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 font-mono leading-relaxed !px-4 !py-3"
-                  style={{ WebkitTextFillColor: "currentColor", caretColor: "currentColor", opacity: 1 }}
-                  data-testid="input-compact-prompt"
-                />
-              </div>
-            </div>
-
-            {/* Mini Variable Adjuster */}
-            {variables.length > 0 && (
-              <div
-                className={
-                  variablesOpen
-                    ? "w-72 border-l border-border p-3 bg-muted/20 backdrop-blur-sm shrink-0"
-                    : "w-12 border-l border-border p-2.5 bg-muted/20 backdrop-blur-sm shrink-0"
-                }
-              >
-                <div className="flex items-center justify-between gap-2 px-1 pb-2">
-                  {variablesOpen && (
-                    <div className="text-[11px] font-semibold text-muted-foreground">
-                      Variables
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0"
-                    onClick={() => setVariablesOpen((v) => !v)}
-                    data-testid="button-toggle-variables"
-                  >
-                    {variablesOpen ? (
-                      <PanelRightClose className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+          /* Expanded card */
+          <div
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              backdropFilter: "blur(28px)",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: 16,
+              boxShadow: "0 16px 48px rgba(0,0,0,0.16)",
+              overflow: "hidden",
+            }}
+          >
+            {/* ── Top Bar ── */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid #f0ede8" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 6, background: "#e05a2b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Zap size={12} color="#fff" />
                 </div>
-
-                {variablesOpen && (
-                  <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
-                    {variables.map((variable) => (
-                      <div
-                        key={variable.id}
-                        className="rounded-md border border-border bg-background px-2 py-1.5"
-                        data-testid={`variable-adjuster-${variable.name}`}
-                      >
-                        <Label className="text-[11px] text-muted-foreground">
-                          {variable.name}
-                        </Label>
-
-                      {variable.type === "text" && (
-                        <Input
-                          value={variable.currentValue}
-                          onChange={(e) =>
-                            updateVariable(variable.name, (prevVar) => ({
-                              ...prevVar,
-                              currentValue: e.target.value,
-                            }))
-                          }
-                          placeholder={variable.defaultValue}
-                          className="h-7 mt-1 text-xs text-foreground placeholder:text-muted-foreground bg-background/60 border-border/70"
-                          style={{ WebkitTextFillColor: "currentColor" }}
-                          data-testid={`input-variable-${variable.name}`}
-                        />
-                      )}
-
-                      {variable.type === "checkbox" && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Checkbox
-                            checked={
-                              variable.currentValue === "true" ||
-                              variable.currentValue === "1"
-                            }
-                            onCheckedChange={(checked) =>
-                              updateVariable(variable.name, (prevVar) => ({
-                                ...prevVar,
-                                currentValue: checked ? "true" : "false",
-                              }))
-                            }
-                            data-testid={`checkbox-variable-${variable.name}`}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            Enabled
-                          </span>
-                        </div>
-                      )}
-
-                      {variable.type === "slider" && (
-                        <div className="mt-2 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] text-muted-foreground dark:text-white/70">
-                              Value
-                            </span>
-                            <span className="text-[11px] text-foreground dark:text-white font-mono">
-                              {variable.currentValue || "0"}
-                            </span>
-                          </div>
-                          <Slider
-                            min={variable.min ?? 0}
-                            max={variable.max ?? 100}
-                            step={variable.step ?? 1}
-                            value={[Number(variable.currentValue || variable.min || 0)]}
-                            onValueChange={(v) =>
-                              updateVariable(variable.name, (prevVar) => ({
-                                ...prevVar,
-                                currentValue: String(v[0]),
-                              }))
-                            }
-                            data-testid={`slider-variable-${variable.name}`}
-                          />
-                        </div>
-                      )}
-
-                      {variable.type === "single-select" && (
-                        <div className="mt-2">
-                          <Select
-                            value={variable.currentValue}
-                            onValueChange={(value) =>
-                              updateVariable(variable.name, (prevVar) => ({
-                                ...prevVar,
-                                currentValue: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="h-7 text-xs bg-background/60 border-border/70 text-foreground">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(variable.options || [])
-                                .slice(0, 25)
-                                .map((opt) => (
-                                  <SelectItem key={opt} value={opt}>
-                                    {opt}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      {variable.type === "multi-select" && (
-                        <div className="mt-2 space-y-1">
-                          {(variable.options || []).slice(0, 8).map((opt) => {
-                            const selected = (variable.currentValue || "")
-                              .split(",")
-                              .map((s) => s.trim())
-                              .filter(Boolean)
-                              .includes(opt);
-                            return (
-                              <div key={opt} className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={selected}
-                                  onCheckedChange={(checked) =>
-                                    updateVariable(variable.name, (prevVar) => {
-                                      const set = new Set(
-                                        (prevVar.currentValue || "")
-                                          .split(",")
-                                          .map((s) => s.trim())
-                                          .filter(Boolean)
-                                      );
-                                      if (checked) set.add(opt);
-                                      else set.delete(opt);
-                                      return {
-                                        ...prevVar,
-                                        currentValue: Array.from(set).join(","),
-                                      };
-                                    })
-                                  }
-                                  data-testid={`checkbox-multi-${variable.name}-${opt}`}
-                                />
-                                <span className="text-xs text-muted-foreground">
-                                  {opt}
-                                </span>
-                              </div>
-                            );
-                          })}
-
-                          {(!variable.options || variable.options.length === 0) && (
-                            <div className="text-[11px] text-muted-foreground">
-                              Add options via token: [name:multi=value|opts=a,b,c]
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <span style={{ fontWeight: 700, fontSize: 13, color: "#111" }}>Quick Create</span>
               </div>
-            )}
-          </div>
-
-          {/* Bottom Controls */}
-          <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20 backdrop-blur-sm">
-            {/* Left: Settings */}
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" />
-                <Select value={dimension} onValueChange={setDimension}>
-                  <SelectTrigger
-                    className="h-6 w-14 text-xs border-0 bg-transparent p-0"
-                    data-testid="select-dimension"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1:1">1:1</SelectItem>
-                    <SelectItem value="16:9">16:9</SelectItem>
-                    <SelectItem value="9:16">9:16</SelectItem>
-                    <SelectItem value="4:3">4:3</SelectItem>
-                    <SelectItem value="3:4">3:4</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <Heart className="h-3.5 w-3.5" />
-                <Select value={resolution} onValueChange={setResolution}>
-                  <SelectTrigger
-                    className="h-6 w-12 text-xs border-0 bg-transparent p-0"
-                    data-testid="select-resolution"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1K">1K</SelectItem>
-                    <SelectItem value="2K">2K</SelectItem>
-                    <SelectItem value="4K">4K</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => adjustImageCount(-1)}
-                  disabled={imageCount <= 1}
-                  data-testid="button-decrease-count"
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setOpen(false)}
+                  style={{ background: "none", border: "1px solid #e0ddd8", borderRadius: 7, padding: "4px 10px", fontSize: 11, color: "#666", cursor: "pointer", fontFamily: "inherit" }}
+                  data-testid="button-close-quick-create"
                 >
-                  <span className="text-xs">-</span>
-                </Button>
-                <span className="w-6 text-center">{imageCount}/4</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => adjustImageCount(1)}
-                  disabled={imageCount >= 4}
-                  data-testid="button-increase-count"
-                >
-                  <span className="text-xs">+</span>
-                </Button>
+                  Collapse ↓
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs gap-1 text-muted-foreground"
-                onClick={() => {
-                  toast({
-                    title: "Image Upload",
-                    description: "Image upload functionality is coming soon.",
-                  });
-                }}
-                data-testid="button-quick-add-image"
-              >
-                <ImagePlus className="h-3 w-3" />
-                Image
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs gap-1 text-muted-foreground"
-                onClick={() => setQuickVarCreatorOpen(true)}
-                data-testid="button-quick-add-variable-compact"
-              >
-                <Plus className="h-3 w-3" />
-                Variable
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs gap-1 text-muted-foreground capitalize"
-                onClick={fillExampleValues}
-                data-testid="button-fill-example"
-              >
-                <Zap className="h-3 w-3" />
-                Example
-              </Button>
+            {/* ── Two-column body ── */}
+            <div style={{ display: "flex", minHeight: 0 }}>
 
-              {!authenticated && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => setShowWalletPicker(true)}
-                >
-                  Connect Wallet
-                </Button>
-              )}
+              {/* LEFT — 70%: Prompt + Settings */}
+              <div style={{ flex: "1 1 0%", minWidth: 0, borderRight: "1px solid #f0ede8", display: "flex", flexDirection: "column" }}>
 
-              <Button
-                size="sm"
-                className="h-8 px-6 bg-green-600 hover:bg-green-700 text-white"
-                onClick={authenticated ? handleGenerateImage : () => setShowWalletPicker(true)}
-                disabled={isGenerating || isPending}
-                data-testid="button-generate"
-              >
-                {isGenerating || isPending
-                  ? "Generating..."
-                  : !authenticated
-                    ? "Connect Wallet"
-                    : "Generate"}
-              </Button>
-              <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
-            </div>
-          </div>
-
-          {/* Generated Image Display */}
-          {generatedImage && (
-            <div className="px-4 pb-4">
-              <div className="rounded-xl border border-border bg-background p-4">
-                <div className="text-sm font-semibold text-foreground mb-3">Generated Image</div>
-                <div className="flex justify-center">
-                  <img
-                    src={generatedImage}
-                    alt="Generated image"
-                    className="max-w-full max-h-96 rounded-lg shadow-lg"
-                    onError={(e) => {
-                      console.error('Failed to load generated image:', generatedImage);
-                      toast({
-                        title: "Image load failed",
-                        description: "The generated image could not be displayed.",
-                        variant: "destructive",
-                      });
+                {/* Textarea */}
+                <div style={{ padding: "12px 14px 8px" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#aaa", textTransform: "uppercase", marginBottom: 6 }}>Prompt</div>
+                  <Textarea
+                    ref={textareaRef}
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    onMouseUp={() => {
+                      const ta = textareaRef.current;
+                      if (!ta) return;
+                      const sel = promptText.substring(ta.selectionStart, ta.selectionEnd);
+                      setSelectedText(sel);
                     }}
+                    placeholder="Describe your image… use [variable] for dynamic fields"
+                    className="resize-none bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono leading-relaxed !px-0 !py-0"
+                    style={{
+                      width: "100%",
+                      minHeight: "clamp(60px, 12vh, 100px)",
+                      maxHeight: "clamp(80px, 14vh, 120px)",
+                      fontSize: 12,
+                      color: "#111",
+                      background: "transparent",
+                      border: "none",
+                      outline: "none",
+                      resize: "none",
+                    }}
+                    data-testid="input-compact-prompt"
                   />
                 </div>
-                <div className="flex justify-center mt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setGeneratedImage(null)}
+
+                {/* Settings row */}
+                <div style={{ padding: "8px 14px", borderTop: "1px solid #f0ede8", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#aaa", textTransform: "uppercase", flexShrink: 0 }}>Settings</div>
+
+                  {/* Ratio */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+                    <ImageIcon size={11} color="#888" />
+                    <select
+                      value={dimension}
+                      onChange={(e) => setDimension(e.target.value)}
+                      style={{ fontSize: 11, border: "1px solid #e0ddd8", borderRadius: 5, padding: "2px 6px", background: "#faf9f7", color: "#333", cursor: "pointer", fontFamily: "inherit" }}
+                      data-testid="select-dimension"
+                    >
+                      <option value="1:1">1:1</option>
+                      <option value="16:9">16:9</option>
+                      <option value="9:16">9:16</option>
+                      <option value="4:3">4:3</option>
+                      <option value="3:4">3:4</option>
+                    </select>
+                  </div>
+
+                  {/* Resolution */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+                    <span style={{ fontSize: 10, color: "#888" }}>RES</span>
+                    <select
+                      value={resolution}
+                      onChange={(e) => setResolution(e.target.value)}
+                      style={{ fontSize: 11, border: "1px solid #e0ddd8", borderRadius: 5, padding: "2px 6px", background: "#faf9f7", color: "#333", cursor: "pointer", fontFamily: "inherit" }}
+                      data-testid="select-resolution"
+                    >
+                      <option value="1K">1K</option>
+                      <option value="2K">2K</option>
+                      <option value="4K">4K</option>
+                    </select>
+                  </div>
+
+                  {/* Count */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+                    <span style={{ color: "#888", fontSize: 10 }}>QTY</span>
+                    <button onClick={() => adjustImageCount(-1)} disabled={imageCount <= 1} style={{ width: 20, height: 20, border: "1px solid #e0ddd8", borderRadius: 4, background: "#faf9f7", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>−</button>
+                    <span style={{ fontWeight: 600, fontSize: 12, minWidth: 16, textAlign: "center" }}>{imageCount}</span>
+                    <button onClick={() => adjustImageCount(1)} disabled={imageCount >= 4} style={{ width: 20, height: 20, border: "1px solid #e0ddd8", borderRadius: 4, background: "#faf9f7", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>+</button>
+                  </div>
+                </div>
+
+                {/* Generate button */}
+                <div style={{ padding: "10px 14px", borderTop: "1px solid #f0ede8" }}>
+                  <button
+                    onClick={authenticated ? handleGenerateImage : () => setShowWalletPicker(true)}
+                    disabled={isGenerating || isPending}
+                    style={{
+                      width: "100%", padding: "10px", background: isGenerating || isPending ? "#ccc" : "#111",
+                      color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                      cursor: isGenerating || isPending ? "not-allowed" : "pointer", fontFamily: "inherit",
+                      letterSpacing: 0.3,
+                    }}
+                    data-testid="button-generate"
                   >
-                    Clear Image
-                  </Button>
+                    {isGenerating || isPending ? "Generating…" : !authenticated ? "Connect Wallet to Generate" : "Generate →"}
+                  </button>
+                </div>
+              </div>
+
+              {/* RIGHT — 30%: Variables */}
+              <div style={{ width: 160, flexShrink: 0, display: "flex", flexDirection: "column", background: "#faf9f7" }}>
+                <div style={{ padding: "12px 14px 6px", borderBottom: "1px solid #f0ede8", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#aaa", textTransform: "uppercase" }}>
+                    Variables {variables.length > 0 && `(${variables.length})`}
+                  </span>
+                  <button
+                    onClick={() => setQuickVarCreatorOpen(true)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#888", display: "flex", alignItems: "center", gap: 2, fontSize: 10 }}
+                    data-testid="button-quick-add-variable-compact"
+                  >
+                    <Plus size={10} /> Add
+                  </button>
+                </div>
+
+                <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {variables.length === 0 ? (
+                    <div style={{ color: "#bbb", fontSize: 11, textAlign: "center", marginTop: 24, lineHeight: 1.5 }}>
+                      Add <code style={{ background: "#eee", padding: "0 3px", borderRadius: 3 }}>[variable]</code> to your prompt
+                    </div>
+                  ) : (
+                    variables.map((variable) => (
+                      <div key={variable.id} style={{ background: "#fff", border: "1px solid #ede9e3", borderRadius: 7, padding: "7px 9px" }} data-testid={`variable-adjuster-${variable.name}`}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#e05a2b", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{variable.name}</div>
+
+                        {variable.type === "text" && (
+                          <input
+                            value={variable.currentValue}
+                            onChange={(e) => updateVariable(variable.name, (v) => ({ ...v, currentValue: e.target.value }))}
+                            placeholder={variable.defaultValue}
+                            style={{ width: "100%", fontSize: 11, border: "1px solid #e8e5de", borderRadius: 5, padding: "4px 7px", background: "#faf9f7", color: "#111", fontFamily: "inherit", boxSizing: "border-box" }}
+                            data-testid={`input-variable-${variable.name}`}
+                          />
+                        )}
+
+                        {variable.type === "checkbox" && (
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11 }}>
+                            <input
+                              type="checkbox"
+                              checked={variable.currentValue === "true" || variable.currentValue === "1"}
+                              onChange={(e) => updateVariable(variable.name, (v) => ({ ...v, currentValue: e.target.checked ? "true" : "false" }))}
+                              data-testid={`checkbox-variable-${variable.name}`}
+                            />
+                            <span style={{ color: "#555" }}>Enabled</span>
+                          </label>
+                        )}
+
+                        {variable.type === "slider" && (
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#888", marginBottom: 4 }}>
+                              <span>Value</span><span style={{ fontWeight: 600, color: "#111" }}>{variable.currentValue || 0}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={variable.min ?? 0}
+                              max={variable.max ?? 100}
+                              step={variable.step ?? 1}
+                              value={Number(variable.currentValue || variable.min || 0)}
+                              onChange={(e) => updateVariable(variable.name, (v) => ({ ...v, currentValue: e.target.value }))}
+                              style={{ width: "100%" }}
+                              data-testid={`slider-variable-${variable.name}`}
+                            />
+                          </div>
+                        )}
+
+                        {(variable.type === "single-select" || variable.type === "multi-select") && (
+                          <select
+                            value={variable.currentValue}
+                            onChange={(e) => updateVariable(variable.name, (v) => ({ ...v, currentValue: e.target.value }))}
+                            style={{ width: "100%", fontSize: 11, border: "1px solid #e8e5de", borderRadius: 5, padding: "4px 7px", background: "#faf9f7", color: "#111", fontFamily: "inherit" }}
+                          >
+                            {(variable.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Generated image */}
+            {generatedImage && (
+              <div style={{ padding: "12px 14px", borderTop: "1px solid #f0ede8" }}>
+                <img src={generatedImage} alt="Generated" style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 10 }} />
+                <button onClick={() => setGeneratedImage(null)} style={{ marginTop: 8, fontSize: 11, color: "#888", background: "none", border: "none", cursor: "pointer" }}>Clear</button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Template Search Modal */}
+      <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
+
+      {/* Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Search Templates</DialogTitle>
-          </DialogHeader>
-
-          {/* Search & Filters */}
+          <DialogHeader><DialogTitle>Search Templates</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={templateSearch}
-                  onChange={(e) => setTemplateSearch(e.target.value)}
-                  placeholder="Search templates..."
-                  className="pl-9"
-                  data-testid="input-template-search"
-                />
+                <Input value={templateSearch} onChange={(e) => setTemplateSearch(e.target.value)} placeholder="Search templates..." className="pl-9" data-testid="input-template-search" />
               </div>
               <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="paid-toggle"
-                  className="text-sm text-muted-foreground"
-                >
-                  Free/Paid
-                </Label>
-                <Switch
-                  id="paid-toggle"
-                  checked={showPaidOnly}
-                  onCheckedChange={setShowPaidOnly}
-                  data-testid="toggle-paid-only"
-                />
+                <Label htmlFor="paid-toggle" className="text-sm text-muted-foreground">Free/Paid</Label>
+                <Switch id="paid-toggle" checked={showPaidOnly} onCheckedChange={setShowPaidOnly} data-testid="toggle-paid-only" />
               </div>
             </div>
-
-            {/* Filter Tags */}
             <div className="flex flex-wrap gap-2">
-              {[
-                "Nature",
-                "Portrait",
-                "Abstract",
-                "Sci-Fi",
-                "Fantasy",
-                "Architecture",
-              ].map((filter) => (
-                <Badge
-                  key={filter}
-                  variant={
-                    selectedFilters.includes(filter) ? "default" : "outline"
-                  }
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setSelectedFilters((prev) =>
-                      prev.includes(filter)
-                        ? prev.filter((f) => f !== filter)
-                        : [...prev, filter]
-                    );
-                  }}
-                  data-testid={`filter-${filter.toLowerCase()}`}
-                >
-                  {filter}
-                </Badge>
+              {["Nature","Portrait","Abstract","Sci-Fi","Fantasy","Architecture"].map((filter) => (
+                <Badge key={filter} variant={selectedFilters.includes(filter) ? "default" : "outline"} className="cursor-pointer"
+                  onClick={() => setSelectedFilters((prev) => prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter])}
+                  data-testid={`filter-${filter.toLowerCase()}`}>{filter}</Badge>
               ))}
             </div>
           </div>
-
-          {/* Template Grid */}
           <div className="flex-1 overflow-y-auto mt-4">
             <div className="grid grid-cols-3 gap-3">
               {filteredTemplates.map((template) => (
-                <div
-                  key={template.id}
-                  className="relative group cursor-pointer rounded-lg overflow-hidden border border-border hover-elevate"
-                  onClick={() => addTemplateToPrompt(template)}
-                  data-testid={`template-${template.id}`}
-                >
-                  <div className="aspect-square bg-muted">
-                    <img
-                      src={template.image}
-                      alt={template.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Favorite Star */}
-                  {template.isFavorite && (
-                    <Star className="absolute top-2 left-2 h-4 w-4 text-yellow-500 fill-yellow-500" />
-                  )}
-
-                  {/* Price Badge */}
-                  {template.isPaid && (
-                    <Badge className="absolute top-2 right-2 bg-primary text-xs">
-                      {template.price}cr
-                    </Badge>
-                  )}
-
-                  {/* Hover Overlay */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                    <span className="text-white text-sm font-medium">
-                      {template.name}
-                    </span>
-                  </div>
+                <div key={template.id} className="relative group cursor-pointer rounded-lg overflow-hidden border border-border" onClick={() => { setPromptText((p) => p + (p ? ", " : "") + template.description); setShowTemplateModal(false); }} data-testid={`template-${template.id}`}>
+                  <div className="aspect-square bg-muted"><img src={template.image} alt={template.name} className="w-full h-full object-cover" /></div>
+                  {template.isFavorite && <Star className="absolute top-2 left-2 h-4 w-4 text-yellow-500 fill-yellow-500" />}
+                  {template.isPaid && <Badge className="absolute top-2 right-2 bg-primary text-xs">{template.price}cr</Badge>}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"><span className="text-white text-sm font-medium">{template.name}</span></div>
                 </div>
               ))}
             </div>
@@ -1073,12 +819,7 @@ export default function CompactPromptCreator() {
         </DialogContent>
       </Dialog>
 
-      <QuickVariableCreator
-        open={quickVarCreatorOpen}
-        onOpenChange={setQuickVarCreatorOpen}
-        onCreate={createQuickVariable}
-        insertPosition={textareaRef.current?.selectionStart}
-      />
+      <QuickVariableCreator open={quickVarCreatorOpen} onOpenChange={setQuickVarCreatorOpen} onCreate={createQuickVariable} insertPosition={textareaRef.current?.selectionStart} />
     </>
   );
 }
