@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronUp, PenSquare, Zap } from "lucide-react";
+import { ChevronUp, PenSquare, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function EnkiQuickCreate() {
@@ -34,9 +34,9 @@ export default function EnkiQuickCreate() {
 
       {/* Pill bar — always visible */}
       <div className="enki-qc-bar">
-        <span className="enki-qc-bar-bolt"><Zap size={12} /></span>
-        <span className="serif" style={{ fontSize: 15 }}>Quick create</span>
-        <span className="mono" style={{ color: "var(--enki-ink-3)", fontSize: 11 }}>
+        <span className="enki-qc-bar-bolt"><Sparkles size={14} /></span>
+        <span style={{ fontFamily: "var(--font-sora), sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>Quick Create</span>
+        <span className="mono" style={{ color: "var(--enki-ink-3)", fontSize: 11, marginLeft: 8 }}>
           {open ? "wrap variables in [brackets]" : ""}
         </span>
 

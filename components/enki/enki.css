@@ -924,40 +924,67 @@
 
 .enki-qc-bar {
   width: auto;
-  min-width: 340px;
+  min-width: 400px;
   max-width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   color: var(--enki-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 44px;
-  padding: 0 20px;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  gap: 12px;
+  height: 56px;
+  padding: 0 8px 0 24px;
+  transition: transform 0.25s ease, background 0.2s ease, box-shadow 0.25s ease;
   white-space: nowrap;
 }
 
+.dark .enki-qc-bar {
+  background: rgba(19, 19, 24, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+
 .enki-qc-bar:hover {
+  transform: translateY(-2px) scale(1.01);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.dark .enki-qc-bar:hover {
+  background: rgba(19, 19, 24, 0.85);
+  box-shadow: 0 16px 48px rgba(168, 85, 247, 0.25), inset 0 0 20px rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.4);
 }
 
 .enki-qc-bar-bolt {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
-  background: var(--enki-ember);
+  background: linear-gradient(135deg, #a855f7 0%, #c026d3 100%);
   color: #fff;
   flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.4);
+  margin-left: -12px;
+  position: relative;
+}
+
+.enki-qc-bar-bolt::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(168,85,247,0) 70%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .enki-qc-panel {
@@ -981,19 +1008,24 @@
 .enki-qc-editor-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--enki-rule);
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 999px;
   background: transparent;
-  color: var(--enki-ink-2);
-  font-size: 11px;
+  color: var(--enki-ink);
+  font-family: var(--font-sora), sans-serif;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: all 0.2s ease;
+}
+
+.dark .enki-qc-editor-btn {
+  border-color: rgba(255,255,255,0.15);
+  color: #fff;
 }
 
 .enki-qc-editor-btn:hover {
@@ -1002,23 +1034,39 @@
   color: #fff;
 }
 
+.dark .enki-qc-editor-btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #a855f7;
+}
+
 .enki-qc-toggle-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--enki-rule);
+  width: 36px;
+  height: 36px;
+  border: none;
   border-radius: 50%;
-  background: transparent;
+  background: rgba(0,0,0,0.04);
   color: var(--enki-ink-2);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
+}
+
+.dark .enki-qc-toggle-btn {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
 }
 
 .enki-qc-toggle-btn:hover {
-  background: var(--enki-paper-2);
+  background: rgba(0,0,0,0.08);
   color: var(--enki-ink);
+}
+
+.dark .enki-qc-toggle-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
 }
 
 
