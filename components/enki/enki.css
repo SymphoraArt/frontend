@@ -18,14 +18,14 @@
 
 .dark .enki {
   --enki-paper: #0a0a0a;
-  --enki-paper-2: #141414;
-  --enki-paper-3: #1f1f1f;
-  --enki-ink: #f0f0f0;
+  --enki-paper-2: #17171a;
+  --enki-paper-3: #1a1a1f;
+  --enki-ink: #f1f1f3;
   --enki-ink-2: #a3a3a3;
   --enki-ink-3: #737373;
-  --enki-rule: #262626;
-  --enki-rule-2: #333333;
-  --enki-ember: #e05a2b;
+  --enki-rule: #27272b;
+  --enki-rule-2: #3f3f46;
+  --enki-ember: #a855f7;
 }
 
 .enki .serif {
@@ -94,7 +94,12 @@
   pointer-events: all;
   overflow: hidden;
   opacity: 1;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.dark .enki-catbar {
+  background: rgba(10, 10, 10, 0.82);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .enki-catbar--hidden {
@@ -126,9 +131,18 @@
   letter-spacing: 0.01em;
 }
 
+.dark .enki-catbar-all {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .enki-catbar-all:hover {
   background: rgba(0, 0, 0, 0.06);
   color: #111;
+}
+
+.dark .enki-catbar-all:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .enki-catbar-all.active {
@@ -136,8 +150,17 @@
   color: #fff;
 }
 
+.dark .enki-catbar-all.active {
+  background: var(--enki-ember);
+  color: #fff;
+}
+
 .enki-catbar-all.active .enki-catbar-all-icon {
   color: #d94f3d;
+}
+
+.dark .enki-catbar-all.active .enki-catbar-all-icon {
+  color: #fff;
 }
 
 .enki-catbar-all-icon {
@@ -151,6 +174,10 @@
   background: rgba(0, 0, 0, 0.1);
   margin: 0 2px;
   flex-shrink: 0;
+}
+
+.dark .enki-catbar-divider {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .enki-catbar-scroll {
@@ -183,13 +210,28 @@
   letter-spacing: 0.01em;
 }
 
+.dark .enki-catbar-chip {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .enki-catbar-chip:hover {
   background: rgba(0, 0, 0, 0.06);
   color: #111;
 }
 
+.dark .enki-catbar-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
 .enki-catbar-chip.active {
   background: #111;
+  color: #fff;
+  font-weight: 600;
+}
+
+.dark .enki-catbar-chip.active {
+  background: var(--enki-ember);
   color: #fff;
   font-weight: 600;
 }
@@ -233,11 +275,28 @@
   break-inside: avoid;
   display: block;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 16px;
   position: relative;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 24px;
   overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.dark .enki-card {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  border: 1px solid var(--enki-rule);
+}
+
+.enki-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 32px rgba(0,0,0,0.08);
+}
+
+.dark .enki-card:hover {
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+  border-color: var(--enki-rule-2);
 }
 
 .enki-card-img {
