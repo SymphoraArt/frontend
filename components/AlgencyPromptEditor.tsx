@@ -710,19 +710,32 @@ export default function AlgencyPromptEditor() {
 
       {/* ═══ PROMPT TITLE HEADER ═══ */}
       <div style={{
-        padding: "24px 32px",
+        padding: "12px 16px",
         background: "var(--alg-bg)",
         borderBottom: "1px solid var(--alg-border)",
         display: "flex",
-        alignItems: "center"
+        flexDirection: "column",
+        gap: "4px",
+        alignItems: "flex-start",
+        flexShrink: 0
       }}>
+        <span style={{ 
+          fontSize: "9px", 
+          fontWeight: 700, 
+          letterSpacing: "1px", 
+          color: "var(--alg-hint)", 
+          textTransform: "uppercase",
+          fontFamily: "var(--font-outfit), 'Outfit', sans-serif"
+        }}>
+          Prompt Title
+        </span>
         <input
           value={promptData.title}
           onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
           placeholder="Untitled Prompt"
           style={{
             width: "100%",
-            fontSize: "clamp(28px, 2.5vw + 12px, 42px)",
+            fontSize: "clamp(18px, 1vw + 4px, 20px)",
             fontFamily: "var(--font-serif), 'Playfair Display', serif",
             fontWeight: 500,
             color: "var(--alg-dark)",
@@ -731,7 +744,7 @@ export default function AlgencyPromptEditor() {
             outline: "none",
             padding: 0,
             margin: 0,
-            lineHeight: 1.2
+            lineHeight: "normal"
           }}
         />
       </div>

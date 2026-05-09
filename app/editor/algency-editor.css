@@ -58,6 +58,8 @@ html.dark {
   background: var(--alg-bg);
   display: flex;
   flex-direction: column;
+  padding-top: 56px;
+  box-sizing: border-box;
   overflow: hidden;
   font-family: var(--font-outfit), 'Outfit', sans-serif;
   color: var(--alg-text);
@@ -83,7 +85,7 @@ html.dark {
 .alg-navbar__left { display: flex; align-items: center; gap: 20px; }
 .alg-navbar__logo {
   font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
-  font-size: clamp(26px, 2vw + 14px, 42px);
+  font-size: clamp(32px, 3vw + 16px, 52px);
   font-weight: 700;
   color: var(--alg-dark);
   cursor: pointer;
@@ -239,7 +241,7 @@ html.dark {
 }
 .alg-panel__title {
   font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
-  font-size: clamp(16px, 1.2vw + 10px, 22px); font-weight: 500; color: var(--alg-dark);
+  font-size: clamp(14px, 1vw + 6px, 18px); font-weight: 500; color: var(--alg-dark);
 }
 .alg-panel__subtitle { font-size: 10px; color: var(--alg-hint); font-weight: 500; }
 .alg-panel__body {
@@ -293,7 +295,7 @@ html.dark {
 /* ─── Ratio Pills ─── */
 .alg-ratio-group { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .alg-ratio-pill {
-  padding: clamp(6px, 0.8vw, 10px) clamp(12px, 1.2vw + 6px, 18px); border-radius: 3px; font-size: clamp(12px, 0.8vw + 6px, 16px); font-weight: 500;
+  padding: clamp(4px, 0.5vw, 6px) clamp(8px, 1vw, 12px); border-radius: 3px; font-size: clamp(10px, 0.5vw + 6px, 12px); font-weight: 500;
   border: 1px solid var(--alg-border); background: var(--alg-white);
   cursor: pointer; transition: none; color: var(--alg-text);
   font-family: var(--font-jetbrains-mono), monospace;
