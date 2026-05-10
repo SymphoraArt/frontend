@@ -290,7 +290,7 @@
   break-inside: avoid;
   display: block;
   width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   position: relative;
   cursor: pointer;
   border-radius: 24px;
@@ -931,10 +931,316 @@
   bottom: 20px;
   z-index: 70;
   transform: translateX(-50%);
-  width: min(92vw, 520px);
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.enki-qc.is-open {
+  z-index: 100;
+}
+
+.enki-qc-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  z-index: 90;
+  animation: enki-fade-in 0.3s ease;
+}
+
+.enki-qc-panel-large {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70vw;
+  height: 70vh;
+  min-width: 900px;
+  min-height: 600px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  animation: enki-panel-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.enki-qc-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.enki-qc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-header-icon {
+  width: 32px;
+  height: 32px;
+  background: #ff5f38;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(255, 95, 56, 0.3);
+}
+
+.enki-qc-header-title {
+  font-family: var(--font-brand);
+  font-size: 20px;
+  font-weight: 600;
+  color: #000;
+}
+
+.enki-qc-collapse-btn {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.enki-qc-collapse-btn:hover {
+  background: #f8f8f8;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.enki-qc-section-label-ref {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #aaa;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.enki-qc-textarea-ref {
+  width: 100%;
+  min-height: 140px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #333;
+  resize: none;
+  outline: none;
+}
+
+.enki-qc-source-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.enki-qc-source-tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #fcfcfc;
+  color: #888;
+  transition: all 0.2s ease;
+}
+
+.enki-qc-source-tab.active {
+  background: #ffffff;
+  border-color: #ff5f38;
+  color: #ff5f38;
+  box-shadow: 0 4px 12px rgba(255, 95, 56, 0.1);
+}
+
+.enki-qc-add-image-btn-ref {
+  width: 110px;
+  height: 110px;
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.enki-qc-settings-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.enki-qc-settings-label-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.enki-qc-settings-pills {
+  display: flex;
+  gap: 8px;
+}
+
+.enki-qc-setting-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.enki-qc-setting-pill select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+}
+
+.enki-qc-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.enki-qc-qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-qty-stepper button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #666;
+}
+
+.enki-qc-col-right {
+  padding: 40px;
+  background: #fafafa;
+  border-left: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.enki-qc-vars-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.enki-qc-var-add-btn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #aaa;
+}
+
+.enki-qc-var-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.enki-qc-var-card-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ff5f38;
+  margin-bottom: 12px;
+}
+
+.enki-qc-var-card-input {
+  width: 100%;
+  background: #f8f8f8;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  outline: none;
+}
+
+.enki-qc-var-card-input::placeholder {
+  color: #bbb;
+}
+
+.enki-qc-generate-bar-ref {
+  width: 100%;
+  background: #111111;
+  color: #ffffff;
+  padding: 24px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.enki-qc-generate-bar-ref:hover {
+  background: #000;
+}
+
+[data-theme="dark"] .enki-qc-panel-large { background: #121212; border-color: #222; }
+[data-theme="dark"] .enki-qc-header-bar { background: #121212; border-color: #222; }
+[data-theme="dark"] .enki-qc-header-title { color: #fff; }
+[data-theme="dark"] .enki-qc-collapse-btn { background: #1a1a1a; border-color: #333; color: #888; }
+[data-theme="dark"] .enki-qc-textarea-ref { background: #1a1a1a; border-color: #333; color: #ddd; }
+[data-theme="dark"] .enki-qc-col-right { background: #0a0a0a; border-color: #222; }
+[data-theme="dark"] .enki-qc-var-card { background: #1a1a1a; border-color: #333; }
+[data-theme="dark"] .enki-qc-var-card-input { background: #121212; border-color: #222; color: #aaa; }
+[data-theme="dark"] .enki-qc-setting-pill { background: #1a1a1a; border-color: #333; color: #fff; }
+[data-theme="dark"] .enki-qc-qty-stepper button { background: #1a1a1a; border-color: #333; color: #fff; }
+[data-theme="dark"] .enki-qc-source-tab { background: #1a1a1a; border-color: #333; color: #888; }
+[data-theme="dark"] .enki-qc-source-tab.active { background: #222; border-color: #ff5f38; }
+
+@keyframes enki-panel-slide-up {
+  from { transform: translate(-50%, -40%); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+@keyframes enki-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .enki-qc-bar {
@@ -948,6 +1254,7 @@
   -webkit-backdrop-filter: blur(64px) saturate(200%);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   color: var(--enki-ink);
+
   cursor: pointer;
   display: flex;
   align-items: center;

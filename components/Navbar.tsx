@@ -179,7 +179,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           </div>
 
           {!isMobile && (
-            <nav style={{ display: "flex", alignItems: "center", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 1 }}>
+            <nav style={{ display: "flex", alignItems: "center", gap: isTablet ? 0 : 4, margin: "0 auto" }}>
               {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
                 const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/showcase");
                 return (
@@ -295,22 +295,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
             {evmAuthenticated && <ChainSwitcher />}
 
-            {!authenticated && (
-              <button onClick={() => setShowWalletPicker(true)} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "0 16px", height: 36,
-                background: isDark ? "rgba(255,255,255,0.05)" : "#111",
-                color: isDark ? "#fff" : "#fff",
-                border: isDark ? "1px solid rgba(255,255,255,0.1)" : "none",
-                borderRadius: 8, cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.1)", transition: "transform 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}>
-                Connect Wallet
-              </button>
-            )}
+
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -339,7 +324,15 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   </button>
                 )}
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 p-2 mt-2 rounded-[24px] border border-black/15 bg-white text-[#111] shadow-2xl dark:border-white/15 dark:bg-[#171717] dark:text-white">
+              <DropdownMenuContent 
+                align="end" 
+                className="w-64 p-2 mt-2 rounded-[24px] border shadow-2xl"
+                style={{
+                  background: isDark ? "#171717" : "#ffffff",
+                  color: isDark ? "#ffffff" : "#111111",
+                  borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"
+                }}
+              >
                 {authenticated && walletAddress ? (
                   <div className="px-2 py-2 space-y-1">
                     <div className="flex items-center gap-2">
@@ -355,8 +348,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   </div>
                 ) : (
                   <div className="px-2 py-2">
-                    <p className="text-sm font-medium">Guest</p>
-                    <p className="text-xs text-muted-foreground">Log in to save your creations</p>
+                    <p className="text-sm font-medium" style={{ color: isDark ? "#fff" : "#111" }}>Guest</p>
+                    <p className="text-xs" style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)" }}>Log in to save your creations</p>
                   </div>
                 )}
                 <DropdownMenuSeparator />
@@ -389,7 +382,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   <Users className="h-4 w-4 mr-2 text-[#d94f3d]" /> Referrals
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push("/feedback")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">
-                  <MessageSquareHeart className="h-4 w-4 mr-2 text-[#111] dark:text-white" /> Earn for feedback
+                  <MessageSquareHeart className="h-4 w-4 mr-2" style={{ color: isDark ? "#fff" : "#111" }} /> Earn for feedback
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
                 <DropdownMenuItem onClick={() => router.push("/settings")} className="rounded-xl cursor-pointer focus:bg-[#d94f3d]/10 focus:text-[#d94f3d]">Settings</DropdownMenuItem>
@@ -417,17 +410,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     </DropdownMenuItem>
                   </>
                 )}
-                {!authenticated && (
-                  <div className="px-2 py-1.5">
-                    <Button
-                      className="w-full bg-[#C7663A] hover:bg-[#A3522E] text-white rounded-none h-8 text-[10px] font-mono uppercase tracking-wider"
-                      size="sm"
-                      onClick={() => setShowWalletPicker(true)}
-                    >
-                      Connect Wallet
-                    </Button>
-                  </div>
-                )}
+
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
