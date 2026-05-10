@@ -174,7 +174,7 @@ export async function POST(req: Request) {
 }
 
 // Get generation statistics
-export async function GET_STATS(req: Request) {
+async function GET_STATS(req: Request) {
   try {
     const supabase = getSupabaseServerClient();
 

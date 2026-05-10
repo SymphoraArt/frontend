@@ -143,6 +143,9 @@ importers:
       '@turnkey/api-key-stamper':
         specifier: ^0.6.6
         version: 0.6.6
+      '@turnkey/crypto':
+        specifier: ^2.8.12
+        version: 2.9.0
       '@turnkey/http':
         specifier: ^4.0.0
         version: 4.0.0
