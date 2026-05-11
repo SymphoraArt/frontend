@@ -9,11 +9,12 @@ const QC_MODELS = [
 
 const QC_RATIOS = ["1:1", "4:5", "3:4", "16:9", "9:16"];
 const QC_RESOLUTIONS = ["1K", "2K", "4K"];
+const QC_QTY = [1, 2, 4, 8];
 
 export default function EnkiQuickCreate() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [prompt, setPrompt] = useState("A photograph of [subject] at (location), {mood}, lit by [lighting].");
+  const [prompt, setPrompt] = useState("A photograph of [subject] at [location], [mood], lit by [lighting].");
   const [vars, setVars] = useState<Record<string, string>>({});
   
   // Settings
@@ -24,7 +25,7 @@ export default function EnkiQuickCreate() {
   
   // Image Selection Mode: 'upload' | 'nft'
   const [imgMode, setImgMode] = useState<"upload" | "nft">("upload");
-  const [images, setImages] = useState<(string | null)[]>(Array(10).fill(null));
+  const [images, setImages] = useState<(string | null)[]>(Array(4).fill(null));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -127,17 +128,6 @@ export default function EnkiQuickCreate() {
     }
   };
 
-  const renderPromptWithTags = () => {
-    const parts = prompt.split(/((?:\[[^\]]+\]|\{[^\}]+\}|\([^\)]+\)))/i);
-    return parts.map((part, index) => {
-      const isVar = detectedVariables.some(v => v.fullToken === part);
-      if (isVar) {
-        return <span key={index} className="enki-qc-var-tag-inline">{part}</span>;
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
-
   const handleScroll = useCallback(() => {
     if (textareaRef.current && overlayRef.current) {
       overlayRef.current.scrollTop = textareaRef.current.scrollTop;
@@ -148,145 +138,137 @@ export default function EnkiQuickCreate() {
 
   return (
     <div className={`enki-qc ${open ? "is-open" : ""}`}>
-      {/* 70% Center Aligned Panel */}
+      {/* 70% Center Aligned Panel V3 */}
       {open && (
         <>
           <div className="enki-qc-overlay" onClick={() => setOpen(false)} />
-          <div className="enki-qc-panel-v2">
+          <div className="enki-qc-panel-v3">
             
-            {/* Header bar */}
-            <div className="enki-qc-header-v2">
-              <div className="enki-qc-header-left">
-                <div className="enki-qc-bolt-icon">
-                  <Sparkles size={16} fill="white" />
+            {/* Header bar matching enki-previous */}
+            <div className="enki-qc-header-v3" onClick={() => setOpen(false)} style={{ cursor: 'pointer' }}>
+              <div className="enki-qc-header-info">
+                <div className="enki-qc-bolt-v3">
+                  <Sparkles size={12} fill="currentColor" />
                 </div>
-                <span className="enki-qc-header-title">Quick Create</span>
+                <span className="enki-qc-header-title-v3">Quick create</span>
+                <span className="enki-qc-header-hint-v3">Click to collapse</span>
               </div>
-              <button className="enki-qc-collapse-v2" onClick={() => setOpen(false)}>
-                Collapse <ChevronDown size={14} />
-              </button>
+              <ChevronUp size={16} />
             </div>
 
-            <div className="enki-qc-content-v2">
-              <div className="enki-qc-grid-v2">
+            <div className="enki-qc-grid-v3">
+              
+              {/* Left Column: Prompt & Selectors */}
+              <div className="enki-qc-col-left-v3">
+                <div className="enki-qc-label-v3">PROMPT</div>
                 
-                {/* Left Side: Inputs & Settings */}
-                <div className="enki-qc-left-col">
-                  {/* Prompt Section */}
-                  <div className="enki-qc-section-v2">
-                    <div className="enki-qc-label-mono">PROMPT</div>
-                    <div className="enki-qc-input-group">
-                      <div className="enki-qc-overlay-v2" ref={overlayRef}>
-                        {renderPromptWithTags()}
-                      </div>
-                      <textarea
-                        ref={textareaRef}
-                        className="enki-qc-textarea-v2"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        onScroll={handleScroll}
-                        placeholder="[variable]"
-                      />
-                    </div>
+                <div className="enki-qc-prompt-area-v3">
+                  <div className="enki-qc-overlay-v3" ref={overlayRef}>
+                    {prompt}
                   </div>
+                  <textarea
+                    ref={textareaRef}
+                    className="enki-qc-textarea-v3"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onScroll={handleScroll}
+                    placeholder="[variable]"
+                  />
 
-                  {/* Smart Source Selection Section */}
-                  <div className="enki-qc-section-v2">
-                    <div className="enki-qc-label-mono">SOURCES</div>
-                    <div className="enki-qc-source-card">
-                      <div className="enki-qc-source-selector">
-                        <button 
-                          className={`enki-qc-source-btn ${imgMode === "upload" ? "active" : ""}`}
-                          onClick={() => setImgMode("upload")}
-                        >
-                          <ImageIcon size={14} /> Upload Images
-                        </button>
-                        <button 
-                          className={`enki-qc-source-btn ${imgMode === "nft" ? "active" : ""}`}
-                          onClick={() => setImgMode("nft")}
-                        >
-                          <Wallet size={14} /> Select NFTs
-                        </button>
-                      </div>
-                      
-                      <div className="enki-qc-image-strip">
-                        <button className="enki-qc-add-slot">
-                          <Plus size={18} />
-                        </button>
-                        {[0,1,2,3].map(i => (
-                          <div key={i} className="enki-qc-image-slot" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Settings Row */}
-                  <div className="enki-qc-footer-row">
-                    <div className="enki-qc-settings-v2">
-                      <span className="enki-qc-label-mono">SETTINGS</span>
-                      <div className="enki-qc-setting-pill-v2">
-                        <ImageIcon size={12} opacity={0.4} />
-                        <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
-                          {QC_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        <ChevronDown size={12} opacity={0.4} />
-                      </div>
-                      <div className="enki-qc-setting-pill-v2">
-                        <span className="mono opacity-40 text-[10px]">RES</span>
-                        <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                          {QC_RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        <ChevronDown size={12} opacity={0.4} />
-                      </div>
-                    </div>
-
-                    <div className="enki-qc-qty-v2">
-                      <span className="enki-qc-label-mono">QTY</span>
-                      <div className="enki-qc-qty-controls">
-                        <button onClick={() => setQty(Math.max(1, qty - 1))}><Minus size={14} /></button>
-                        <span className="mono">{qty}</span>
-                        <button onClick={() => setQty(qty + 1)}><Plus size={14} /></button>
-                      </div>
-                    </div>
+                  {/* Variable Chips below prompt */}
+                  <div className="enki-qc-chips-v3">
+                    {detectedVariables.map(v => (
+                      <span key={v.id} className="enki-qc-var-chip-v3">{v.fullToken}</span>
+                    ))}
                   </div>
                 </div>
 
-                {/* Right Side: Variables */}
-                <div className="enki-qc-right-col">
-                  <div className="enki-qc-vars-header-v2">
-                    <div className="enki-qc-label-mono">VARIABLES ({detectedVariables.length})</div>
-                    <button className="enki-qc-add-link" onClick={() => insertAtCursor("[variable]")}>+ Add</button>
+                {/* Image Source Toggle (Smart Design) */}
+                <div className="enki-qc-sources-v3">
+                  <div className="enki-qc-source-toggle-v3">
+                    <button 
+                      className={`enki-qc-source-toggle-btn-v3 ${imgMode === "upload" ? "active" : ""}`}
+                      onClick={() => setImgMode("upload")}
+                    >
+                      Images
+                    </button>
+                    <button 
+                      className={`enki-qc-source-toggle-btn-v3 ${imgMode === "nft" ? "active" : ""}`}
+                      onClick={() => setImgMode("nft")}
+                    >
+                      NFTs
+                    </button>
                   </div>
-                  
-                  <div className="enki-qc-vars-scroll">
-                    {detectedVariables.length === 0 ? (
-                      <div className="enki-qc-empty-vars">
-                        <p className="mono opacity-30 text-[11px]">Wrap text in [] () or {"{}"}</p>
-                      </div>
-                    ) : (
-                      detectedVariables.map((v) => (
-                        <div key={v.id} className="enki-qc-var-item">
-                          <label className="enki-qc-var-title mono">{v.label.toUpperCase()}</label>
-                          <input
-                            type="text"
-                            className="enki-qc-var-field"
-                            value={vars[v.fullToken] || ""}
-                            onChange={(e) => setVars({ ...vars, [v.fullToken]: e.target.value })}
-                            placeholder={`example ${v.label}`}
-                          />
-                        </div>
-                      ))
-                    )}
+                  <div className="enki-qc-source-assets-v3">
+                    <button className="enki-qc-asset-slot-v3"><Plus size={14} /></button>
+                    {[0,1,2].map(i => <div key={i} className="enki-qc-asset-slot-v3" />)}
                   </div>
                 </div>
 
+                {/* Horizontal Selectors matching reference */}
+                <div className="enki-qc-selectors-v3">
+                  <div className="enki-qc-selector-v3">
+                    <span className="enki-qc-selector-label-v3">MODEL</span>
+                    <select value={model} onChange={e => setModel(e.target.value)}>
+                      {QC_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="enki-qc-selector-v3">
+                    <span className="enki-qc-selector-label-v3">ASPECT</span>
+                    <select value={ratio} onChange={e => setRatio(e.target.value)}>
+                      {QC_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="enki-qc-selector-v3">
+                    <span className="enki-qc-selector-label-v3">RESOLUTION</span>
+                    <select value={resolution} onChange={e => setResolution(e.target.value)}>
+                      {QC_RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="enki-qc-selector-v3">
+                    <span className="enki-qc-selector-label-v3">GENERATIONS</span>
+                    <select value={qty} onChange={e => setQty(Number(e.target.value))}>
+                      {QC_QTY.map(q => <option key={q} value={q}>x {q}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              {/* Action Button */}
-              <button className="enki-qc-primary-btn" onClick={() => {}}>
-                Connect Wallet to Generate
-              </button>
+              {/* Right Column: Variables */}
+              <div className="enki-qc-col-right-v3">
+                <div className="enki-qc-label-v3" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>VARIABLES</span>
+                  <span style={{ opacity: 0.5 }}>{detectedVariables.length} detected</span>
+                </div>
+
+                <div className="enki-qc-vars-list-v3">
+                  {detectedVariables.map(v => (
+                    <div key={v.id} className="enki-qc-var-row-v3">
+                      <span className="enki-qc-var-name-v3 serif">{v.label}</span>
+                      <input 
+                        type="text" 
+                        className="enki-qc-var-input-v3"
+                        placeholder="example variable"
+                        value={vars[v.fullToken] || ""}
+                        onChange={(e) => setVars({ ...vars, [v.fullToken]: e.target.value })}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="enki-qc-summary-v3">
+                  <div className="enki-qc-summary-info-v3">
+                    <div className="enki-qc-summary-text-v3">{qty} x {QC_MODELS.find(m => m.id === model)?.name}</div>
+                    <div className="enki-qc-network-v3 mono">Solana / 4a...ef21</div>
+                  </div>
+                </div>
+
+                <button className="enki-qc-generate-btn-v3">
+                  Generate / ${totalCost.toFixed(2)}
+                </button>
+              </div>
+
             </div>
           </div>
         </>
@@ -324,4 +306,3 @@ export default function EnkiQuickCreate() {
     </div>
   );
 }
-
