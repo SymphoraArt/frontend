@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
       priceFilter, minPrice, maxPrice, minRating, minSales,
       sortBy, sortOrder, limit, cursor
     } = validation.data;
+    const offset = cursor ? parseInt(cursor, 10) || 0 : 0;
 
     // Build MongoDB query
     const mongoQuery: any = {
@@ -218,9 +219,9 @@ export async function GET(request: NextRequest) {
           break;
       }
 
-      dbQuery = dbQuery.limit(limit);
+      dbQuery = dbQuery.range(offset, offset + limit - 1);
 
-      const { data: dbPrompts, error: dbError } = await dbQuery;
+      const { data: dbPrompts, error: dbError, count } = await dbQuery;
 
       if (dbError) {
         console.error("Supabase query error:", dbError);
@@ -367,12 +368,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate pagination
     const hasMore = enrichedPrompts.length === limit;
-    const nextCursor = hasMore ? enrichedPrompts[enrichedPrompts.length - 1]?.id : undefined;
+    const nextCursor = hasMore ? String(offset + limit) : undefined;
 
     // Build response
     return NextResponse.json({
-      prompts: hasMore ? enrichedPrompts.slice(0, -1) : enrichedPrompts,
-      total: enrichedPrompts.length, // This is approximate for performance
+      prompts: enrichedPrompts,
+      total: enrichedPrompts.length,
       hasMore,
       nextCursor,
       filters: {
