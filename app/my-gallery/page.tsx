@@ -9,10 +9,9 @@ import {
   subscribeCreations,
   type StoredCreation,
 } from "@/lib/creations";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { Images, Trash2, Wallet, Loader2, ImageOff } from "lucide-react";
 
 type SupabaseGeneration = {
   id: string;
@@ -150,141 +149,221 @@ export default function MyGalleryPage() {
 
   if (!authenticated || !userKey) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="w-full px-6 lg:px-8 py-10 max-w-5xl mx-auto">
-          <Card className="border border-border/60 bg-card/60 backdrop-blur">
-            <CardHeader>
-              <CardTitle>My Gallery</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Connect your wallet to view your private creations.
-              </p>
-              <Button onClick={() => setShowWalletPicker(true)}>Connect Wallet</Button>
-            </CardContent>
-          </Card>
+      <div className="enki">
+        <div className="enki-page-title" style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div className="enki-page-eyebrow">Private Collection</div>
+          <h1 className="enki-page-h1">My Gallery</h1>
+        </div>
+        <main style={{ maxWidth: 1200, margin: "0 auto", padding: "0 40px 80px" }}>
+          <div style={{
+            border: "1px solid var(--enki-rule)",
+            background: "var(--enki-paper-2)",
+            padding: 48,
+            textAlign: "center",
+          }}>
+            <Images size={40} color="var(--enki-ink-3)" style={{ margin: "0 auto 16px" }} />
+            <p style={{ color: "var(--enki-ink-2)", fontSize: 15, margin: "0 0 20px" }}>
+              Connect your wallet to view your private creations.
+            </p>
+            <button
+              onClick={() => setShowWalletPicker(true)}
+              style={{
+                padding: "10px 24px", fontSize: 13, fontWeight: 600,
+                background: "var(--enki-ink)", color: "#fff", border: "none",
+                borderRadius: 4, cursor: "pointer",
+                fontFamily: "var(--font-sans)",
+                display: "inline-flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <Wallet size={14} /> Connect Wallet
+            </button>
+          </div>
         </main>
         <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
       </div>
     );
   }
 
+  const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
+  const filtered = mediaFilter === "all" ? items
+    : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl))
+    : items.filter(c => isVideo(c.imageUrl));
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="enki">
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
-      <main className="w-full px-6 lg:px-8 py-6 max-w-6xl mx-auto">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">
-              My Gallery
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Your generated and uploaded images.
-            </p>
+
+      {/* Page Header */}
+      <div className="enki-page-title" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="enki-page-eyebrow">Private Collection</div>
+        <h1 className="enki-page-h1">My Gallery</h1>
+        <p className="enki-page-lede">Your generated and uploaded images. Only visible to you.</p>
+      </div>
+
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "0 40px 80px" }}>
+
+        {/* Toolbar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 16, flexWrap: "wrap", marginBottom: 24,
+        }}>
+          {/* Filter chips */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["all", "images", "videos"] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setMediaFilter(filter)}
+                data-testid={`button-filter-${filter}`}
+                style={{
+                  padding: "6px 14px", fontSize: 12, fontWeight: 500,
+                  border: "1px solid var(--enki-rule)", borderRadius: 4,
+                  background: mediaFilter === filter ? "var(--enki-ink)" : "transparent",
+                  color: mediaFilter === filter ? "var(--enki-paper)" : "var(--enki-ink-2)",
+                  cursor: "pointer", fontFamily: "var(--font-sans)",
+                  textTransform: "capitalize",
+                }}
+              >
+                {filter === "all" ? "All" : filter === "images" ? "Images" : "Videos"}
+              </button>
+            ))}
           </div>
-          <Button
-            variant="outline"
+
+          <button
             onClick={handleClear}
             disabled={items.length === 0}
             data-testid="button-clear-my-gallery"
+            style={{
+              padding: "6px 14px", fontSize: 12, fontWeight: 500,
+              border: "1px solid var(--enki-rule)", borderRadius: 4,
+              background: "transparent", color: "var(--enki-ink-2)",
+              cursor: items.length === 0 ? "not-allowed" : "pointer",
+              opacity: items.length === 0 ? 0.4 : 1,
+              fontFamily: "var(--font-sans)",
+              display: "inline-flex", alignItems: "center", gap: 6,
+            }}
           >
-            Clear
-          </Button>
+            <Trash2 size={13} /> Clear All
+          </button>
         </div>
 
+        {/* Error Banner */}
         {fetchError && (
-          <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 flex items-center justify-between">
-            <p className="text-sm text-destructive">Failed to load gallery: {fetchError}</p>
-            <Button
-              variant="ghost"
-              size="sm"
+          <div style={{
+            border: "1px solid var(--enki-ember)", background: "rgba(201,104,56,0.06)",
+            padding: "12px 16px", borderRadius: 4, marginBottom: 20,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--enki-ember)" }}>
+              Failed to load gallery: {fetchError}
+            </p>
+            <button
               onClick={() => setRefreshTrigger(prev => prev + 1)}
               data-testid="button-retry-gallery"
+              style={{
+                padding: "4px 12px", fontSize: 12, fontWeight: 500,
+                border: "1px solid var(--enki-rule)", borderRadius: 4,
+                background: "transparent", color: "var(--enki-ink)",
+                cursor: "pointer", fontFamily: "var(--font-sans)",
+                whiteSpace: "nowrap",
+              }}
             >
               Retry
-            </Button>
+            </button>
           </div>
         )}
 
-        <div className="flex gap-1 mb-4">
-          {(["all", "images", "videos"] as const).map((filter) => (
-            <Button
-              key={filter}
-              variant={mediaFilter === filter ? "default" : "outline"}
-              size="sm"
-              className="text-xs capitalize"
-              onClick={() => setMediaFilter(filter)}
-              data-testid={`button-filter-${filter}`}
-            >
-              {filter === "all" ? "All" : filter === "images" ? "Images" : "Videos"}
-            </Button>
-          ))}
-        </div>
-
+        {/* Loading */}
         {isLoading ? (
-          <Card className="border border-border/60 bg-card/60 backdrop-blur">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Loading your gallery...
-            </CardContent>
-          </Card>
-        ) : (() => {
-          const isVideo = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
-          const filtered = mediaFilter === "all" ? items
-            : mediaFilter === "images" ? items.filter(c => !isVideo(c.imageUrl))
-            : items.filter(c => isVideo(c.imageUrl));
-
-          return filtered.length === 0 ? (
-          <Card className="border border-border/60 bg-card/60 backdrop-blur">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              No creations yet. Generate an image or upload one from the showroom and it will appear here.
-            </CardContent>
-          </Card>
+          <div style={{
+            border: "1px solid var(--enki-rule)", background: "var(--enki-paper-2)",
+            padding: 60, textAlign: "center", borderRadius: 4,
+          }}>
+            <Loader2 size={24} color="var(--enki-ink-3)" className="spin" style={{ animation: "spin 2s linear infinite", margin: "0 auto 12px" }} />
+            <p style={{ margin: 0, fontSize: 13, color: "var(--enki-ink-3)" }}>Loading your gallery…</p>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        ) : filtered.length === 0 ? (
+          /* Empty */
+          <div style={{
+            border: "1px solid var(--enki-rule)", background: "var(--enki-paper-2)",
+            padding: 60, textAlign: "center", borderRadius: 4,
+          }}>
+            <ImageOff size={32} color="var(--enki-ink-3)" style={{ margin: "0 auto 12px" }} />
+            <p style={{ margin: 0, fontSize: 14, color: "var(--enki-ink-2)" }}>
+              No creations yet. Generate an image or upload one and it will appear here.
+            </p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          /* Grid */
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+            gap: 16,
+          }}>
             {filtered.map((c) => (
-              <Card
+              <div
                 key={c.id}
-                className="border border-border/60 bg-card/60 backdrop-blur overflow-hidden"
                 data-testid={`my-creation-${c.id}`}
+                style={{
+                  border: "1px solid var(--enki-rule)",
+                  background: "var(--enki-paper)",
+                  overflow: "hidden",
+                }}
               >
-                <div className="aspect-[4/3] bg-muted relative">
+                {/* Image */}
+                <div style={{ aspectRatio: "4/3", position: "relative", overflow: "hidden", background: "var(--enki-paper-3)" }}>
                   <img
                     src={c.imageUrl}
                     alt={(c as any).isUploaded ? "Uploaded" : "Generated"}
-                    className="w-full h-full object-cover"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />
                   {(c as any).isUploaded && (
-                    <div className="absolute top-2 left-2">
-                      <span className="text-xs bg-blue-500/80 text-white px-2 py-1 rounded">
-                        Uploaded
-                      </span>
-                    </div>
+                    <span style={{
+                      position: "absolute", top: 8, left: 8,
+                      fontSize: 9, fontFamily: "var(--font-mono)", letterSpacing: "1px",
+                      textTransform: "uppercase",
+                      background: "rgba(26,23,21,0.8)", color: "#fff",
+                      padding: "3px 7px",
+                    }}>
+                      Uploaded
+                    </span>
                   )}
                 </div>
-                <CardContent className="p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(c.createdAt).toLocaleString()}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2"
+
+                {/* Meta */}
+                <div style={{ padding: 14 }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}>
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--enki-ink-3)" }}>
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                    <button
                       onClick={() => handleRemove(c.id)}
                       data-testid={`button-delete-creation-${c.id}`}
+                      style={{
+                        padding: "3px 8px", fontSize: 11, fontWeight: 500,
+                        border: "1px solid var(--enki-rule)", borderRadius: 3,
+                        background: "transparent", color: "var(--enki-ink-2)",
+                        cursor: "pointer", fontFamily: "var(--font-sans)",
+                      }}
                     >
                       Remove
-                    </Button>
+                    </button>
                   </div>
-                  <div className="text-xs font-mono text-foreground/80 whitespace-pre-wrap break-words max-h-24 overflow-y-auto scrollbar-thin">
+                  <p style={{
+                    margin: 0, fontSize: 12, color: "var(--enki-ink-2)",
+                    lineHeight: 1.5, maxHeight: 72, overflow: "hidden",
+                    textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+                  }}>
                     {c.prompt}
-                  </div>
-                </CardContent>
-              </Card>
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
-        );
-        })()}
+        )}
       </main>
     </div>
   );

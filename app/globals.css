@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+/* ─── Enki Design System ─────────────────────────────── */
+:root {
+  --enki-paper: #faf8f4;
+  --enki-paper-2: #f3efe7;
+  --enki-paper-3: #e8e2d6;
+  --enki-ink: #1a1715;
+  --enki-ink-2: #3d3a36;
+  --enki-ink-3: #6b665e;
+  --enki-rule: #d8d2c5;
+  --enki-rule-2: #ebe5d8;
+  --enki-ember: #c96838;
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), 'Georgia', serif;
+}
+
+.dark {
+  --enki-paper: #0a0a0a;
+  --enki-paper-2: #17171a;
+  --enki-paper-3: #1a1a1f;
+  --enki-ink: #f1f1f3;
+  --enki-ink-2: #a3a3a3;
+  --enki-ink-3: #737373;
+  --enki-rule: #27272b;
+  --enki-rule-2: #3f3f46;
+  --enki-ember: #c96838;
+}
+
 /* ConnectWallet Button - Theme-aware styling */
 .connect-wallet-button,
 button.connect-wallet-button,

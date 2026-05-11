@@ -16,7 +16,7 @@
 }
 
 .pdm-modal {
-  background-color: #f7f6f1;
+  background-color: var(--enki-paper);
   width: 100%;
   max-width: 680px;
   min-height: 800px;
@@ -25,7 +25,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  color: #1a1a1a;
+  color: var(--enki-ink);
   margin-bottom: 40px;
 }
 
@@ -35,7 +35,7 @@
   right: 16px;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.8);
   border: none;
   cursor: pointer;
@@ -53,7 +53,7 @@
 
 .pdm-hero {
   width: 100%;
-  background: #f0f0f0;
+  background: var(--enki-rule);
   position: relative;
   border-radius: 4px 4px 0 0;
 }
@@ -63,7 +63,7 @@
   aspect-ratio: 4 / 3;
   position: relative;
   overflow: hidden;
-  background-color: #3b4255;
+  background-color: var(--enki-ink);
   border-radius: 4px 4px 0 0;
 }
 
@@ -80,7 +80,7 @@
   background: rgba(0, 0, 0, 0.6);
   color: white;
   padding: 4px 8px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 1px;
   border-radius: 2px;
@@ -91,13 +91,13 @@
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: #f7f6f1;
+  background: var(--enki-paper);
 }
 
 .pdm-thumbnail {
   flex: 1;
   aspect-ratio: 1;
-  background-color: #e0e0e0;
+  background-color: var(--enki-rule);
   position: relative;
   cursor: pointer;
 }
@@ -115,7 +115,7 @@
   background: rgba(0, 0, 0, 0.5);
   color: white;
   padding: 2px 4px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 9px;
   border-radius: 2px;
 }
@@ -128,9 +128,9 @@
 }
 
 .pdm-header-meta {
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   display: flex;
@@ -140,8 +140,8 @@
 }
 
 .pdm-badge-premium {
-  border: 1px solid #d4baa0;
-  color: #c08750;
+  border: 1px solid var(--enki-rule);
+  color: var(--enki-ember);
   padding: 2px 6px;
   border-radius: 2px;
   font-size: 9px;
@@ -149,12 +149,12 @@
 }
 
 .pdm-title {
-  font-family: 'Playfair Display', 'Merriweather', 'Georgia', serif;
+  font-family: var(--font-instrument-serif), 'Georgia', serif;
   font-size: 42px;
   font-weight: 400;
   line-height: 1.1;
   margin: 0 0 16px 0;
-  color: #111;
+  color: var(--enki-ink);
   font-style: italic;
 }
 
@@ -178,14 +178,14 @@
 .pdm-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: #111;
+  border-radius: 4px;
+  background: var(--enki-ink);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 .pdm-author-text {
@@ -197,26 +197,26 @@
 .pdm-author-name {
   font-size: 14px;
   font-weight: 600;
-  color: #111;
+  color: var(--enki-ink);
 }
 
 .pdm-author-handle {
   font-size: 12px;
-  color: #666;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  color: var(--enki-ink-2);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 .pdm-heart-btn {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  border: 1px solid #e0ddd5;
+  border-radius: 4px;
+  border: 1px solid var(--enki-rule);
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #c05050;
+  color: var(--enki-ember);
 }
 
 .pdm-tags {
@@ -225,11 +225,11 @@
 }
 
 .pdm-tag {
-  background: #ebe9e0;
-  color: #444;
+  background: var(--enki-rule);
+  color: var(--enki-ink);
   padding: 4px 12px;
   border-radius: 2px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 1px;
 }
@@ -237,7 +237,7 @@
 .pdm-divider {
   width: 100%;
   height: 1px;
-  background: #e0ddd5;
+  background: var(--enki-rule);
   margin: 0;
 }
 
@@ -251,15 +251,15 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
 
 .pdm-section-header span.highlight {
-  color: #d27b68;
+  color: var(--enki-ember);
 }
 
 .pdm-variable-row {
@@ -269,9 +269,9 @@
 
 .pdm-variable-label {
   width: 100px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #d27b68;
+  color: var(--enki-ember);
   text-transform: uppercase;
   padding-top: 12px;
 }
@@ -284,18 +284,18 @@
 .pdm-variable-input {
   width: 100%;
   background: #fff;
-  border: 1px solid #e0ddd5;
+  border: 1px solid var(--enki-rule);
   padding: 12px 16px;
   font-size: 14px;
-  font-family: 'Playfair Display', 'Merriweather', 'Georgia', serif;
-  color: #111;
+  font-family: var(--font-instrument-serif), 'Georgia', serif;
+  color: var(--enki-ink);
   resize: none;
   border-radius: 2px;
   outline: none;
 }
 
 .pdm-variable-input:focus {
-  border-color: #111;
+  border-color: var(--enki-ink);
 }
 
 .pdm-setting-row {
@@ -305,9 +305,9 @@
 
 .pdm-setting-label {
   width: 100px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -321,21 +321,21 @@
 
 .pdm-select-fake {
   font-size: 14px;
-  color: #111;
+  color: var(--enki-ink);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .pdm-select-price {
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
 }
 
 .pdm-btn-group {
   display: flex;
-  border: 1px solid #e0ddd5;
+  border: 1px solid var(--enki-rule);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -343,11 +343,11 @@
 .pdm-btn-group button {
   background: transparent;
   border: none;
-  border-right: 1px solid #e0ddd5;
+  border-right: 1px solid var(--enki-rule);
   padding: 6px 12px;
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
   cursor: pointer;
 }
 
@@ -356,15 +356,15 @@
 }
 
 .pdm-btn-group button.active {
-  background: #111;
+  background: var(--enki-ink);
   color: #fff;
 }
 
 .pdm-reference-text {
-  font-family: 'Playfair Display', 'Merriweather', 'Georgia', serif;
+  font-family: var(--font-instrument-serif), 'Georgia', serif;
   font-size: 13px;
   font-style: italic;
-  color: #666;
+  color: var(--enki-ink-2);
   margin-bottom: 16px;
   line-height: 1.5;
 }
@@ -377,14 +377,14 @@
 .pdm-action-btn-outline {
   flex: 1;
   background: transparent;
-  border: 1px solid #e0ddd5;
+  border: 1px solid var(--enki-rule);
   padding: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-size: 13px;
-  color: #111;
+  color: var(--enki-ink);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -397,7 +397,7 @@
 
 .pdm-generate-btn {
   flex: 2;
-  background: #111;
+  background: var(--enki-ink);
   color: #fff;
   border: none;
   padding: 14px;
@@ -412,16 +412,16 @@
 }
 
 .pdm-generate-btn span.sub {
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 10px;
-  color: #888;
+  color: var(--enki-ink-3);
   text-transform: uppercase;
 }
 
 .pdm-secondary-btn {
   flex: 1;
   background: #fff;
-  border: 1px solid #e0ddd5;
+  border: 1px solid var(--enki-rule);
   padding: 14px;
   border-radius: 2px;
   display: flex;
@@ -429,14 +429,14 @@
   justify-content: center;
   gap: 8px;
   font-size: 14px;
-  color: #111;
+  color: var(--enki-ink);
   cursor: pointer;
 }
 
 .pdm-generations-header {
-  font-family: 'Space Mono', 'Courier New', monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 11px;
-  color: #666;
+  color: var(--enki-ink-2);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   display: flex;
@@ -452,5 +452,5 @@
 .pdm-generation-item {
   flex: 1;
   aspect-ratio: 1;
-  background-color: #3b4255;
+  background-color: var(--enki-ink);
 }

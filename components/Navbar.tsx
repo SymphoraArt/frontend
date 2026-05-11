@@ -16,7 +16,6 @@ import {
   Sun,
   Moon,
   Check,
-  Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -269,9 +268,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
             {isDesktop && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 4, marginRight: 6 }}>
-                <button onClick={() => router.push("/my-gallery")} title="My Gallery" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Images size={18} />
-                </button>
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Trophy size={18} />
                 </button>
@@ -286,12 +282,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </button>
                 <button onClick={() => router.push("/editor")} style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  padding: "0 20px", height: 36, 
+                  padding: "0 20px", height: 36,
                   background: isDark ? "linear-gradient(135deg, #c96838 0%, #ea580c 100%)" : "#111",
                   color: "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
                   fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)" : "0 2px 10px rgba(0,0,0,0.1)", 
+                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)" : "0 2px 10px rgba(0,0,0,0.1)",
                   transition: "transform 0.2s ease, box-shadow 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
@@ -309,9 +305,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
             {isTablet && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 4 }}>
-                <button onClick={() => router.push("/my-gallery")} title="My Gallery" style={{ color: iconColor, background: "none", border: "none" }}>
-                  <Images size={16} />
-                </button>
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ color: iconColor, background: "none", border: "none" }}>
                   <Trophy size={16} />
                 </button>

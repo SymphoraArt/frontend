@@ -34,19 +34,19 @@ export function TurnkeyLoginModal({ onSuccess, onClose }: TurnkeyLoginModalProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl dark:bg-zinc-900">
+      <div className="relative w-full max-w-md rounded-2xl bg-[var(--enki-paper)] p-8 shadow-2xl dark:bg-[#0a0a0a]">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          className="absolute right-4 top-4 text-[var(--enki-ink-3)] hover:text-[var(--enki-ink-2)] dark:hover:text-[var(--enki-ink)]"
           aria-label="Close"
         >
           ✕
         </button>
 
-        <h2 className="mb-1 text-xl font-semibold text-zinc-900 dark:text-white">
+        <h2 className="mb-1 text-xl font-semibold text-[var(--enki-ink)] dark:text-[var(--enki-ink)]">
           Sign in with Email
         </h2>
-        <p className="mb-6 text-sm text-zinc-500">
+        <p className="mb-6 text-sm text-[var(--enki-ink-3)]">
           We&apos;ll create a Solana wallet linked to your email.
         </p>
 
@@ -58,20 +58,20 @@ export function TurnkeyLoginModal({ onSuccess, onClose }: TurnkeyLoginModalProps
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              className="w-full rounded-lg border border-[var(--enki-rule)] bg-[var(--enki-paper-2)] px-4 py-3 text-sm outline-none focus:border-[var(--enki-ink-3)] dark:border-[#27272b] dark:bg-[#17171a] dark:text-[var(--enki-ink)]"
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button
               type="submit"
               disabled={step === "sending"}
-              className="w-full rounded-lg bg-zinc-900 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="w-full rounded-lg bg-[var(--enki-ink)] py-3 text-sm font-medium text-white transition hover:bg-[var(--enki-ink-2)] disabled:opacity-50 dark:bg-[var(--enki-paper)] dark:text-[var(--enki-ink)] dark:hover:bg-[var(--enki-rule)]"
             >
               {step === "sending" ? "Sending code..." : "Send verification code"}
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerify} className="flex flex-col gap-4">
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-[var(--enki-ink-3)]">
               Enter the verification code sent to <strong>{email}</strong>
             </p>
             <input
@@ -83,20 +83,20 @@ export function TurnkeyLoginModal({ onSuccess, onClose }: TurnkeyLoginModalProps
               spellCheck={false}
               value={otpCode}
               onChange={(e) => setOtpCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
-              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-center font-mono text-base tracking-wide outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              className="w-full rounded-lg border border-[var(--enki-rule)] bg-[var(--enki-paper-2)] px-4 py-3 text-center font-mono text-base tracking-wide outline-none focus:border-[var(--enki-ink-3)] dark:border-[#27272b] dark:bg-[#17171a] dark:text-[var(--enki-ink)]"
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button
               type="submit"
               disabled={step === "verifying" || otpCode.trim().length === 0}
-              className="w-full rounded-lg bg-zinc-900 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="w-full rounded-lg bg-[var(--enki-ink)] py-3 text-sm font-medium text-white transition hover:bg-[var(--enki-ink-2)] disabled:opacity-50 dark:bg-[var(--enki-paper)] dark:text-[var(--enki-ink)] dark:hover:bg-[var(--enki-rule)]"
             >
               {step === "verifying" ? "Verifying..." : "Verify code"}
             </button>
             <button
               type="button"
               onClick={() => { reset(); setOtpCode(""); }}
-              className="text-sm text-zinc-400 hover:text-zinc-600"
+              className="text-sm text-[var(--enki-ink-3)] hover:text-[var(--enki-ink-2)]"
             >
               Use a different email
             </button>
@@ -135,19 +135,19 @@ export function TurnkeyDeleteConfirm({ email, onConfirmed, onClose }: TurnkeyDel
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl dark:bg-zinc-900">
+      <div className="relative w-full max-w-sm rounded-2xl bg-[var(--enki-paper)] p-8 shadow-2xl dark:bg-[#0a0a0a]">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          className="absolute right-4 top-4 text-[var(--enki-ink-3)] hover:text-[var(--enki-ink-2)] dark:hover:text-[var(--enki-ink)]"
           aria-label="Close"
         >
           ✕
         </button>
 
-        <h2 className="mb-1 text-xl font-semibold text-zinc-900 dark:text-white">
+        <h2 className="mb-1 text-xl font-semibold text-[var(--enki-ink)] dark:text-[var(--enki-ink)]">
           Confirm Deletion
         </h2>
-        <p className="mb-6 text-sm text-zinc-500">
+        <p className="mb-6 text-sm text-[var(--enki-ink-3)]">
           {step === "sending"
             ? "Sending verification code..."
             : <>Enter the code sent to <strong>{email}</strong> to permanently delete this prompt.</>
@@ -165,7 +165,7 @@ export function TurnkeyDeleteConfirm({ email, onConfirmed, onClose }: TurnkeyDel
             value={otpCode}
             onChange={(e) => setOtpCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
             disabled={step === "sending"}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-center font-mono text-base tracking-wide outline-none focus:border-zinc-400 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            className="w-full rounded-lg border border-[var(--enki-rule)] bg-[var(--enki-paper-2)] px-4 py-3 text-center font-mono text-base tracking-wide outline-none focus:border-[var(--enki-ink-3)] disabled:opacity-40 dark:border-[#27272b] dark:bg-[#17171a] dark:text-[var(--enki-ink)]"
           />
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
@@ -178,7 +178,7 @@ export function TurnkeyDeleteConfirm({ email, onConfirmed, onClose }: TurnkeyDel
           <button
             type="button"
             onClick={() => { reset(); setOtpCode(""); sendOtp(email); }}
-            className="text-sm text-zinc-400 hover:text-zinc-600"
+            className="text-sm text-[var(--enki-ink-3)] hover:text-[var(--enki-ink-2)]"
           >
             Resend code
           </button>
