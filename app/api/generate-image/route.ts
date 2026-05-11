@@ -10,6 +10,7 @@ import {
 } from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
+import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
 
 const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
 
@@ -146,17 +147,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Too many variables" }, { status: 400 });
     }
 
-    // 3. Ratio validation
-    // Mock DB for now
-    const mockModels: Record<string, string[]> = {
-      "nano-banana-pro": ["1:1", "4:5", "3:2", "16:9", "9:16", "21:9"],
-      "gpt-image-2": ["1:1", "16:9", "9:16"],
-      "midjourney-v7": ["1:1", "4:5", "3:2", "16:9", "9:16"],
-    };
+    // 3. Ratio validation (fetched from DB)
     if (body.modelIds && body.modelIds.length > 0 && body.ratio && body.ratio !== "Any ratio") {
-      const allowed = body.modelIds.some(id => mockModels[id]?.includes(body.ratio as string));
-      if (!allowed) {
-        return NextResponse.json({ error: "Ratio not allowed for selected model(s)" }, { status: 400 });
+      try {
+        const supabase = getSupabaseServerClientSafe();
+        if (supabase) {
+          const { data: models } = await supabase
+            .from("models")
+            .select("id, allowed_ratios")
+            .in("id", body.modelIds);
+          const allowed = (models || []).some((m: any) =>
+            m.allowed_ratios?.includes(body.ratio as string)
+          );
+          if (!allowed) {
+            return NextResponse.json({ error: "Ratio not allowed for selected model(s)" }, { status: 400 });
+          }
+        }
+      } catch {
+        /* skip validation if DB unavailable */
       }
     }
 

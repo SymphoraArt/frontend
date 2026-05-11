@@ -87,8 +87,6 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                   <div>
                     <h1 className="text-3xl font-bold mb-1 flex items-center gap-3">
                       {creator.displayName}
-                      {/* MOCK: Randomly showing shadow badge with a fake value for demo */}
-                      <ShadowProfileBadge unclaimedAmount={1250} />
                     </h1>
                     <p className="text-muted-foreground mb-3">@{creator.username}</p>
                   </div>

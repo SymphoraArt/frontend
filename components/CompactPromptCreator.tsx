@@ -142,65 +142,9 @@ interface Template {
   price?: number;
 }
 
-const SAMPLE_TEMPLATES: Template[] = [
-  {
-    id: "1",
-    name: "Cherry Blossoms",
-    description:
-      "Delicate pink cherry blossom petals floating gently in the spring breeze, with soft diffused sunlight filtering through the branches, creating a dreamy pastel atmosphere with hints of white and pale pink",
-    image: "https://images.unsplash.com/photo-1522383225653-ed111181a951?w=200",
-    isFavorite: true,
-  },
-  {
-    id: "2",
-    name: "Cyberpunk City",
-    description:
-      "Neon-lit futuristic metropolis with towering skyscrapers, holographic advertisements, rain-slicked streets reflecting vibrant purple and cyan lights, flying vehicles traversing between buildings",
-    image: "https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=200",
-    isPaid: true,
-    price: 5,
-  },
-  {
-    id: "3",
-    name: "Enchanted Forest",
-    description:
-      "Mystical woodland bathed in ethereal golden light, ancient twisted trees with glowing moss, magical fireflies dancing between ferns, mist rolling across the forest floor",
-    image: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=200",
-    isFavorite: true,
-  },
-  {
-    id: "4",
-    name: "Ocean Sunset",
-    description:
-      "Breathtaking sunset over calm ocean waters, sky painted in gradients of orange, pink and purple, golden sun reflecting on gentle waves, silhouetted clouds on the horizon",
-    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200",
-  },
-  {
-    id: "5",
-    name: "Mountain Peak",
-    description:
-      "Majestic snow-capped mountain peak piercing through clouds, dramatic alpine landscape, crisp morning light casting long shadows, pristine wilderness stretching to the horizon",
-    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=200",
-  },
-  {
-    id: "6",
-    name: "Abstract Art",
-    description:
-      "Vibrant abstract composition with fluid organic shapes, bold contrasting colors, dynamic movement and energy, contemporary artistic expression with texture and depth",
-    image: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=200",
-    isPaid: true,
-    price: 3,
-  },
-];
+const SAMPLE_TEMPLATES: Template[] = [];
 
-const EXAMPLE_VARIABLES: Record<string, string> = {
-  Object: "vintage camera",
-  "Camera lightings": "soft natural window light with subtle rim lighting",
-  "Camera settings": "f/2.8, 85mm lens, shallow depth of field",
-  Style: "photorealistic, cinematic",
-  Background: "minimalist white studio",
-  Mood: "elegant and sophisticated",
-};
+const EXAMPLE_VARIABLES: Record<string, string> = {};
 
 export default function CompactPromptCreator() {
   const [promptText, setPromptText] = useState("");

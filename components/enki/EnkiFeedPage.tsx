@@ -9,7 +9,6 @@ import EnkiFilters from "@/components/enki/EnkiFilters";
 import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import {
-  getFallbackEnkiPrompts,
   mapMarketplacePromptToEnkiPrompt,
 } from "@/lib/enkiPromptAdapter";
 
@@ -56,8 +55,8 @@ export default function EnkiFeedPage() {
     const live = Array.isArray(data?.prompts)
       ? data.prompts.map((item: unknown, index: number) => mapMarketplacePromptToEnkiPrompt(item, index))
       : [];
-    return live.length && !isError ? live : getFallbackEnkiPrompts(24);
-  }, [data, isError]);
+    return live;
+  }, [data]);
 
   const searchParams = useSearchParams();
   const query = searchParams.get("q")?.toLowerCase() || "";
