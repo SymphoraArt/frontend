@@ -53,8 +53,24 @@ type SaveBody = PromptPayload & {
   variables?: VariablePayload[];
 };
 
-function getErrorMessage(e: unknown) {
+function getErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    // Supabase errors are plain objects with message/details/hint/code
+    const parts: string[] = [];
+    if (typeof obj.message === "string" && obj.message) parts.push(obj.message);
+    if (typeof obj.details === "string" && obj.details) parts.push(obj.details);
+    if (typeof obj.hint === "string" && obj.hint) parts.push(`hint: ${obj.hint}`);
+    if (typeof obj.code === "string" && obj.code) parts.push(`code: ${obj.code}`);
+    if (parts.length > 0) return parts.join(" — ");
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return "[unserializable error]";
+    }
+  }
   return String(e);
 }
 
@@ -250,6 +266,7 @@ export async function POST(req: Request) {
       isFreeShowcase: Boolean(body.isFreeShowcase ?? false),
     });
   } catch (e: unknown) {
+    console.error("/api/prompt POST failed:", e);
     return NextResponse.json(
       { error: getErrorMessage(e) || "Failed to save prompt" },
       { status: 500 }
