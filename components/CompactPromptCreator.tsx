@@ -7,6 +7,7 @@ import {
   Search,
   Star,
   ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -247,6 +248,10 @@ export default function CompactPromptCreator() {
     },
     []
   );
+
+  const removeVariable = useCallback((id: string) => {
+    setVariables((prev) => prev.filter((v) => v.id !== id));
+  }, []);
 
   // Handle text selection
   const handleTextSelect = useCallback(() => {
@@ -653,8 +658,39 @@ export default function CompactPromptCreator() {
                     </div>
                   ) : (
                     variables.map((variable) => (
-                      <div key={variable.id} style={{ background: "#fff", border: "1px solid #ede9e3", borderRadius: 7, padding: "7px 9px" }} data-testid={`variable-adjuster-${variable.name}`}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: "#e05a2b", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{variable.name}</div>
+                      <div key={variable.id} style={{ background: "#fff", border: "1px solid #ede9e3", borderRadius: 7, padding: "7px 9px", position: "relative" }} data-testid={`variable-adjuster-${variable.name}`}>
+                        <button
+                          type="button"
+                          onClick={() => removeVariable(variable.id)}
+                          aria-label={`Delete variable ${variable.name}`}
+                          title="Delete variable"
+                          data-testid={`button-delete-variable-${variable.name}`}
+                          style={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            background: "transparent",
+                            border: "none",
+                            padding: 3,
+                            borderRadius: 4,
+                            cursor: "pointer",
+                            color: "#b5b1aa",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = "#c0392b";
+                            e.currentTarget.style.background = "#f8eceb";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = "#b5b1aa";
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#e05a2b", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5, paddingRight: 18 }}>{variable.name}</div>
 
                         {variable.type === "text" && (
                           <input
