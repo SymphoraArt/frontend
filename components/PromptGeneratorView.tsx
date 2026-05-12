@@ -115,7 +115,31 @@ export default function PromptGeneratorView({
   const [localHistory, setLocalHistory] = useState<string[]>([]);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const GENERATORS = ["Nano Banana Pro", "Seedream 5.0 lite (coming soon)", "GPT-Image-2 (coming soon)"];
+
+  /* Fetch available models from DB */
+  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string }>>({
+    queryKey: ["/api/models"],
+    queryFn: async () => {
+      const res = await fetch("/api/models", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const GENERATORS = useMemo(() => {
+    const fromDb = (modelsData ?? [])
+      .map((m) => (typeof m.name === "string" ? m.name : ""))
+      .filter(Boolean);
+    return fromDb.length > 0
+      ? fromDb
+      : ["Nano Banana Pro", "Seedream 5.0 lite (coming soon)", "GPT-Image-2 (coming soon)"];
+  }, [modelsData]);
+
+  useEffect(() => {
+    if (GENERATORS.length > 0 && !GENERATORS.includes(generator)) {
+      setGenerator(GENERATORS[0]);
+    }
+  }, [GENERATORS, generator]);
 
   /* Fetch prompt */
   const { data: promptData, isLoading: loading } = useQuery<{
