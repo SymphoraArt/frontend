@@ -447,12 +447,14 @@ html.dark {
 /* ─── Textarea ─── */
 .alg-textarea-box {
   border: 1px solid var(--alg-border);
-  background: #fdfcf9;
+  background: var(--alg-white, #fdfcf9);
   padding: 24px;
   position: relative;
-  min-height: 240px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
+  resize: vertical;
+  overflow: hidden;
 }
 
 .alg-textarea {
@@ -762,7 +764,8 @@ html.dark {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
   color: var(--alg-text);
   background: transparent !important;
   text-rendering: optimizeSpeed;
@@ -770,6 +773,7 @@ html.dark {
   font-variant-ligatures: none;
   font-feature-settings: "kern" 1, "liga" 0;
 }
+.alg-prompt-overlay::-webkit-scrollbar { display: none; }
 .alg-prompt-overlay .alg-var-tag { pointer-events: none; }
 .alg-var-tag {
   display: inline;

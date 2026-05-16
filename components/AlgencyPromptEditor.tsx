@@ -21,6 +21,7 @@ import {
   Sparkles,
   AlertTriangle,
   Zap,
+  Upload,
 } from "lucide-react";
 import nlp from "compromise";
 
@@ -116,7 +117,7 @@ export default function AlgencyPromptEditor() {
     selectedCards: [] as number[],
     cursorPos: 0,
     selectedVariableId: "lighting" as string | null,
-    maxImages: 2,
+    maxImages: 10,
     currentPromptId: null as string | null,
     showAvatarDropdown: false,
     tooltip: null as { x: number, y: number, text: string } | null,
@@ -673,6 +674,50 @@ export default function AlgencyPromptEditor() {
     setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
   };
 
+  /* ─── Upload image directly into a Verify slot ─── */
+  const handleUploadToSlot = (slotId: number) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (ev) => {
+      const file = (ev.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (le) => {
+        const dataUrl = String(le.target?.result || "");
+        // Convert data URL to blob URL for performance
+        try {
+          const [header, base64] = dataUrl.split(",");
+          const mime = header.split(":")[1].split(";")[0];
+          const byteChars = atob(base64);
+          const bytes = new Uint8Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+          const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+          setVersions(prev => prev.map(v =>
+            v.id === slotId ? { ...v, status: "complete", imageUrl: blobUrl } : v
+          ));
+        } catch {
+          setVersions(prev => prev.map(v =>
+            v.id === slotId ? { ...v, status: "complete", imageUrl: dataUrl } : v
+          ));
+        }
+        toast({ title: "Uploaded", description: `Image added to slot ${slotId}.` });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  /* ─── Create a new slot and immediately open file picker ─── */
+  const handleUploadNewSlot = () => {
+    const snapshot: Record<string, string> = {};
+    variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
+    const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
+    setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
+    // Defer so React renders the slot first, then open file picker
+    setTimeout(() => handleUploadToSlot(newId), 50);
+  };
+
   /* ─── Pricing helpers ─── */
   const getPricePerSlot = (): number => {
     if (models.selected.length > 0 && models.available.length > 0) {
@@ -884,7 +929,9 @@ export default function AlgencyPromptEditor() {
   });
 
   const verifiedCount = versions.filter((s) => s.imageUrl && s.status === "complete").length;
-  const isPublishDisabled = verifiedCount === 0 || publishPromptMutation.isPending;
+  const isPublishDisabled = promptData.type === "free-prompt"
+    ? verifiedCount < 1 || publishPromptMutation.isPending
+    : verifiedCount < 4 || publishPromptMutation.isPending;
 
   return (
     <div className="alg-page" onClick={() => { setUi(prev => ({ ...prev, showAvatarDropdown: false, tooltip: null })) }}>
@@ -1109,11 +1156,6 @@ export default function AlgencyPromptEditor() {
 
             {/* Prompt Stats Row */}
             <div style={{ display: "flex", gap: 32, marginTop: 12, paddingBottom: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 11, fontWeight: 600, color: "var(--alg-dark)" }}>{promptData.body.length}</span>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 9, color: "var(--alg-hint)", textTransform: "uppercase" }}>chars</span>
-              </div>
-              <div style={{ width: 1, height: 24, background: "var(--alg-border)", alignSelf: "center", opacity: 0.5 }} />
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 11, fontWeight: 600, color: "var(--alg-dark)" }}>{variables.length}</span>
                 <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 9, color: "var(--alg-hint)", textTransform: "uppercase" }}>variables</span>
@@ -1358,9 +1400,19 @@ export default function AlgencyPromptEditor() {
               <span className="alg-panel__number">04</span>
               <span className="alg-panel__title">Verify</span>
             </div>
-            <span className="alg-panel__meta">
-              {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="alg-panel__meta">
+                {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
+              </span>
+              <button
+                className="alg-btn alg-btn--ghost alg-btn--sm"
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}
+                onClick={handleUploadNewSlot}
+                title="Upload a reference image"
+              >
+                <Upload size={12} /> Upload
+              </button>
+            </div>
           </div>
           <div className="alg-panel__body">
             <p className="alg-hint-text" style={{ marginBottom: 16 }}>
@@ -1393,6 +1445,16 @@ export default function AlgencyPromptEditor() {
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, zIndex: 2 }}>
                             <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 700, color: "#c0542a" }}>#{slot.queuePosition}</span>
                             <span style={{ fontFamily: "monospace", fontSize: 9, color: "#888", letterSpacing: "0.1em" }}>IN QUEUE</span>
+                          </div>
+                        )}
+                        {slot.status === "idle" && (
+                          <div
+                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, zIndex: 2, cursor: "pointer" }}
+                            onClick={(e) => { e.stopPropagation(); handleUploadToSlot(slot.id); }}
+                            title="Click to upload an image"
+                          >
+                            <Upload size={16} color="#8a7f72" />
+                            <span style={{ fontFamily: "monospace", fontSize: 8, color: "#8a7f72", letterSpacing: "0.05em" }}>UPLOAD</span>
                           </div>
                         )}
                         {slot.status === "failed" && (
