@@ -36,6 +36,13 @@
   --alg-disabled-bg: #e0dbd4;
   --alg-hover-bg: #f3efe7;
   --alg-input-border: var(--alg-border);
+  --alg-white: #ffffff;
+  --alg-surface: #f7f5f1;
+  --alg-surface-elevated: #ffffff;
+}
+
+html.dark .alg-model-card {
+  background: var(--alg-surface);
 }
 
 html.dark {
@@ -62,6 +69,8 @@ html.dark {
   --alg-disabled-bg: #2C2A26;
   --alg-hover-bg: #252320;
   --alg-input-border: #3A3631;
+  --alg-surface: #1C1A18;
+  --alg-surface-elevated: #22201d;
 }
 
 /* ─── Page ─── */
@@ -80,8 +89,17 @@ html.dark {
   transition: background 0.3s ease, color 0.3s ease;
 }
 
-.alg-panel, .alg-input, .alg-textarea, .alg-btn, .alg-model-row, .alg-ratio-pill, .alg-var-card {
+/* `.alg-ratio-pill` is intentionally NOT in this list — its own rule
+   below handles transitions at a snappier 0.08s so toggling between
+   ratio chips feels instant. The 0.3s ease here is meant for big
+   surfaces (panels, inputs, textareas) where a slower theme cross-
+   fade actually reads nicer. */
+.alg-panel, .alg-input, .alg-textarea, .alg-btn, .alg-model-row {
   transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+.alg-var-card {
+  transition: outline-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 /* ─── Navbar ─── */
@@ -232,9 +250,36 @@ html.dark {
 
 /* ─── Grid ─── */
 .alg-grid {
-  flex: 1; display: grid;
-  grid-template-columns: 1fr 1.25fr 1fr 1fr;
-  min-height: 0; overflow: hidden;
+  flex: 1;
+  display: grid;
+  /* Fixed px track animates smoother than 1fr ↔ px */
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  transition: grid-template-columns 0.32s cubic-bezier(0.33, 1, 0.68, 1);
+  will-change: grid-template-columns;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alg-grid {
+    transition: none;
+  }
+}
+
+.alg-grid > .alg-panel {
+  min-width: 0;
+}
+
+/* Settings rail fixed; prompt a bit wider; variables + verify slightly narrower */
+.alg-grid--settings-collapsed {
+  grid-template-columns: minmax(68px, 68px) minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.85fr);
+}
+
+.alg-grid > .alg-panel--prompt,
+.alg-grid > .alg-panel--variables,
+.alg-grid > .alg-panel--verify {
+  width: 100%;
+  max-width: 100%;
 }
 
 /* ─── Panel ─── */
@@ -254,6 +299,13 @@ html.dark {
   align-items: baseline;
   justify-content: space-between;
   min-height: 72px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.alg-grid > .alg-panel > .alg-panel__header {
+  min-height: 72px;
+  align-items: center;
 }
 
 .alg-panel__number {
@@ -317,29 +369,30 @@ html.dark {
   padding: 10px 14px;
   border: 1px solid var(--alg-border);
   border-radius: 2px;
-  background: var(--alg-white);
+  background: var(--alg-surface);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   margin-bottom: 6px;
 }
 .alg-mode-card--active {
-  border: 1.5px solid var(--alg-ink) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-color: var(--alg-accent);
+  box-shadow: inset 0 0 0 1px var(--alg-accent);
+  background: var(--alg-surface-elevated);
 }
 .alg-mode-card__title {
-  font-family: var(--alg-font-serif);
-  font-size: 16px;
-  font-weight: 300;
-  color: var(--alg-ink);
-  margin-bottom: 1px;
+  font-family: var(--alg-font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--alg-text);
+  margin-bottom: 2px;
   letter-spacing: -0.01em;
 }
 .alg-mode-card__desc {
-  font-family: var(--alg-font-serif);
+  font-family: var(--alg-font-sans);
   font-size: 11px;
-  font-style: italic;
+  font-style: normal;
   color: var(--alg-muted);
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
 /* ─── Model Rows ─── */
@@ -363,7 +416,7 @@ html.dark {
   font-family: var(--alg-font-serif);
   font-size: 16px;
   font-weight: 300;
-  color: var(--alg-ink);
+  color: var(--alg-text);
 }
 .alg-model-card__price {
   font-family: var(--alg-font-mono);
@@ -376,12 +429,22 @@ html.dark {
 .alg-ratio-group { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .alg-ratio-pill {
   padding: clamp(4px, 0.5vw, 6px) clamp(8px, 1vw, 12px); border-radius: 0; font-size: 10px; font-weight: 500;
-  border: 1px solid var(--alg-border); background: var(--alg-white);
-  cursor: pointer; transition: none; color: var(--alg-text);
+  border: 1px solid var(--alg-border); background: var(--alg-surface);
+  cursor: pointer;
+  /* 0.08s feels effectively instant but still avoids a hard color
+     pop. Toggling between ratio chips is a high-frequency interaction
+     so any slower transition starts to feel laggy. */
+  transition: background 0.08s ease, border-color 0.08s ease, color 0.08s ease;
+  color: var(--alg-text);
   font-family: var(--alg-font-mono);
 }
-.alg-ratio-pill:hover { background: var(--alg-bg); }
-.alg-ratio-pill--active { background: var(--alg-dark); color: white; border-color: var(--alg-dark); font-style: normal; }
+.alg-ratio-pill:hover:not(.alg-ratio-pill--disabled) { background: var(--alg-hover-bg); }
+.alg-ratio-pill--active {
+  background: var(--alg-accent);
+  color: #fff;
+  border-color: var(--alg-accent);
+  font-style: normal;
+}
 
 /* ─── Stepper ─── */
 .alg-stepper {
@@ -390,8 +453,8 @@ html.dark {
 }
 .alg-stepper__btn {
   width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  background: #F5F2EC; border: none; cursor: pointer;
-  font-size: 16px; color: var(--alg-dark); transition: background 0.15s;
+  background: var(--alg-hover-bg); border: none; cursor: pointer;
+  font-size: 16px; color: var(--alg-text); transition: background 0.15s;
 }
 .alg-stepper__btn:hover { background: var(--alg-bg); }
 .alg-stepper__value {
@@ -444,43 +507,206 @@ html.dark {
   letter-spacing: -0.01em;
 }
 
-/* ─── Textarea ─── */
-.alg-textarea-box {
-  border: 1px solid var(--alg-border);
-  background: var(--alg-white, #fdfcf9);
-  padding: 24px;
-  position: relative;
-  min-height: 360px;
+/* ─── Prompt workspace (panel 02) ─── */
+.alg-panel--prompt .alg-panel__body--workspace {
   display: flex;
   flex-direction: column;
-  resize: vertical;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 20px 0;
+  gap: 0;
+}
+
+.alg-prompt-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--alg-border);
+  margin-top: 8px;
+}
+
+.alg-prompt-footer__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alg-prompt-footer__stat-value {
+  font-family: var(--alg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--alg-text);
+}
+
+.alg-prompt-footer__stat-label {
+  font-family: var(--alg-font-mono);
+  font-size: 10px;
+  color: var(--alg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.alg-prompt-footer__draft {
+  margin-left: auto;
+  text-align: right;
+  max-width: 140px;
+}
+
+.alg-prompt-footer__draft-label {
+  font-family: var(--alg-font-mono);
+  font-size: 10px;
+  color: var(--alg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+}
+
+.alg-prompt-footer__draft-label--saved {
+  color: var(--alg-green);
+}
+
+.alg-prompt-var-tabs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 6px 0 0;
+}
+
+.alg-prompt-var-tab {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.3;
+  font-family: var(--alg-font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  transition: box-shadow 0.12s ease;
+}
+
+.alg-prompt-var-tab--active {
+  font-weight: 600;
+  box-shadow: 0 0 0 1px currentColor;
+}
+
+/* ─── Textarea ─── */
+html.dark .alg-textarea-box {
+  background: var(--alg-surface);
+}
+
+.alg-textarea-box {
+  /*
+   * SINGLE source of truth for prompt typography AND layout.
+   *
+   * Every text layer painted inside this box — the real <textarea>,
+   * its native ::placeholder, the colored overlay, the click-hit
+   * overlay, and the inline tag spans — is forced to inherit these
+   * exact metrics via the shared rule below. Do NOT set font-size,
+   * line-height, OR padding on any individual layer; change them
+   * HERE and the rest follows.
+   *
+   * Rationale: the cursor lives in the <textarea> while the visible
+   * text is painted by the overlay <div>. Any disagreement on font
+   * size, line-height, OR text-box geometry between the two layers
+   * makes the cursor skew away from the typed glyphs (and the drift
+   * compounds with every wrapped line).
+   *
+   * IMPORTANT: padding is owned by the children, NOT the box. If the
+   * box has padding, the absolute layers (overlay/hit) — which fill
+   * the parent's *padding box* via inset:0 — will paint their text
+   * in a different coordinate system than the textarea (a flex child
+   * of the parent's *content box*). With padding on children, all
+   * layers share one identical inner geometry.
+   */
+  --alg-prompt-font-size: 16px;
+  --alg-prompt-line-height: 25px;
+  --alg-prompt-font-weight: 400;
+  --alg-prompt-letter-spacing: 0;
+  --alg-prompt-pad-y: 16px;
+  --alg-prompt-pad-x: 18px;
+  border: 1px solid var(--alg-border);
+  background: var(--alg-surface);
+  padding: 0;
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
+/* The single typography declaration for every prompt text layer.
+   `!important` defeats per-layer rules that older builds shipped
+   (e.g. textarea at 20px, overlay at 16px). If you ever need to
+   change the prompt's font size, update the variables on
+   `.alg-textarea-box` above — never add another font-size rule. */
+.alg-textarea-box .alg-textarea,
+.alg-textarea-box .alg-textarea::placeholder,
+.alg-textarea-box .alg-prompt-overlay,
+.alg-textarea-box .alg-prompt-hit,
+.alg-textarea-box .alg-prompt-plain,
+.alg-textarea-box .alg-var-tag {
+  font-family: var(--alg-font-sans) !important;
+  font-size: var(--alg-prompt-font-size) !important;
+  font-style: normal !important;
+  font-weight: var(--alg-prompt-font-weight) !important;
+  line-height: var(--alg-prompt-line-height) !important;
+  letter-spacing: var(--alg-prompt-letter-spacing) !important;
+  font-synthesis: none;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "kern" 0, "liga" 0;
+  text-rendering: geometricPrecision;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Shared geometry: every layer inside the box has identical box-sizing
+   AND identical padding, so the textarea (cursor) and the overlay
+   (visible text) compute the same text-wrap width and the same line
+   y-coordinates. padding-right is intentionally NOT !important because
+   `syncPromptOverlayMetrics` (in AlgencyPromptEditor.tsx) augments it
+   inline at runtime to compensate for the textarea's reserved
+   scrollbar gutter so that wrap points line up character-for-character. */
+.alg-textarea-box > .alg-textarea,
+.alg-textarea-box > .alg-prompt-overlay,
+.alg-textarea-box > .alg-prompt-hit {
+  box-sizing: border-box !important;
+  padding-top: var(--alg-prompt-pad-y) !important;
+  padding-bottom: var(--alg-prompt-pad-y) !important;
+  padding-left: var(--alg-prompt-pad-x) !important;
+  padding-right: var(--alg-prompt-pad-x);
+  margin: 0 !important;
+}
+
 .alg-textarea {
+  position: relative;
+  z-index: 2;
+  cursor: text;
   width: 100%;
   flex: 1;
+  min-height: 0;
   border: none;
   background: transparent;
-  font-size: 20px;
-  font-family: var(--alg-font-serif);
-  font-style: italic;
-  font-weight: 400;
   color: var(--alg-text);
   outline: none;
   resize: none;
-  line-height: 1.6;
-  padding: 0;
-  margin: 0;
-  text-rendering: optimizeSpeed;
-  font-kerning: normal;
-  font-variant-ligatures: none;
-  font-feature-settings: "kern" 1, "liga" 0;
+  /* font-* + line-height + padding + box-sizing all supplied by
+     the shared rules on `.alg-textarea-box`. Do NOT redeclare them
+     here — that's exactly what was causing the cursor skew. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
 }
 .alg-textarea:focus { border-bottom-color: var(--alg-accent); }
-.alg-textarea::placeholder { color: var(--alg-hint); }
+.alg-textarea::placeholder { color: var(--alg-hint); opacity: 1; }
 
 
 /* ─── Tag Pills Row (below textarea) ─── */
@@ -497,27 +723,93 @@ html.dark {
   background: transparent; color: var(--alg-dark); font-weight: 600;
 }
 
-/* ─── Variable Cards ─── */
+/* ─── Variable Cards (compact) ─── */
 .alg-var-card {
+  position: relative;
   border: 1px solid var(--alg-border); border-radius: 2px;
-  padding: 8px 12px; margin-bottom: 6px;
-  background: var(--alg-white); transition: all 0.15s; overflow: hidden;
+  padding: 7px 10px; margin-bottom: 7px;
+  background: var(--alg-white);
+  overflow: hidden;
+  outline: 1px solid transparent;
+  outline-offset: -1px;
 }
 .alg-var-card:hover {
-  border: 1.5px solid var(--alg-dark);
-  padding: 11.5px 13.5px;
+  outline-color: var(--alg-muted);
+  box-shadow: 0 0 0 1px var(--alg-muted);
 }
-.alg-var-card--active {
-  background: var(--alg-peach-bg);
-  border: 1px solid var(--alg-peach-border);
+
+.alg-var-card--selected,
+.alg-var-card--selected:hover {
+  outline: 3px solid var(--var-card-border, var(--alg-accent));
+  outline-offset: -1px;
+  box-shadow: none;
+  z-index: 1;
 }
-.alg-var-card--active:hover {
-  border: 1.5px solid var(--alg-accent);
+/* Only the overlay ring pulses — card border/background stay static */
+.alg-var-card--pulse,
+.alg-var-card--pulse:hover {
+  outline-color: transparent !important;
+  box-shadow: none !important;
+  z-index: 1;
+}
+
+.alg-var-card--pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--var-pulse-border, var(--alg-border));
+  border-radius: inherit;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 2;
+  animation: alg-var-card-pulse-ring 0.4s ease-in-out 5;
+}
+
+@keyframes alg-var-card-pulse-ring {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.alg-var-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.alg-var-card__top .alg-var-card__label {
+  margin-bottom: 0;
+}
+
+.alg-var-card__delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--alg-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.alg-var-card__delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .alg-var-card__label {
-  font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.3px;
-  text-transform: uppercase; color: #B0AAA2; margin-bottom: 4px;
+  font-size: 9px; font-weight: 700; letter-spacing: 1.1px;
+  text-transform: uppercase; color: var(--alg-hint); margin-bottom: 2px;
 }
 
 .alg-var-card__name-input-wrap {
@@ -526,14 +818,14 @@ html.dark {
 .alg-var-card__name-input {
   width: 100%;
   font-family: var(--alg-font-serif);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 300;
   color: var(--alg-dark);
   background: transparent;
   border: none;
   outline: none;
-  padding-bottom: 2px;
-  transition: all 0.2s ease;
+  padding-bottom: 1px;
+  transition: border-color 0.15s ease, color 0.15s ease;
   letter-spacing: -0.01em;
 }
 .alg-var-card__name-input:focus {
@@ -544,21 +836,48 @@ html.dark {
   color: #ef4444;
 }
 
+.alg-var-card__name-input--name-missing {
+  border-bottom: 1.5px solid #ef4444 !important;
+}
+
+/* ─── Unnamed-variable highlight (after "Push to Verify" alert) ───────
+   Drawn around BOTH the variable card in column 03 and the inline
+   variable tag inside the prompt textarea. Triggered when the user
+   tries to push variables to verify with at least one variable still
+   missing a name; cleared automatically when they type a name in. */
+.alg-var-card.alg-var-card--name-missing {
+  border-color: #ef4444 !important;
+  border-left-color: #ef4444 !important;
+  /* A faint outer halo so the red border is unmissable even on a
+     white background where 1px alone might read as cosmetic. */
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55);
+}
+
+.alg-var-tag--name-missing {
+  /* `outline` doesn't disturb inline layout — the surrounding
+     prose stays put while the red ring sits ON TOP of the tag.
+     `outline-offset` nudges it just outside the colored pill so
+     the user sees a clear red frame, not a tinted edge. */
+  outline: 1.5px solid #ef4444;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
 .alg-var-card__default-input,
 .alg-var-card__desc-input {
   width: 100%;
   font-family: var(--alg-font-serif);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--alg-dark);
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--alg-border);
   border-radius: 0;
-  padding: 4px 0;
+  padding: 2px 0;
   outline: none;
-  transition: all 0.2s ease;
-  margin-top: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  margin-top: 2px;
 }
 .alg-var-card__default-input:focus,
 .alg-var-card__desc-input:focus {
@@ -567,12 +886,12 @@ html.dark {
 }
 
 .alg-var-card__hint {
-  font-size: clamp(10px, 0.5vw + 4px, 12px); font-style: italic; color: #B0AAA2;
-  margin-top: 4px; padding-top: 6px;
+  font-size: 10px; font-style: normal; color: var(--alg-hint);
+  margin-top: 2px; padding-top: 0; line-height: 1.25;
 }
 
 .alg-toggle-inserts-row {
-  display: flex; align-items: center; justify-content: space-between; margin-top: 12px; margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: space-between; margin-top: 4px; margin-bottom: 2px;
 }
 .alg-toggle-inserts-label {
   font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
@@ -593,10 +912,10 @@ html.dark {
 /* ─── Type Toggle ─── */
 .alg-type-toggle { 
   display: flex; gap: 0; align-items: center; 
-  margin-bottom: 8px;
+  margin: 6px 0 4px;
 }
 .alg-type-toggle__btn {
-  padding: 5px 13px; font-size: 11px; font-weight: 500;
+  padding: 4px 10px; font-size: 10px; font-weight: 500;
   border: 1px solid var(--alg-border); background: var(--alg-panel);
   cursor: pointer; color: var(--alg-hint); transition: all 0.15s;
   font-family: var(--font-outfit), 'Outfit', sans-serif;
@@ -611,8 +930,11 @@ html.dark {
   border-radius: 0;
   margin-left: -1px;
 }
-.alg-type-toggle__btn--active { 
-  background: #1C1A18; color: #fff; border-color: #1C1A18; z-index: 2; 
+.alg-type-toggle__btn--active {
+  background: var(--alg-accent);
+  color: #fff;
+  border-color: var(--alg-accent);
+  z-index: 2;
 }
 
 /* ═══════════════════════════════════════════
@@ -675,8 +997,76 @@ html.dark {
 
 /* — Info panel — */
 .alg-version-card__info {
-  flex: 1; min-width: 0;
+  flex: 1;
+  min-width: 0;
   padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.alg-verify-var-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.alg-verify-var-chip {
+  border: 1px solid var(--alg-border);
+  border-radius: 3px;
+  padding: 0 5px;
+  line-height: 1.25;
+  font-family: var(--alg-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--alg-text);
+  background: var(--alg-surface);
+  cursor: pointer;
+  transition: opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.alg-verify-var-chip:hover {
+  opacity: 0.92;
+  box-shadow: 0 0 0 1px var(--alg-border);
+}
+
+.alg-verify-var-popover__label {
+  margin: 0 0 4px;
+  font-family: var(--alg-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--alg-muted);
+}
+
+.alg-verify-var-popover__value {
+  margin: 0;
+  font-family: var(--alg-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--alg-text);
+  word-break: break-word;
+}
+
+.alg-version-card__row--download {
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--alg-border);
+}
+
+.alg-version-card__download {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--alg-font-mono);
+  font-size: 8px;
+  color: var(--alg-accent);
+  letter-spacing: 0.05em;
+  text-decoration: underline;
 }
 .alg-version-card__header { display: none; }
 
@@ -753,47 +1143,71 @@ html.dark {
 .alg-preview-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; }
 
 /* ─── Prompt Overlay ─── */
+/* Visible-text layer: paints what the user sees. Geometry MUST equal the
+   textarea (same box, same padding) or the cursor will skew away from
+   the glyphs. `inset: 0` covers the parent's whole box; padding comes
+   from the shared `.alg-textarea-box >` rule above. */
 .alg-prompt-overlay {
   position: absolute;
-  top: 24px; left: 24px; right: 24px; bottom: 24px;
+  inset: 0;
+  z-index: 1;
   pointer-events: none;
-  font-family: var(--alg-font-serif);
-  font-size: 20px;
-  font-style: italic;
-  font-weight: 400;
-  line-height: 1.6;
+  /* font-* + line-height + padding come from `.alg-textarea-box`'s
+     shared rules above. */
   white-space: pre-wrap;
-  word-break: break-word;
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: hidden;
   color: var(--alg-text);
   background: transparent !important;
-  text-rendering: optimizeSpeed;
-  font-kerning: normal;
-  font-variant-ligatures: none;
-  font-feature-settings: "kern" 1, "liga" 0;
+  border: none;
+  tab-size: 4;
 }
-.alg-prompt-overlay::-webkit-scrollbar { display: none; }
-.alg-prompt-overlay .alg-var-tag { pointer-events: none; }
+/* Hit layer (z-index 3): receives clicks/hover on variable tokens only.
+   Same geometry rules as the overlay. */
+.alg-prompt-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  /* font-* + line-height + padding come from `.alg-textarea-box`'s
+     shared rules above. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: hidden;
+  color: transparent;
+  background: transparent !important;
+  border: none;
+  tab-size: 4;
+}
+
+.alg-prompt-hit .alg-var-tag--hit {
+  pointer-events: auto;
+  cursor: pointer;
+  color: transparent;
+  background-color: transparent !important;
+}
+
+/* Inline tags only — plain text stays unwrapped so line breaks match the textarea */
 .alg-var-tag {
   display: inline;
   padding: 0;
   margin: 0;
-  font-family: var(--alg-font-serif);
-  font-style: italic;
-  font-weight: 400;
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px currentColor;
-  transition: all 0.15s ease;
-  border-bottom: 1px dashed var(--alg-accent);
-  background: var(--alg-accent-light);
-  color: var(--alg-accent);
+  border: none;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-synthesis: none;
+  letter-spacing: inherit;
+  vertical-align: baseline;
+  line-height: inherit;
 }
-.alg-var-tag:hover { opacity: 0.8; }
-.alg-var-tag--active {
-  background: var(--alg-accent) !important;
-  color: white !important;
-  border-bottom-style: solid;
+
+.alg-var-tag--selected {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--var-tag-accent, currentColor);
 }
 
 /* ─── Panel 04 ─── */
@@ -906,11 +1320,12 @@ html.dark {
 }
 
 /* Animations */
-.alg-var-card--entering { animation: alg-fade-in 0.4s ease forwards; }
+.alg-var-card--entering {
+  animation: alg-fade-in 0.2s ease forwards;
+}
 @keyframes alg-fade-in {
-  from { background: var(--alg-white); }
-  50% { background: var(--alg-peach-bg); }
-  to { background: var(--alg-white); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .alg-var-card--exiting { animation: alg-collapse 0.2s ease forwards; overflow: hidden; }
 @keyframes alg-collapse {
@@ -929,12 +1344,21 @@ html.dark {
 }
 
 /* ─── Tag Input ─── */
+.alg-settings-box {
+  border: 1px solid var(--alg-border);
+  border-radius: 3px;
+  padding: 12px;
+  background: var(--alg-surface);
+  margin-bottom: 8px;
+}
+
 .alg-tag-input-wrap {
   border: 1px solid var(--alg-border);
-  background: #FFFFFF;
+  background: var(--alg-surface);
   padding: 8px 10px;
   display: flex; flex-wrap: wrap; gap: 6px;
   align-items: center; min-height: 40px;
+  border-radius: 3px;
 }
 .alg-tag-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .alg-tag-chip {
@@ -1136,16 +1560,54 @@ html.dark {
 .alg-arrow-btn svg { width: 14px; height: 14px; stroke-width: 1.5px; }
 .alg-arrow-btn:disabled { cursor: not-allowed; opacity: 0.35; }
 
-/* Back button — plain circle */
+/* Back ("Edit — send selected back to Variables") button.
+ *
+ * Designed as the visual INVERSE of the forward Push button:
+ *   - Forward / Push: deep rust fill (#c7663a) + WHITE arrow
+ *   - Back  / Edit:   soft / faded rust fill          + RUST arrow (#c7663a)
+ *
+ * Same hue family, opposite contrast role. Lets the user read at a
+ * glance that the two arrows do opposite things, while keeping the
+ * Edit button always feeling "warm" (orange family) instead of the
+ * old neutral grey-outlined look. */
 .alg-arrow-btn--back {
-  border: 1px solid #d0c8be;
-  color: #8a7f72;
+  background: rgba(199, 102, 58, 0.10);   /* soft orange wash */
+  border: 1px solid rgba(199, 102, 58, 0.35);
+  color: #c7663a;                          /* the orange arrow */
 }
 .alg-arrow-btn--back:hover:not(:disabled) {
-  border-color: #c0542a; color: #c0542a;
+  background: rgba(199, 102, 58, 0.18);
+  border-color: rgba(199, 102, 58, 0.55);
+  color: #c7663a;
 }
 .alg-arrow-btn--back.alg-arrow-btn--active {
-  border-color: #8a7f72; color: #1e1a16;
+  /* Armed state (exactly one verify card selected) — the resting
+     "ready" look. The point here is intentional INTRA-FAMILY
+     contrast: the fill is a SOLID, clearly-visible soft peach so
+     it reads as its own colour (not just a transparent wash of
+     rust), while the arrow stroke and border stay in the deep
+     rust #c7663a used by the Push button.
+     Result: same hue family, opposite lightness, strong glyph
+     contrast — the precise "conflicting colours" the design calls
+     for and the exact inverse of Push (deep rust fill + white
+     arrow). */
+  background: #fadbc4;       /* solid soft orange — the "big color" */
+  border-color: #c7663a;     /* deep rust outline */
+  color: #c7663a;            /* deep rust arrow stroke */
+  box-shadow: 0 0 0 2px rgba(199, 102, 58, 0.18);
+}
+.alg-arrow-btn--back.alg-arrow-btn--active:hover:not(:disabled) {
+  /* On hover, lift the soft-orange a notch and keep the rust
+     accents — never collapse to a filled rust circle (that's the
+     Push design and would defeat the inverse). */
+  background: #f6c8a6;
+  border-color: #a8482a;
+  color: #a8482a;
+}
+
+.alg-bridge-overlay--back-active .alg-bridge-track__dot:first-child {
+  border-color: #c7663a;
+  background: rgba(199, 102, 58, 0.18);
 }
 
 /* Forward button — filled rust circle */
@@ -1171,8 +1633,1459 @@ html.dark {
   margin: 6px 0 0 0;
 }
 
+/* ─── Variables panel: scroll list + fixed reference images ─── */
+.alg-panel--variables {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.alg-panel--variables .alg-panel__body--scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  background: var(--alg-white);
+}
+
+.alg-panel--variables .alg-var-card {
+  background: var(--alg-white);
+}
+
+.alg-panel--variables .alg-panel__header {
+  padding: 24px 28px 16px;
+  min-height: 72px;
+}
+
+.alg-panel__refs-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--alg-border);
+  padding: 10px 14px;
+  background: var(--alg-panel);
+}
+
+.alg-panel__refs-footer .alg-label {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+.alg-ref-upload-zone {
+  border: 1px dashed var(--alg-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--alg-surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.alg-ref-upload-zone:hover {
+  border-color: var(--alg-accent);
+  background: var(--alg-hover-bg);
+}
+
+.alg-ref-thumbs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  margin-top: 6px;
+  min-height: calc(var(--ref-thumb-size, 48px) + 18px);
+  max-width: 100%;
+  overflow: visible;
+  padding-top: 6px;
+}
+
+.alg-ref-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: calc(-1 * var(--ref-overlap, 28px));
+  cursor: grab;
+  transition: margin 0.12s ease;
+}
+
+.alg-ref-thumb-wrap:first-child {
+  margin-left: 0;
+}
+
+.alg-ref-thumb-wrap:hover {
+  z-index: 100 !important;
+}
+
+.alg-ref-thumb-wrap:active {
+  cursor: grabbing;
+}
+
+.alg-ref-thumb-wrap--dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.alg-ref-thumb-wrap--drop .alg-ref-thumb {
+  outline: 2px dashed var(--alg-accent);
+  outline-offset: 2px;
+}
+
+.alg-ref-thumb {
+  position: relative;
+  width: var(--ref-thumb-size, 48px);
+  height: var(--ref-thumb-size, 48px);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 2px solid var(--alg-white);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.alg-ref-thumb-wrap:hover .alg-ref-thumb {
+  transform: translateY(-4px) scale(1.14);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.alg-ref-thumb__index {
+  display: block;
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--alg-muted);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.alg-ref-thumb-wrap:hover .alg-ref-thumb__index {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.alg-ref-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+.alg-ref-thumb__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ─── Settings collapse + validation borders ─── */
+.alg-panel__header--settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alg-settings-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--alg-border);
+  border-radius: 3px;
+  background: var(--alg-surface);
+  color: var(--alg-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.alg-settings-collapse-btn:hover {
+  border-color: var(--alg-accent);
+  color: var(--alg-accent);
+}
+
+.alg-panel--settings {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.alg-panel--settings-collapsed {
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-right: 10px;
+  z-index: 4;
+}
+
+.alg-panel--settings > .alg-panel__body,
+.alg-panel--settings .alg-settings-rail {
+  transition:
+    opacity 0.26s cubic-bezier(0.33, 1, 0.68, 1),
+    flex 0.32s cubic-bezier(0.33, 1, 0.68, 1),
+    max-height 0.32s cubic-bezier(0.33, 1, 0.68, 1),
+    padding 0.32s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.alg-panel--settings > .alg-panel__body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  opacity: 1;
+  /* `overflow-y: auto` here (not `hidden`) is critical: when the
+     settings panel is expanded and the form is taller than the
+     available column height, the user must be able to scroll down
+     to reach Pricing and the rest of the bottom-most fields.
+     Collapsed state hides this body via `max-height: 0`, so the
+     scrollbar is naturally invisible there. */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.alg-panel--settings-collapsed .alg-panel__number {
+  margin-right: 0;
+}
+
+.alg-settings-header__left {
+  display: flex;
+  /* `baseline` (not `center`) so the "01" mono-numeral sits on
+     the same baseline as the "Settings" serif title, matching the
+     "02" / "03" / "04" headers in the other panels. With `center`,
+     the small "01" floats up to the vertical middle of the big
+     title, visibly higher than the other column numerals. */
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* Collapsed state shows a gear icon button instead of the title text;
+   icons need vertical centering so we restore `center` only there. */
+.alg-panel__header--settings-collapsed .alg-settings-header__left {
+  align-items: center;
+}
+
+.alg-panel__header--settings-collapsed {
+  padding: 24px 4px 16px;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--alg-border);
+  box-sizing: border-box;
+}
+
+.alg-panel__header--settings-collapsed .alg-settings-header__left {
+  justify-content: center;
+}
+
+.alg-settings-gear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  border: 1px solid var(--alg-border);
+  border-radius: 3px;
+  background: var(--alg-surface);
+  color: var(--alg-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.alg-settings-gear-btn:hover {
+  border-color: var(--alg-accent);
+  color: var(--alg-accent);
+}
+
+.alg-settings-gear-btn--alert {
+  outline: 1px solid #ef4444;
+  outline-offset: 2px;
+  color: #ef4444;
+}
+
+.alg-panel--settings-collapsed .alg-settings-gear-btn--alert {
+  outline: none;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+/* Collapsed: rail only. Expanded: form body only (no icon column). */
+.alg-panel--settings:not(.alg-panel--settings-collapsed) .alg-settings-rail {
+  opacity: 0;
+  pointer-events: none;
+  flex: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.alg-panel--settings-collapsed .alg-panel__body {
+  opacity: 0;
+  pointer-events: none;
+  flex: 0;
+  max-height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.alg-panel--settings-collapsed .alg-settings-rail {
+  opacity: 1;
+  pointer-events: auto;
+  flex: 1;
+  max-height: 720px;
+  z-index: 2;
+}
+
+.alg-panel--settings:not(.alg-panel--settings-collapsed) > .alg-panel__body {
+  flex: 1;
+  max-height: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alg-panel--settings,
+  .alg-panel--settings > .alg-panel__body,
+  .alg-panel--settings .alg-settings-rail {
+    transition: none;
+  }
+}
+
+.alg-settings-section {
+  scroll-margin-top: 16px;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: 0 -4px 8px;
+}
+
+.alg-settings-section--pulse-missing {
+  animation: alg-settings-pulse-missing 0.75s ease-in-out 2;
+}
+
+.alg-settings-section--pulse {
+  animation: alg-settings-pulse 0.75s ease-in-out 2;
+}
+
+@keyframes alg-settings-pulse-missing {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 2px #ef4444, 0 0 14px rgba(239, 68, 68, 0.35);
+  }
+}
+
+@keyframes alg-settings-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(196, 149, 106, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--alg-accent), 0 0 12px rgba(196, 149, 106, 0.25);
+  }
+}
+
+.alg-settings-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 4px;
+  flex: 1;
+}
+
+.alg-panel--settings-collapsed .alg-settings-rail__btn.alg-field--missing {
+  outline: none;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+.alg-settings-rail__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--alg-border);
+  border-radius: 4px;
+  background: var(--alg-surface);
+  color: var(--alg-text);
+  cursor: pointer;
+  position: relative;
+  z-index: 3;
+}
+
+.alg-settings-rail__btn:hover {
+  border-color: var(--alg-muted);
+}
+
+.alg-field--missing,
+.alg-field--missing-block {
+  outline: 1px solid #ef4444 !important;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.alg-input.alg-field--missing {
+  border-bottom-color: #ef4444 !important;
+}
+
+.alg-var-tag--unnamed {
+  background: var(--alg-tag-mood-bg) !important;
+  color: var(--alg-tag-mood) !important;
+}
+
+/* @ImageN reference-image mention — distinct from user-defined
+   variables. Grey background + dark grey text so the prompt
+   author can tell at a glance "this is a pre-set asset, not a
+   per-render input". CRITICAL: zero padding/margin so the
+   chip's painted box matches the textarea's plain text exactly,
+   keeping the cursor caret aligned with what the user sees. */
+.alg-var-tag--ref-image {
+  /* Inline chip — must stay `display: inline` so it doesn't break
+     line-wrapping in the textarea. The thumbnail rides on top via
+     a `::before` pseudo (see below) so it adds visual richness
+     without changing layout.
+
+     Cursor-alignment trick for horizontal breathing room:
+     `padding: 0 3px` paints the chip's background 3px wider on
+     each side, but `margin: 0 -3px` pulls the next character's
+     flow position back to where it would be without padding.
+     Net flow width is therefore IDENTICAL to the natural
+     `@Image{N}` text width, so the textarea's caret stays
+     glyph-aligned. The painted background only spills 3px on
+     each side INTO surrounding whitespace, which is fine: the
+     @-detector enforces that mentions are always bordered by
+     whitespace (or BOF), so nothing readable ever gets covered.
+     Vertical breathing comes for free from line-height. */
+  position: relative;
+  padding: 0 3px;
+  margin: 0 -3px;
+  background: #d4d6da !important;
+  color: #2d2f33 !important;
+  border-radius: 3px;
+}
+/* Mini thumbnail at the left edge of the chip. Sized to roughly
+   match the `@` glyph's bounding box so it occludes only the `@`
+   and leaves "Image{N}" readable to the right. Absolute positioning
+   = zero layout impact = cursor alignment preserved char-for-char.
+   Falls back to a flat grey square when the underlying image was
+   deleted (the `--alg-ref-thumb-url` custom property is unset). */
+.alg-var-tag--ref-image::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 13px;
+  height: 13px;
+  background-color: #8c8f95;
+  background-image: var(--alg-ref-thumb-url, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  /* Sit above the underlying `@` glyph so it visually replaces
+     it — but the parent's natural text width is unchanged. */
+  z-index: 1;
+}
+/* Don't paint the thumbnail twice: the hit-layer overlay only needs
+   to be a click target, not a visual chip, so suppress the pseudo
+   there to avoid a doubled-up image. */
+.alg-var-tag--ref-image.alg-var-tag--hit::before {
+  display: none;
+}
+.alg-var-tag--ref-image-missing {
+  /* Reference image was deleted after the mention was inserted —
+     surface that with a dashed red ring (same outline trick as
+     the variable-name-missing state, no layout impact). */
+  outline: 1.5px dashed #ef4444;
+  outline-offset: 1px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * REFERENCE-IMAGE HOVER TOOLTIP ("Sprechblase")
+ *
+ * Triggered when the user hovers an `@Image{N}` chip in the prompt
+ * body. The wrapper is portalled to `document.body` and gets its
+ * top/left from JS (snapshotted at hover time from the chip's
+ * `getBoundingClientRect`). What CSS owns:
+ *   - the speech-bubble visual (rounded card, drop shadow, image
+ *     preview + caption)
+ *   - the directional pointer at the bottom (above-mode) or top
+ *     (below-mode) via a single rotated square pseudo-element
+ *   - the pop-in animation so the bubble doesn't appear flat
+ *
+ * The wrapper itself uses `transform: translateX(-50%)` so the
+ * caller only needs to pass the chip's HORIZONTAL CENTER as `left`
+ * and the bubble auto-centers on it. For above-mode we additionally
+ * pull the bubble up by its full height via `translateY(-100%)`.
+ * ────────────────────────────────────────────────────────────────── */
+.alg-ref-tooltip {
+  /* Card chrome */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 6px;
+  background: var(--alg-surface, #1a1c1e);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+  /* Sized just big enough to be useful without dominating the
+     viewport. Image stays inside via `max-*` and object-fit. */
+  width: 200px;
+  max-width: calc(100vw - 24px);
+}
+.alg-ref-tooltip--above {
+  /* Center horizontally on caller-supplied centerX, lift the
+     entire bubble above its supplied `top` coordinate (which is
+     the chip's TOP edge minus a tiny gap). */
+  transform: translate(-50%, -100%);
+  animation: alg-ref-tooltip-in-above 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.alg-ref-tooltip--below {
+  /* Center horizontally; supplied `top` is already the chip's
+     BOTTOM edge plus the gap, so no Y translate needed. */
+  transform: translateX(-50%);
+  animation: alg-ref-tooltip-in-below 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.alg-ref-tooltip__img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.alg-ref-tooltip__label {
+  font-family: var(--alg-font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--alg-muted, #a8acb3);
+  user-select: none;
+}
+
+/* Speech-bubble tip — a small rotated square pinned to the edge
+   nearest the chip. Borders match the bubble so two adjacent edges
+   form the visible "tip"; the other two edges are clipped by the
+   bubble's own border-radius/background. */
+.alg-ref-tooltip::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--alg-surface, #1a1c1e);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+}
+.alg-ref-tooltip--above::after {
+  /* Tip points DOWN at the chip — sits at the bubble's bottom
+     edge with the top + left borders hidden under the bubble. */
+  bottom: -5px;
+  border-top: none;
+  border-left: none;
+}
+.alg-ref-tooltip--below::after {
+  /* Tip points UP at the chip — sits at the bubble's top edge. */
+  top: -5px;
+  border-bottom: none;
+  border-right: none;
+}
+
+@keyframes alg-ref-tooltip-in-above {
+  0%   { opacity: 0; transform: translate(-50%, calc(-100% + 6px)); }
+  100% { opacity: 1; transform: translate(-50%, -100%); }
+}
+@keyframes alg-ref-tooltip-in-below {
+  0%   { opacity: 0; transform: translate(-50%, -6px); }
+  100% { opacity: 1; transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alg-ref-tooltip--above,
+  .alg-ref-tooltip--below {
+    animation: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * @-MENTION DROPDOWN
+ *
+ * Anchored to the bottom of the textarea-box. Appears the moment
+ * the user types `@` after whitespace inside the prompt and at
+ * least one reference image exists. Items list a thumbnail, a
+ * human label ("Image 1"), and the inserted token (`@Image1`) so
+ * the author can see exactly what'll be inserted.
+ * ────────────────────────────────────────────────────────────────── */
+.alg-mention-dropdown {
+  /* Floats via `position: fixed` with viewport-relative coordinates
+     supplied by the React effect — the anchor is the @ glyph
+     itself, so the dropdown sits DIRECTLY under the line where
+     the user typed @. Escapes any parent `overflow: hidden`.
+
+     Width hugs content (no box-width binding); height capped at
+     ~5 rows so a long reference list scrolls cleanly. */
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  min-width: 200px;
+  max-width: 260px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--alg-surface);
+  border: 1px solid var(--alg-border);
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  animation: alg-mention-dropdown-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Firefox + thin Webkit scrollbar with explicit colors so it's
+     actually visible against the dark surface. The default
+     thin/auto scrollbar can be near-invisible on certain themes. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--alg-border) transparent;
+}
+.alg-mention-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+.alg-mention-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+.alg-mention-dropdown::-webkit-scrollbar-thumb {
+  background: var(--alg-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.alg-mention-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--alg-muted);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+@keyframes alg-mention-dropdown-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.alg-mention-dropdown__header {
+  font-family: var(--alg-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--alg-hint);
+  padding: 6px 10px 4px;
+}
+.alg-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--alg-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+.alg-mention-item:hover,
+.alg-mention-item--active {
+  background: var(--alg-hover-bg);
+}
+.alg-mention-item__thumb {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  display: block;
+  background: rgba(255, 255, 255, 0.04);
+}
+.alg-mention-item__label {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 500;
+}
+.alg-mention-item__check {
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--alg-muted);
+  margin-left: auto;
+  line-height: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * NUMBER INPUT WITH CUSTOM STEPPERS
+ *
+ * Architecture (price input):
+ *   .alg-num-input                 — flex row: field-wrap | buttons
+ *     .alg-num-input__field-wrap   — owns the bottom-border underline
+ *       <input>                    — TRANSPARENT text + visible caret
+ *       .alg-num-input__visual     — overlay rendering the digits
+ *         .digits-stable           — prefix that didn't change
+ *         .digits-changing         — suffix that did (animated)
+ *     .alg-num-input__buttons      — molded ▲/▼ pair, single divider
+ *
+ * The underline is on the WRAPPER, not the input, so the roll
+ * animation translates only the digits and never the line. The
+ * digit-diff between prev and current value is computed in JSX so
+ * "0.0008 → 0.0009" only animates the trailing "9", and
+ * "0.0009 → 0.0010" animates "0010" (everything after the diff).
+ * ────────────────────────────────────────────────────────────────── */
+.alg-num-input {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Kill the browser's native spinner — we replace it with our own. */
+.alg-num-input__field::-webkit-outer-spin-button,
+.alg-num-input__field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* The field wrap owns the underline (and the focus state). The
+   input inside is borderless so the underline never moves with
+   any animation applied to the input itself. */
+.alg-num-input__field-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-bottom: 1px solid var(--alg-border);
+  transition: border-bottom-color 0.2s ease;
+}
+.alg-num-input__field-wrap:focus-within {
+  border-bottom-color: var(--alg-text);
+}
+
+.alg-num-input__field {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: none !important;          /* underline lives on the wrap */
+  background: transparent;
+  outline: none;
+  /* Hide the native rendered glyphs by default so the visual layer
+     is what the user sees; the caret stays visible via caret-color.
+     On focus we make the text opaque again so live typing reads
+     normally — the visual layer auto-hides via :focus-within. */
+  color: transparent;
+  caret-color: var(--alg-text);
+  font-family: var(--alg-font-serif);
+  font-size: 14px;
+}
+.alg-num-input__field-wrap:focus-within .alg-num-input__field {
+  color: var(--alg-text);
+}
+
+/* Visual-layer overlay — the actual digits the user sees when not
+   typing. Sits exactly on top of the input's text area; the input
+   keeps its padding so this matches its baseline. */
+.alg-num-input__visual {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  font-family: var(--alg-font-serif);
+  font-size: 14px;
+  color: var(--alg-text);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.alg-num-input__field-wrap:focus-within .alg-num-input__visual {
+  display: none;                    /* hand off to the live <input> */
+}
+.alg-num-input__placeholder { color: var(--alg-hint); }
+
+/* Stable digits never animate — they just sit there. The changing
+   suffix takes a keyed remount + slide keyframe so ONLY those
+   glyphs move. */
+.alg-num-input__digits-stable {
+  display: inline-block;
+}
+.alg-num-input__digits-changing {
+  display: inline-block;
+}
+.alg-num-input__digits-changing--up {
+  animation: alg-digit-roll-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.alg-num-input__digits-changing--down {
+  animation: alg-digit-roll-down 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Molded ▲/▼ pair — single rounded outer border, one shared
+   horizontal divider, no gap between the buttons. */
+.alg-num-input__buttons {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 26px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--alg-border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+.alg-num-input__btn {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--alg-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+}
+/* Single shared divider between the two buttons — the only line
+   that should be visible inside the molded container. */
+.alg-num-input__btn + .alg-num-input__btn {
+  border-top: 1px solid var(--alg-border);
+}
+.alg-num-input__btn:hover {
+  color: var(--alg-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.alg-num-input__btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+.alg-num-input__btn:focus-visible {
+  outline: 1px solid var(--alg-muted);
+  outline-offset: -2px;
+}
+
+/* ─── Integer stepper (Max-User-Images) ───
+   Horizontal molded triplet: [ − ] [ value ] [ + ]. Single rounded
+   outer border, one vertical divider on each side of the value,
+   per-digit roll animation on the value span. */
+.alg-int-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--alg-border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  height: 26px;
+}
+.alg-int-stepper__btn {
+  width: 26px;
+  border: none;
+  background: transparent;
+  color: var(--alg-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+}
+.alg-int-stepper__btn:hover {
+  color: var(--alg-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.alg-int-stepper__btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+.alg-int-stepper__value {
+  min-width: 28px;
+  padding: 0 4px;
+  border-left: 1px solid var(--alg-border);
+  border-right: 1px solid var(--alg-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--alg-font-mono);
+  font-size: 13px;
+  color: var(--alg-text);
+  overflow: hidden;
+}
+.alg-int-stepper__digits-stable {
+  display: inline-block;
+}
+.alg-int-stepper__digits-changing {
+  display: inline-block;
+}
+.alg-int-stepper__digits-changing--up {
+  animation: alg-digit-roll-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.alg-int-stepper__digits-changing--down {
+  animation: alg-digit-roll-down 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Shared digit-roll keyframes. Magnitude tuned to feel like a
+   "tick" (5px) rather than a slot-machine jump — the user asked
+   for "relativ fix". Reduced-motion users see no animation. */
+@keyframes alg-digit-roll-up {
+  0%   { transform: translateY(6px);  opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@keyframes alg-digit-roll-down {
+  0%   { transform: translateY(-6px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alg-num-input__digits-changing--up,
+  .alg-num-input__digits-changing--down,
+  .alg-int-stepper__digits-changing--up,
+  .alg-int-stepper__digits-changing--down {
+    animation: none;
+  }
+}
+
+/* Reference-image chip in the variables tab row — a tiny thumb
+   plus "Image N" label. Click opens the lightbox so the author
+   can verify which image they referenced. */
+.alg-prompt-var-tab--ref-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #d4d6da !important;
+  color: #2d2f33 !important;
+  border-color: #b9bcc1 !important;
+  padding: 2px 8px 2px 3px !important;
+}
+.alg-prompt-var-tab__thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .desktop-only {
     display: none !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * FINAL PROMPT TYPOGRAPHY LOCK
+ *
+ * Every text layer inside the prompt editor — the real <textarea>,
+ * its native ::placeholder, the colored overlay, the click-hit
+ * overlay, the inline plain-text spans, and the variable tag pills —
+ * MUST render at exactly the same font size and line-height. If you
+ * see the cursor visibly skewed away from the typed glyphs, it means
+ * a new rule has slipped in with a different font-size or
+ * line-height. Don't add another per-layer override; change the
+ * variables on `.alg-textarea-box` and let this rule cascade.
+ *
+ * This block beats any older bundled stylesheet that may still
+ * declare `font-size: 20px` / `line-height: 1.55` etc. on
+ * `.alg-textarea`.
+ * ────────────────────────────────────────────────────────────────── */
+.alg-page .alg-panel--prompt .alg-textarea-box textarea.alg-textarea,
+.alg-page .alg-panel--prompt .alg-textarea-box textarea.alg-textarea::placeholder,
+.alg-page .alg-panel--prompt .alg-textarea-box .alg-prompt-overlay,
+.alg-page .alg-panel--prompt .alg-textarea-box .alg-prompt-hit,
+.alg-page .alg-panel--prompt .alg-textarea-box .alg-prompt-plain,
+.alg-page .alg-panel--prompt .alg-textarea-box .alg-var-tag {
+  font-family: var(--font-outfit), "Outfit", system-ui, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 25px !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * GLOBAL POPUP ANIMATION
+ *
+ * Replaces the default tailwindcss-animate stack (fade-in + zoom-in-95
+ * + slide-from-top-[48%]) that ships with our shadcn AlertDialog /
+ * Dialog primitives. Reasons:
+ *   - The default stack mixes a slide and a zoom which can read as
+ *     "twitchy" on a centered modal.
+ *   - We want every popup in the app to feel the same and have a
+ *     single, deliberate motion: fade + gentle scale-in.
+ *   - The expo-out curve (cubic-bezier(0.16, 1, 0.3, 1)) gives that
+ *     "pop" on entry without overshooting, then a fast linear-out
+ *     dismiss so closing never feels sluggish.
+ *
+ * Targets `[role="dialog"]` and `[role="alertdialog"]`, both of which
+ * Radix sets on the content panel. The translate(-50%, -50%) is the
+ * baseline transform Radix applies for centering — the keyframes
+ * preserve it so the popup stays centered while it scales.
+ * ────────────────────────────────────────────────────────────────── */
+@keyframes alg-popup-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes alg-popup-out {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+}
+@keyframes alg-popup-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes alg-popup-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+[role="alertdialog"][data-state="open"],
+[role="dialog"][data-state="open"] {
+  animation: alg-popup-in 260ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+[role="alertdialog"][data-state="closed"],
+[role="dialog"][data-state="closed"] {
+  animation: alg-popup-out 170ms cubic-bezier(0.4, 0, 1, 1) !important;
+}
+/* Backdrop fade matches the panel timing so they leave together. */
+[data-radix-dialog-overlay][data-state="open"],
+[data-radix-alert-dialog-overlay][data-state="open"] {
+  animation: alg-popup-fade-in 240ms ease-out !important;
+}
+[data-radix-dialog-overlay][data-state="closed"],
+[data-radix-alert-dialog-overlay][data-state="closed"] {
+  animation: alg-popup-fade-out 180ms ease-in !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [role="alertdialog"][data-state],
+  [role="dialog"][data-state],
+  [data-radix-dialog-overlay][data-state],
+  [data-radix-alert-dialog-overlay][data-state] {
+    animation: none !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * REFERENCE IMAGES — single compact row
+ *
+ * Layout goals (per the latest design pass):
+ *   1. Whole zone fits in ONE short row — no separate meta line.
+ *   2. The leading tile is the "+" click target.
+ *   3. Helper text "Click or drag images here for reference" sits
+ *      INLINE to the right of "+" while there are no images, and
+ *      vanishes the moment the user adds the first image (saving
+ *      vertical space, the row keeps the same height regardless).
+ *   4. During an active drag the same inline slot mutates into the
+ *      live drop hint ("Drop here to add as image #N").
+ *   5. Total zone height is locked so adding / removing images never
+ *      shifts the rest of the panel.
+ * ────────────────────────────────────────────────────────────────── */
+/* Reference-images zone — completely chrome-less. No outer dashed
+   border, no padding, no background frame. The drop-active state
+   is the ONLY visual the zone itself ever paints, and only while
+   an OS drag is hovering. Everything else (the "+" tile, the
+   hint, the cascading thumbnails) renders inline against the
+   parent settings-box. */
+.alg-ref-zone {
+  --alg-ref-tile: 36px;        /* tile edge length */
+  --alg-ref-overlap: 22px;     /* overlap between consecutive cards */
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.alg-ref-zone--drop-active {
+  background: rgba(199, 102, 58, 0.06);
+  outline: 1px dashed var(--alg-accent);
+  outline-offset: 2px;
+}
+
+/* Single non-scrolling row: [+] [hint OR stack]. Height locked by
+   the tile so the layout never reflows when images appear. */
+.alg-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--alg-ref-tile);
+  overflow: visible;           /* let × buttons hang outside; NO scroll */
+}
+
+/* "+" add tile — solid surface chip with a thin 1px outline so it
+   reads as a discrete affordance against the dark settings-box.
+   Hover swaps the outline + glyph to the accent color, no fill
+   change beyond `--alg-hover-bg` for subtle feedback. */
+.alg-ref-add {
+  flex: 0 0 var(--alg-ref-tile);
+  width: var(--alg-ref-tile);
+  height: var(--alg-ref-tile);
+  border-radius: 6px;
+  border: 1px solid var(--alg-border);
+  background: var(--alg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--alg-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.alg-ref-add:hover:not(:disabled) {
+  color: var(--alg-accent);
+  border-color: var(--alg-accent);
+  background: var(--alg-hover-bg);
+}
+.alg-ref-add:active:not(:disabled) { transform: scale(0.94); }
+.alg-ref-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Cascading card-stack — child slots overlap the previous sibling
+   by `--alg-ref-overlap`. Visible width per added card =
+   tile − overlap. With tile=36 / overlap=22 → 14 px per extra card,
+   so 10 cards pack into 36 + 9·14 = 162 px. Comfortably fits the
+   Settings box without ever needing horizontal scroll. */
+.alg-ref-stack {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.alg-ref-stack > .alg-ref-slot { margin-left: calc(var(--alg-ref-overlap) * -1); }
+.alg-ref-stack > .alg-ref-slot:first-child { margin-left: 0; }
+
+/* Inline hint to the right of the "+" tile. Only rendered while
+   the row is empty (or while an external drag is over an empty
+   row), so it disappears the instant the first image lands —
+   exactly the behaviour requested. `min-width: 0` lets the
+   surrounding flex container clamp its width without spilling. */
+.alg-ref-hint {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--alg-muted);
+  letter-spacing: 0.02em;
+  /* Allow the hint to wrap onto a second line when the box is
+     narrow (e.g. inside the Settings panel), instead of clipping
+     with an ellipsis. The fixed `+` tile keeps the row height
+     stable; the hint just stacks vertically inside the remaining
+     space. `min-width: 0` is still required so flex doesn't try
+     to keep the span at its intrinsic single-line width. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1 1 0;
+  transition: color 0.15s ease;
+  user-select: none;
+  pointer-events: none;        /* never blocks clicks on "+" */
+}
+.alg-ref-zone--drop-active .alg-ref-hint,
+.alg-ref-hint--drop { color: var(--alg-accent); }
+
+/* Drop-position enumeration — surfaced ONLY while a drag is in
+   flight (either an external OS file drag or an internal slot
+   reorder). Sits flush at the bottom of the zone, doesn't push
+   the row above, and disappears as soon as the drag ends so the
+   resting layout stays compact. */
+.alg-ref-zone__meta {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--alg-border);
+  font-size: 10px;
+  font-family: var(--alg-font-mono);
+  letter-spacing: 0.05em;
+  color: var(--alg-accent);
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+  animation: alg-popup-fade-in 0.16s ease-out;
+}
+
+/* Image thumbnail tile — same outer dimensions as the "+" tile.
+   White ring keeps adjacent tiles visually separated when they
+   overlap inside the cascading stack. z-index management: each
+   later sibling sits on top of the previous (natural DOM order),
+   and on hover/focus the tile pops to the absolute front so its
+   "×" remove button stays clickable even from beneath the stack. */
+.alg-ref-slot {
+  flex: 0 0 var(--alg-ref-tile);
+  width: var(--alg-ref-tile);
+  height: var(--alg-ref-tile);
+  border-radius: 5px;
+  position: relative;
+  z-index: 1;
+  cursor: grab;
+  overflow: visible;
+  box-shadow: 0 0 0 1.5px var(--alg-surface);
+  transition: transform 0.12s ease, box-shadow 0.15s ease, z-index 0s;
+}
+.alg-ref-slot:hover,
+.alg-ref-slot:focus-within { z-index: 10; transform: translateY(-2px); }
+.alg-ref-slot:active { cursor: grabbing; }
+.alg-ref-slot--dragging { opacity: 0.45; z-index: 20; }
+.alg-ref-slot--drop-target {
+  outline: 2px solid var(--alg-accent);
+  outline-offset: 2px;
+  z-index: 15;
+}
+.alg-ref-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+  pointer-events: none;
+  display: block;
+}
+.alg-ref-slot__remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--alg-dark);
+  color: var(--alg-white);
+  border: 1px solid var(--alg-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  padding: 0;
+}
+.alg-ref-slot:hover .alg-ref-slot__remove,
+.alg-ref-slot:focus-within .alg-ref-slot__remove { opacity: 1; }
+.alg-ref-slot__remove:hover { transform: scale(1.12); }
+
+/* ──────────────────────────────────────────────────────────────────
+ * REFERENCE-IMAGE LIGHTBOX (fullscreen preview)
+ *
+ * Opens via a plain CLICK on a reference-image slot (drag&drop
+ * doesn't trigger this — the browser swallows the trailing click
+ * after a real drag). All overlay chrome (counter, close button,
+ * prev/next arrows) is hidden by default and fades in only when
+ * the cursor is inside the lightbox, so the image itself is the
+ * focal point. Backdrop click, Escape key, or the "×" all close
+ * the viewer; ←/→ keys + the on-screen arrows navigate.
+ * ────────────────────────────────────────────────────────────────── */
+.alg-ref-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  /* Almost-opaque backdrop + heavy blur — guarantees that no
+     underlying chrome (navbar, panels, toasts) shows through. */
+  background: rgba(8, 8, 10, 0.96);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: alg-popup-fade-in 0.18s ease-out;
+}
+
+/* When the lightbox is mounted, the document body carries
+   `.alg-ref-preview-open`. The lightbox itself is portaled to
+   document.body and sits on z-index 9999 — it already covers
+   everything visually thanks to the near-opaque backdrop. This
+   rule is belt-and-suspenders: it explicitly hides + greys-out
+   the global navbar (which uses inline styles, no className) and
+   any other persistent chrome (panel headers, [role="banner"]
+   landmarks) so even at the edges of the fade-in/out animation
+   no chrome can peek through.
+
+   `body > header` matches the site Navbar regardless of whether
+   it sits directly under <body> or under a same-name wrapper. */
+body.alg-ref-preview-open .alg-navbar,
+body.alg-ref-preview-open .alg-panel__header,
+body.alg-ref-preview-open header[role="banner"],
+body.alg-ref-preview-open > header,
+body.alg-ref-preview-open > * > header:first-child {
+  opacity: 0;
+  visibility: hidden;
+  filter: grayscale(1);
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+
+.alg-ref-preview__img {
+  max-width: min(92vw, 1400px);
+  max-height: 86vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  cursor: default;
+  user-select: none;
+  /* Direction-specific keyframes are picked via the `--init`,
+     `--next`, `--prev` modifier classes below. We DO NOT use
+     `alg-popup-in` here — that one bakes in `translate(-50%, -50%)`
+     for Radix-style centering, which makes the image fly from the
+     top-left corner inside our flexbox-centered backdrop. */
+}
+.alg-ref-preview__img--init {
+  animation: alg-ref-preview-pop 0.24s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.alg-ref-preview__img--next {
+  animation: alg-ref-preview-slide-next 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.alg-ref-preview__img--prev {
+  animation: alg-ref-preview-slide-prev 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes alg-ref-preview-pop {
+  0%   { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes alg-ref-preview-slide-next {
+  /* Next image enters from the RIGHT (positive X), settles at 0. */
+  0%   { opacity: 0; transform: translateX(60px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes alg-ref-preview-slide-prev {
+  /* Prev image enters from the LEFT (negative X), settles at 0. */
+  0%   { opacity: 0; transform: translateX(-60px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Hover-reveal chrome — close button + side navigation arrows.
+   The top-center counter is intentionally NOT in this group so it
+   stays visible at all times (the user wants to know which image
+   they're looking at, even when the mouse is idle or they're
+   navigating via keyboard). */
+.alg-ref-preview__close,
+.alg-ref-preview__nav {
+  opacity: 0;
+  transition: opacity 0.18s ease, background 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+.alg-ref-preview:hover .alg-ref-preview__close,
+.alg-ref-preview:hover .alg-ref-preview__nav,
+.alg-ref-preview:focus-within .alg-ref-preview__close,
+.alg-ref-preview:focus-within .alg-ref-preview__nav {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── Lightbox controls — readable against the dark backdrop ───
+   Earlier these used rgba(255,255,255,0.06–0.14) for both fill and
+   border, which on a near-pure-black backdrop reads as essentially
+   invisible (per the user's "unkennbar in dark mode" report).
+   Now: dark frosted-glass pill (matches the panel palette so it
+   doesn't feel like a foreign element) with a much more visible
+   white-ish border, pure-white glyph color and a subtle drop-shadow
+   that lifts each control off the backdrop. backdrop-filter keeps
+   them legible even when an image's edge bleeds under them. */
+.alg-ref-preview__counter {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font-family: var(--alg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  user-select: none;
+  white-space: nowrap;
+  opacity: 1;
+  pointer-events: none;
+  animation: alg-popup-fade-in 0.22s ease-out;
+}
+
+/* Top-right "×" — square button matching the bridge-arrow scale. */
+.alg-ref-preview__close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.alg-ref-preview__close:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: scale(1.06);
+}
+.alg-ref-preview__close:active {
+  transform: scale(0.96);
+}
+
+/* Side prev/next — circular, vertically centered, hidden when
+   only one image exists (rendered conditionally). */
+.alg-ref-preview__nav {
+  position: absolute;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transform: translateY(-50%);   /* keep vertical centering */
+}
+.alg-ref-preview__nav--prev { left: 24px; }
+.alg-ref-preview__nav--next { right: 24px; }
+.alg-ref-preview__nav:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-50%) scale(1.06);
+}
+.alg-ref-preview__nav:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+/* Reduced-motion users get instant transitions, no spring. */
+@media (prefers-reduced-motion: reduce) {
+  .alg-ref-preview,
+  .alg-ref-preview__img,
+  .alg-ref-preview__img--init,
+  .alg-ref-preview__img--next,
+  .alg-ref-preview__img--prev {
+    animation: none;
   }
 }

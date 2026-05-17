@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useActiveWalletChain } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
@@ -21,14 +23,371 @@ import {
   Sparkles,
   AlertTriangle,
   Zap,
-  Upload,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Type,
+  Tags,
+  Cpu,
+  Ratio,
+  ImageIcon,
+  DollarSign,
+  Trash2,
+  X,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import nlp from "compromise";
+import { getVariableColors, pickVariableColorIndex } from "@/lib/variableColors";
 
+
+const EDITOR_DRAFT_KEY = "symphora-editor-draft-v1";
+const OWNERSHIP_NOTICE_DISMISS_KEY = "symphora-ownership-notice-dismissed-v1";
+
+// Horizontal padding (px) inside the prompt textarea / overlay box.
+// MUST equal `--alg-prompt-pad-x` in `app/editor/algency-editor.css`.
+// Used by `syncPromptOverlayMetrics` to compute the overlay's right
+// padding so its text wraps at the same column as the textarea.
+const PROMPT_PAD_X = 18;
+
+/**
+ * True iff the prompt textarea contains real, user-typed content.
+ * Empty string, pure whitespace, and `[brackets]`-only bodies all return
+ * false so the "Push prompt to Verify" arrow can be greyed out and
+ * blocked correctly.
+ */
+function hasSubstantivePromptBody(body: string): boolean {
+  return body.replace(/\[[^\]]*\]/g, "").trim().length > 0;
+}
+
+/**
+ * Inline-tag pattern recognised inside the prompt body. Two forms
+ * are supported:
+ *   - `[varName]`         → user-defined variables (variable column)
+ *   - `@Image{N}`         → reference-image mentions (Settings list)
+ *
+ * Both are split out by the overlay renderer so they can be styled
+ * as colored / grey chips while remaining character-aligned with
+ * the underlying textarea text. The capturing group keeps the
+ * delimiters in the result so we can re-classify each part.
+ */
+const PROMPT_INLINE_TOKEN_RE = /(\[[^\]]*\]|@Image\d+)/g;
+const REF_IMAGE_MENTION_RE = /^@Image(\d+)$/;
+const REF_IMAGE_MENTION_GLOBAL_RE = /@Image(\d+)/g;
+
+/**
+ * Replaces every `@ImageN` inline token in the prompt body with the
+ * canonical "Reference image N" wording before the body crosses any
+ * boundary the user can't undo from (DB save, generate request).
+ *
+ * The `@ImageN` form is purely an in-editor convenience — it lets
+ * the prompt author point at one of the stored reference images
+ * without polluting the variables column. By the time the body is
+ * persisted or sent to an AI provider it must read like normal
+ * prose, so we expand it server-bound.
+ */
+function expandReferenceImageMentions(body: string): string {
+  return body.replace(REF_IMAGE_MENTION_GLOBAL_RE, "Reference image $1");
+}
+
+/**
+ * Walks backwards from `caret` looking for an active `@`-mention
+ * being typed. Returns null unless the caret is sitting inside a
+ * fresh `@…` token (no whitespace, no `[`/`]`, no second `@`)
+ * whose `@` is at the start of the body or directly after
+ * whitespace. Used to drive the reference-image dropdown.
+ */
+function detectMentionAtCaret(
+  body: string,
+  caret: number
+): { startPos: number; query: string } | null {
+  let i = caret - 1;
+  while (i >= 0) {
+    const ch = body[i];
+    if (ch === "@") {
+      const prev = i === 0 ? null : body[i - 1];
+      if (prev === null || /\s/.test(prev)) {
+        const query = body.substring(i + 1, caret);
+        if (!/[\s@\[\]]/.test(query)) {
+          return { startPos: i, query };
+        }
+      }
+      return null;
+    }
+    if (/[\s\[\]]/.test(ch)) return null;
+    i--;
+  }
+  return null;
+}
+
+/**
+ * Returns the viewport-relative pixel coordinates of the character
+ * at `position` inside `textarea`. Uses the well-known "mirror div"
+ * technique: render an off-screen `<div>` that copies every text-
+ * affecting computed style of the textarea, drop the substring
+ * up to `position` into it, mark `position` with a 1-char `<span>`,
+ * and read back the span's offset.
+ *
+ * The mirror only needs to be on-screen for one synchronous read,
+ * so we append/remove it inside the same call. textarea.scrollTop /
+ * scrollLeft are subtracted so the result tracks the visible caret
+ * even when the textarea has been scrolled internally.
+ *
+ * Used by the @-mention dropdown to anchor itself directly under
+ * the `@` glyph instead of the textarea's bottom edge.
+ */
+function getCaretCoordinates(
+  textarea: HTMLTextAreaElement,
+  position: number
+): { top: number; left: number; height: number } {
+  const computed = window.getComputedStyle(textarea);
+  const div = document.createElement("div");
+  const style = div.style;
+
+  /* Properties that influence text wrapping/measurement and must
+     match the source textarea exactly for the mirror to render
+     identical line breaks. Any deviation (e.g. font-size, padding,
+     letter-spacing) puts the caret in the wrong place. */
+  const propsToCopy: ReadonlyArray<string> = [
+    "direction", "boxSizing", "width", "height",
+    "overflowX", "overflowY",
+    "borderTopWidth", "borderRightWidth",
+    "borderBottomWidth", "borderLeftWidth",
+    "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "fontStyle", "fontVariant", "fontWeight", "fontStretch",
+    "fontSize", "fontSizeAdjust", "lineHeight", "fontFamily",
+    "textAlign", "textTransform", "textIndent",
+    "letterSpacing", "wordSpacing", "tabSize",
+    "whiteSpace", "wordBreak", "wordWrap",
+  ];
+
+  style.position = "absolute";
+  style.visibility = "hidden";
+  style.top = "0";
+  style.left = "0";
+  style.whiteSpace = "pre-wrap";
+  style.wordWrap = "break-word";
+  style.overflow = "hidden";
+
+  const styleRec = style as unknown as Record<string, string>;
+  const computedRec = computed as unknown as Record<string, string>;
+  for (const prop of propsToCopy) {
+    const v = computedRec[prop];
+    if (typeof v === "string") styleRec[prop] = v;
+  }
+
+  div.textContent = textarea.value.substring(0, position);
+
+  /* Single-char span at the position. We use a non-empty marker
+     (".") if `position` sits at end-of-input; otherwise the span
+     would have zero height and offsetTop would lie. */
+  const span = document.createElement("span");
+  span.textContent = textarea.value.substring(position) || ".";
+  div.appendChild(span);
+
+  document.body.appendChild(div);
+  const spanTop = span.offsetTop;
+  const spanLeft = span.offsetLeft;
+  const lineHeight =
+    parseFloat(computed.lineHeight) ||
+    parseFloat(computed.fontSize) * 1.2 ||
+    20;
+  document.body.removeChild(div);
+
+  const taRect = textarea.getBoundingClientRect();
+  return {
+    top: taRect.top + spanTop - textarea.scrollTop,
+    left: taRect.left + spanLeft - textarea.scrollLeft,
+    height: lineHeight,
+  };
+}
 
 /* ─── Types ─── */
 type VariableType = "text" | "checkbox" | "image";
 type PromptType = "free-prompt" | "premium-prompt";
+type SettingsSectionId = "title" | "category" | "models" | "ratio" | "references" | "price";
+
+interface EditorDraft {
+  promptData: { title: string; body: string; type: PromptType; tags: string[] };
+  variables: PromptVariable[];
+  modelsSelected: string[];
+  ratioSelected: string;
+  maxImages: number;
+  referenceImages: string[];
+  promptPrice: number;
+  settingsCollapsed: boolean;
+  savedAt: number;
+}
+
+function buildFullToken(inner: string): string {
+  return `[${inner}]`;
+}
+
+function collectVariableLabels(
+  variables: PromptVariable[],
+  excludeVarId?: string
+): Set<string> {
+  const labels = new Set<string>();
+  for (const v of variables) {
+    if (excludeVarId && v.id === excludeVarId) continue;
+    const name = v.name?.trim();
+    if (name) labels.add(name.toLowerCase());
+    const inner = v.fullToken.match(/^\[([^\]]*)\]$/)?.[1]?.trim();
+    if (inner) labels.add(inner.toLowerCase());
+  }
+  return labels;
+}
+
+function buildLabelRegistry(
+  variables: PromptVariable[],
+  body: string,
+  excludeVarId?: string
+): Set<string> {
+  const labels = collectVariableLabels(variables, excludeVarId);
+  const regex = /\[([^\]]*)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    const inner = match[1].trim();
+    if (inner) labels.add(inner.toLowerCase());
+  }
+  return labels;
+}
+
+/** Mutates `labels` and reserves the chosen label (safe for rapid successive calls). */
+function allocateUniqueVariableLabel(labels: Set<string>, base: string): string {
+  const seed = base.trim() || "Variable";
+  const seedKey = seed.toLowerCase();
+  if (!labels.has(seedKey)) {
+    labels.add(seedKey);
+    return seed;
+  }
+  let n = 2;
+  let candidate = `${seed}${n}`;
+  while (labels.has(candidate.toLowerCase())) {
+    n += 1;
+    candidate = `${seed}${n}`;
+  }
+  labels.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function takeUniqueVariableLabel(
+  registryRef: { current: Set<string> },
+  base: string,
+  variables: PromptVariable[],
+  body: string,
+  excludeVarId?: string
+): string {
+  const labels = buildLabelRegistry(variables, body, excludeVarId);
+  registryRef.current.forEach((label) => labels.add(label));
+  const result = allocateUniqueVariableLabel(labels, base);
+  registryRef.current = labels;
+  return result;
+}
+
+function findVariableByName(
+  name: string,
+  variables: PromptVariable[],
+  excludeVarId: string
+): PromptVariable | undefined {
+  const lower = name.trim().toLowerCase();
+  if (!lower) return undefined;
+  return variables.find(
+    (v) =>
+      v.id !== excludeVarId &&
+      Boolean(v.name?.trim()) &&
+      v.name.trim().toLowerCase() === lower
+  );
+}
+
+/** Resolved inner text for [brackets] when not editing (never empty if default exists) */
+function getTokenInner(
+  variable: PromptVariable,
+  editingNameVarId: string | null
+): string {
+  if (editingNameVarId === variable.id) {
+    return variable.name ?? "";
+  }
+  const named = variable.name?.trim();
+  if (named) return named;
+  if (variable.type === "checkbox") {
+    return variable.defaultValue
+      ? String(variable.description || variable.label || "")
+      : "";
+  }
+  return String(variable.defaultValue ?? variable.label ?? "");
+}
+
+/** Prompt body token — empty name never becomes []; keeps default in editor */
+function getPromptTokenInner(
+  variable: PromptVariable,
+  editingNameVarId: string | null
+): string {
+  if (editingNameVarId === variable.id) {
+    const named = variable.name?.trim();
+    if (named) return named;
+  }
+  return getTokenInner(variable, null);
+}
+
+function replaceTokenInBody(body: string, oldToken: string, newToken: string): string {
+  if (!oldToken || oldToken === newToken) return body;
+  return body.split(oldToken).join(newToken);
+}
+
+function getVariableReplacementText(variable: PromptVariable): string {
+  if (variable.type === "checkbox") {
+    return String(variable.defaultValue ? variable.description : "");
+  }
+  return String(variable.defaultValue ?? variable.label ?? "");
+}
+
+function getVariableDeleteLabel(variable: PromptVariable): string {
+  const named = variable.name?.trim();
+  if (named) return `[${named}]`;
+  return variable.fullToken;
+}
+
+function formatVerifySnapshotValue(
+  val: string,
+  variable?: PromptVariable
+): string {
+  if (!variable) return val?.trim() || "—";
+  if (variable.type === "checkbox") {
+    const on = val === "on" || val === "true";
+    return on ? variable.description || "Yes" : "Off";
+  }
+  return val?.trim() || "—";
+}
+
+function normalizeVariable(v: PromptVariable, colorContext: PromptVariable[] = []): PromptVariable {
+  let next: PromptVariable =
+    v.type !== "image"
+      ? v
+      : {
+          ...v,
+          type: "text",
+          defaultValue:
+            v.description ||
+            (typeof v.defaultValue === "string" && !v.defaultValue.startsWith("data:")
+              ? v.defaultValue
+              : v.label),
+        };
+  if (next.colorIndex === undefined) {
+    next = { ...next, colorIndex: pickVariableColorIndex(colorContext) };
+  }
+  return next;
+}
 
 interface PromptVariable {
   id: string;
@@ -41,6 +400,14 @@ interface PromptVariable {
   required: boolean;
   position: number;
   fullToken: string; // The literal string in the prompt (e.g. "[red car]")
+  colorIndex?: number;
+  nameBlurEmpty?: boolean;
+  /* True iff the user tried to "Push to Verify" while this variable
+     had an empty/whitespace name AND then dismissed the alert. The
+     flag draws a red border around the variable card and its
+     in-prompt tag until the user actually types a name. Cleared
+     automatically the moment `name.trim()` becomes non-empty. */
+  nameMissingHighlighted?: boolean;
 }
 
 interface VersionCard {
@@ -67,6 +434,11 @@ export default function AlgencyPromptEditor() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const account = useActiveAccount();
+  /* Live EVM chain the user's wallet is currently connected to. Updates
+     when the user switches networks in MetaMask / their wallet, so the
+     "via …" line in the Verify panel always reflects the network the
+     payment will actually go through right now. */
+  const activeWalletChain = useActiveWalletChain();
   const { connected: solanaAdapterConnected } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
   // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
@@ -76,10 +448,69 @@ export default function AlgencyPromptEditor() {
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
+  /* Human-readable name of the network the user is paying on right
+     now. Source-of-truth priority:
+       1. Solana adapter / Turnkey email -> the Solana mainnet/devnet
+          name from PAYMENT_CHAINS (which holds the canonical labels).
+       2. Live EVM chain reported by the connected wallet (changes if
+          the user switches networks in MetaMask).
+       3. The `selectedChain` (best-balance chain) name as a fallback
+          before the wallet has reported its chain.
+     The Verify panel renders this string after "via " so the user
+     always sees the actual network — never the payment-protocol name
+     ("x402") or the wallet-provider name ("Thirdweb"). */
+  const currentNetworkName = solanaConnected
+    ? PAYMENT_CHAINS["solana"].name
+    : activeWalletChain?.name ??
+      PAYMENT_CHAINS[selectedChain]?.name ??
+      selectedChain;
   const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const hitOverlayRef = useRef<HTMLDivElement>(null);
+  /* Wrapping box around the textarea — used as the positioning
+     anchor for the @-mention dropdown. We compute the dropdown's
+     fixed-position coordinates off this ref so the popup can float
+     above panels with `overflow: hidden` (which would otherwise
+     clip an absolutely positioned child). */
+  const textareaBoxRef = useRef<HTMLDivElement>(null);
+  const [mentionAnchor, setMentionAnchor] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const settingsBodyRef = useRef<HTMLDivElement>(null);
+  const settingsSectionRefs = useRef<Partial<Record<SettingsSectionId, HTMLDivElement>>>({});
+  const settingsHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsExpandDelayRef = useRef(0);
+  const variablesScrollRef = useRef<HTMLDivElement>(null);
+  const variableCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const variablePulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVarScrollRef = useRef<string | null>(null);
+  const variableLabelRegistryRef = useRef<Set<string>>(new Set());
+  const [promptPrice, setPromptPrice] = useState(0);
+  /* Direction of the most recent stepper-button press on the price
+     input. Drives a brief slide-in animation on the number text so
+     a tap on ▲/▼ is reflected visually (a "roll" up or down) even
+     though the value change is tiny. Null when idle. */
+  const [priceRollDir, setPriceRollDir] = useState<"up" | "down" | null>(null);
+  const priceRollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Snapshot of the price value AT THE START of the last roll.
+     Used by the visual-layer renderer to diff prev vs current and
+     animate ONLY the digits that actually changed (slot-machine
+     style — the user explicitly does not want the whole number to
+     move). Updated synchronously inside handlePriceStep and reset
+     by the timeout that ends the animation. */
+  const prevPriceRollSnapshotRef = useRef<number>(0);
+  const priceRollKeyRef = useRef(0);
+
+  /* Same pair of refs for the integer Max-User-Images stepper so it
+     gets identical "only the changing digit moves" behaviour. */
+  const [maxImagesRollDir, setMaxImagesRollDir] = useState<"up" | "down" | null>(null);
+  const maxImagesRollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMaxImagesRollSnapshotRef = useRef<number>(10);
+  const maxImagesRollKeyRef = useRef(0);
 
   /* ─── State: DB Models ─── */
   const { data: fetchedModels = [] } = useQuery({
@@ -110,6 +541,60 @@ export default function AlgencyPromptEditor() {
   });
 
   const [variables, setVariables] = useState<PromptVariable[]>([]);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const [refImageDrag, setRefImageDrag] = useState<{
+    from: number | null;
+    over: number | null;
+  }>({ from: null, over: null });
+  /* True iff the user is currently dragging one or more files from
+     OUTSIDE the app (e.g. desktop) over the reference-images zone.
+     Used to highlight the dashed border AND to show the live
+     "Drop here as image #N" hint at the bottom of the zone. We track
+     it via a counter ref because dragenter/dragleave fire many times
+     as the cursor crosses child elements, and naive boolean state
+     would flicker. */
+  const [externalDragActive, setExternalDragActive] = useState(false);
+  const externalDragCounterRef = useRef(0);
+  /* Index of the reference image currently shown in the fullscreen
+     lightbox. `null` = lightbox closed. Opening is triggered by a
+     plain CLICK on a slot — drag-and-drop reorders are mutually
+     exclusive because the browser suppresses the trailing `click`
+     event when a drag has actually started. */
+  const [refPreviewIndex, setRefPreviewIndex] = useState<number | null>(null);
+  /* Direction of the LAST navigation, used to pick the slide-in
+     keyframe so each new image enters from the correct side
+     instead of fading from a corner. "init" = first open (spring
+     pop), "next" = arrow right (slide from right), "prev" = arrow
+     left (slide from left). */
+  const [refPreviewDirection, setRefPreviewDirection] = useState<"init" | "next" | "prev">("init");
+  /* Hover-tooltip ("Sprechblase") for `@Image{N}` chips inside the
+     prompt body. When the user hovers a chip in the hit-overlay we
+     snapshot the chip's viewport rect + the 1-based image index and
+     render a portalled bubble pointing back at the chip with a
+     larger preview of the actual reference image. Cleared on mouse
+     leave. Anchor rect is captured at hover-time only — if the user
+     scrolls while hovering, mouseleave fires anyway and the bubble
+     unmounts, so we don't need a follow-the-element loop. */
+  const [refTooltip, setRefTooltip] = useState<{
+    imageIndex: number; // 1-based, matches `@Image{N}`
+    anchor: { top: number; bottom: number; centerX: number };
+  } | null>(null);
+  /* Reference-image @-mention dropdown state. Triggered when the
+     user types `@` directly after whitespace inside the prompt
+     textarea — the dropdown lists every uploaded reference image
+     and inserts an `@Image{N}` token at the caret on selection.
+       open       — visible iff caret is inside a fresh @-mention
+       query      — text typed AFTER the @, used to filter results
+       startPos   — body offset of the leading @ (replacement anchor)
+       highlighted — index into the (filtered) match list */
+  const [mention, setMention] = useState<{
+    open: boolean;
+    query: string;
+    startPos: number;
+    highlighted: number;
+  }>({ open: false, query: "", startPos: -1, highlighted: 0 });
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const draftReadyRef = useRef(false);
 
   const [versions, setVersions] = useState<VersionCard[]>([]);
 
@@ -118,6 +603,19 @@ export default function AlgencyPromptEditor() {
     cursorPos: 0,
     selectedVariableId: "lighting" as string | null,
     maxImages: 10,
+    settingsCollapsed: false,
+    settingsReleaseAttempted: false,
+    settingsPendingSection: null as SettingsSectionId | null,
+    settingsHighlightSection: null as SettingsSectionId | null,
+    settingsPulseOnNavigate: true,
+    pricePerRenderReviewed: false,
+    variablePulsingId: null as string | null,
+    variableDeleteId: null as string | null,
+    variableNameConflict: null as {
+      editingVarId: string;
+      conflictName: string;
+      existingVarId: string;
+    } | null,
     currentPromptId: null as string | null,
     showAvatarDropdown: false,
     tooltip: null as { x: number, y: number, text: string } | null,
@@ -127,9 +625,24 @@ export default function AlgencyPromptEditor() {
     isEditingVersion: false,
     editingVersionId: null as number | null,
     editingNameVarId: null as string | null,
+    ownershipNoticeDismissed: false,
+    /* Drives the "Please set up variable names first!" alert that
+       blocks the forward arrow when one or more variables still
+       have an empty name. Toggled by the arrow's onClick and
+       cleared by the alert's OK button. */
+    variableNameMissingAlertOpen: false,
+    /* Holds the verify-card id whose snapshot is about to overwrite
+       the current variable defaults. Non-null = the "Are you sure?"
+       confirmation dialog is open. The dialog's "Yes" button reads
+       this id, performs the overwrite, and clears the field. */
+    editOverwriteConfirmCardId: null as number | null,
   });
 
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  /* Drives the slide-down/fade-out animation on the ownership notice.
+     Stays `true` only between the X click and the unmount (~280ms),
+     after which `ui.ownershipNoticeDismissed` removes the element. */
+  const [noticeLeaving, setNoticeLeaving] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const walletConnected = Boolean(account?.address) || solanaConnected;
@@ -141,6 +654,358 @@ export default function AlgencyPromptEditor() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  /* ─── Restore local draft (survives refresh / leaving the page) ─── */
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(EDITOR_DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as EditorDraft;
+        if (draft?.promptData) {
+          setPromptData(draft.promptData);
+          const restored = (draft.variables || []) as PromptVariable[];
+          setVariables(
+            restored.map((v, i) => normalizeVariable(v, restored.slice(0, i)))
+          );
+          setReferenceImages(draft.referenceImages || []);
+          setUi((prev) => ({
+            ...prev,
+            maxImages: draft.maxImages ?? prev.maxImages,
+          }));
+          if (draft.modelsSelected?.length) {
+            setModels((prev) => ({ ...prev, selected: draft.modelsSelected }));
+          }
+          if (draft.ratioSelected) {
+            setRatios((prev) => ({ ...prev, selected: draft.ratioSelected }));
+          }
+          setDraftSavedAt(draft.savedAt ?? null);
+          if (typeof draft.promptPrice === "number") setPromptPrice(draft.promptPrice);
+          if (typeof draft.settingsCollapsed === "boolean") {
+            setUi((prev) => ({ ...prev, settingsCollapsed: draft.settingsCollapsed }));
+          }
+          toast({
+            title: "Draft restored",
+            description: "Your last editor session was loaded from this browser.",
+          });
+        }
+      }
+    } catch {
+      /* ignore corrupt draft */
+    } finally {
+      draftReadyRef.current = true;
+    }
+  }, [toast]);
+
+  /* Restore the "ownership notice dismissed" flag from localStorage so
+     the warning stays hidden after the user closes it once. */
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(OWNERSHIP_NOTICE_DISMISS_KEY) === "1") {
+        setUi((p) => ({ ...p, ownershipNoticeDismissed: true }));
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+
+  const dismissOwnershipNotice = useCallback(() => {
+    try {
+      localStorage.setItem(OWNERSHIP_NOTICE_DISMISS_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setUi((p) => ({ ...p, ownershipNoticeDismissed: true }));
+  }, []);
+
+  /* ─── Autosave draft to localStorage ─── */
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    const timeoutId = setTimeout(() => {
+      try {
+        const draft: EditorDraft = {
+          promptData,
+          variables: variables.map(normalizeVariable),
+          modelsSelected: models.selected,
+          ratioSelected: ratios.selected,
+          maxImages: ui.maxImages,
+          referenceImages,
+          promptPrice,
+          settingsCollapsed: ui.settingsCollapsed,
+          savedAt: Date.now(),
+        };
+        localStorage.setItem(EDITOR_DRAFT_KEY, JSON.stringify(draft));
+        setDraftSavedAt(draft.savedAt);
+      } catch {
+        /* quota exceeded — skip silently */
+      }
+    }, 400);
+    return () => clearTimeout(timeoutId);
+  }, [promptData, variables, models.selected, ratios.selected, ui.maxImages, ui.settingsCollapsed, referenceImages, promptPrice]);
+
+  const addReferenceImage = (file: File) => {
+    if (referenceImages.length >= ui.maxImages) {
+      toast({
+        title: "Limit reached",
+        description: `You can add up to ${ui.maxImages} reference image(s).`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = String(e.target?.result || "");
+      if (dataUrl) setReferenceImages((prev) => [...prev, dataUrl]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const pickReferenceImages = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = true;
+    input.onchange = (ev) => {
+      const files = Array.from((ev.target as HTMLInputElement).files || []);
+      files.forEach(addReferenceImage);
+    };
+    input.click();
+  };
+
+  const reorderReferenceImages = useCallback((from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return;
+    setReferenceImages((prev) => {
+      if (from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  /* ─── External file drag-and-drop into the reference zone ──────
+     The HTML5 drag events bubble through every child element of the
+     drop zone, so dragenter/dragleave fire many times during a
+     single drag. We use a counter ref to track the *net* enter/leave
+     state and only flip `externalDragActive` when the cursor truly
+     leaves the zone (counter === 0). `Files` in dataTransfer.types
+     is the well-known way to detect an external file drag (vs. an
+     internal HTML element drag). */
+  const handleRefZoneDragEnter = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    externalDragCounterRef.current += 1;
+    if (!externalDragActive) setExternalDragActive(true);
+  }, [externalDragActive]);
+
+  const handleRefZoneDragLeave = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    externalDragCounterRef.current = Math.max(0, externalDragCounterRef.current - 1);
+    if (externalDragCounterRef.current === 0) setExternalDragActive(false);
+  }, []);
+
+  const handleRefZoneDragOver = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    // preventDefault is REQUIRED for `drop` to fire on this element.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleRefZoneDrop = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    e.preventDefault();
+    externalDragCounterRef.current = 0;
+    setExternalDragActive(false);
+    const files = Array.from(e.dataTransfer.files).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    files.forEach(addReferenceImage);
+  }, [addReferenceImage]);
+
+  /* ─── @-mention dropdown helpers ───
+     Filtered matches: all reference images whose 1-based label
+     ("Image 1", "Image 2", ...) starts with — or contains —
+     whatever the user typed after the leading @. Numeric queries
+     match by image index ("@2" → Image 2). Empty query shows all. */
+  const mentionMatches = mention.open
+    ? referenceImages
+        .map((src, idx) => ({ src, idx, label: `Image ${idx + 1}` }))
+        .filter(({ label, idx }) => {
+          const q = mention.query.toLowerCase();
+          if (!q) return true;
+          if (label.toLowerCase().includes(q)) return true;
+          if (/^\d/.test(q) && String(idx + 1).startsWith(q)) return true;
+          return false;
+        })
+    : [];
+
+  /* Replace the active @<query> at the caret with `@Image{N}` and
+     a single trailing space (so the user can keep typing without
+     having to manually re-space). Caret is repositioned right
+     after the inserted space so subsequent input flows naturally. */
+  /* ─── Price stepper ───
+     Bumps the price by `delta` USDC, clamps to the allowed minimum,
+     rounds to 4-decimal precision (matches the input's `step`),
+     snapshots the previous value (for digit-diff animation) and
+     triggers the roll-direction class. The class self-clears 240ms
+     later — long enough for the keyframe to play, short enough that
+     rapid clicks restart cleanly. */
+  const handlePriceStep = useCallback(
+    (delta: number) => {
+      const current = promptPrice || 0;
+      const next = Math.max(
+        0.0001,
+        parseFloat((current + delta).toFixed(4))
+      );
+      if (next === current) return;
+      prevPriceRollSnapshotRef.current = current;
+      priceRollKeyRef.current += 1;
+      setPriceRollDir(delta > 0 ? "up" : "down");
+      setPromptPrice(next);
+      setUi((p) => ({ ...p, pricePerRenderReviewed: true }));
+      if (priceRollTimerRef.current) clearTimeout(priceRollTimerRef.current);
+      priceRollTimerRef.current = setTimeout(() => {
+        setPriceRollDir(null);
+        priceRollTimerRef.current = null;
+      }, 240);
+    },
+    [promptPrice]
+  );
+
+  /* ─── Max-User-Images stepper ─── (mirrors handlePriceStep) */
+  const handleMaxImagesStep = useCallback((delta: number) => {
+    setUi((p) => {
+      const current = p.maxImages;
+      const next = Math.min(10, Math.max(1, current + delta));
+      if (next === current) return p;
+      prevMaxImagesRollSnapshotRef.current = current;
+      maxImagesRollKeyRef.current += 1;
+      setMaxImagesRollDir(delta > 0 ? "up" : "down");
+      if (maxImagesRollTimerRef.current) clearTimeout(maxImagesRollTimerRef.current);
+      maxImagesRollTimerRef.current = setTimeout(() => {
+        setMaxImagesRollDir(null);
+        maxImagesRollTimerRef.current = null;
+      }, 240);
+      return { ...p, maxImages: next };
+    });
+  }, []);
+
+  const insertReferenceImageMention = useCallback(
+    (imageIndex: number) => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const caret = ta.selectionStart;
+      const start = mention.startPos;
+      if (start < 0 || start > caret) return;
+      const token = `@Image${imageIndex + 1}`;
+      const before = promptData.body.substring(0, start);
+      const after = promptData.body.substring(caret);
+      const needsSpace = !after.startsWith(" ");
+      const insertion = token + (needsSpace ? " " : "");
+      const newBody = before + insertion + after;
+      setPromptData((prev) => ({ ...prev, body: newBody }));
+      setMention({ open: false, query: "", startPos: -1, highlighted: 0 });
+      const newCaret = start + insertion.length;
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(newCaret, newCaret);
+      });
+    },
+    [mention.startPos, promptData.body]
+  );
+
+  /* Compute the dropdown anchor — viewport-relative pixel coords of
+     the `@` glyph itself, NOT the textarea-box's bottom edge. This
+     places the dropdown directly under the `@` exactly where the
+     user is typing. The position-1 caret coordinate is the position
+     RIGHT BEFORE the `@`; we want the line below the `@`'s line, so
+     we add the line-height to `top`.
+       deps:
+         - `mention.open`     — bind/unbind on open/close
+         - `mention.startPos` — re-anchor if a paste shifts the @
+         - `promptData.body`  — re-measure if textarea wraps differently
+       NOT depended on:
+         - `mentionAnchor`    — `update()` always returns a fresh
+           object, including it would cause an infinite render loop.
+
+     Refreshes on scroll (capture phase) + resize + ResizeObserver
+     so the anchor follows the caret if the page reflows. */
+  useEffect(() => {
+    if (!mention.open) {
+      setMentionAnchor((prev) => (prev !== null ? null : prev));
+      return;
+    }
+    const update = () => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const pos = mention.startPos >= 0 ? mention.startPos : 0;
+      const caret = getCaretCoordinates(ta, pos);
+      setMentionAnchor({
+        /* `top` = the visual baseline of the @ + one line height +
+           a small breathing-room offset, so the dropdown sits just
+           UNDER the line containing the @. */
+        top: caret.top + caret.height + 4,
+        left: caret.left,
+        width: 0,                         // unused; CSS sizes via content
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && textareaRef.current) {
+      ro = new ResizeObserver(update);
+      ro.observe(textareaRef.current);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+      ro?.disconnect();
+    };
+  }, [mention.open, mention.startPos, promptData.body]);
+
+  /* ─── Reference-image lightbox keyboard nav ───
+     Active only while the preview is open (refPreviewIndex !== null).
+       • Escape       → close
+       • ArrowLeft    → previous (wraps)
+       • ArrowRight   → next     (wraps)
+     We also lock document scroll while the lightbox is mounted so
+     the page underneath doesn't move when arrowing through images. */
+  useEffect(() => {
+    if (refPreviewIndex === null) return;
+    const total = referenceImages.length;
+    if (total === 0) {
+      setRefPreviewIndex(null);
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setRefPreviewIndex(null);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setRefPreviewDirection("prev");
+        setRefPreviewIndex((i) => (i === null ? null : (i - 1 + total) % total));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setRefPreviewDirection("next");
+        setRefPreviewIndex((i) => (i === null ? null : (i + 1) % total));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    /* Mark the document body so any UI chrome OUTSIDE the lightbox
+       (navbar, sticky headers, toasts, etc.) can react via CSS —
+       e.g. fade out + grayscale — instead of peeking through the
+       backdrop blur. The class is removed on cleanup. */
+    document.body.classList.add("alg-ref-preview-open");
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      document.body.classList.remove("alg-ref-preview-open");
+    };
+  }, [refPreviewIndex, referenceImages.length]);
 
   /* ─── Model Sync ─── */
   useEffect(() => {
@@ -198,41 +1063,47 @@ export default function AlgencyPromptEditor() {
       }
 
       setVariables((prev) => {
-        const newVars: PromptVariable[] = [];
+        const detectionByToken = new Map(detections.map((d) => [d.full, d]));
+        const merged: PromptVariable[] = [];
         const seenTokens = new Set<string>();
 
-        detections.forEach((det) => {
-          if (seenTokens.has(det.full)) return;
+        // Keep existing variables in list order; drop tokens removed from prompt
+        for (const existing of prev) {
+          if (!detectionByToken.has(existing.fullToken)) continue;
+          merged.push(normalizeVariable(existing, merged));
+          seenTokens.add(existing.fullToken);
+        }
+
+        // Append newly detected tokens at the end (never insert at top)
+        for (const det of detections) {
+          if (seenTokens.has(det.full)) continue;
           seenTokens.add(det.full);
-
-          // 1. Try to find an existing variable that exactly matches this token
-          const existingByToken = prev.find(v => v.fullToken === det.full);
-          if (existingByToken) {
-            newVars.push(existingByToken);
-            return;
-          }
-
-          // 2. Otherwise, create a brand new variable with a STABLE ID
           const stableId = `var-${Math.random().toString(36).substring(2, 9)}`;
-          newVars.push({
+          const draft: PromptVariable = {
             id: stableId,
-            name: det.content,
+            name: "",
             label: det.content,
             description: det.content,
             type: "text",
             defaultValue: det.content,
             values: [det.content],
             required: true,
-            position: newVars.length,
+            position: merged.length,
             fullToken: det.full,
-          });
-        });
-        return newVars;
+            colorIndex: pickVariableColorIndex(merged),
+          };
+          merged.push(normalizeVariable(draft, merged));
+        }
+        return merged;
       });
     }, 400);
 
     return () => clearTimeout(timeoutId);
   }, [promptData.body]);
+
+  useEffect(() => {
+    variableLabelRegistryRef.current = buildLabelRegistry(variables, promptData.body);
+  }, [variables, promptData.body]);
 
   /* ─── Cursor Fix & Insertion ─── */
   const insertAtCursor = (text: string) => {
@@ -255,6 +1126,38 @@ export default function AlgencyPromptEditor() {
 
   /* ─── Bracket Deletion — restores default value ─── */
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    /* @-mention dropdown navigation. Intercepts ↑/↓/Enter/Tab/Escape
+       BEFORE the normal backspace/delete logic so the dropdown can
+       commandeer those keys while it's open. Any other key falls
+       through (and onChange will close the dropdown if needed). */
+    if (mention.open && mentionMatches.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMention((m) => ({
+          ...m,
+          highlighted: Math.min(mentionMatches.length - 1, m.highlighted + 1),
+        }));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMention((m) => ({ ...m, highlighted: Math.max(0, m.highlighted - 1) }));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const idx = Math.min(mention.highlighted, mentionMatches.length - 1);
+        const item = mentionMatches[idx];
+        if (item) insertReferenceImageMention(item.idx);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMention((m) => ({ ...m, open: false }));
+        return;
+      }
+    }
+
     if (e.key !== 'Backspace' && e.key !== 'Delete') return;
     const el = e.currentTarget;
     const pos = el.selectionStart;
@@ -276,9 +1179,10 @@ export default function AlgencyPromptEditor() {
         
         if (variable) {
           e.preventDefault();
-          const restoredText = String(variable.defaultValue || variable.label);
+          const restoredText = getVariableReplacementText(variable);
           const newBody = text.substring(0, startPos) + restoredText + text.substring(pos);
           setPromptData(prev => ({ ...prev, body: newBody }));
+          setVariables((prev) => prev.filter((v) => v.id !== variable.id));
           
           requestAnimationFrame(() => {
             if (textareaRef.current) {
@@ -292,28 +1196,79 @@ export default function AlgencyPromptEditor() {
     }
   };
 
+  const triggerVariablePulse = useCallback((varId: string) => {
+    if (variablePulseTimerRef.current) clearTimeout(variablePulseTimerRef.current);
+    setUi((p) => ({ ...p, variablePulsingId: varId }));
+    variablePulseTimerRef.current = setTimeout(() => {
+      setUi((p) => ({ ...p, variablePulsingId: null }));
+    }, 2200);
+  }, []);
+
+  const scrollVariableCardIntoView = useCallback((varId: string) => {
+    let attempts = 0;
+    const tryScroll = () => {
+      const el = variableCardRefs.current[varId];
+      const scrollRoot = variablesScrollRef.current;
+      if (!el || !scrollRoot) {
+        if (attempts++ < 20) requestAnimationFrame(tryScroll);
+        return;
+      }
+      const elRect = el.getBoundingClientRect();
+      const rootRect = scrollRoot.getBoundingClientRect();
+      scrollRoot.scrollTo({
+        top: scrollRoot.scrollTop + (elRect.top - rootRect.top) - 12,
+        behavior: "auto",
+      });
+    };
+    tryScroll();
+  }, []);
+
+  const selectVariable = useCallback(
+    (
+      id: string,
+      options?: { scrollToCard?: boolean; cursorPos?: number; pulse?: boolean }
+    ) => {
+      setUi((prev) => ({
+        ...prev,
+        selectedVariableId: id,
+        ...(options?.cursorPos != null ? { cursorPos: options.cursorPos } : {}),
+      }));
+      if (options?.pulse) triggerVariablePulse(id);
+      if (options?.scrollToCard) scrollVariableCardIntoView(id);
+    },
+    [triggerVariablePulse, scrollVariableCardIntoView]
+  );
+
+  const selectVariableAtCursor = useCallback(
+    (el: HTMLTextAreaElement) => {
+      const start = el.selectionStart;
+      const text = promptData.body;
+      const regex = /\[([^\]]+)\]/g;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(text)) !== null) {
+        if (start >= match.index && start <= match.index + match[0].length) {
+          const variable = variables.find((v) => v.fullToken === match![0]);
+          if (variable) {
+            selectVariable(variable.id, { scrollToCard: true, pulse: true });
+            return true;
+          }
+          break;
+        }
+      }
+      return false;
+    },
+    [promptData.body, variables, selectVariable]
+  );
+
   /* ─── AI Variable Naming ─── */
   const handleTextareaSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
     const start = el.selectionStart;
     const end = el.selectionEnd;
+    const text = promptData.body;
     setUi(prev => ({ ...prev, cursorPos: start }));
 
-    // Auto-select variable if cursor is inside one
-    const text = promptData.body;
-    const regex = /\[([^\]]+)\]/g;
-    let match;
-    let foundVarId = null;
-    while ((match = regex.exec(text)) !== null) {
-      if (start >= match.index && start <= match.index + match[0].length) {
-        const variable = variables.find(v => v.fullToken === match![0]);
-        if (variable) foundVarId = variable.id;
-        break;
-      }
-    }
-    if (foundVarId) {
-      setUi(prev => ({ ...prev, selectedVariableId: foundVarId }));
-    }
+    selectVariableAtCursor(el);
 
     if (end > start) {
       const selectedText = text.substring(start, end);
@@ -328,40 +1283,63 @@ export default function AlgencyPromptEditor() {
     }
   };
 
-  const handleCreateVariable = useCallback((text: string) => {
+  const handleCreateVariable = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
+
+    const selStart = el.selectionStart;
+    const selEnd = el.selectionEnd;
     const val = promptData.body;
-    const bracketed = `[${text}]`;
-    const newVal = val.substring(0, start) + bracketed + val.substring(end);
+    const rawSelected = val.substring(selStart, selEnd);
+    const innerRaw = rawSelected.trim();
+    if (!innerRaw) return;
+
+    const leadingPad = rawSelected.length - rawSelected.trimStart().length;
+    const trailingPad = rawSelected.length - rawSelected.trimEnd().length;
+    const varStart = selStart + leadingPad;
+    const varEnd = selEnd - trailingPad;
+
+    const inner = takeUniqueVariableLabel(
+      variableLabelRegistryRef,
+      innerRaw,
+      variables,
+      promptData.body
+    );
+    const bracketed = buildFullToken(inner);
+    const newVal = val.substring(0, varStart) + bracketed + val.substring(varEnd);
 
     const stableId = `var-${Math.random().toString(36).substring(2, 9)}`;
-    
-    setPromptData(prev => ({ ...prev, body: newVal }));
-    setVariables(prev => [...prev, {
-      id: stableId,
-      name: text,
-      label: text,
-      description: text,
-      type: "text",
-      defaultValue: text,
-      values: [text],
-      required: true,
-      position: prev.length,
-      fullToken: bracketed
-    }]);
-    setUi(prev => ({ ...prev, tooltip: null, selectedVariableId: stableId }));
+
+    setPromptData((prev) => ({ ...prev, body: newVal }));
+    setVariables((prev) => {
+      const draft: PromptVariable = {
+        id: stableId,
+        name: "",
+        label: inner,
+        description: inner,
+        type: "text",
+        defaultValue: inner,
+        values: [inner],
+        required: true,
+        position: prev.length,
+        fullToken: bracketed,
+        colorIndex: pickVariableColorIndex(prev),
+      };
+      return [...prev, normalizeVariable(draft, prev)];
+    });
+    pendingVarScrollRef.current = stableId;
+    setUi((prev) => ({ ...prev, tooltip: null }));
+    selectVariable(stableId, { scrollToCard: true, pulse: true });
 
     requestAnimationFrame(() => {
       if (textareaRef.current) {
-        textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + bracketed.length;
+        const caret = varStart + bracketed.length;
+        textareaRef.current.selectionStart = caret;
+        textareaRef.current.selectionEnd = caret;
         textareaRef.current.focus();
       }
     });
-  }, [promptData.body]);
+  }, [promptData.body, variables, selectVariable]);
 
   const handleVariableButtonClick = () => {
     const el = textareaRef.current;
@@ -369,25 +1347,275 @@ export default function AlgencyPromptEditor() {
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const selectedText = promptData.body.substring(start, end);
-    
-    if (selectedText.trim()) {
-      handleCreateVariable(selectedText);
-    } else {
-      insertAtCursor("[Variable]");
+
+    if (start !== end && selectedText.trim()) {
+      handleCreateVariable();
+      return;
     }
+
+    let insertedLen = 0;
+    setPromptData((prev) => {
+      const inner = takeUniqueVariableLabel(
+        variableLabelRegistryRef,
+        "Variable",
+        variables,
+        prev.body
+      );
+      const token = buildFullToken(inner);
+      insertedLen = token.length;
+      return {
+        ...prev,
+        body: prev.body.substring(0, start) + token + prev.body.substring(end),
+      };
+    });
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const caret = start + insertedLen;
+        textareaRef.current.selectionStart = caret;
+        textareaRef.current.selectionEnd = caret;
+        textareaRef.current.focus();
+      }
+    });
   };
 
   const createVariableFromSelection = () => {
     if (!ui.tooltip) return;
-    handleCreateVariable(ui.tooltip.text);
+    handleCreateVariable();
   };
 
-  /* ─── Sync textarea scroll with overlay ─── */
-  const handleTextareaScroll = useCallback(() => {
-    if (textareaRef.current && overlayRef.current) {
-      overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+  // Keep the overlay's right padding == textarea's right padding + scrollbar
+  // gutter. The textarea uses `scrollbar-gutter: stable`, which reserves
+  // ~8px inside the textarea's content area. The overlay has no scrollbar,
+  // so we add that same gutter to its padding-right at runtime. Without
+  // this, both layers would technically have the same box width but the
+  // textarea would wrap text earlier (gutter eats space), making the
+  // cursor drift by one column → eventually one full line.
+  // PROMPT_PAD_X must equal `--alg-prompt-pad-x` in algency-editor.css.
+  const syncPromptOverlayMetrics = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const scrollbar = Math.max(0, ta.offsetWidth - ta.clientWidth);
+    const padRight = `${PROMPT_PAD_X + scrollbar}px`;
+    for (const el of [overlayRef.current, hitOverlayRef.current]) {
+      if (!el) continue;
+      el.style.paddingRight = padRight;
     }
   }, []);
+
+  // Copy the textarea's scroll position to both overlay layers. Cheap
+  // (a couple of property writes) and guarded so it's a no-op when the
+  // values already match. Used both by the `scroll` event handler and
+  // by the continuous rAF sync loop below.
+  const syncOverlayScroll = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const top = ta.scrollTop;
+    const left = ta.scrollLeft;
+    const overlay = overlayRef.current;
+    if (overlay) {
+      if (overlay.scrollTop !== top) overlay.scrollTop = top;
+      if (overlay.scrollLeft !== left) overlay.scrollLeft = left;
+    }
+    const hit = hitOverlayRef.current;
+    if (hit) {
+      if (hit.scrollTop !== top) hit.scrollTop = top;
+      if (hit.scrollLeft !== left) hit.scrollLeft = left;
+    }
+  }, []);
+
+  const handleTextareaScroll = useCallback(() => {
+    syncOverlayScroll();
+    syncPromptOverlayMetrics();
+  }, [syncOverlayScroll, syncPromptOverlayMetrics]);
+
+  // ─── Bulletproof scroll sync ──────────────────────────────────────
+  // The textarea's `scroll` event alone is NOT sufficient: when the
+  // browser auto-scrolls the textarea to bring the caret into view
+  // (e.g. after a paste, after clicking past the visible area, or
+  // after an arrow-key/Page-Down navigation), it sometimes fires the
+  // `scroll` event AFTER the next paint — so for at least one frame
+  // the caret blinks at the new (post-scroll) position while the
+  // overlay still shows the OLD content. Result: the user sees the
+  // cursor in the middle of the wrong line until they manually scroll
+  // (which finally fires `scroll` and resyncs).
+  //
+  // To make this impossible, we run a continuous requestAnimationFrame
+  // loop while the textarea is focused. It does nothing more than
+  // mirror scrollTop/scrollLeft, and bails immediately when values
+  // already match, so the cost is negligible (a few number reads per
+  // frame) but it's guaranteed to catch every browser-driven scroll.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    let rafId: number | null = null;
+    const tick = () => {
+      syncOverlayScroll();
+      rafId = requestAnimationFrame(tick);
+    };
+    const start = () => {
+      if (rafId !== null) return;
+      // Immediate sync covers the moment between focus and the first
+      // rAF tick (~16ms later) where the browser may already have
+      // auto-scrolled.
+      syncOverlayScroll();
+      rafId = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      // One last sync after blur in case a final scroll happened.
+      syncOverlayScroll();
+    };
+    ta.addEventListener("focus", start);
+    ta.addEventListener("blur", stop);
+    if (typeof document !== "undefined" && document.activeElement === ta) {
+      start();
+    }
+    return () => {
+      stop();
+      ta.removeEventListener("focus", start);
+      ta.removeEventListener("blur", stop);
+    };
+  }, [syncOverlayScroll]);
+
+  useEffect(() => {
+    const run = () => syncPromptOverlayMetrics();
+    run();
+    const raf = requestAnimationFrame(run);
+    const ta = textareaRef.current;
+    if (!ta) return () => cancelAnimationFrame(raf);
+    const ro = new ResizeObserver(run);
+    ro.observe(ta);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [promptData.body, syncPromptOverlayMetrics]);
+
+  /** Colored variable marks in the prompt — plain text stays unwrapped for cursor alignment */
+  const renderPromptWithTags = (layer: "display" | "hit" = "display") => {
+    const parts = promptData.body.split(PROMPT_INLINE_TOKEN_RE);
+    return parts.map((part, index) => {
+      if (!part) return null;
+
+      /* `@Image{N}` reference-image mention. Rendered as a chip
+         with grey bg + dark grey text PLUS a tiny thumbnail of the
+         actual reference image at the left edge.
+
+         CRITICAL: padding/margin must stay 0 so the chip's painted
+         box matches the textarea text glyphs char-for-char,
+         otherwise the cursor desyncs. The thumbnail is therefore
+         rendered via a `::before` pseudo element with
+         `position: absolute` — it has zero layout impact and just
+         visually occludes the `@` glyph at the left of the chip,
+         leaving "Image{N}" text legible to the right. The image URL
+         flows in via the `--alg-ref-thumb-url` custom property. */
+      const refMatch = REF_IMAGE_MENTION_RE.exec(part);
+      if (refMatch) {
+        const n = parseInt(refMatch[1], 10);
+        const exists = n >= 1 && n <= referenceImages.length;
+        const imgSrc = exists ? referenceImages[n - 1] : null;
+        const refStyle = imgSrc
+          ? ({
+              ["--alg-ref-thumb-url" as string]: `url("${imgSrc.replace(
+                /"/g,
+                '\\"'
+              )}")`,
+            } as React.CSSProperties)
+          : undefined;
+        /* Bind hover only on the hit layer — that's the layer that
+           already has `pointer-events: auto` on chips, and it sits
+           above the visible display layer so mouse events register
+           there. The display layer keeps `pointer-events: none` so
+           selection / typing in the textarea below isn't blocked. */
+        const refHoverHandlers =
+          layer === "hit" && exists
+            ? {
+                onMouseEnter: (e: React.MouseEvent<HTMLSpanElement>) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setRefTooltip({
+                    imageIndex: n,
+                    anchor: {
+                      top: rect.top,
+                      bottom: rect.bottom,
+                      centerX: rect.left + rect.width / 2,
+                    },
+                  });
+                },
+                onMouseLeave: () => setRefTooltip(null),
+              }
+            : {};
+        return (
+          <span
+            key={`${index}-${part}-${layer}`}
+            className={`alg-var-tag alg-var-tag--ref-image${
+              exists ? "" : " alg-var-tag--ref-image-missing"
+            }${layer === "hit" ? " alg-var-tag--hit" : ""}`}
+            style={refStyle}
+            {...refHoverHandlers}
+          >
+            {part}
+          </span>
+        );
+      }
+
+      if (!/^\[[^\]]*\]$/.test(part)) {
+        return <Fragment key={`${index}-plain-${layer}`}>{part}</Fragment>;
+      }
+      const variable = variables.find((v) => v.fullToken === part);
+      const isSelected = ui.selectedVariableId === variable?.id;
+      const colors = variable ? getVariableColors(variable.colorIndex) : null;
+
+      const focusVariableInPrompt = () => {
+        if (!variable) return;
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        const tokenIndex = promptData.body.indexOf(part);
+        if (tokenIndex < 0) return;
+        textarea.focus();
+        const caret = tokenIndex + part.length;
+        textarea.setSelectionRange(caret, caret);
+        selectVariable(variable.id, { scrollToCard: true, cursorPos: caret, pulse: true });
+      };
+
+      const tagHandlers =
+        layer === "hit"
+          ? {
+              role: "button" as const,
+              tabIndex: -1,
+              onMouseDown: (e: React.MouseEvent) => {
+                e.preventDefault();
+                focusVariableInPrompt();
+              },
+            }
+          : {};
+
+      const nameMissing = !!variable?.nameMissingHighlighted;
+
+      return (
+        <span
+          key={`${index}-${part}-${layer}`}
+          className={`alg-var-tag${isSelected ? " alg-var-tag--selected" : ""}${nameMissing ? " alg-var-tag--name-missing" : ""}${layer === "hit" ? " alg-var-tag--hit" : ""}`}
+          {...tagHandlers}
+          style={
+            layer === "hit"
+              ? undefined
+              : colors
+                ? ({
+                    backgroundColor: colors.bg,
+                    color: colors.text,
+                    ...(isSelected ? { ["--var-tag-accent" as string]: colors.text } : {}),
+                  } as React.CSSProperties)
+                : undefined
+          }
+        >
+          {part}
+        </span>
+      );
+    });
+  };
 
   /* ─── Preview with defaults ─── */
   const renderPreviewWithDefaults = () => {
@@ -407,95 +1635,143 @@ export default function AlgencyPromptEditor() {
     return previewText;
   };
 
-  /* ─── Update variable — Syncs Name with Prompt ─── */
+  /* ─── Update variable — syncs prompt brackets (v2: defaults vs name) ─── */
   const updateVariable = (varId: string, updates: Partial<PromptVariable>) => {
     const currentVar = variables.find((v) => v.id === varId);
     if (!currentVar) return;
 
-    // If we are currently editing the name of THIS variable, the prompt should show the name.
-    // Otherwise, it should show the default value.
-    const isEditingThisName = ui.editingNameVarId === varId;
-    
-    let newDisplayContent = "";
-    if (isEditingThisName) {
-      newDisplayContent = (updates.name !== undefined ? updates.name : currentVar.name) || currentVar.label;
-    } else {
-      newDisplayContent = (updates.defaultValue !== undefined ? String(updates.defaultValue) : String(currentVar.defaultValue)) || currentVar.label;
-    }
+    const merged: PromptVariable = { ...currentVar, ...updates };
+    const isEditingName = ui.editingNameVarId === varId;
+    const nextInner = getPromptTokenInner(
+      { ...merged, name: isEditingName && updates.name !== undefined ? updates.name : merged.name },
+      isEditingName ? varId : null
+    );
+    const newFullToken = buildFullToken(nextInner);
 
-    const open = currentVar.fullToken[0];
-    const close = currentVar.fullToken[currentVar.fullToken.length - 1];
-    const newFullToken = `${open}${newDisplayContent}${close}`;
-    
     if (newFullToken !== currentVar.fullToken) {
-      setPromptData(prev => ({ 
-        ...prev, 
-        body: prev.body.split(currentVar.fullToken).join(newFullToken) 
+      setPromptData((prev) => ({
+        ...prev,
+        body: replaceTokenInBody(prev.body, currentVar.fullToken, newFullToken),
       }));
-      
-      setVariables(prev => prev.map(v => 
-        v.id === varId ? { ...v, ...updates, fullToken: newFullToken } : v
-      ));
+      setVariables((prev) =>
+        prev.map((v) => (v.id === varId ? { ...merged, fullToken: newFullToken } : v))
+      );
     } else {
-      setVariables(prev => prev.map(v => (v.id === varId ? { ...v, ...updates } : v)));
+      setVariables((prev) => prev.map((v) => (v.id === varId ? { ...v, ...updates } : v)));
     }
   };
 
   const handleVariableNameFocus = (varId: string) => {
-    setUi(prev => ({ ...prev, editingNameVarId: varId }));
-    const variable = variables.find(v => v.id === varId);
-    if (variable) {
-      const open = variable.fullToken[0];
-      const close = variable.fullToken[variable.fullToken.length - 1];
-      const newFullToken = `${open}${variable.name || variable.label}${close}`;
-      setPromptData(prev => ({ ...prev, body: prev.body.split(variable.fullToken).join(newFullToken) }));
-      setVariables(prev => prev.map(v => v.id === varId ? { ...v, fullToken: newFullToken } : v));
-    }
+    setUi((prev) => ({ ...prev, editingNameVarId: varId }));
   };
+
+  const adoptExistingVariableName = useCallback(
+    (editingVarId: string, existingVarId: string) => {
+      const variable = variables.find((v) => v.id === editingVarId);
+      const existing = variables.find((v) => v.id === existingVarId);
+      if (!variable || !existing) return;
+      const adoptToken = existing.fullToken;
+      setPromptData((prev) => ({
+        ...prev,
+        body: replaceTokenInBody(prev.body, variable.fullToken, adoptToken),
+      }));
+      setVariables((prev) => prev.filter((v) => v.id !== editingVarId));
+      setUi((p) => ({
+        ...p,
+        variableNameConflict: null,
+        selectedVariableId: existingVarId,
+      }));
+    },
+    [variables]
+  );
+
+  const createNewVariableNameFromConflict = useCallback(
+    (editingVarId: string, conflictName: string) => {
+      const variable = variables.find((v) => v.id === editingVarId);
+      if (!variable) return;
+      const newName = takeUniqueVariableLabel(
+        variableLabelRegistryRef,
+        conflictName,
+        variables,
+        promptData.body,
+        editingVarId
+      );
+      const newToken = buildFullToken(newName);
+      setPromptData((prev) => ({
+        ...prev,
+        body: replaceTokenInBody(prev.body, variable.fullToken, newToken),
+      }));
+      setVariables((prev) =>
+        prev.map((v) =>
+          v.id === editingVarId
+            ? { ...v, name: newName, fullToken: newToken, nameBlurEmpty: false }
+            : v
+        )
+      );
+      setUi((p) => ({ ...p, variableNameConflict: null }));
+    },
+    [variables, promptData.body]
+  );
+
+  const confirmDeleteVariable = useCallback(
+    (varId: string) => {
+      const variable = variables.find((v) => v.id === varId);
+      if (!variable) return;
+      const replacement = getVariableReplacementText(variable);
+      setPromptData((prev) => ({
+        ...prev,
+        body: replaceTokenInBody(prev.body, variable.fullToken, replacement),
+      }));
+      setVariables((prev) => prev.filter((v) => v.id !== varId));
+      setUi((p) => ({
+        ...p,
+        variableDeleteId: null,
+        selectedVariableId: p.selectedVariableId === varId ? null : p.selectedVariableId,
+        variablePulsingId: p.variablePulsingId === varId ? null : p.variablePulsingId,
+      }));
+    },
+    [variables]
+  );
 
   const handleVariableNameBlur = (varId: string) => {
-    setUi(prev => ({ ...prev, editingNameVarId: null }));
-    const variable = variables.find(v => v.id === varId);
-    if (variable) {
-      const open = variable.fullToken[0];
-      const close = variable.fullToken[variable.fullToken.length - 1];
-      const newFullToken = `${open}${variable.defaultValue || variable.label}${close}`;
-      setPromptData(prev => ({ ...prev, body: prev.body.split(variable.fullToken).join(newFullToken) }));
-      setVariables(prev => prev.map(v => v.id === varId ? { ...v, fullToken: newFullToken } : v));
-    }
-  };
+    setUi((prev) => ({ ...prev, editingNameVarId: null }));
+    const variable = variables.find((v) => v.id === varId);
+    if (!variable) return;
 
-  /* ─── Render prompt text with colored variable tags ─── */
-  const getVarStyle = (fullToken: string): React.CSSProperties => {
-    const variable = variables.find(v => v.fullToken === fullToken);
-    const isSelected = ui.selectedVariableId === variable?.id;
-    if (isSelected) return { background: "var(--alg-accent)", color: "white", borderBottomStyle: "solid" };
-    if (variable?.type === "checkbox") return { background: "var(--alg-hover-bg)", color: "var(--alg-dark)" };
-    return { background: "var(--alg-accent-light)", color: "var(--alg-accent)" };
-  };
-
-  const renderPromptWithTags = () => {
-    // Split on [] bracket groups only
-    const parts = promptData.body.split(/(\[[^\]]+\])/g);
-    return parts.map((part, index) => {
-      const match = part.match(/\[([^\]]+)\]/);
-      if (match) {
-        const variable = variables.find(v => v.fullToken === part);
-        const isSelected = ui.selectedVariableId === variable?.id;
-        const style = getVarStyle(part);
-        return (
-          <span
-            key={index}
-            className={`alg-var-tag ${isSelected ? "alg-var-tag--active" : ""}`}
-            style={style}
-            onClick={() => setUi(prev => ({ ...prev, selectedVariableId: variable?.id || null }))}
-          >
-            {part}
-          </span>
-        );
+    const name = variable.name?.trim() ?? "";
+    if (name) {
+      const existing = findVariableByName(name, variables, varId);
+      if (existing) {
+        setUi((p) => ({
+          ...p,
+          variableNameConflict: {
+            editingVarId: varId,
+            conflictName: name,
+            existingVarId: existing.id,
+          },
+        }));
+        return;
       }
-      return <span key={index}>{part}</span>;
-    });
+    }
+
+    const nameEmpty = !name;
+    setVariables((prev) =>
+      prev.map((v) => (v.id === varId ? { ...v, nameBlurEmpty: nameEmpty } : v))
+    );
+
+    const inner = getPromptTokenInner(variable, null);
+    const newFullToken = buildFullToken(inner);
+    if (newFullToken !== variable.fullToken) {
+      setPromptData((prev) => ({
+        ...prev,
+        body: replaceTokenInBody(prev.body, variable.fullToken, newFullToken),
+      }));
+      setVariables((prev) =>
+        prev.map((v) =>
+          v.id === varId ? { ...v, fullToken: newFullToken, nameBlurEmpty: nameEmpty } : v
+        )
+      );
+    }
   };
 
   /* ─── Generate Image — uses per-card snapshot for interpolation ─── */
@@ -505,7 +1781,13 @@ export default function AlgencyPromptEditor() {
       { variableSnapshot: {} as Record<string, string> };
     const snapshot = card.variableSnapshot;
 
-    let previewText = promptData.body;
+    /* Body for the AI provider:
+       1. Expand `@ImageN` mentions → "Reference image N"  (must run
+          BEFORE variable substitution so the expansion isn't broken
+          if a variable's value happens to contain literal "@Image").
+       2. Substitute `[varName]` placeholders with their resolved
+          values from the verify-card snapshot or variable defaults. */
+    let previewText = expandReferenceImageMentions(promptData.body);
     variables.forEach((variable) => {
       const placeholder = `[${variable.name}]`;
       let val: string;
@@ -614,8 +1896,34 @@ export default function AlgencyPromptEditor() {
     return (v.defaultValue as string) || name;
   };
 
+  /* ─── Edit (back-arrow) — copy a verify card's snapshot into the
+     variable defaults, then drop the card. Pulled out into a named
+     helper so both call sites (clean overwrite path AND the
+     "Yes, overwrite" branch of the confirm dialog) run exactly the
+     same logic. */
+  const applyVerifyCardToVariableDefaults = useCallback(
+    (cardId: number) => {
+      const card = versions.find((v) => v.id === cardId);
+      if (!card) return;
+      setVariables((prev) =>
+        prev.map((v) =>
+          card.variableSnapshot[v.name]
+            ? { ...v, defaultValue: card.variableSnapshot[v.name] }
+            : v
+        )
+      );
+      setVersions((prev) => prev.filter((v) => v.id !== cardId));
+      setUi((prev) => ({ ...prev, selectedCards: [] }));
+    },
+    [versions]
+  );
+
   /* ─── Stack Variables — bridge button pushes N cards into Verify ─── */
   const handleStackVariables = () => {
+    // Hard guard: never create Verify cards from an empty / whitespace-only
+    // prompt. Mirrors the disabled state on the forward arrow button so
+    // that no other code path (keyboard, programmatic) can sneak past.
+    if (!hasSubstantivePromptBody(promptData.body)) return;
     const textVars = variables.filter(v => v.type === "text");
     const stackSize = Math.max(1, ...textVars.map(v => (v.values.length > 0 ? v.values.length : 1)));
     
@@ -672,50 +1980,6 @@ export default function AlgencyPromptEditor() {
     variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
     setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
-  };
-
-  /* ─── Upload image directly into a Verify slot ─── */
-  const handleUploadToSlot = (slotId: number) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (ev) => {
-      const file = (ev.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (le) => {
-        const dataUrl = String(le.target?.result || "");
-        // Convert data URL to blob URL for performance
-        try {
-          const [header, base64] = dataUrl.split(",");
-          const mime = header.split(":")[1].split(";")[0];
-          const byteChars = atob(base64);
-          const bytes = new Uint8Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-          const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
-          setVersions(prev => prev.map(v =>
-            v.id === slotId ? { ...v, status: "complete", imageUrl: blobUrl } : v
-          ));
-        } catch {
-          setVersions(prev => prev.map(v =>
-            v.id === slotId ? { ...v, status: "complete", imageUrl: dataUrl } : v
-          ));
-        }
-        toast({ title: "Uploaded", description: `Image added to slot ${slotId}.` });
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  };
-
-  /* ─── Create a new slot and immediately open file picker ─── */
-  const handleUploadNewSlot = () => {
-    const snapshot: Record<string, string> = {};
-    variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
-    const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
-    setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
-    // Defer so React renders the slot first, then open file picker
-    setTimeout(() => handleUploadToSlot(newId), 50);
   };
 
   /* ─── Pricing helpers ─── */
@@ -866,15 +2130,24 @@ export default function AlgencyPromptEditor() {
       const payload = {
         id: ui.currentPromptId,
         title: promptData.title,
-        content: promptData.body,
+        /* Persist the canonical wording, not the editor shortcut.
+           `@ImageN` is a UI affordance only; once the prompt
+           leaves the editor (DB, marketplace, AI providers) it
+           should always read as "Reference image N". */
+        content: expandReferenceImageMentions(promptData.body),
         userId: null,
         promptType: promptData.type,
         aiModel: models.selected[0],
         tags: promptData.tags,
-        variables: variables.map((v) => ({
-          name: v.name, label: v.label, description: v.description,
-          type: v.type, defaultValue: v.defaultValue, required: v.required, position: v.position,
-        })),
+        variables: variables.map((v) => {
+          const n = normalizeVariable(v);
+          return {
+            name: n.name, label: n.label, description: n.description,
+            type: n.type, defaultValue: n.defaultValue, required: n.required, position: n.position,
+          };
+        }),
+        referenceImages,
+        price: promptData.type === "premium-prompt" ? promptPrice : 0,
       };
       const response = await apiRequest("POST", "/api/prompt", payload);
       const savedPrompt: unknown = await response.json();
@@ -929,35 +2202,406 @@ export default function AlgencyPromptEditor() {
   });
 
   const verifiedCount = versions.filter((s) => s.imageUrl && s.status === "complete").length;
-  const isPublishDisabled = promptData.type === "free-prompt"
-    ? verifiedCount < 1 || publishPromptMutation.isPending
-    : verifiedCount < 4 || publishPromptMutation.isPending;
+  const isPublishDisabled = verifiedCount === 0 || publishPromptMutation.isPending;
+  /* Forward-arrow gate: prompt body must contain at least one real
+     non-whitespace character (and not be just an empty `[bracket]`)
+     before the user can push to Verify. */
+  const hasPromptBody = hasSubstantivePromptBody(promptData.body);
+  const allVariablesFilled =
+    variables.length === 0 ||
+    variables.every((v) => v.type === "checkbox" || v.defaultValue);
+  const canPushToVerify = hasPromptBody && allVariablesFilled;
+
+  const settingsPristine =
+    !promptData.title.trim() &&
+    promptData.tags.length === 0 &&
+    models.selected.length === 0;
+
+  const settingsMissing = {
+    title: !promptData.title.trim(),
+    category: promptData.tags.length === 0,
+    models: models.selected.length === 0,
+    price:
+      promptData.type === "premium-prompt" &&
+      (!promptPrice || promptPrice <= 0 || (settingsPristine && !ui.pricePerRenderReviewed)),
+  };
+
+  const hasSettingsErrors = Object.values(settingsMissing).some(Boolean);
+
+  /** Red on rail icons only while collapsed */
+  const railFieldError = (key: keyof typeof settingsMissing) =>
+    ui.settingsCollapsed && settingsMissing[key];
+
+  /** Red on inputs only after Release click while expanded */
+  const fieldError = (key: keyof typeof settingsMissing) =>
+    !ui.settingsCollapsed && ui.settingsReleaseAttempted && settingsMissing[key];
+
+  const handleReleaseClick = () => {
+    if (hasSettingsErrors) {
+      setUi((prev) => ({ ...prev, settingsReleaseAttempted: true }));
+      toast({
+        title: "Settings incomplete",
+        description: ui.settingsCollapsed
+          ? "Open settings (gear) and fill the highlighted fields."
+          : "Fill all highlighted fields before releasing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    publishPromptMutation.mutate();
+  };
+
+  const setSettingsSectionRef = useCallback(
+    (section: SettingsSectionId) => (el: HTMLDivElement | null) => {
+      if (el) settingsSectionRefs.current[section] = el;
+      else delete settingsSectionRefs.current[section];
+    },
+    []
+  );
+
+  const handleRailSectionClick = useCallback(
+    (e: React.MouseEvent, section: SettingsSectionId, options?: { pulse?: boolean }) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setUi((p) => {
+        settingsExpandDelayRef.current = p.settingsCollapsed ? 300 : 0;
+        return {
+          ...p,
+          settingsCollapsed: false,
+          settingsPendingSection: section,
+          settingsPulseOnNavigate: options?.pulse !== false,
+        };
+      });
+    },
+    []
+  );
+
+  const expandSettings = useCallback(() => {
+    setUi((p) => ({
+      ...p,
+      settingsCollapsed: false,
+      settingsPendingSection: null,
+      settingsHighlightSection: null,
+    }));
+  }, []);
+
+  const settingsSectionClass = useCallback(
+    (section: SettingsSectionId, needsInput?: boolean) => {
+      const base = "alg-settings-section";
+      if (ui.settingsHighlightSection !== section) return base;
+      return `${base} ${needsInput ? "alg-settings-section--pulse-missing" : "alg-settings-section--pulse"}`;
+    },
+    [ui.settingsHighlightSection]
+  );
+
+  useEffect(() => {
+    if (ui.settingsCollapsed || !ui.settingsPendingSection) return;
+
+    const section = ui.settingsPendingSection;
+    const shouldPulse = ui.settingsPulseOnNavigate;
+    const expandDelay = settingsExpandDelayRef.current;
+    settingsExpandDelayRef.current = 0;
+    let cancelled = false;
+    let attempts = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let startTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finishScroll = (el: HTMLElement, body: HTMLDivElement) => {
+      body.scrollTo({ top: Math.max(0, el.offsetTop - 12), behavior: "auto" });
+      setUi((p) => {
+        if (p.settingsPendingSection !== section) return p;
+        return {
+          ...p,
+          settingsPendingSection: null,
+          settingsHighlightSection: shouldPulse ? section : null,
+        };
+      });
+      if (settingsHighlightTimerRef.current) clearTimeout(settingsHighlightTimerRef.current);
+      if (shouldPulse) {
+        settingsHighlightTimerRef.current = setTimeout(() => {
+          setUi((p) => ({ ...p, settingsHighlightSection: null }));
+        }, 2000);
+      }
+    };
+
+    const tryScroll = () => {
+      if (cancelled) return;
+      const body = settingsBodyRef.current;
+      const el = settingsSectionRefs.current[section];
+
+      if (!body || body.clientWidth < 40) {
+        attempts += 1;
+        if (attempts < 30) retryTimer = setTimeout(tryScroll, 50);
+        return;
+      }
+
+      if (el) {
+        finishScroll(el, body);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 30) retryTimer = setTimeout(tryScroll, 50);
+    };
+
+    startTimer = setTimeout(tryScroll, expandDelay);
+
+    return () => {
+      cancelled = true;
+      if (startTimer) clearTimeout(startTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [ui.settingsCollapsed, ui.settingsPendingSection, ui.settingsPulseOnNavigate]);
+
+  useEffect(() => {
+    return () => {
+      if (settingsHighlightTimerRef.current) clearTimeout(settingsHighlightTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (variablePulseTimerRef.current) clearTimeout(variablePulseTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const varId = pendingVarScrollRef.current;
+    if (!varId) return;
+    scrollVariableCardIntoView(varId);
+    pendingVarScrollRef.current = null;
+  }, [variables, scrollVariableCardIntoView]);
 
   return (
+    <>
+      <AlertDialog
+        open={ui.variableDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setUi((p) => ({ ...p, variableDeleteId: null }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete variable</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const target = variables.find((v) => v.id === ui.variableDeleteId);
+                const label = target ? getVariableDeleteLabel(target) : "this variable";
+                return `Are you sure you want to delete the variable '${label}'?`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (ui.variableDeleteId) confirmDeleteVariable(ui.variableDeleteId);
+              }}
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* "Overwrite variable defaults?" — replaces the old
+          `window.confirm(...)` that used to fire when the back-arrow
+          tried to copy a verify-card snapshot over existing defaults.
+          Same shape as the "Delete variable" dialog above (single
+          Yes/No pair) so the two destructive confirmations feel
+          consistent to the user. */}
+      <AlertDialog
+        open={ui.editOverwriteConfirmCardId !== null}
+        onOpenChange={(open) => {
+          if (!open)
+            setUi((p) => ({ ...p, editOverwriteConfirmCardId: null }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite variable defaults?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current variable defaults with the
+              values from the selected card.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const cardId = ui.editOverwriteConfirmCardId;
+                setUi((p) => ({ ...p, editOverwriteConfirmCardId: null }));
+                if (cardId !== null) {
+                  applyVerifyCardToVariableDefaults(cardId);
+                }
+              }}
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={ui.variableNameConflict !== null}
+        onOpenChange={(open) => {
+          if (!open) setUi((p) => ({ ...p, variableNameConflict: null }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Variable name already exists</AlertDialogTitle>
+            <AlertDialogDescription>
+              {ui.variableNameConflict
+                ? `Variable "${ui.variableNameConflict.conflictName}" already exists. Adopt that variable's token in your prompt, or create a new unique name.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:flex-row sm:justify-end sm:gap-2">
+            <AlertDialogCancel
+              onClick={() => {
+                const c = ui.variableNameConflict;
+                if (c) createNewVariableNameFromConflict(c.editingVarId, c.conflictName);
+              }}
+            >
+              Create new name
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const c = ui.variableNameConflict;
+                if (c) adoptExistingVariableName(c.editingVarId, c.existingVarId);
+              }}
+            >
+              {ui.variableNameConflict
+                ? `Adopt "${ui.variableNameConflict.conflictName}"`
+                : "Adopt variable"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* "Variable names required" alert — fired by the forward-arrow
+          click handler when at least one variable still has an empty
+          name. The dialog deliberately has a different shape than the
+          other (Yes/No) confirmation dialogs in this file:
+            • Single visual focus point: a soft-orange warning badge
+              with an alert glyph at the top, centered.
+            • Title is the only on-screen prose (verbatim per design
+              request) — centered to read like a clean callout.
+            • One full-width primary action ("Ok") centered in the
+              footer, no Cancel because there's nothing to cancel.
+          Description is rendered as `sr-only` so screen readers still
+          get a sentence (Radix would warn otherwise). */}
+      <AlertDialog
+        open={ui.variableNameMissingAlertOpen}
+        onOpenChange={(open) => {
+          if (!open)
+            setUi((p) => ({ ...p, variableNameMissingAlertOpen: false }));
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader className="items-center sm:text-center">
+            <div
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
+              style={{
+                background: "rgba(199, 102, 58, 0.14)",
+              }}
+            >
+              <AlertTriangle size={26} color="#c7663a" strokeWidth={2.25} />
+            </div>
+            <AlertDialogTitle className="text-center text-xl font-semibold leading-snug">
+              Please set up all variable names first!
+            </AlertDialogTitle>
+            <AlertDialogDescription className="sr-only">
+              One or more variables have no name yet. Press Ok to highlight them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction
+              className="min-w-[140px]"
+              onClick={() => {
+                setVariables((prev) =>
+                  prev.map((v) =>
+                    !v.name.trim()
+                      ? { ...v, nameMissingHighlighted: true }
+                      : v
+                  )
+                );
+                setUi((p) => ({
+                  ...p,
+                  variableNameMissingAlertOpen: false,
+                }));
+              }}
+            >
+              Ok
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     <div className="alg-page" onClick={() => { setUi(prev => ({ ...prev, showAvatarDropdown: false, tooltip: null })) }}>
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
-
       {/* ═══ 4-COLUMN GRID ═══ */}
-      <div className="alg-grid desktop-only">
+      <div className={`alg-grid desktop-only ${ui.settingsCollapsed ? "alg-grid--settings-collapsed" : ""}`}>
 
         {/* ═══ PANEL 01 — Settings ═══ */}
-        <section className="alg-panel" style={{ background: "var(--alg-bg)" }}>
-          <div className="alg-panel__header">
-            <div style={{ display: "flex", alignItems: "baseline" }}>
+        <section className={`alg-panel alg-panel--settings ${ui.settingsCollapsed ? "alg-panel--settings-collapsed" : ""}`}>
+          <div className={`alg-panel__header alg-panel__header--settings ${ui.settingsCollapsed ? "alg-panel__header--settings-collapsed" : ""}`}>
+            <div className="alg-settings-header__left">
               <span className="alg-panel__number">01</span>
-              <span className="alg-panel__title">Settings</span>
+              {ui.settingsCollapsed ? (
+                <button
+                  type="button"
+                  className={`alg-settings-gear-btn ${hasSettingsErrors ? "alg-settings-gear-btn--alert" : ""}`}
+                  aria-label="Open settings"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    expandSettings();
+                  }}
+                >
+                  <Settings size={16} />
+                </button>
+              ) : (
+                <span className="alg-panel__title">Settings</span>
+              )}
             </div>
+            {!ui.settingsCollapsed && (
+              <button
+                type="button"
+                className="alg-settings-collapse-btn"
+                aria-label="Collapse settings"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUi((p) => ({ ...p, settingsCollapsed: true }));
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
           </div>
-          <div className="alg-panel__body">
-            {/* Prompt Title */}
-            <div className="alg-label">PROMPT TITLE</div>
+          <div className="alg-settings-rail">
+              <button type="button" className={`alg-settings-rail__btn ${railFieldError("title") ? "alg-field--missing" : ""}`} title="Prompt title" onClick={(e) => handleRailSectionClick(e, "title")}><Type size={16} /></button>
+              <button type="button" className={`alg-settings-rail__btn ${railFieldError("category") ? "alg-field--missing" : ""}`} title="Category" onClick={(e) => handleRailSectionClick(e, "category")}><Tags size={16} /></button>
+              <button type="button" className={`alg-settings-rail__btn ${railFieldError("models") ? "alg-field--missing" : ""}`} title="Models" onClick={(e) => handleRailSectionClick(e, "models")}><Cpu size={16} /></button>
+              <button type="button" className="alg-settings-rail__btn" title="Ratio" onClick={(e) => handleRailSectionClick(e, "ratio", { pulse: false })}><Ratio size={16} /></button>
+              <button type="button" className="alg-settings-rail__btn" title="Reference images" onClick={(e) => handleRailSectionClick(e, "references", { pulse: false })}><ImageIcon size={16} /></button>
+              <button type="button" className={`alg-settings-rail__btn ${railFieldError("price") ? "alg-field--missing" : ""}`} title="Price per render" onClick={(e) => handleRailSectionClick(e, "price")}><DollarSign size={16} /></button>
+          </div>
+          <div
+            ref={settingsBodyRef}
+            className="alg-panel__body"
+            aria-hidden={ui.settingsCollapsed}
+          >
+            <div ref={setSettingsSectionRef("title")} className={settingsSectionClass("title", settingsMissing.title)}>
+            <div className="alg-label" style={{ marginTop: 0 }}>PROMPT TITLE</div>
             <input
-              className="alg-input alg-input--title"
+              className={`alg-input alg-input--title ${fieldError("title") ? "alg-field--missing" : ""}`}
               value={promptData.title}
               onChange={(e) => setPromptData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Untitled Prompt"
             />
+            </div>
 
             {/* Display Mode */}
             <div className="alg-label">DISPLAY MODE</div>
@@ -970,7 +2614,10 @@ export default function AlgencyPromptEditor() {
             </div>
             <div
               className={`alg-mode-card ${promptData.type === "premium-prompt" ? "alg-mode-card--active" : ""}`}
-              onClick={() => setPromptData(prev => ({ ...prev, type: "premium-prompt" }))}
+              onClick={() => {
+                setPromptData((prev) => ({ ...prev, type: "premium-prompt" }));
+                setUi((p) => ({ ...p, pricePerRenderReviewed: false }));
+              }}
             >
               <div className="alg-mode-card__title">Premium prompt</div>
               <div className="alg-mode-card__desc">Body locked · buyer fills variables and pays per render</div>
@@ -978,9 +2625,9 @@ export default function AlgencyPromptEditor() {
 
             <div className="alg-divider" />
 
-            {/* Category */}
+            <div ref={setSettingsSectionRef("category")} className={settingsSectionClass("category", settingsMissing.category)}>
             <div className="alg-label">CATEGORY</div>
-            <div className="alg-tag-input-wrap">
+            <div className={`alg-tag-input-wrap ${fieldError("category") ? "alg-field--missing" : ""}`}>
               <div className="alg-tag-chips">
                 {promptData.tags.map(tag => (
                   <span key={tag} className="alg-tag-chip">
@@ -1003,14 +2650,16 @@ export default function AlgencyPromptEditor() {
                 }}
               />
             </div>
+            </div>
 
             <div className="alg-divider" />
 
-            {/* Preferred Models */}
+            <div ref={setSettingsSectionRef("models")} className={settingsSectionClass("models", settingsMissing.models)}>
             <div className="alg-label">
               <span>PREFERRED MODELS</span>
               <span style={{ fontSize: 10, color: "var(--alg-hint)", textTransform: 'lowercase', letterSpacing: 0, fontWeight: 500 }}>multi-select</span>
             </div>
+            <div className={fieldError("models") ? "alg-field--missing-block" : undefined}>
             {models.available.length === 0 ? (
               <div style={{ fontSize: 13, color: "var(--alg-muted)" }}>No models available</div>
             ) : (
@@ -1030,63 +2679,409 @@ export default function AlgencyPromptEditor() {
                 );
               })
             )}
+            </div>
+            </div>
 
             <div className="alg-divider" />
 
-            {/* Preferred Ratio */}
+            <div ref={setSettingsSectionRef("ratio")} className={settingsSectionClass("ratio", false)}>
             <div className="alg-label">PREFERRED RATIO</div>
             <div className="alg-ratio-group">
-              {allPossibleRatios.map((ratio) => {
-                const isAllowed = ratios.available.includes(ratio) || ratio === "Any ratio";
-                return (
+              {allPossibleRatios.map((ratio) => (
                   <button
                     key={ratio}
-                    className={`alg-ratio-pill ${ratios.selected === ratio ? "alg-ratio-pill--active" : ""} ${!isAllowed ? "alg-ratio-pill--disabled" : ""}`}
-                    onClick={() => isAllowed && setRatios(prev => ({ ...prev, selected: ratio }))}
+                    type="button"
+                    className={`alg-ratio-pill ${ratios.selected === ratio ? "alg-ratio-pill--active" : ""}`}
+                    onClick={() => setRatios(prev => ({ ...prev, selected: ratio }))}
                   >
                     {ratio}
                   </button>
-                );
-              })}
+              ))}
             </div>
             <p className="alg-hint-text">Buyer picks the ratio at render time.</p>
+            </div>
 
             <div className="alg-divider" />
 
-            {/* Reference Images */}
+            <div ref={setSettingsSectionRef("references")} className={settingsSectionClass("references", false)}>
             <div className="alg-label">
               <span>REFERENCE IMAGES</span>
-              <span className="alg-label__badge">ALLOWED</span>
             </div>
-            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "12px", background: "var(--alg-white)", marginBottom: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <span style={{ fontSize: 9, fontFamily: "var(--alg-font-mono)", color: "var(--alg-hint)", letterSpacing: "0.05em" }}>MAX IMAGES</span>
-                <div className="alg-stepper">
-                  <button className="alg-stepper__btn" style={{ width: 24, height: 24, fontSize: 14 }} onClick={() => setUi(prev => ({ ...prev, maxImages: Math.max(1, prev.maxImages - 1) }))}>−</button>
-                  <span className="alg-stepper__value" style={{ width: 24, textAlign: 'center', fontFamily: "var(--alg-font-serif)", fontSize: 13, color: "var(--alg-dark)", background: "var(--alg-white)", border: 'none', padding: 0 }}>{ui.maxImages}</span>
-                  <button className="alg-stepper__btn" style={{ width: 24, height: 24, fontSize: 14 }} onClick={() => setUi(prev => ({ ...prev, maxImages: Math.min(10, prev.maxImages + 1) }))}>+</button>
+
+            {/* Prompt-relevant reference images — the prompt author's
+                own example images, attached to the prompt itself.
+                Lives here in Settings (not in the Variables panel)
+                because the data is part of the prompt definition,
+                not a per-render input the buyer chooses. */}
+            <div className="alg-settings-box">
+              <div className="alg-label" style={{ marginTop: 0 }}>PROMPT RELEVANT REFERENCE IMAGES</div>
+              <div
+                className={`alg-ref-zone${externalDragActive ? " alg-ref-zone--drop-active" : ""}`}
+                onDragEnter={handleRefZoneDragEnter}
+                onDragLeave={handleRefZoneDragLeave}
+                onDragOver={handleRefZoneDragOver}
+                onDrop={handleRefZoneDrop}
+              >
+                <div className="alg-ref-row">
+                  <button
+                    type="button"
+                    className="alg-ref-add"
+                    aria-label="Add reference images"
+                    title="Click or drag images here for reference"
+                    disabled={referenceImages.length >= ui.maxImages}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      pickReferenceImages();
+                    }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                  {referenceImages.length === 0 && (
+                    <span
+                      className={`alg-ref-hint${externalDragActive ? " alg-ref-hint--drop" : ""}`}
+                    >
+                      {externalDragActive
+                        ? "Drop here to add as image #1"
+                        : "Click or drag images here for reference"}
+                    </span>
+                  )}
+                  {referenceImages.length > 0 && (
+                    /* Cascading card-stack — each slot overlaps the
+                       previous one by a fixed offset (see CSS for the
+                       `--alg-ref-overlap` math). Hovering or focusing a
+                       slot lifts it via z-index so its remove button
+                       stays reachable even when buried under others. */
+                    <div className="alg-ref-stack">
+                      {referenceImages.map((src, idx) => {
+                        const isDragging = refImageDrag.from === idx;
+                        const isDropTarget =
+                          refImageDrag.from !== null &&
+                          refImageDrag.over === idx &&
+                          refImageDrag.from !== idx;
+                        return (
+                          <div
+                            key={`${idx}-${src.slice(0, 32)}`}
+                            className={`alg-ref-slot${isDragging ? " alg-ref-slot--dragging" : ""}${isDropTarget ? " alg-ref-slot--drop-target" : ""}`}
+                            draggable
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Open reference image ${idx + 1}`}
+                            onClick={(e) => {
+                              /* HTML5 DnD suppresses the trailing
+                                 click after a real drag, so this
+                                 only fires for plain mouse-clicks
+                                 (and keyboard activation below). */
+                              e.stopPropagation();
+                              setRefPreviewDirection("init");
+                              setRefPreviewIndex(idx);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setRefPreviewDirection("init");
+                                setRefPreviewIndex(idx);
+                              }
+                            }}
+                            onDragStart={(e) => {
+                              setRefImageDrag({ from: idx, over: idx });
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", String(idx));
+                            }}
+                            onDragEnd={() => setRefImageDrag({ from: null, over: null })}
+                            onDragOver={(e) => {
+                              if (refImageDrag.from === null) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = "move";
+                              setRefImageDrag((d) =>
+                                d.from !== null && d.over !== idx ? { ...d, over: idx } : d
+                              );
+                            }}
+                            onDrop={(e) => {
+                              if (refImageDrag.from === null) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const from = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
+                              if (!Number.isNaN(from)) reorderReferenceImages(from, idx);
+                              setRefImageDrag({ from: null, over: null });
+                            }}
+                          >
+                            <img src={src} alt={`Reference ${idx + 1}`} draggable={false} />
+                            <button
+                              type="button"
+                              className="alg-ref-slot__remove"
+                              aria-label="Remove reference image"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReferenceImages((prev) => prev.filter((_, i) => i !== idx));
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+                {/* Drop-position enumeration — only rendered while a
+                    drag is actually happening (external file drag OR
+                    internal reorder). Sits at the bottom of the zone
+                    so it never affects the row's resting height. */}
+                {(externalDragActive || refImageDrag.from !== null) && (
+                  <div className="alg-ref-zone__meta">
+                    {externalDragActive
+                      ? `Drop here to add as image #${referenceImages.length + 1}`
+                      : refImageDrag.over !== null
+                        ? `Move to position #${refImageDrag.over + 1}`
+                        : ""}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* MAX USER IMAGES — separate concern from the author's
+                reference images above. Controls how many images each
+                BUYER may upload at render time, hence the rename. */}
+            <div className="alg-settings-box" style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                <span style={{ fontSize: 9, fontFamily: "var(--alg-font-mono)", color: "var(--alg-hint)", letterSpacing: "0.05em" }}>MAX USER IMAGES</span>
+                {/* Same molded-stepper + per-digit roll animation
+                    pattern as the price input, scaled down for the
+                    integer 1..10 range. The − and + buttons share a
+                    single rounded container with one shared
+                    horizontal divider; the value rolls via a keyed
+                    span only on button-driven changes. */}
+                {(() => {
+                  const valueStr = String(ui.maxImages);
+                  const prevStr = maxImagesRollDir
+                    ? String(prevMaxImagesRollSnapshotRef.current)
+                    : valueStr;
+                  let diffIdx = valueStr.length;
+                  const minLen = Math.min(valueStr.length, prevStr.length);
+                  for (let i = 0; i < minLen; i++) {
+                    if (valueStr[i] !== prevStr[i]) {
+                      diffIdx = i;
+                      break;
+                    }
+                  }
+                  if (
+                    valueStr.length !== prevStr.length &&
+                    diffIdx === valueStr.length
+                  ) {
+                    diffIdx = minLen;
+                  }
+                  const stable = valueStr.substring(0, diffIdx);
+                  const changing = valueStr.substring(diffIdx);
+                  return (
+                    <div className="alg-int-stepper">
+                      <button
+                        type="button"
+                        className="alg-int-stepper__btn"
+                        aria-label="Decrease max user images"
+                        onClick={() => handleMaxImagesStep(-1)}
+                      >
+                        −
+                      </button>
+                      <span
+                        className="alg-int-stepper__value"
+                        aria-live="polite"
+                      >
+                        {stable && (
+                          <span className="alg-int-stepper__digits-stable">
+                            {stable}
+                          </span>
+                        )}
+                        {changing && (
+                          <span
+                            key={
+                              maxImagesRollDir
+                                ? `roll-${maxImagesRollKeyRef.current}`
+                                : `stable-${changing}`
+                            }
+                            className={`alg-int-stepper__digits-changing${
+                              maxImagesRollDir
+                                ? ` alg-int-stepper__digits-changing--${maxImagesRollDir}`
+                                : ""
+                            }`}
+                          >
+                            {changing}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="alg-int-stepper__btn"
+                        aria-label="Increase max user images"
+                        onClick={() => handleMaxImagesStep(1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
               <p className="alg-hint-text" style={{ margin: 0 }}>
                 Buyers can upload an image — or pick an NFT from their wallet — up to {ui.maxImages} per render.
               </p>
             </div>
+            </div>
 
             <div className="alg-divider" style={{ marginTop: 24, marginBottom: 24 }} />
 
-            {/* Pricing */}
+            <div ref={setSettingsSectionRef("price")} className={settingsSectionClass("price", settingsMissing.price)}>
             <div className="alg-label">PRICING</div>
-            <div style={{ border: "1px solid var(--alg-border)", borderRadius: "3px", padding: "12px", background: "var(--alg-white)" }}>
-              <p className="alg-hint-text" style={{ margin: 0, fontSize: 11, color: 'var(--alg-dark)' }}>
-                Free prompts cost nothing to use.<br />Buyers run the prompt with their own API credits.
-              </p>
+            {promptData.type === "premium-prompt" ? (
+              <div className={`alg-settings-box ${fieldError("price") ? "alg-field--missing" : ""}`}>
+                <div className="alg-label" style={{ marginTop: 0 }}>PRICE PER RENDER (USDC)</div>
+                {/* Custom number input.
+                    Architecture:
+                      - The wrapping `__field-wrap` carries the
+                        bottom-border underline, NOT the <input>.
+                        That way the underline never moves when the
+                        roll animation plays — only the digits do.
+                      - The real <input> is rendered with TRANSPARENT
+                        text + a visible caret; it receives clicks
+                        and keyboard input, but doesn't draw glyphs.
+                      - The visual layer ABOVE the input renders the
+                        formatted value as two spans: a stable
+                        prefix (digits that didn't change) and an
+                        animated suffix (digits that did). Only the
+                        suffix gets the slide-in keyframe — exactly
+                        the slot-machine effect the user requested.
+                      - When the user FOCUSES the field to type, the
+                        visual layer hides and the input's text
+                        becomes opaque so they can see what they're
+                        editing.
+                    Buttons are stacked vertically inside a single
+                    rounded container with one shared inner divider
+                    so the seam between ▲ and ▼ reads as molded. */}
+                {(() => {
+                  const formatPrice = (n: number) =>
+                    !n
+                      ? ""
+                      : n.toLocaleString(undefined, {
+                          minimumFractionDigits: 4,
+                          maximumFractionDigits: 4,
+                        });
+                  const valueStr = formatPrice(promptPrice || 0);
+                  const prevStr = priceRollDir
+                    ? formatPrice(prevPriceRollSnapshotRef.current || 0)
+                    : valueStr;
+                  let diffIdx = valueStr.length;
+                  const minLen = Math.min(valueStr.length, prevStr.length);
+                  for (let i = 0; i < minLen; i++) {
+                    if (valueStr[i] !== prevStr[i]) {
+                      diffIdx = i;
+                      break;
+                    }
+                  }
+                  if (
+                    valueStr.length !== prevStr.length &&
+                    diffIdx === valueStr.length
+                  ) {
+                    diffIdx = minLen;
+                  }
+                  const stable = valueStr.substring(0, diffIdx);
+                  const changing = valueStr.substring(diffIdx);
+                  return (
+                    <div
+                      className="alg-num-input"
+                      style={{ marginTop: 8 }}
+                    >
+                      <div className="alg-num-input__field-wrap">
+                        <input
+                          type="number"
+                          min={0.0001}
+                          step={0.0001}
+                          className="alg-input alg-num-input__field"
+                          style={{ fontSize: 14 }}
+                          value={promptPrice || ""}
+                          onChange={(e) => {
+                            setPromptPrice(parseFloat(e.target.value) || 0);
+                            setUi((p) => ({ ...p, pricePerRenderReviewed: true }));
+                          }}
+                          onFocus={() =>
+                            setUi((p) => ({ ...p, pricePerRenderReviewed: true }))
+                          }
+                        />
+                        <div
+                          className="alg-num-input__visual"
+                          aria-hidden="true"
+                        >
+                          {valueStr === "" ? (
+                            <span className="alg-num-input__placeholder">
+                              0.0000
+                            </span>
+                          ) : (
+                            <>
+                              {stable && (
+                                <span className="alg-num-input__digits-stable">
+                                  {stable}
+                                </span>
+                              )}
+                              {changing && (
+                                <span
+                                  key={
+                                    priceRollDir
+                                      ? `roll-${priceRollKeyRef.current}`
+                                      : `stable-${changing}`
+                                  }
+                                  className={`alg-num-input__digits-changing${
+                                    priceRollDir
+                                      ? ` alg-num-input__digits-changing--${priceRollDir}`
+                                      : ""
+                                  }`}
+                                >
+                                  {changing}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="alg-num-input__buttons" aria-hidden="true">
+                        <button
+                          type="button"
+                          className="alg-num-input__btn"
+                          aria-label="Increase price"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handlePriceStep(0.0001)}
+                        >
+                          <ChevronUp size={12} strokeWidth={2.5} />
+                        </button>
+                        <button
+                          type="button"
+                          className="alg-num-input__btn"
+                          aria-label="Decrease price"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handlePriceStep(-0.0001)}
+                        >
+                          <ChevronDown size={12} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+                <p className="alg-hint-text" style={{ margin: "8px 0 0" }}>
+                  Buyers pay this amount each time they run your premium prompt.
+                </p>
+              </div>
+            ) : (
+              <div className="alg-settings-box">
+                <p className="alg-hint-text" style={{ margin: 0, fontSize: 11, color: "var(--alg-muted)" }}>
+                  Free prompts cost nothing to use.<br />Buyers run the prompt with their own API credits.
+                </p>
+              </div>
+            )}
             </div>
             <div style={{ height: 24, flexShrink: 0 }} />
           </div>
         </section>
 
         {/* ═══ PANEL 02 — Prompt ═══ */}
-        <section className="alg-panel">
+        <section className="alg-panel alg-panel--prompt">
           <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline" }}>
               <span className="alg-panel__number">02</span>
@@ -1096,7 +3091,7 @@ export default function AlgencyPromptEditor() {
               <Plus size={14} /> Variable
             </button>
           </div>
-          <div className="alg-panel__body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="alg-panel__body alg-panel__body--workspace">
             {/* Tooltip */}
             {ui.tooltip && (
               <div
@@ -1110,69 +3105,256 @@ export default function AlgencyPromptEditor() {
 
             {/* Textarea with overlay */}
             {/* Textarea with overlay box */}
-            <div className="alg-textarea-box">
-              {promptData.body.length > 0 && (
-                <div ref={overlayRef} className="alg-prompt-overlay">
-                  {renderPromptWithTags()}
-                </div>
-              )}
+            <div className="alg-textarea-box" ref={textareaBoxRef}>
               <textarea
                 ref={textareaRef}
                 className="alg-textarea"
                 style={{
-                  background: promptData.body.length > 0 ? "transparent" : undefined,
                   color: promptData.body.length > 0 ? "transparent" : undefined,
-                  caretColor: "var(--alg-dark)",
-                  zIndex: 1,
+                  caretColor: "var(--alg-text)",
                 }}
                 value={promptData.body}
-                onChange={(e) => setPromptData(prev => ({ ...prev, body: e.target.value }))}
+                onChange={(e) => {
+                  const newBody = e.target.value;
+                  setPromptData((prev) => ({ ...prev, body: newBody }));
+                  /* Re-evaluate the @-mention state on every
+                     keystroke. The detector returns null whenever
+                     the caret leaves the active @<query> token,
+                     which is our cue to close the dropdown. */
+                  const caret = e.target.selectionStart ?? newBody.length;
+                  const m = detectMentionAtCaret(newBody, caret);
+                  if (m && referenceImages.length > 0) {
+                    /* Anchor the dropdown SYNCHRONOUSLY in the same
+                       render that flips `mention.open`. Without this
+                       we'd render once with open=true but anchor=null
+                       (gated out), then rely on a useEffect to set
+                       the anchor on the NEXT frame — a noticeable
+                       lag where the very first `@` would seemingly
+                       do nothing until you typed another character. */
+                    const coords = getCaretCoordinates(e.target, m.startPos);
+                    setMentionAnchor({
+                      top: coords.top + coords.height + 4,
+                      left: coords.left,
+                      width: 0,
+                    });
+                    /* Bug fix: also gate on `prev.open`. Previously
+                       this returned `prev` whenever (startPos, query)
+                       matched — but if prev.open was false (e.g. the
+                       user closed the dropdown via Escape/blur, then
+                       deleted back to a bare `@` at the same
+                       position with empty query), the early return
+                       would keep open=false and the dropdown would
+                       silently refuse to reappear until they typed
+                       another char that changed the query. */
+                    setMention((prev) =>
+                      prev.open &&
+                      prev.startPos === m.startPos &&
+                      prev.query === m.query
+                        ? prev
+                        : { open: true, ...m, highlighted: 0 }
+                    );
+                  } else if (mention.open) {
+                    setMention((prev) => ({ ...prev, open: false }));
+                  }
+                }}
                 onScroll={handleTextareaScroll}
-                onSelect={handleTextareaSelect}
+                onSelect={(e) => {
+                  handleTextareaSelect(e);
+                  /* Caret movements (arrow keys, mouse clicks)
+                     should also close the dropdown if the caret
+                     leaves the active mention. */
+                  const ta = e.currentTarget;
+                  const m = detectMentionAtCaret(promptData.body, ta.selectionStart ?? 0);
+                  if (!m && mention.open) {
+                    setMention((prev) => ({ ...prev, open: false }));
+                  }
+                }}
+                onClick={(e) => selectVariableAtCursor(e.currentTarget)}
                 onKeyDown={handleTextareaKeyDown}
+                onBlur={() => {
+                  /* Blur via Tab/Click outside should close the
+                     dropdown — but with a small delay so a click
+                     INSIDE the dropdown still registers before the
+                     dropdown unmounts. */
+                  setTimeout(() => {
+                    setMention((prev) => (prev.open ? { ...prev, open: false } : prev));
+                  }, 120);
+                }}
                 spellCheck={false}
-                placeholder="Write your prompt here... Select text to extract a variable."
+                placeholder="Write your prompt here... Select text or use [brackets] for variables."
               />
+              {promptData.body.length > 0 && (
+                <>
+                  <div ref={overlayRef} className="alg-prompt-overlay" aria-hidden>
+                    {renderPromptWithTags("display")}
+                  </div>
+                  <div ref={hitOverlayRef} className="alg-prompt-hit" aria-hidden>
+                    {renderPromptWithTags("hit")}
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Variable Tabs Row */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-              {variables.map(v => (
-                <button
-                  key={v.id}
-                  onClick={() => setUi(prev => ({ ...prev, selectedVariableId: v.id }))}
-                  style={{
-                    background: "none", border: "none", padding: "4px 8px",
-                    fontFamily: "var(--alg-font-mono)", fontSize: 11,
-                    color: ui.selectedVariableId === v.id ? "var(--alg-dark)" : "var(--alg-hint)",
-                    borderBottom: ui.selectedVariableId === v.id ? "1.5px solid var(--alg-dark)" : "1.5px solid transparent",
-                    cursor: "pointer", transition: "all 0.2s"
-                  }}
-                >
-                  [{v.name || "..."}]
-                </button>
-              ))}
-            </div>
-
-            {/* Prompt Stats Row */}
-            <div style={{ display: "flex", gap: 32, marginTop: 12, paddingBottom: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 11, fontWeight: 600, color: "var(--alg-dark)" }}>{variables.length}</span>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 9, color: "var(--alg-hint)", textTransform: "uppercase" }}>variables</span>
+            {/* @-mention dropdown — `position: fixed`, anchored to
+                the @ glyph's viewport coords (see useEffect above)
+                so it sits directly under the line the user is typing
+                in. Visible only while an active `@…` token is being
+                typed AND at least one reference image is available.
+                Scrollable when the list exceeds `max-height`. */}
+            {mention.open && mentionMatches.length > 0 && mentionAnchor && (
+              <div
+                ref={(node) => {
+                  /* Auto-scroll the highlighted row into view when
+                     keyboard navigation moves past the visible
+                     window of the dropdown. Runs on every render of
+                     the container, so arrow-keying past row 5
+                     scrolls row 6 into view. */
+                  if (!node) return;
+                  const active = node.querySelector<HTMLElement>(
+                    ".alg-mention-item--active"
+                  );
+                  if (active && typeof active.scrollIntoView === "function") {
+                    active.scrollIntoView({ block: "nearest" });
+                  }
+                }}
+                className="alg-mention-dropdown"
+                role="listbox"
+                aria-label="Reference image suggestions"
+                style={{
+                  top: mentionAnchor.top,
+                  left: mentionAnchor.left,
+                }}
+                onMouseDown={(e) => {
+                  /* Prevent the textarea from blurring before our
+                     click handler fires — the blur-timeout would
+                     otherwise unmount the dropdown mid-click. */
+                  e.preventDefault();
+                }}
+              >
+                {mentionMatches.map((item, idx) => {
+                  const isActive = idx === mention.highlighted;
+                  return (
+                    <button
+                      key={`mention-${item.idx}`}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      className={`alg-mention-item${
+                        isActive ? " alg-mention-item--active" : ""
+                      }`}
+                      onMouseEnter={() =>
+                        setMention((m) => ({ ...m, highlighted: idx }))
+                      }
+                      onClick={() => insertReferenceImageMention(item.idx)}
+                    >
+                      <img
+                        src={item.src}
+                        alt=""
+                        className="alg-mention-item__thumb"
+                        draggable={false}
+                      />
+                      <span className="alg-mention-item__label">
+                        {item.label}
+                      </span>
+                      {isActive && (
+                        <span className="alg-mention-item__check" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              <div style={{ width: 1, height: 24, background: "var(--alg-border)", alignSelf: "center", opacity: 0.5 }} />
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 9, color: "var(--alg-hint)", textTransform: "uppercase", marginTop: "auto" }}>autosaves every</span>
-                <span style={{ fontFamily: "var(--alg-font-mono)", fontSize: 9, color: "var(--alg-hint)", textTransform: "uppercase" }}>keystroke</span>
+            )}
+
+            {(() => {
+              /* Combined chip row — variables + active reference-image
+                 mentions (deduped, in order of first appearance in the
+                 prompt body). The reference chips show a tiny
+                 thumbnail and open the lightbox on click; variables
+                 keep their existing color-coded behaviour. */
+              const refMentionIndices: number[] = [];
+              const seen = new Set<number>();
+              for (const m of promptData.body.matchAll(REF_IMAGE_MENTION_GLOBAL_RE)) {
+                const n = parseInt(m[1], 10);
+                if (!seen.has(n) && n >= 1 && n <= referenceImages.length) {
+                  seen.add(n);
+                  refMentionIndices.push(n);
+                }
+              }
+              if (variables.length === 0 && refMentionIndices.length === 0) return null;
+              return (
+                <div className="alg-prompt-var-tabs">
+                  {variables.map((v) => {
+                    const colors = getVariableColors(v.colorIndex);
+                    const isTabActive = ui.selectedVariableId === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        className={`alg-prompt-var-tab ${isTabActive ? "alg-prompt-var-tab--active" : ""}`}
+                        style={{
+                          backgroundColor: colors.bg,
+                          color: colors.text,
+                          borderColor: colors.border,
+                        }}
+                        onClick={() => selectVariable(v.id)}
+                      >
+                        [{v.name || "..."}]
+                      </button>
+                    );
+                  })}
+                  {refMentionIndices.map((n) => {
+                    const src = referenceImages[n - 1];
+                    return (
+                      <button
+                        key={`refmention-${n}`}
+                        type="button"
+                        className="alg-prompt-var-tab alg-prompt-var-tab--ref-image"
+                        title={`Open Reference image ${n}`}
+                        onClick={() => {
+                          setRefPreviewDirection("init");
+                          setRefPreviewIndex(n - 1);
+                        }}
+                      >
+                        <img
+                          src={src}
+                          alt=""
+                          className="alg-prompt-var-tab__thumb"
+                          draggable={false}
+                        />
+                        <span>Image {n}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div className="alg-prompt-footer">
+              <div className="alg-prompt-footer__stat">
+                <span className="alg-prompt-footer__stat-value">{promptData.body.length}</span>
+                <span className="alg-prompt-footer__stat-label">chars</span>
+              </div>
+              <div style={{ width: 1, height: 24, background: "var(--alg-border)", opacity: 0.5 }} />
+              <div className="alg-prompt-footer__stat">
+                <span className="alg-prompt-footer__stat-value">{variables.length}</span>
+                <span className="alg-prompt-footer__stat-label">variables</span>
+              </div>
+              <div
+                className="alg-prompt-footer__draft"
+                title="Your prompt, variables, and settings are saved in this browser. Leave and come back anytime — your draft will still be here."
+              >
+                <span className={`alg-prompt-footer__draft-label ${draftSavedAt ? "alg-prompt-footer__draft-label--saved" : ""}`}>
+                  {draftSavedAt ? "Draft saved in browser" : "Saving draft…"}
+                </span>
               </div>
             </div>
-
-            <div style={{ height: 12, flexShrink: 0 }} />
           </div>
         </section>
 
         {/* ═══ PANEL 03 — Variables ═══ */}
-        <section className="alg-panel">
+        <section className="alg-panel alg-panel--variables">
           <div className="alg-panel__header">
             <div style={{ display: "flex", alignItems: "baseline" }}>
               <span className="alg-panel__number">03</span>
@@ -1180,7 +3362,7 @@ export default function AlgencyPromptEditor() {
             </div>
             <span className="alg-panel__meta">defaults & types</span>
           </div>
-          <div className="alg-panel__body">
+          <div ref={variablesScrollRef} className="alg-panel__body alg-panel__body--scroll">
             {variables.length === 0 ? (
               <div className="alg-empty">
                 <div className="alg-empty__icon"><EmptyVarIcon /></div>
@@ -1188,18 +3370,85 @@ export default function AlgencyPromptEditor() {
                 <div className="alg-empty__sub">Select text or use [Name]</div>
               </div>
             ) : (
-              variables.map((variable) => (
+              variables.map((variable) => {
+                const colors = getVariableColors(variable.colorIndex);
+                const showNameMissingLine =
+                  Boolean(variable.nameBlurEmpty) && !variable.name?.trim();
+                const isPulsing = ui.variablePulsingId === variable.id;
+                const isSelected = ui.selectedVariableId === variable.id;
+                return (
                 <div
                   key={variable.id}
-                  className={`alg-var-card alg-var-card--entering ${ui.selectedVariableId === variable.id ? "alg-var-card--active" : ""}`}
-                  onClick={() => setUi(prev => ({ ...prev, selectedVariableId: variable.id }))}
+                  ref={(el) => {
+                    if (el) variableCardRefs.current[variable.id] = el;
+                    else delete variableCardRefs.current[variable.id];
+                  }}
+                  className={`alg-var-card${isSelected ? " alg-var-card--selected" : ""}${isPulsing ? " alg-var-card--pulse" : ""}${variable.nameMissingHighlighted ? " alg-var-card--name-missing" : ""}`}
+                  style={{
+                    /* `nameMissingHighlighted` overrides the per-variable
+                       color so the red border isn't fighting the inline
+                       border-color from React. The CSS class also sets
+                       `!important` for the same reason. */
+                    borderColor: variable.nameMissingHighlighted
+                      ? "#ef4444"
+                      : colors.border,
+                    borderLeftWidth: 3,
+                    borderLeftColor: variable.nameMissingHighlighted
+                      ? "#ef4444"
+                      : colors.border,
+                    ...(isPulsing
+                      ? ({ ["--var-pulse-border" as string]: colors.border } as React.CSSProperties)
+                      : {}),
+                    ...(isSelected
+                      ? ({ ["--var-card-border" as string]: colors.border } as React.CSSProperties)
+                      : {}),
+                  }}
+                  onMouseDownCapture={(e) => {
+                    if ((e.target as HTMLElement).closest(".alg-var-card__delete")) return;
+                    selectVariable(variable.id);
+                  }}
                 >
-                  {/* Variable Name Section */}
-                  <div className="alg-var-card__label">VARIABLE NAME</div>
-                  <input 
-                    className={`alg-var-card__name-input ${!variable.name ? "alg-var-card__name-input--error" : ""}`}
+                  <div className="alg-var-card__top">
+                    <div className="alg-var-card__label">VARIABLE NAME</div>
+                    <button
+                      type="button"
+                      className="alg-var-card__delete"
+                      aria-label="Delete variable"
+                      title="Delete variable"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUi((p) => ({ ...p, variableDeleteId: variable.id }));
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <input
+                    className={`alg-var-card__name-input ${showNameMissingLine ? "alg-var-card__name-input--name-missing" : ""}`}
                     value={variable.name}
-                    onChange={(e) => updateVariable(variable.id, { name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      updateVariable(variable.id, { name });
+                      if (name.trim()) {
+                        // Name is now valid: drop both the on-blur empty
+                        // flag AND the red-border highlight set by the
+                        // "Variable names required" alert so the visual
+                        // warnings disappear the moment the user fixes
+                        // the issue.
+                        setVariables((prev) =>
+                          prev.map((v) =>
+                            v.id === variable.id
+                              ? {
+                                  ...v,
+                                  nameBlurEmpty: false,
+                                  nameMissingHighlighted: false,
+                                }
+                              : v
+                          )
+                        );
+                      }
+                    }}
                     onFocus={() => handleVariableNameFocus(variable.id)}
                     onBlur={() => handleVariableNameBlur(variable.id)}
                     placeholder="e.g. Subject"
@@ -1207,7 +3456,7 @@ export default function AlgencyPromptEditor() {
                   />
 
                   {/* Type toggle */}
-                  <div className="alg-type-toggle" style={{ margin: "16px 0" }}>
+                  <div className="alg-type-toggle">
                     <button
                       className={`alg-type-toggle__btn ${variable.type === "text" ? "alg-type-toggle__btn--active" : ""}`}
                       onClick={(e) => { 
@@ -1233,93 +3482,19 @@ export default function AlgencyPromptEditor() {
                     >
                       Yes / No checkbox
                     </button>
-                    <button
-                      className={`alg-type-toggle__btn ${variable.type === "image" ? "alg-type-toggle__btn--active" : ""}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateVariable(variable.id, {
-                          type: "image",
-                          defaultValue: "",
-                          description: String(variable.description || variable.label),
-                        });
-                      }}
-                    >
-                      Image upload
-                    </button>
                   </div>
 
                   {/* Default value section */}
                   <div className="alg-var-card__label">DEFAULT VALUE</div>
-                  {variable.type === "text" ? (
+                  {variable.type === "text" || variable.type === "image" ? (
                     <>
                       <input
                         className="alg-var-card__default-input"
                         value={String(variable.defaultValue || "")}
-                        onChange={(e) => updateVariable(variable.id, { defaultValue: e.target.value })}
+                        onChange={(e) => updateVariable(variable.id, { defaultValue: e.target.value, type: "text" })}
                         placeholder="e.g. a young woman..."
                       />
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>
-                    </>
-                  ) : variable.type === "image" ? (
-                    <>
-                      <div
-                        style={{
-                          border: "1px dashed var(--alg-border)",
-                          borderRadius: 8,
-                          padding: 12,
-                          textAlign: "center",
-                          cursor: "pointer",
-                          position: "relative",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const input = document.createElement("input");
-                          input.type = "file";
-                          input.accept = "image/*";
-                          input.onchange = (ev) => {
-                            const file = (ev.target as HTMLInputElement).files?.[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = (le) => {
-                              const dataUrl = String(le.target?.result || "");
-                              updateVariable(variable.id, { defaultValue: dataUrl });
-                            };
-                            reader.readAsDataURL(file);
-                          };
-                          input.click();
-                        }}
-                      >
-                        {variable.defaultValue ? (
-                          <img
-                            src={String(variable.defaultValue)}
-                            alt="Preview"
-                            style={{ maxHeight: 120, maxWidth: "100%", borderRadius: 4, objectFit: "cover" }}
-                          />
-                        ) : (
-                          <div style={{ fontSize: 12, color: "var(--alg-hint)" }}>
-                            Click to upload a reference image
-                          </div>
-                        )}
-                      </div>
-                      {variable.defaultValue && (
-                        <button
-                          style={{
-                            marginTop: 8,
-                            fontSize: 11,
-                            color: "var(--alg-accent)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateVariable(variable.id, { defaultValue: "" });
-                          }}
-                        >
-                          Remove image
-                        </button>
-                      )}
-                      <div className="alg-var-card__hint">Buyers can upload their own reference image.</div>
                     </>
                   ) : (
                     <>
@@ -1344,37 +3519,45 @@ export default function AlgencyPromptEditor() {
                     </>
                   )}
                 </div>
-              ))
+                );
+              })
             )}
-
-
           </div>
+
+          {/* Reference-images upload UI lives in Settings now (under
+              "REFERENCE IMAGES" / "PROMPT RELEVANT REFERENCE IMAGES")
+              because the data is part of the prompt definition, not a
+              per-render artefact attached to variable cards. */}
         </section>
 
         {/* ═══ PANEL 04 — Verify ═══ */}
         <section className="alg-panel alg-panel--verify">
           {/* Dual-Arrow Bridge — Circuit Track Design */}
-          <div className="alg-bridge-overlay">
+          <div
+            className={`alg-bridge-overlay${ui.selectedCards.length === 1 ? " alg-bridge-overlay--back-active" : ""}${!hasPromptBody ? " alg-bridge-overlay--forward-blocked" : ""}`}
+          >
             <button
               className={`alg-arrow-btn alg-arrow-btn--back ${ui.selectedCards.length === 1 ? "alg-arrow-btn--active" : ""}`}
               disabled={ui.selectedCards.length !== 1}
               onClick={() => {
-                const card = versions.find(v => v.id === ui.selectedCards[0]);
-                if (card) {
-                  const hasExistingDefaults = variables.some(v => v.defaultValue);
-                  if (hasExistingDefaults) {
-                    if (!window.confirm("This will overwrite your current variable defaults. Continue?")) return;
-                  }
-                  const newVariables = variables.map(v => {
-                    if (card.variableSnapshot[v.name]) {
-                      return { ...v, defaultValue: card.variableSnapshot[v.name] };
-                    }
-                    return v;
-                  });
-                  setVariables(newVariables);
-                  setVersions(prev => prev.filter(v => v.id !== card.id));
-                  setUi(prev => ({ ...prev, selectedCards: [] }));
+                const card = versions.find((v) => v.id === ui.selectedCards[0]);
+                if (!card) return;
+                // If the user already has variable defaults set, the
+                // overwrite is destructive — surface our own AlertDialog
+                // (matching the "Delete variable" style) instead of the
+                // browser's native window.confirm. If no defaults exist,
+                // overwriting is a no-op for them and we just run.
+                const hasExistingDefaults = variables.some(
+                  (v) => v.defaultValue
+                );
+                if (hasExistingDefaults) {
+                  setUi((p) => ({
+                    ...p,
+                    editOverwriteConfirmCardId: card.id,
+                  }));
+                  return;
                 }
+                applyVerifyCardToVariableDefaults(card.id);
               }}
               title="Edit — send selected back to Variables"
             >
@@ -1386,10 +3569,53 @@ export default function AlgencyPromptEditor() {
               <div className="alg-bridge-track__dot" />
             </div>
             <button
-              className={`alg-arrow-btn alg-arrow-btn--forward ${(variables.length === 0 || variables.every(v => v.type === "checkbox" || v.defaultValue)) ? "alg-arrow-btn--active alg-arrow-btn--glow" : ""}`}
-              disabled={variables.length > 0 && !variables.every(v => v.type === "checkbox" || v.defaultValue)}
-              onClick={() => handleStackVariables()}
-              title={variables.length === 0 ? "Push prompt to Verify" : "Push variables to Verify"}
+              type="button"
+              className={`alg-arrow-btn alg-arrow-btn--forward${!hasPromptBody ? " alg-arrow-btn--forward-inactive" : ""}${canPushToVerify ? " alg-arrow-btn--active alg-arrow-btn--glow" : ""}`}
+              disabled={!hasPromptBody}
+              aria-disabled={!hasPromptBody}
+              tabIndex={hasPromptBody ? 0 : -1}
+              onMouseDown={
+                !hasPromptBody
+                  ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  : undefined
+              }
+              onClick={
+                hasPromptBody
+                  ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // Defensive re-check at click time — body may have
+                      // been cleared between paint and click.
+                      if (!hasSubstantivePromptBody(promptData.body)) return;
+                      // Block the push when one or more variables still
+                      // have an empty name. We open the alert dialog and
+                      // stop here; the OK button on the dialog tags the
+                      // offending variables with a red border so the user
+                      // can spot them in both the prompt and the cards.
+                      const hasUnnamedVariable = variables.some(
+                        (v) => !v.name.trim()
+                      );
+                      if (hasUnnamedVariable) {
+                        setUi((p) => ({
+                          ...p,
+                          variableNameMissingAlertOpen: true,
+                        }));
+                        return;
+                      }
+                      handleStackVariables();
+                    }
+                  : undefined
+              }
+              title={
+                !hasPromptBody
+                  ? "Write a prompt first"
+                  : variables.length === 0
+                    ? "Push prompt to Verify"
+                    : "Push variables to Verify"
+              }
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
@@ -1400,19 +3626,9 @@ export default function AlgencyPromptEditor() {
               <span className="alg-panel__number">04</span>
               <span className="alg-panel__title">Verify</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span className="alg-panel__meta">
-                {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
-              </span>
-              <button
-                className="alg-btn alg-btn--ghost alg-btn--sm"
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}
-                onClick={handleUploadNewSlot}
-                title="Upload a reference image"
-              >
-                <Upload size={12} /> Upload
-              </button>
-            </div>
+            <span className="alg-panel__meta">
+              {promptData.type === "free-prompt" ? `${verifiedCount}/1 req · 4 rec` : `${verifiedCount}/4 required`}
+            </span>
           </div>
           <div className="alg-panel__body">
             <p className="alg-hint-text" style={{ marginBottom: 16 }}>
@@ -1447,16 +3663,6 @@ export default function AlgencyPromptEditor() {
                             <span style={{ fontFamily: "monospace", fontSize: 9, color: "#888", letterSpacing: "0.1em" }}>IN QUEUE</span>
                           </div>
                         )}
-                        {slot.status === "idle" && (
-                          <div
-                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, zIndex: 2, cursor: "pointer" }}
-                            onClick={(e) => { e.stopPropagation(); handleUploadToSlot(slot.id); }}
-                            title="Click to upload an image"
-                          >
-                            <Upload size={16} color="#8a7f72" />
-                            <span style={{ fontFamily: "monospace", fontSize: 8, color: "#8a7f72", letterSpacing: "0.05em" }}>UPLOAD</span>
-                          </div>
-                        )}
                         {slot.status === "failed" && (
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 10px", textAlign: "center", zIndex: 2 }}>
                             <AlertTriangle color="#c0542a" size={20} />
@@ -1479,38 +3685,59 @@ export default function AlgencyPromptEditor() {
 
                       {/* Metadata panel */}
                       <div className="alg-version-card__info">
-                        {Object.entries(slot.variableSnapshot).map(([key, val]) => {
-                          const valAny = val as unknown;
-                          const isCheckbox = valAny === "true" || valAny === "false" || valAny === true || valAny === false;
-                          const isChecked = valAny === "true" || valAny === true;
-
-                          if (isCheckbox) {
-                            return (
-                              <div key={key} className="alg-version-card__checkbox-row">
-                                <div className={`alg-version-card__checkbox ${isChecked ? "alg-version-card__checkbox--checked" : "alg-version-card__checkbox--unchecked"}`}>
-                                  {isChecked && (
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                                  )}
-                                </div>
-                                <span className="alg-version-card__checkbox-label">
-                                  {key === "grain" ? "Add film grain" : key.charAt(0).toUpperCase() + key.slice(1)}
-                                </span>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div key={key} className="alg-version-card__row">
-                              <span className="alg-version-card__key">{key.toUpperCase()}</span>
-                              <span className="alg-version-card__val">{val || <span style={{ color: "#8a7f72", fontStyle: "italic" }}>—</span>}</span>
-                            </div>
-                          );
-                        })}
+                                                <div className="alg-verify-var-chips">
+                          {Object.entries(slot.variableSnapshot)
+                            .filter(([key]) => key?.trim())
+                            .map(([key, val]) => {
+                              const variable = variables.find((v) => v.name === key);
+                              const colors = variable
+                                ? getVariableColors(variable.colorIndex)
+                                : null;
+                              const popoverBody = formatVerifySnapshotValue(
+                                String(val ?? ""),
+                                variable
+                              );
+                              return (
+                                <Popover key={`${slot.id}-${key}`}>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="alg-verify-var-chip"
+                                      style={
+                                        colors
+                                          ? ({
+                                              backgroundColor: colors.bg,
+                                              color: colors.text,
+                                              borderColor: colors.border,
+                                            } as React.CSSProperties)
+                                          : undefined
+                                      }
+                                      onClick={(e) => e.stopPropagation()}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                    >
+                                      {key}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    className="alg-verify-var-popover z-[120] w-auto max-w-[min(280px,90vw)] border-[var(--alg-border)] bg-[var(--alg-panel)] p-3 text-[var(--alg-text)] shadow-lg"
+                                    side="top"
+                                    align="start"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <p className="alg-verify-var-popover__label">{key}</p>
+                                    <p className="alg-verify-var-popover__value">{popoverBody}</p>
+                                  </PopoverContent>
+                                </Popover>
+                              );
+                            })}
+                        </div>
 
                         {/* Download link for complete cards */}
                         {slot.status === "complete" && slot.imageUrl && (
-                          <div className="alg-version-card__row" style={{ paddingTop: 3, borderTop: "1px solid #d8d0c6" }}>
+                          <div className="alg-version-card__row alg-version-card__row--download">
                             <button
+                              type="button"
+                              className="alg-version-card__download"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const a = document.createElement("a");
@@ -1518,13 +3745,8 @@ export default function AlgencyPromptEditor() {
                                 a.download = `version-${slot.id}.png`;
                                 a.click();
                               }}
-                              style={{
-                                background: "none", border: "none", padding: 0, cursor: "pointer",
-                                fontFamily: "monospace", fontSize: 8, color: "#c0542a",
-                                letterSpacing: "0.05em", textDecoration: "underline",
-                              }}
                             >
-                              ↓ save
+                              save
                             </button>
                           </div>
                         )}
@@ -1566,15 +3788,109 @@ export default function AlgencyPromptEditor() {
             )}
           </div>
 
-          {/* Prompt Ownership Notice */}
-          <div style={{ padding: "8px 12px", background: "#fffaf0", borderTop: "1px solid #f5e6cc", borderBottom: "1px solid #f5e6cc" }}>
-            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-              <AlertTriangle size={14} style={{ color: "#b8860b", marginTop: "1px", flexShrink: 0 }} />
-              <p style={{ fontSize: 11, color: "#8a6d3b", lineHeight: 1.4, margin: 0 }}>
-                <strong>Ownership Notice:</strong> Only mark prompts as your own property if you genuinely created them. Falsely claiming authorship will result in account strikes. See Terms.
-              </p>
+          {/* Prompt Ownership Notice — keeps the original cream look,
+              now dismissible via the X in the top-right corner. The
+              outer wrapper handles a slide-down + fade-out animation
+              when the user clicks dismiss; the inner box keeps the
+              existing inline styling so the visual stays identical. */}
+          {!ui.ownershipNoticeDismissed && (
+            <div
+              style={{
+                overflow: "hidden",
+                maxHeight: noticeLeaving ? 0 : 200,
+                opacity: noticeLeaving ? 0 : 1,
+                transform: noticeLeaving ? "translateY(8px)" : "translateY(0)",
+                transition:
+                  "max-height 260ms ease, opacity 200ms ease, transform 260ms ease",
+                pointerEvents: noticeLeaving ? "none" : undefined,
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 12px",
+                  background: "#fffaf0",
+                  borderTop: "1px solid #f5e6cc",
+                  borderBottom: "1px solid #f5e6cc",
+                  position: "relative",
+                }}
+              >
+                <button
+                  type="button"
+                  aria-label="Dismiss ownership notice"
+                  title="Dismiss"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (noticeLeaving) return;
+                    setNoticeLeaving(true);
+                    window.setTimeout(() => {
+                      dismissOwnershipNotice();
+                    }, 280);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 6,
+                    width: 22,
+                    height: 22,
+                    padding: 0,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#8a6d3b",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 3,
+                    lineHeight: 1,
+                    flexShrink: 0,
+                    transition:
+                      "background 0.12s ease, color 0.12s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(184, 134, 11, 0.14)";
+                    e.currentTarget.style.color = "#5a4a1f";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "#8a6d3b";
+                  }}
+                >
+                  <X size={12} />
+                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    alignItems: "flex-start",
+                    paddingRight: 22,
+                  }}
+                >
+                  <AlertTriangle
+                    size={14}
+                    style={{
+                      color: "#b8860b",
+                      marginTop: "1px",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#8a6d3b",
+                      lineHeight: 1.4,
+                      margin: 0,
+                    }}
+                  >
+                    <strong>Ownership Notice:</strong> Only mark prompts as
+                    your own property if you genuinely created them. Falsely
+                    claiming authorship will result in account strikes. See
+                    Terms.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Consolidated Action Bar */}
           <div style={{ background: "var(--alg-warm-white)", borderTop: "1px solid var(--alg-border)", padding: "10px 12px", zIndex: 10, marginTop: "auto" }}>
@@ -1588,7 +3904,7 @@ export default function AlgencyPromptEditor() {
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
                     <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(9px, 0.5vw + 6px, 11px)", color: "var(--alg-hint)" }}>
-                      via {solanaConnected ? "Solana" : "Thirdweb"} x402
+                      via {currentNetworkName}
                     </span>
                   </div>
                 </div>
@@ -1633,9 +3949,9 @@ export default function AlgencyPromptEditor() {
                     className="alg-btn alg-btn--primary alg-btn--sm"
                     style={{ padding: "6px 8px", background: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", borderColor: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
                     disabled={isPublishDisabled}
-                    onClick={() => publishPromptMutation.mutate()}
+                    onClick={handleReleaseClick}
                   >
-                    {publishPromptMutation.isPending ? "Publishing…" : "Publish"}
+                    {publishPromptMutation.isPending ? "Releasing…" : "Release"}
                   </button>
                 </div>
               </div>
@@ -1714,6 +4030,153 @@ export default function AlgencyPromptEditor() {
           setTimeout(() => { handleGenerateVersion(newId); }, 100);
         }}
       />
+
+      {/* ═══ Reference-image Lightbox ═══
+          Fullscreen viewer for the prompt's reference images.
+
+          Rendered through `createPortal` straight onto `document.body`
+          so it ESCAPES the editor wrapper's stacking context (the
+          page wraps everything in `position: fixed; zIndex: 100`,
+          which would otherwise trap the lightbox below the global
+          Navbar at zIndex: 200). With the portal the lightbox is a
+          sibling of the navbar in the DOM, and its z-index 9999
+          comparison happens at the document root — image always
+          wins, navbar disappears underneath.
+
+          Triggers: plain click on a slot tile (no drag-overlap).
+          Dismissals: Escape, "×" button, click on backdrop.
+          Navigation: ←/→ keys, on-screen prev/next buttons.
+          The top-center counter is ALWAYS visible while open;
+          close/prev/next chrome fades in on hover. */}
+      {typeof document !== "undefined" &&
+        refPreviewIndex !== null &&
+        referenceImages[refPreviewIndex] &&
+        createPortal(
+          <div
+            className="alg-ref-preview"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Reference image ${refPreviewIndex + 1} of ${referenceImages.length}`}
+            onClick={() => setRefPreviewIndex(null)}
+          >
+            <div className="alg-ref-preview__counter">
+              Reference image {refPreviewIndex + 1}
+              {referenceImages.length > 1 ? ` / ${referenceImages.length}` : ""}
+            </div>
+
+            <button
+              type="button"
+              className="alg-ref-preview__close"
+              aria-label="Close preview"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRefPreviewIndex(null);
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {referenceImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="alg-ref-preview__nav alg-ref-preview__nav--prev"
+                  aria-label="Previous reference image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRefPreviewDirection("prev");
+                    setRefPreviewIndex((i) =>
+                      i === null
+                        ? null
+                        : (i - 1 + referenceImages.length) % referenceImages.length
+                    );
+                  }}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  type="button"
+                  className="alg-ref-preview__nav alg-ref-preview__nav--next"
+                  aria-label="Next reference image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRefPreviewDirection("next");
+                    setRefPreviewIndex((i) =>
+                      i === null ? null : (i + 1) % referenceImages.length
+                    );
+                  }}
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+
+            <img
+              key={refPreviewIndex}
+              src={referenceImages[refPreviewIndex]}
+              alt={`Reference ${refPreviewIndex + 1}`}
+              className={`alg-ref-preview__img alg-ref-preview__img--${refPreviewDirection}`}
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* ═══ Reference-image hover tooltip ("Sprechblase") ═══
+          Rendered when the user hovers an `@Image{N}` chip in the
+          prompt body. Portalled to `document.body` for the same
+          reason as the lightbox — escapes the editor wrapper's
+          stacking context so it can float above ANY ancestor with
+          its own `overflow: hidden` / `transform` boundary.
+          Position is computed from the chip's snapshotted bounding
+          rect: bubble sits ABOVE the chip when there's room (the
+          common case, since chips appear inside the textarea which
+          sits well below the navbar), otherwise flips to BELOW.
+          The CSS `::after` pseudo draws the speech-bubble tip
+          pointing back at the chip's horizontal center. */}
+      {typeof document !== "undefined" &&
+        refTooltip &&
+        referenceImages[refTooltip.imageIndex - 1] &&
+        createPortal(
+          (() => {
+            /* Flip below the chip if hovering near the top of the
+               viewport leaves no room for the bubble above. The
+               bubble plus arrow plus a little breathing room is
+               about 220px; under that, point it down. */
+            const flipBelow = refTooltip.anchor.top < 220;
+            const top = flipBelow
+              ? refTooltip.anchor.bottom + 10
+              : refTooltip.anchor.top - 10;
+            return (
+              <div
+                className={`alg-ref-tooltip alg-ref-tooltip--${
+                  flipBelow ? "below" : "above"
+                }`}
+                style={{
+                  position: "fixed",
+                  top,
+                  left: refTooltip.anchor.centerX,
+                  zIndex: 9000,
+                  pointerEvents: "none",
+                }}
+                aria-hidden="true"
+              >
+                <img
+                  src={referenceImages[refTooltip.imageIndex - 1]}
+                  alt=""
+                  className="alg-ref-tooltip__img"
+                  draggable={false}
+                />
+                <div className="alg-ref-tooltip__label">
+                  Reference image {refTooltip.imageIndex}
+                </div>
+              </div>
+            );
+          })(),
+          document.body
+        )}
     </div>
+    </>
   );
 }
