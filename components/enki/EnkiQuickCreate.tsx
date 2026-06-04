@@ -29,7 +29,7 @@ export default function EnkiQuickCreate() {
 
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [prompt, setPrompt] = useState("A photograph of [subject] at [location], [mood], lit by [lighting].");
+  const [prompt, setPrompt] = useState("");
   const [vars, setVars] = useState<Record<string, string>>({});
 
   // Settings
@@ -217,7 +217,7 @@ export default function EnkiQuickCreate() {
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onScroll={handleScroll}
-                    placeholder="[variable]"
+                    placeholder="Enter your prompt and fill in variables if you have any — wrap them in [brackets], e.g. A photo of [subject]."
                   />
 
                   {/* Variable Chips below prompt */}

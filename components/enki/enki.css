@@ -1355,6 +1355,68 @@
 [data-theme="dark"] .enki-qc-summary-text-v3 { color: #fff; }
 [data-theme="dark"] .enki-qc-selector-v3 select { color: #aaa; }
 
+/* Grayed, self-explanatory prompt placeholder */
+.enki-qc-textarea-v3::placeholder {
+  color: #b8b3aa;
+  opacity: 1;
+}
+[data-theme="dark"] .enki-qc-textarea-v3::placeholder {
+  color: #6f6a64;
+}
+
+/* Mobile: turn the centered two-column panel into a scrollable bottom sheet
+   so the Generate button is always reachable. */
+@media (max-width: 768px) {
+  .enki-qc-panel-v3 {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+    animation: enki-qc-in-v3-mobile 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes enki-qc-in-v3-mobile {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  /* Stack the columns and let the whole body scroll */
+  .enki-qc-grid-v3 {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .enki-qc-col-left-v3 {
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 16px;
+  }
+
+  .enki-qc-col-right-v3 {
+    padding: 16px;
+    height: auto;
+  }
+
+  /* Let the variables list grow naturally; the panel itself scrolls */
+  .enki-qc-vars-list-v3 {
+    overflow: visible;
+  }
+
+  .enki-qc-selectors-v3 {
+    gap: 12px;
+  }
+
+  [data-theme="dark"] .enki-qc-col-left-v3 {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
 .enki-qc-source-tabs {
   display: flex;
   gap: 8px;
