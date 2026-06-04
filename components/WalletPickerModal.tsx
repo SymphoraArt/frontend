@@ -189,14 +189,37 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     const adapterSignIn = capable.signIn;
     const adapterSignMessage = capable.signMessage;
 
+    // Some adapters (e.g. Zerion) expose a signIn method but don't actually
+    // implement the SIWS standard feature — calling it throws
+    // "WalletSignInError: signIn: Not Implemented". Detect that and fall back
+    // to the plain signMessage flow, which those wallets do support.
+    const isSignInUnsupported = (e: unknown): boolean => {
+      const msg = ((e as Error)?.message ?? "").toLowerCase();
+      return (
+        (e as Error)?.name === "WalletSignInError" ||
+        msg.includes("not implemented") ||
+        msg.includes("signin is not")
+      );
+    };
+
     try {
+      let authenticated = false;
       if (typeof adapterSignIn === "function") {
-        // SIWS — single popup that both connects (already connected here) and signs.
-        await createSolanaAuthSessionWithSignIn(walletAddress, adapterSignIn.bind(adapter));
-      } else if (typeof adapterSignMessage === "function") {
-        await createSolanaAuthSession(walletAddress, adapterSignMessage.bind(adapter));
-      } else {
-        throw new Error("Wallet does not support message signing");
+        try {
+          // SIWS — single popup that both connects (already connected here) and signs.
+          await createSolanaAuthSessionWithSignIn(walletAddress, adapterSignIn.bind(adapter));
+          authenticated = true;
+        } catch (signInErr) {
+          // Re-throw genuine rejections; only fall back when SIWS is unsupported.
+          if (isUserRejection(signInErr) || !isSignInUnsupported(signInErr)) throw signInErr;
+        }
+      }
+      if (!authenticated) {
+        if (typeof adapterSignMessage === "function") {
+          await createSolanaAuthSession(walletAddress, adapterSignMessage.bind(adapter));
+        } else {
+          throw new Error("Wallet does not support message signing");
+        }
       }
       setSolanaPhase(null);
       setConnecting(null);
