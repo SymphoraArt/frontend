@@ -899,7 +899,7 @@ export default function AlgencyPromptEditor() {
       try {
         const draft: EditorDraft = {
           promptData,
-          variables: variables.map(normalizeVariable),
+          variables: variables.map((v, i) => normalizeVariable(v, variables.slice(0, i))),
           modelsSelected: models.selected,
           ratioSelected: ratios.selected,
           maxImages: ui.maxImages,
