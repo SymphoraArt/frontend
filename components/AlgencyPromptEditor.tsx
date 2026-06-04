@@ -4403,6 +4403,12 @@ export default function AlgencyPromptEditor() {
                 className="alg-textarea"
                 style={{
                   color: promptData.body.length > 0 ? "transparent" : undefined,
+                  // WebKit/iOS does not reliably hide textarea glyphs with
+                  // `color: transparent` alone — the real text bleeds through and
+                  // overlaps the highlight overlay (the "doubled text" artifact).
+                  // Force the text fill transparent too; the caret stays visible
+                  // via caretColor.
+                  WebkitTextFillColor: promptData.body.length > 0 ? "transparent" : undefined,
                   caretColor: "var(--alg-text)",
                 }}
                 value={promptData.body}
