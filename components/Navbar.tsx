@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   Check,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,6 +148,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     ? NAV_LINKS.filter((link) => !link.disabled)
     : NAV_LINKS;
 
+  const activeSection =
+    NAV_LINKS.find((link) => link.href === pathname) ?? NAV_LINKS[0];
+
   return (
     <>
       <header style={{
@@ -166,6 +170,63 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             </span>
             <span style={{ color: "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
           </div>
+
+          {isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="Switch section"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    margin: "0 auto", padding: "0 12px", height: 36,
+                    background: isDark ? "rgba(255,255,255,0.05)" : "#f3efe7",
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#d8d2c5"}`,
+                    borderRadius: 100, cursor: "pointer",
+                    color: activeColor, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px",
+                    fontFamily: "var(--font-sans)", whiteSpace: "nowrap",
+                  }}
+                >
+                  {activeSection.label}
+                  <ChevronDown size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="center"
+                className="w-44 rounded-[12px] overflow-hidden border shadow-2xl"
+                style={{
+                  background: isDark ? "#131c22" : "#faf8f4",
+                  color: isDark ? "#e8e0cc" : "#1a1715",
+                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "#d8d2c5",
+                }}
+              >
+                {NAV_LINKS.map(({ label, href, disabled, tooltip }) => {
+                  const isActive = href === activeSection.href;
+                  return (
+                    <DropdownMenuItem
+                      key={label}
+                      disabled={disabled}
+                      onClick={() => { if (!disabled) router.push(href); }}
+                      title={disabled ? tooltip : undefined}
+                      className="focus:bg-[#c96838]/10 focus:text-[#c96838]"
+                      style={{
+                        padding: "10px 16px", fontSize: 13, fontWeight: isActive ? 600 : 400,
+                        letterSpacing: "0.4px", cursor: disabled ? "not-allowed" : "pointer",
+                        opacity: disabled ? 0.5 : 1, outline: "none", color: "inherit",
+                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                      }}
+                    >
+                      <span>{label}</span>
+                      {disabled ? (
+                        <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.5px", opacity: 0.7 }}>SOON</span>
+                      ) : isActive ? (
+                        <Check size={14} />
+                      ) : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {!isMobile && (
             <nav style={{ display: "flex", alignItems: "center", gap: isTablet ? 0 : 4, margin: "0 auto" }}>
