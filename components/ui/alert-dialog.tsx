@@ -16,7 +16,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-[110] bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -31,14 +31,39 @@ const AlertDialogContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
-        className
-      )}
-      {...props}
-    />
+    {/* Flex-based centering wrapper.
+
+        Why not use `left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]`
+        directly on Content? Because tailwindcss-animate's `animate-in`
+        / `zoom-in-95` keyframes set `transform: translate3d(...) scale3d(...)`
+        which OVERRIDES any inline `translate-*` transform on the
+        animated element. The result: at frame 0 the dialog is
+        positioned with its TOP-LEFT corner at viewport-center
+        (centering translate clobbered by the keyframe), and at
+        frame 100 it suddenly snaps to true-center as the keyframe
+        ends and the inline translate kicks back in. The same
+        clobbering happens in reverse on close — hence the
+        "off-center → snap → off-center → vanish" jump.
+
+        Centering via flex on a parent (which is NOT animated)
+        decouples positioning from transform, so the keyframe is
+        free to drive scale/opacity without disturbing layout. */}
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-none"
+    >
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "relative grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg duration-200 pointer-events-auto",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "sm:rounded-lg",
+          className
+        )}
+        {...props}
+      />
+    </div>
   </AlertDialogPortal>
 ))
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName

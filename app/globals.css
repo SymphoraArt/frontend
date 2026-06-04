@@ -502,6 +502,30 @@ html {
   scrollbar-color: hsl(var(--border) / 0.8) transparent;
 }
 
+/* ─── Neutralize Radix dialog body-shift ─────────────────────────
+   Radix UI's AlertDialog / Dialog use `react-remove-scroll`
+   internally to lock page scroll while the dialog is open. That
+   library inline-styles `padding-right: <scrollbar-width>px` AND
+   `overflow: hidden` onto <body> to "compensate" for a removed
+   scrollbar. The problem: we already reserve the scrollbar gutter
+   on <html> via `scrollbar-gutter: stable` above, so the body
+   never actually loses any width when scroll is locked. The
+   compensation therefore creates a visible horizontal jump of
+   the entire UI behind the dialog (~10–15px to the right on
+   open, back to the left on close) — which manifests as the
+   delete-variable / overwrite-defaults / set-variable-names
+   popups appearing to "spring from one side into the middle".
+
+   We scope the override to "while any dialog/alertdialog is
+   mounted under <body>" via `:has()`. Without scoping, body would
+   never get padding even when an external script wanted to add
+   it. Inline styles require `!important` to override. */
+body:has([role="alertdialog"]),
+body:has([role="dialog"]) {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+}
+
 * {
   scrollbar-color: hsl(var(--border) / 0.8) transparent;
 }
