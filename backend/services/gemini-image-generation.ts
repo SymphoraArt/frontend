@@ -100,23 +100,27 @@ export async function generateImagesWithGemini(
       config.safetySettings = request.safetySettings;
     }
 
+    // Build the parts: text prompt first, then any reference images as
+    // inlineData (image-guided generation / editing — per Gemini docs).
+    const parts: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [{ text: request.prompt }];
+    for (const ref of request.referenceImages || []) {
+      const parsed = parseImageInput(ref);
+      if (parsed) parts.push({ inlineData: parsed });
+    }
+
     console.log(`[Gemini] Generating image with model: ${model}`);
     console.log(`[Gemini] Prompt: ${request.prompt.substring(0, 100)}...`);
+    if ((request.referenceImages || []).length > 0) {
+      console.log(`[Gemini] Using ${request.referenceImages!.length} reference image(s)`);
+    }
 
     // 5. Generate image
     // Contents must be an array with role and parts structure
     const response = await client.models.generateContent({
       model,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: request.prompt
-            }
-          ]
-        }
-      ],
+      contents: [{ role: "user", parts }],
       config
     });
 
@@ -303,6 +307,25 @@ export async function generateMultipleImagesWithGemini(
     generationTime: totalTime,
     retryable: anyRetryable
   };
+}
+
+/**
+ * Parses a reference image input into Gemini's inlineData shape.
+ * Accepts a data URL ("data:image/png;base64,AAAA") or a raw base64 string
+ * (defaults to image/png). Returns null for empty/invalid input.
+ */
+function parseImageInput(
+  input: string
+): { mimeType: string; data: string } | null {
+  if (!input || typeof input !== "string") return null;
+  const match = input.match(/^data:(.+?);base64,(.*)$/s);
+  if (match) {
+    return { mimeType: match[1], data: match[2] };
+  }
+  // Assume a bare base64 payload.
+  const data = input.trim();
+  if (!data) return null;
+  return { mimeType: "image/png", data };
 }
 
 /**

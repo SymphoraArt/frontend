@@ -138,7 +138,7 @@ Timestamp: ${timestamp}
 Nonce: ${nonce}
 
 This signature proves ownership of this wallet and will be used to authenticate your marketplace actions.`
-    : `Sign this message to authenticate with Symphora Marketplace.
+    : `Sign this message to authenticate with Enki Marketplace.
 
 Wallet: ${walletAddress}
 Timestamp: ${timestamp}

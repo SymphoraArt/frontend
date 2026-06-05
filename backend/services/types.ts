@@ -9,6 +9,12 @@ export interface ImageGenerationRequest {
   modelVersion?: string;
   imageSize?: '1K' | '2K' | '4K';
   safetySettings?: any[];
+  /**
+   * Optional reference images for image-guided generation / editing. Each entry
+   * is a data URL ("data:image/png;base64,...") or a raw base64 string. They are
+   * sent to Gemini as inlineData parts alongside the text prompt.
+   */
+  referenceImages?: string[];
 }
 
 export interface ImageGenerationResult {

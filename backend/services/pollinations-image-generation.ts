@@ -71,27 +71,56 @@ export async function generateImageWithPollinations(
 
     const { width, height } = getDimensions(aspectRatio, resolution);
 
+    /* Pollinations now gates generation behind API tokens + x402 micro-
+       payments; anonymous traffic is throttled to ~1 queued request per
+       IP and otherwise returns 402. A free token (https://auth.pollinations.ai)
+       lifts the limit. Configure it via POLLINATIONS_TOKEN. The optional
+       POLLINATIONS_REFERRER helps identify the app on the anonymous tier. */
+    const token = process.env.POLLINATIONS_TOKEN?.trim();
+    const referrer = process.env.POLLINATIONS_REFERRER?.trim();
+
     // Pollinations.ai URL-based API - returns image directly
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 999999);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true&model=flux`;
+    const params = new URLSearchParams({
+      width: String(width),
+      height: String(height),
+      seed: String(seed),
+      model: 'flux',
+    });
+    // `nologo` requires a paid tier — only request it when authenticated.
+    if (token) params.set('nologo', 'true');
+    if (referrer) params.set('referrer', referrer);
+    if (token) params.set('token', token);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
 
-    console.log(`[Pollinations] Generating image: ${width}x${height}`);
+    console.log(`[Pollinations] Generating image: ${width}x${height}${token ? ' (token)' : ' (anonymous)'}`);
     console.log(`[Pollinations] Prompt: ${prompt.substring(0, 100)}...`);
 
     // Fetch the image to get the buffer (Pollinations returns the image directly)
     const response = await fetch(imageUrl, {
       headers: {
         'Accept': 'image/*',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
 
     if (!response.ok) {
+      if (response.status === 402) {
+        return {
+          success: false,
+          error: token
+            ? 'Pollinations rejected the request (402). The token may be invalid or out of quota.'
+            : 'Pollinations now requires an API token for image generation (402 Payment Required). Create a free token at https://auth.pollinations.ai and set POLLINATIONS_TOKEN in your environment.',
+          generationTime: Date.now() - startTime,
+          retryable: false,
+        };
+      }
       return {
         success: false,
         error: `Pollinations API error: ${response.status} ${response.statusText}`,
         generationTime: Date.now() - startTime,
-        retryable: response.status >= 500,
+        retryable: response.status >= 500 || response.status === 429,
       };
     }
 

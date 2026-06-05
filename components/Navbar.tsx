@@ -36,6 +36,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useTheme } from "../providers/ThemeProvider";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useHoldings } from "@/hooks/useHoldings";
 
 interface NavbarProps {
   username?: string;
@@ -94,6 +95,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress, logout: solanaSessionLogout } = useSolanaAuth();
   const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
   const { theme, toggleTheme } = useTheme();
+  // Same key as the billing recipient (PaymentIntent metadata) so the navbar
+  // shows the balance that top-ups credit.
+  const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
+  const { balance: holdings, ready: holdingsReady } = useHoldings(holdingsAddress);
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -164,7 +169,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
           
 
-          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
+          <div
+            role="link"
+            tabIndex={0}
+            aria-label="Go to home"
+            onClick={() => router.push("/")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push("/"); } }}
+            style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, position: "relative", zIndex: 10, pointerEvents: "auto" }}
+          >
             <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
               Enki Art
             </span>
@@ -313,6 +325,27 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             )}
 
             <button
+              onClick={() => router.push("/settings?tab=billing")}
+              title="Your balance — tap to add funds"
+              aria-label="Holdings"
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                height: 32, padding: "0 12px", marginRight: isMobile ? 2 : 4,
+                borderRadius: 100, cursor: "pointer",
+                background: isDark ? "rgba(255,255,255,0.06)" : "#f3efe7",
+                border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#e2ded6"}`,
+                color: isDark ? "#f1ede6" : "#1c1a18",
+                fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)",
+                whiteSpace: "nowrap", transition: "background 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
+            >
+              <Wallet size={14} color="#c96838" />
+              ${holdingsReady ? holdings.toFixed(2) : "0.00"}
+            </button>
+
+            <button
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
               onClick={toggleTheme}
               style={{
@@ -454,7 +487,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <div style={{ padding: "8px 0" }}>
                   {[
                     { label: "My profile", href: "/profile" },
-                    { label: "My Gallery", href: "/my-gallery" },
+                    { label: "My Gallery", href: "/profile?tab=Gallery" },
                     { label: "Settings", href: "/settings" }
                   ].map((link) => (
                     <DropdownMenuItem 
@@ -519,7 +552,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                         gap: 8,
                       }}
                     >
-                      <Wallet size={14} /> Connect Wallet
+                      <Wallet size={14} /> Sign in
                     </DropdownMenuItem>
                   )}
                 </div>

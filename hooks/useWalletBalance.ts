@@ -95,6 +95,45 @@ export function usePaymentBalance(chainKey: ChainKey): BalanceInfo {
 }
 
 /**
+ * Query USDC balance for an EXPLICIT address (not just the active account).
+ *
+ * Needed for the abstracted "account balance" UX: Turnkey email wallets aren't
+ * the active Thirdweb account, but we still want to show their on-chain USDC
+ * balance as a plain dollar figure.
+ *
+ * @param chainKey - Chain to query
+ * @param address  - Wallet address to read (EVM 0x… address)
+ */
+export function useUsdcBalanceFor(chainKey: ChainKey, address?: string | null): BalanceInfo {
+  const chainConfig = PAYMENT_CHAINS[chainKey];
+
+  const { data: balance, isLoading } = useWalletBalance({
+    client: thirdwebClient,
+    address: address || undefined,
+    chain: defineChain({
+      id: chainConfig.id,
+      rpc: chainConfig.rpcUrl,
+    }),
+    tokenAddress: chainConfig.usdc,
+  });
+
+  const symbol = getTokenSymbol(chainKey);
+  const displayBalance = balance?.displayValue || "0";
+  const rawBalance = balance?.value || BigInt(0);
+  const MIN_BALANCE = BigInt(10000);
+
+  return {
+    balance: rawBalance,
+    displayBalance,
+    symbol,
+    isLoading,
+    hasBalance: rawBalance > BigInt(0),
+    hasSufficientBalance: rawBalance >= MIN_BALANCE,
+    chain: chainKey,
+  };
+}
+
+/**
  * Hook to query balances across multiple chains simultaneously
  *
  * @param chains - Array of chain keys to query

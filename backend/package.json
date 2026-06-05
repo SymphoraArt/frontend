@@ -1,7 +1,7 @@
 {
   "name": "aigency-backend",
   "version": "1.0.0",
-  "description": "Backend services for AIgency platform",
+  "description": "Backend services for Enki platform",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -31,6 +31,6 @@
     "vitest": "^1.4.0"
   },
   "keywords": ["ai", "generation", "backend"],
-  "author": "AIgency Team",
+  "author": "Enki Team",
   "license": "MIT"
 }

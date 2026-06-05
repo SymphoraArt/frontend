@@ -103,6 +103,12 @@ export async function POST(req: NextRequest) {
   try {
     const parentClient = getTurnkeyClient(parentOrgId);
 
+    // The platform API key must be a root user of the sub-org so the server can
+    // sign on the user's behalf (custodial / no-popup model). Without this, the
+    // parent key is not a voter inside the sub-org and signing fails with
+    // ORGANIZATION_MISMATCH.
+    const serverApiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY!;
+
     const subOrgResult = await parentClient.createSubOrganization({
       organizationId: parentOrgId,
       subOrganizationName: `user:${normalizedEmail}`,
@@ -114,7 +120,21 @@ export async function POST(req: NextRequest) {
           authenticators: [],
           oauthProviders: [],
         },
+        {
+          userName: "Enki Server",
+          userEmail: "",
+          apiKeys: [
+            {
+              apiKeyName: "enki-server-signer",
+              publicKey: serverApiPublicKey,
+              curveType: "API_KEY_CURVE_P256",
+            },
+          ],
+          authenticators: [],
+          oauthProviders: [],
+        },
       ],
+      // Threshold 1 → the server key alone can authorize signing.
       rootQuorumThreshold: 1,
       wallet: {
         walletName: "Solana Wallet",

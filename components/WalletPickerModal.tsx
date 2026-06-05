@@ -63,7 +63,6 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   // Email / Turnkey state
   const { set: setTurnkeyAuth } = useTurnkeyEmailAuth();
   const { step, error: turnkeyError, walletAddress: turnkeyWalletAddress, subOrganizationId, sessionToken, isReturning, sendOtp, verifyOtp, reset: resetTurnkey } = useTurnkeyWallet();
-  const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
@@ -72,7 +71,6 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     setSolanaPhase(null);
     setSolanaError(null);
     setConnecting(null);
-    setShowEmail(false);
     setEmail("");
     setOtpCode("");
     resetTurnkey();
@@ -277,73 +275,72 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="sm:max-w-xs p-4">
         <DialogHeader>
-          <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          <DialogTitle className="text-base">Sign in</DialogTitle>
           <DialogDescription className="sr-only">
-            Select a Solana or EVM wallet to connect to Symphora.
+            Sign in with your email, or connect a Solana / EVM wallet.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 space-y-1">
-          {/* Email / Turnkey login */}
-          {showEmail ? (
-            <div className="py-1">
-              {step === "idle" || step === "sending" ? (
-                <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2">
-                  <input
-                    type="email"
-                    required
-                    placeholder="Email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring"
-                  />
-                  {turnkeyError && <p className="text-xs text-red-500">{turnkeyError}</p>}
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => { setShowEmail(false); resetTurnkey(); }}
-                      className="flex-1 rounded-lg border border-input py-2 text-xs font-medium text-muted-foreground hover:bg-muted">
-                      Cancel
-                    </button>
-                    <button type="submit" disabled={step === "sending"}
-                      className="flex-1 rounded-lg bg-foreground py-2 text-xs font-medium text-background disabled:opacity-50">
-                      {step === "sending" ? "Sending…" : "Send code"}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <form onSubmit={handleOtpSubmit} className="flex flex-col gap-2">
-                  {isReturning ? (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                      Existing wallet found, recovering — enter the code sent to <strong>{email}</strong>.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Verification code sent to <strong>{email}</strong>
-                    </p>
-                  )}
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter code"
-                    maxLength={32}
-                    autoComplete="one-time-code"
-                    spellCheck={false}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-center font-mono text-base tracking-wide outline-none focus:border-ring"
-                  />
-                  {turnkeyError && <p className="text-xs text-red-500">{turnkeyError}</p>}
-                  <button type="submit" disabled={step === "verifying" || otpCode.trim().length === 0}
-                    className="w-full rounded-lg bg-foreground py-2 text-xs font-medium text-background disabled:opacity-50">
-                    {step === "verifying" ? "Verifying…" : isReturning ? "Recover wallet" : "Verify"}
-                  </button>
-                  <button type="button" onClick={() => { resetTurnkey(); setOtpCode(""); }}
-                    className="text-xs text-muted-foreground hover:text-foreground">
-                    Use a different email
-                  </button>
-                </form>
-              )}
-            </div>
-          ) : null}
+          {/* Primary: email login (passwordless OTP) */}
+          <div className="py-1">
+            {step === "idle" || step === "sending" ? (
+              <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring"
+                />
+                {turnkeyError && <p className="text-xs text-red-500">{turnkeyError}</p>}
+                <button type="submit" disabled={step === "sending" || email.trim().length === 0}
+                  className="w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background disabled:opacity-50">
+                  {step === "sending" ? "Sending…" : "Continue with email"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleOtpSubmit} className="flex flex-col gap-2">
+                {isReturning ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Existing wallet found, recovering — enter the code sent to <strong>{email}</strong>.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Verification code sent to <strong>{email}</strong>
+                  </p>
+                )}
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter code"
+                  maxLength={32}
+                  autoComplete="one-time-code"
+                  spellCheck={false}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-center font-mono text-base tracking-wide outline-none focus:border-ring"
+                />
+                {turnkeyError && <p className="text-xs text-red-500">{turnkeyError}</p>}
+                <button type="submit" disabled={step === "verifying" || otpCode.trim().length === 0}
+                  className="w-full rounded-lg bg-foreground py-2.5 text-sm font-medium text-background disabled:opacity-50">
+                  {step === "verifying" ? "Verifying…" : isReturning ? "Recover wallet" : "Verify"}
+                </button>
+                <button type="button" onClick={() => { resetTurnkey(); setOtpCode(""); }}
+                  className="text-xs text-muted-foreground hover:text-foreground">
+                  Use a different email
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Divider → web3 option */}
+          <div className="my-3 flex items-center gap-3">
+            <div className="flex-1 border-t" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">or connect with wallet</span>
+            <div className="flex-1 border-t" />
+          </div>
 
           {solanaError && (
             <p className="px-3 py-1.5 text-xs text-red-500">{solanaError}</p>
@@ -398,20 +395,6 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
               </span>
             </button>
           ))}
-          {!showEmail && (
-            <>
-              <div className="border-t my-2" />
-              <button
-                disabled={!!connecting}
-                onClick={() => setShowEmail(true)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted disabled:opacity-50 text-sm font-medium text-left transition-colors"
-              >
-                <span className="h-6 w-6 rounded-full bg-gradient-to-br from-violet-500 to-pink-400 flex items-center justify-center text-white text-xs flex-shrink-0">@</span>
-                <span className="flex-1">Sign in with Email</span>
-                <span className="text-xs text-muted-foreground">Embedded Wallet</span>
-              </button>
-            </>
-          )}
         </div>
       </DialogContent>
     </Dialog>

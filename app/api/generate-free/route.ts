@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
+import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 
 /**
  * Free image generation endpoint (dev/testing)
@@ -19,11 +20,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
+    // Reference images (data URLs / base64) attached to a verify card.
+    // Pollinations is text-only, so whenever references are present we
+    // route through Gemini (image-guided generation) instead.
+    const referenceImages: string[] = Array.isArray(body?.referenceImages)
+      ? body.referenceImages.filter((r: unknown) => typeof r === "string" && r.length > 0)
+      : [];
+
     console.log('🎨 Free generation request:', {
       prompt: prompt.substring(0, 80) + '...',
       aspectRatio: body.aspectRatio || '1:1',
       resolution: body.resolution || '2K',
+      referenceImages: referenceImages.length,
     });
+
+    if (referenceImages.length > 0) {
+      const gemini = await generateImagesWithGemini({
+        prompt,
+        aspectRatio: body.aspectRatio || '1:1',
+        referenceImages,
+      });
+
+      if (!gemini.success || !gemini.imageBuffers || gemini.imageBuffers.length === 0) {
+        console.error('❌ Gemini reference generation failed:', gemini.error);
+        return NextResponse.json(
+          { error: gemini.error || 'Image generation failed' },
+          { status: 500 }
+        );
+      }
+
+      const base64 = gemini.imageBuffers[0].toString('base64');
+      const imageUrl = `data:image/png;base64,${base64}`;
+      console.log(`✅ Gemini reference image generated in ${gemini.generationTime}ms`);
+      return NextResponse.json({
+        imageUrl,
+        prompt,
+        provider: "gemini",
+        model: "gemini-2.5-flash-image",
+        generationTime: gemini.generationTime,
+        free: true,
+      });
+    }
 
     // Generate image using Pollinations.ai (free)
     const result = await generateImageWithPollinations(

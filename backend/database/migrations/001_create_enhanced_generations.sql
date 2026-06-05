@@ -1,4 +1,4 @@
--- Migration: Create enhanced generations table for AIgency
+-- Migration: Create enhanced generations table for Enki
 -- Date: 2026-01-05
 -- Description: Adds comprehensive generation tracking with variable substitution support
 

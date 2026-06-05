@@ -301,7 +301,7 @@ export default function DashboardPage() {
                   <span className="text-xs">Browse Marketplace</span>
                 </Button>
               </Link>
-              <Link href="/my-gallery">
+              <Link href="/profile?tab=Gallery">
                 <Button className="w-full h-20 flex flex-col gap-2" variant="outline">
                   <ImageIcon className="h-5 w-5" />
                   <span className="text-xs">My Gallery</span>

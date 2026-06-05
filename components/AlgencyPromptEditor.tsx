@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useActiveAccount, useActiveWalletChain } from "thirdweb/react";
+import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
@@ -39,6 +38,7 @@ import {
   LockOpen,
   Undo2,
   Redo2,
+  Check,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -51,6 +51,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ENKI_CATEGORIES } from "@/components/enki/EnkiFilters";
 import nlp from "compromise";
 import { getVariableColors, pickVariableColorIndex } from "@/lib/variableColors";
 
@@ -484,6 +485,8 @@ interface VersionCard {
   imageUrl: string | null;
   status: "idle" | "queued" | "generating" | "complete" | "failed";
   queuePosition?: number; // assigned when batch-queued
+  /** Per-card reference images (data URLs) fed to this card's render. */
+  referenceImages?: string[];
 }
 
 /* ─── Color map for known variables ─── */
@@ -502,11 +505,6 @@ export default function AlgencyPromptEditor() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const account = useActiveAccount();
-  /* Live EVM chain the user's wallet is currently connected to. Updates
-     when the user switches networks in MetaMask / their wallet, so the
-     "via …" line in the Verify panel always reflects the network the
-     payment will actually go through right now. */
-  const activeWalletChain = useActiveWalletChain();
   const { connected: solanaAdapterConnected } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
   // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
@@ -516,22 +514,6 @@ export default function AlgencyPromptEditor() {
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
-  /* Human-readable name of the network the user is paying on right
-     now. Source-of-truth priority:
-       1. Solana adapter / Turnkey email -> the Solana mainnet/devnet
-          name from PAYMENT_CHAINS (which holds the canonical labels).
-       2. Live EVM chain reported by the connected wallet (changes if
-          the user switches networks in MetaMask).
-       3. The `selectedChain` (best-balance chain) name as a fallback
-          before the wallet has reported its chain.
-     The Verify panel renders this string after "via " so the user
-     always sees the actual network — never the payment-protocol name
-     ("x402") or the wallet-provider name ("Thirdweb"). */
-  const currentNetworkName = solanaConnected
-    ? PAYMENT_CHAINS["solana"].name
-    : activeWalletChain?.name ??
-      PAYMENT_CHAINS[selectedChain]?.name ??
-      selectedChain;
   const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -558,6 +540,25 @@ export default function AlgencyPromptEditor() {
   const pendingVarScrollRef = useRef<string | null>(null);
   const variableLabelRegistryRef = useRef<Set<string>>(new Set());
   const [promptPrice, setPromptPrice] = useState(0);
+  /* Raw text backing the price <input>. A number-only state can't hold
+     intermediate states like "0" or "0." (both coerce to 0, which the
+     controlled value renders as ""), so the user could never type a
+     decimal that starts with zero. We keep the raw string here and
+     derive `promptPrice` from it. */
+  const [priceText, setPriceText] = useState("");
+  /* Controls the single-select Category dropdown so it closes on pick. */
+  const [catOpen, setCatOpen] = useState(false);
+  useEffect(() => {
+    // Keep the text field in sync when the price changes from OUTSIDE the
+    // input (stepper buttons, draft restore, model min-price). We avoid
+    // clobbering while the user is mid-typing an equivalent value — e.g.
+    // "0." parses to 0, which already equals the stored price.
+    const typed = parseFloat(priceText);
+    if (!Number.isFinite(typed) || typed !== promptPrice) {
+      setPriceText(promptPrice ? String(promptPrice) : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptPrice]);
   /* Direction of the most recent stepper-button press on the price
      input. Drives a brief slide-in animation on the number text so
      a tap on ▲/▼ is reflected visually (a "roll" up or down) even
@@ -661,7 +662,7 @@ export default function AlgencyPromptEditor() {
     startPos: number;
     highlighted: number;
   }>({ open: false, query: "", startPos: -1, highlighted: 0 });
-  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [, setDraftSavedAt] = useState<number | null>(null);
   const draftReadyRef = useRef(false);
 
   /* ─── Undo / Redo history ─────────────────────────────────────────
@@ -1203,11 +1204,17 @@ export default function AlgencyPromptEditor() {
           m.allowed_ratios.forEach((r: string) => allowed.add(r));
         }
       });
-      const allowedArray = Array.from(allowed);
+      // "Any ratio" is always a valid choice (buyer picks at render time) and is
+      // the default. Keep it first so selects/dropdowns that build options from
+      // `available` include it — otherwise a native <select value="Any ratio">
+      // with no matching option visually snaps to the first allowed ratio.
+      const allowedArray = ["Any ratio", ...Array.from(allowed)];
       setRatios(prev => ({
         ...prev,
         available: allowedArray,
-        selected: allowedArray.includes(prev.selected) ? prev.selected : allowedArray[0] || "Any ratio"
+        // Default to "Any ratio" — keep it (or an explicit allowed pick the user
+        // made) instead of forcing the first allowed ratio.
+        selected: allowedArray.includes(prev.selected) ? prev.selected : "Any ratio"
       }));
     }
   }, [models.selected, models.available]);
@@ -2658,6 +2665,9 @@ export default function AlgencyPromptEditor() {
     const card = versions.find(v => v.id === versionId) ??
       { variableSnapshot: {} as Record<string, string> };
     const snapshot = card.variableSnapshot;
+    // Per-card reference images (data URLs). When present they are fed
+    // to this card's render so the verify image reflects the references.
+    const cardRefs = (card as VersionCard).referenceImages ?? [];
 
     /* Body for the AI provider:
        1. Expand `@ImageN` mentions → "Reference image N"  (must run
@@ -2701,7 +2711,10 @@ export default function AlgencyPromptEditor() {
           body: JSON.stringify({
             prompt: previewText,
             resolution: "2K",
-            aspectRatio: ratios.selected,
+            // "Any ratio" is a prompt setting (buyer chooses) — pick a concrete
+            // ratio for the author's own preview render.
+            aspectRatio: ratios.selected === "Any ratio" ? "1:1" : ratios.selected,
+            referenceImages: cardRefs.length ? cardRefs : undefined,
           }),
         });
         if (!res.ok) {
@@ -2717,7 +2730,7 @@ export default function AlgencyPromptEditor() {
               chain: "solana-devnet",
             }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
           : await generateImageWithPayment(
-              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
+              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected === "Any ratio" ? "1:1" : ratios.selected, referenceImages: cardRefs.length ? cardRefs : undefined },
               selectedChain
             ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
       }
@@ -3846,19 +3859,48 @@ export default function AlgencyPromptEditor() {
                   </span>
                 ))}
               </div>
-              <input
-                className="alg-tag-input"
-                placeholder="category, that's derived from the main categories"
-                value={ui.tagInput}
-                onChange={(e) => setUi(prev => ({ ...prev, tagInput: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    addTag(ui.tagInput);
-                    setUi(prev => ({ ...prev, tagInput: '' }));
-                  }
-                }}
-              />
+              {/* Category is picked from the same set of categories shown
+                  as filters on the main feed page (see ENKI_CATEGORIES).
+                  Single-select: picking a category replaces the current
+                  one; picking the active one clears it. */}
+              <Popover open={catOpen} onOpenChange={setCatOpen}>
+                <PopoverTrigger asChild>
+                  <button type="button" className="alg-category-select">
+                    <span className="alg-category-select__label">
+                      {promptData.tags.length ? "Change category" : "Select a category"}
+                    </span>
+                    <ChevronDown size={14} strokeWidth={2} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="bottom"
+                  className="alg-category-popover z-[120] w-[var(--radix-popover-trigger-width)] min-w-[180px] border-[var(--alg-border)] bg-[var(--alg-panel)] p-1 text-[var(--alg-text)] shadow-lg"
+                >
+                  {ENKI_CATEGORIES.map((label) => {
+                    const selected = promptData.tags.includes(label.toLowerCase());
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        className={`alg-category-option ${selected ? "alg-category-option--active" : ""}`}
+                        onClick={() => {
+                          // Single-select: replace any existing category with
+                          // this one (or clear it if it's already active).
+                          setPromptData((prev) => ({
+                            ...prev,
+                            tags: selected ? [] : [label.toLowerCase()],
+                          }));
+                          setCatOpen(false);
+                        }}
+                      >
+                        <span>{label}</span>
+                        {selected && <Check size={14} strokeWidth={2.5} />}
+                      </button>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
             </div>
             </div>
 
@@ -4144,7 +4186,7 @@ export default function AlgencyPromptEditor() {
             <div className="alg-label">PRICING</div>
             {promptData.type === "premium-prompt" ? (
               <div className={`alg-settings-box ${fieldError("price") ? "alg-field--missing" : ""}`}>
-                <div className="alg-label" style={{ marginTop: 0 }}>PRICE PER RENDER (USDC)</div>
+                <div className="alg-label" style={{ marginTop: 0 }}>PRICE PER RENDER (USD)</div>
                 {/* Custom number input.
                     Architecture:
                       - The wrapping `__field-wrap` carries the
@@ -4202,14 +4244,24 @@ export default function AlgencyPromptEditor() {
                     >
                       <div className="alg-num-input__field-wrap">
                         <input
-                          type="number"
-                          min={0.0001}
-                          step={0.0001}
+                          type="text"
+                          inputMode="decimal"
                           className="alg-input alg-num-input__field"
                           style={{ fontSize: 14 }}
-                          value={promptPrice || ""}
+                          value={priceText}
                           onChange={(e) => {
-                            setPromptPrice(parseFloat(e.target.value) || 0);
+                            // Allow only digits and a single decimal point so
+                            // "0", "0.", and "0.05" can all be typed freely.
+                            let raw = e.target.value.replace(/[^0-9.]/g, "");
+                            const firstDot = raw.indexOf(".");
+                            if (firstDot !== -1) {
+                              raw =
+                                raw.slice(0, firstDot + 1) +
+                                raw.slice(firstDot + 1).replace(/\./g, "");
+                            }
+                            setPriceText(raw);
+                            const n = parseFloat(raw);
+                            setPromptPrice(Number.isFinite(n) ? n : 0);
                             setUi((p) => ({ ...p, pricePerRenderReviewed: true }));
                           }}
                           onFocus={() =>
@@ -4651,25 +4703,6 @@ export default function AlgencyPromptEditor() {
               );
             })()}
 
-            <div className="alg-prompt-footer">
-              <div className="alg-prompt-footer__stat">
-                <span className="alg-prompt-footer__stat-value">{promptData.body.length}</span>
-                <span className="alg-prompt-footer__stat-label">chars</span>
-              </div>
-              <div style={{ width: 1, height: 24, background: "var(--alg-border)", opacity: 0.5 }} />
-              <div className="alg-prompt-footer__stat">
-                <span className="alg-prompt-footer__stat-value">{variables.length}</span>
-                <span className="alg-prompt-footer__stat-label">variables</span>
-              </div>
-              <div
-                className="alg-prompt-footer__draft"
-                title="Your prompt, variables, and settings are saved in this browser. Leave and come back anytime — your draft will still be here."
-              >
-                <span className={`alg-prompt-footer__draft-label ${draftSavedAt ? "alg-prompt-footer__draft-label--saved" : ""}`}>
-                  {draftSavedAt ? "Draft saved in browser" : "Saving draft…"}
-                </span>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -5183,7 +5216,12 @@ export default function AlgencyPromptEditor() {
                                       onClick={(e) => e.stopPropagation()}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      {key}
+                                      <span className="alg-verify-var-chip__name">{key}</span>
+                                      {popoverBody && (
+                                        <span className="alg-verify-var-chip__value">
+                                          {popoverBody}
+                                        </span>
+                                      )}
                                     </button>
                                   </PopoverTrigger>
                                   <PopoverContent
@@ -5406,9 +5444,6 @@ export default function AlgencyPromptEditor() {
                     <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(12px, 0.8vw + 8px, 16px)", fontWeight: 700, color: "var(--alg-dark)" }}>
                       {getBatchCost(Math.max(versions.filter(v => v.status === "idle" || v.status === "failed").length, variables.filter(v => v.type === "text").length > 0 ? Math.max(...variables.filter(v => v.type === "text").map(v => v.values.length || 1)) : 1))}
                     </span>
-                    <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "clamp(9px, 0.5vw + 6px, 11px)", color: "var(--alg-hint)" }}>
-                      via {currentNetworkName}
-                    </span>
                   </div>
                 </div>
               )}
@@ -5514,9 +5549,19 @@ export default function AlgencyPromptEditor() {
         }}
         models={models}
         setModel={(id) => setModels(prev => ({ ...prev, selected: [id] }))}
+        onToggleModel={(id) => toggleModel(id)}
         ratios={ratios}
         setRatio={(r) => setRatios(prev => ({ ...prev, selected: r }))}
         pricePerSlot={getPricePerSlot()}
+        title={promptData.title}
+        setTitle={(v) => setPromptData(prev => ({ ...prev, title: v }))}
+        promptType={promptData.type}
+        setPromptType={(v) => setPromptData(prev => ({ ...prev, type: v as typeof prev.type }))}
+        tags={promptData.tags}
+        onAddTag={(t) => addTag(t)}
+        onRemoveTag={(t) => removeTag(t)}
+        price={promptPrice}
+        setPrice={(v) => setPromptPrice(v)}
         onAutoFill={handleGrokFill}
         isAutoFilling={ui.isGrokFilling}
         onGenerate={() => {

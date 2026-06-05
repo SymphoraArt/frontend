@@ -172,6 +172,30 @@ export default function PromptGeneratorView({
   const mainImage = showcaseImages[0]?.thumbnail || showcaseImages[0]?.url || propImageUrl || "";
   const promptText = prompt?.publicPromptText || "";
 
+  /* For FREE prompts we show the ENTIRE prompt with every [variable]
+     already substituted by its current (or default) value — buyers see
+     the finished, copy-ready prompt instead of a fill-in-the-blanks form.
+     Falls back to the raw prompt text when nothing resolves. */
+  const freePromptText = useMemo(() => {
+    if (!promptText) return "";
+    let out = promptText;
+    variables.forEach((v) => {
+      const raw = vars[v.name];
+      let val = "";
+      if (v.type === "checkbox") {
+        val = raw === "true" ? String(v.label || v.name) : "";
+      } else if (raw != null && raw !== "") {
+        val = String(raw);
+      } else if (v.defaultValue != null) {
+        val = String(v.defaultValue);
+      }
+      if (!val) return;
+      const safe = v.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out = out.replace(new RegExp(`\\[${safe}\\]`, "gi"), val);
+    });
+    return out;
+  }, [promptText, variables, vars]);
+
   /* Fetch user's generations — API returns { data: { generations, total } } via createSuccessResponse */
   const genQueryKey = ["user-generations", userKey, promptId];
   const { data: genData } = useQuery<{
@@ -237,11 +261,12 @@ export default function PromptGeneratorView({
   }, [fav, promptId, toast]);
 
   const copyPrompt = useCallback(() => {
-    if (!promptText) return;
-    navigator.clipboard.writeText(promptText);
+    const text = freePromptText || promptText;
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [promptText]);
+  }, [freePromptText, promptText]);
 
   const onRefUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -398,11 +423,13 @@ export default function PromptGeneratorView({
             </div>
           </div>
 
-          {/* Free: show prompt text */}
-          {isFree && promptText && (
+          {/* Free: show the ENTIRE prompt with variables already
+              substituted. Free prompts are open — buyers see the full,
+              finished prompt to copy & remix, never a variable form. */}
+          {isFree && freePromptText && (
             <div className="pgv-block">
               <span className="pgv-section-label">Prompt · Free</span>
-              <textarea className="pgv-prompt-area" value={promptText} readOnly rows={4} />
+              <textarea className="pgv-prompt-area" value={freePromptText} readOnly rows={8} />
               <button onClick={copyPrompt} style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#666", background: "none", border: "none", cursor: "pointer" }}>
                 {copied ? <Check size={12} /> : <Copy size={12} />}
                 {copied ? "Copied" : "Copy prompt"}
@@ -410,8 +437,10 @@ export default function PromptGeneratorView({
             </div>
           )}
 
-          {/* Variable inputs — type-aware, one block per variable */}
-          {variables.map(v => (
+          {/* Variable inputs — type-aware, one block per variable.
+              FREE prompts skip these entirely: their full prompt is shown
+              above with the variable values already baked in. */}
+          {!isFree && variables.map(v => (
             <div key={v.id || v.name} className="pgv-block">
               <span className="pgv-section-label">{v.label || v.name}</span>
 

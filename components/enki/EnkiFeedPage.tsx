@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import EnkiFilters from "@/components/enki/EnkiFilters";
-import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
+import GenerateLauncher from "@/components/GenerateLauncher";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { mapMarketplacePromptToEnkiPrompt } from "@/lib/enkiPromptAdapter";
 
@@ -157,7 +157,7 @@ export default function EnkiFeedPage() {
           </section>
         ) : null}
 
-        <EnkiQuickCreate />
+        <GenerateLauncher />
         {open && (
           <EnkiDetailPanel
             prompt={open}

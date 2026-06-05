@@ -1,6 +1,8 @@
 "use client";
+import "@/components/enki/enki.css";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   clearCreations,
@@ -10,6 +12,7 @@ import {
   type StoredCreation,
 } from "@/lib/creations";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
+import GalleryImageModal from "@/components/GalleryImageModal";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { Images, Trash2, Wallet, Loader2, ImageOff } from "lucide-react";
 
@@ -27,20 +30,24 @@ type SupabaseGeneration = {
 };
 
 export default function MyGalleryPage() {
+  const router = useRouter();
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: turnkeyAddress, sessionToken: turnkeySession } = useTurnkeyEmailAuth();
   const authenticated = !!account || solanaConnected || !!turnkeyAddress;
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const userKey = useMemo(
     () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
     [account?.address, solanaPublicKey, turnkeyAddress]
   );
+  // Address used to charge the balance when regenerating from the modal.
+  const payAddress = account?.address ?? turnkeyAddress ?? null;
   const [items, setItems] = useState<StoredCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [mediaFilter, setMediaFilter] = useState<"all" | "images" | "videos">("all");
+  const [activeCreation, setActiveCreation] = useState<StoredCreation | null>(null);
 
   // Listen for gallery refresh events
   useEffect(() => {
@@ -50,6 +57,19 @@ export default function MyGalleryPage() {
 
     window.addEventListener('gallery-refresh', handleRefresh);
     return () => window.removeEventListener('gallery-refresh', handleRefresh);
+  }, []);
+
+  // Release any residual scroll lock. Radix dialogs (via react-remove-scroll)
+  // inline `overflow: hidden` onto <body> while open; under React 19 the cleanup
+  // can occasionally leak, leaving the whole page unscrollable until reload. We
+  // defensively clear it on mount so My Gallery always scrolls.
+  useEffect(() => {
+    const body = document.body;
+    const html = document.documentElement;
+    if (body.style.overflow === "hidden") body.style.overflow = "";
+    if (html.style.overflow === "hidden") html.style.overflow = "";
+    body.style.removeProperty("padding-right");
+    body.removeAttribute("data-scroll-locked");
   }, []);
 
   useEffect(() => {
@@ -64,8 +84,8 @@ export default function MyGalleryPage() {
       setIsLoading(true);
       setFetchError(null);
 
-      /* Always start with localStorage so wallet users always see their images */
-      const local = listCreations(userKey);
+      /* Always start with local creations so wallet users always see their images */
+      const local = await listCreations(userKey);
 
       try {
         const res = await fetch(`/api/generations?userId=${encodeURIComponent(userKey)}&limit=100`);
@@ -193,6 +213,21 @@ export default function MyGalleryPage() {
     <div className="enki">
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
 
+      <GalleryImageModal
+        open={!!activeCreation}
+        creation={activeCreation}
+        creations={items}
+        onSelect={(c) => setActiveCreation(c)}
+        onClose={() => setActiveCreation(null)}
+        payAddress={payAddress}
+        sessionToken={turnkeySession ?? null}
+        userKey={userKey}
+        onTopUp={() => {
+          setActiveCreation(null);
+          router.push("/settings?tab=billing");
+        }}
+      />
+
       {/* Page Header */}
       <div className="enki-page-title" style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div className="enki-page-eyebrow">Private Collection</div>
@@ -310,8 +345,11 @@ export default function MyGalleryPage() {
                   overflow: "hidden",
                 }}
               >
-                {/* Image */}
-                <div style={{ aspectRatio: "4/3", position: "relative", overflow: "hidden", background: "var(--enki-paper-3)" }}>
+                {/* Image — click to open the editable detail view */}
+                <div
+                  onClick={() => setActiveCreation(c)}
+                  style={{ aspectRatio: "4/3", position: "relative", overflow: "hidden", background: "var(--enki-paper-3)", cursor: "pointer" }}
+                >
                   <img
                     src={c.imageUrl}
                     alt={(c as any).isUploaded ? "Uploaded" : "Generated"}

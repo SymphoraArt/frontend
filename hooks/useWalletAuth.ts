@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 
 const AUTH_DOMAIN = {
-  name: 'Symphora Marketplace',
+  name: 'Enki Marketplace',
   version: '1',
   chainId: 84532,
 };
@@ -76,7 +76,7 @@ export function useWalletAuth(): UseWalletAuthReturn {
 
       // Step 2: Create typed data message
       const message = {
-        purpose: 'Sign in to Symphora Marketplace',
+        purpose: 'Sign in to Enki Marketplace',
         nonce,
         issuedAt,
         expiresAt: expiresAtMs,

@@ -85,23 +85,23 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: "AIgency",
-    template: "%s | AIgency",
+    default: "Enki",
+    template: "%s | Enki",
   },
   description:
-    "AIgency — discover, create, and generate stunning AI art with customizable prompt templates. A creative marketplace powered by Gemini AI.",
+    "Enki — discover, create, and generate stunning AI art with customizable prompt templates. A creative marketplace powered by Gemini AI.",
   keywords: ["AI art", "image generation", "prompt templates", "Gemini AI", "creative marketplace"],
-  authors: [{ name: "AIgency Team" }],
+  authors: [{ name: "Enki Team" }],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   openGraph: {
-    title: "AIgency",
+    title: "Enki",
     description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AIgency",
+    title: "Enki",
     description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
   },
   robots: {
@@ -127,6 +127,23 @@ export default function RootLayout({
             __html: `(function(){
               // Theme initialization
               try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}
+
+              // React 19 × Radix UI fix: Radix primitives (Dialog/Select/Slider/
+              // Toast/Popover) call releasePointerCapture on pointerup, but under
+              // React 19 the capture is sometimes already gone -> "NotFoundError:
+              // No active pointer with the given id". Guard it: no-op when the
+              // element isn't actually capturing that pointer.
+              try{
+                if(typeof Element!=='undefined'&&Element.prototype&&Element.prototype.releasePointerCapture){
+                  var _rpc=Element.prototype.releasePointerCapture;
+                  Element.prototype.releasePointerCapture=function(id){
+                    try{
+                      if(typeof this.hasPointerCapture==='function'&&!this.hasPointerCapture(id))return;
+                      return _rpc.call(this,id);
+                    }catch(e){}
+                  };
+                }
+              }catch(e){}
               
               // Clear old Privy wallet state to prevent "Wallet with id privy not found" errors
               try{

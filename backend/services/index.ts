@@ -1,5 +1,5 @@
 /**
- * AIgency Backend Services
+ * Enki Backend Services
  *
  * Central export point for all backend services including image generation,
  * rate limiting, retry logic, and utility functions.

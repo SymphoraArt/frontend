@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Algency Editor — Standalone Export</title>
+
+  <!-- Fonts (the app uses next/font; we recreate the same families here) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- ════════════════════════════════════════════════════════════════
+       The real /editor stylesheet (app/editor/algency-editor.css) is
+       inlined verbatim below by scripts/export-editor.mjs so this file
+       is fully self-contained.
+       ════════════════════════════════════════════════════════════════ -->
+  <style>
+/*__EDITOR_CSS__*/
+  </style>
+
+  <!-- Font-variable shims + export-only chrome. The editor CSS references
+       these custom properties (defined by next/font in the app); we map
+       them to the Google Fonts loaded above. -->
+  <style>
+    :root {
+      --alg-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --alg-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --font-instrument-serif: 'Instrument Serif', Georgia, serif;
+    }
+    html, body { margin: 0; padding: 0; background: var(--alg-bg); }
+
+    /* The app pins .alg-page below a 64px global navbar. Standalone has
+       its own slim export bar instead, so re-anchor the page to it. */
+    .alg-page { top: 46px !important; }
+
+    .xport-bar {
+      position: fixed; inset: 0 0 auto 0; height: 46px; z-index: 200;
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 16px;
+      background: var(--alg-panel);
+      border-bottom: 1px solid var(--alg-border);
+      font-family: var(--alg-font-mono);
+    }
+    .xport-bar__title {
+      font-family: var(--font-instrument-serif); font-style: italic;
+      font-size: 20px; color: var(--alg-dark); letter-spacing: 0.01em;
+    }
+    .xport-bar__spacer { flex: 1; }
+    .xport-bar__field { display: flex; align-items: center; gap: 7px; }
+    .xport-bar__label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alg-hint); }
+    .xport-bar__input {
+      width: 230px; max-width: 38vw; height: 28px;
+      border: 1px solid var(--alg-border); border-radius: 5px;
+      background: var(--alg-surface); color: var(--alg-text);
+      padding: 0 9px; font-family: var(--alg-font-mono); font-size: 11px; outline: none;
+    }
+    .xport-bar__input:focus { border-color: var(--alg-accent); }
+    .xport-bar__hint { font-size: 10px; color: var(--alg-muted); max-width: 320px; line-height: 1.3; }
+
+    /* Push-to-verify button living in the Variables panel header. */
+    .xport-push {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--alg-border); border-radius: 6px;
+      background: var(--alg-surface); color: var(--alg-dark);
+      font-family: var(--alg-font-mono); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 6px 10px; cursor: pointer; transition: all 0.14s ease;
+    }
+    .xport-push:hover:not(:disabled) { border-color: var(--alg-accent); color: var(--alg-accent); }
+    .xport-push:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Category dropdown (vanilla replacement for the Radix popover). */
+    .xport-cat-wrap { position: relative; }
+    .xport-cat-popover {
+      position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+      min-width: 100%;
+      display: flex; flex-direction: column; gap: 1px;
+      background: var(--alg-panel); border: 1px solid var(--alg-border);
+      border-radius: 6px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      max-height: 240px; overflow-y: auto;
+    }
+    .xport-cat-popover[hidden] { display: none; }
+
+    /* Per-card generate button + batch bar. */
+    .xport-gen {
+      margin-top: 6px; width: 100%;
+      border: none; border-radius: 5px;
+      background: var(--alg-dark); color: var(--alg-white);
+      font-family: var(--alg-font-mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.04em; padding: 7px 10px; cursor: pointer;
+      transition: opacity 0.14s ease;
+    }
+    .xport-gen:hover:not(:disabled) { opacity: 0.88; }
+    .xport-gen:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .xport-batchbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 10px 12px; margin-top: 8px;
+      background: var(--alg-panel); border: 1px solid var(--alg-border); border-radius: 6px;
+    }
+    .xport-batchbar__cost { display: flex; flex-direction: column; gap: 2px; }
+    .xport-batchbar__label { font-family: var(--alg-font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alg-muted); }
+    .xport-batchbar__value { font-family: var(--alg-font-mono); font-size: 15px; font-weight: 700; color: var(--alg-dark); }
+    .xport-batchbar__btn {
+      border: none; border-radius: 6px; background: var(--alg-accent); color: #fff;
+      font-family: var(--alg-font-mono); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.04em; padding: 9px 16px; cursor: pointer; transition: opacity 0.14s ease;
+    }
+    .xport-batchbar__btn:hover:not(:disabled) { opacity: 0.9; }
+    .xport-batchbar__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .xport-toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 300; background: var(--alg-dark); color: var(--alg-white);
+      font-family: var(--alg-font-mono); font-size: 12px;
+      padding: 10px 16px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .xport-toast--show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+    .alg-var-card__values {
+      width: 100%; box-sizing: border-box; resize: vertical; min-height: 34px;
+      margin-top: 6px; border: 1px solid var(--alg-border); border-radius: 4px;
+      background: var(--alg-surface); color: var(--alg-text);
+      font-family: var(--alg-font-mono); font-size: 12px; padding: 6px 8px; outline: none;
+    }
+    .alg-var-card__values:focus { border-color: var(--alg-accent); }
+    .alg-var-card__hint { margin-top: 4px; font-family: var(--alg-font-mono); font-size: 9px; color: var(--alg-hint); }
+
+    .xport-empty { font-family: var(--alg-font-mono); font-size: 12px; color: var(--alg-muted); padding: 8px 2px; }
+  </style>
+</head>
+<body>
+  <!-- ── Export chrome: title + configurable API base ───────────────── -->
+  <div class="xport-bar">
+    <span class="xport-bar__title">Algency Editor</span>
+    <span class="xport-bar__hint">Standalone export — generation calls <code>/api/generate-free</code> on the API base below.</span>
+    <div class="xport-bar__spacer"></div>
+    <div class="xport-bar__field">
+      <span class="xport-bar__label">API base</span>
+      <input id="api-base" class="xport-bar__input" placeholder="(same origin)" />
+    </div>
+  </div>
+
+  <!-- ── The editor ─────────────────────────────────────────────────── -->
+  <div class="alg-page">
+    <div class="alg-grid">
+
+      <!-- ═══ 01 — Settings ═══ -->
+      <section class="alg-panel alg-panel--settings">
+        <div class="alg-panel__header alg-panel__header--settings">
+          <div class="alg-settings-header__left">
+            <span class="alg-panel__number">01</span>
+            <span class="alg-panel__title">Settings</span>
+          </div>
+        </div>
+        <div class="alg-panel__body">
+          <div class="alg-settings-section">
+            <div class="alg-label" style="margin-top:0">PROMPT TITLE</div>
+            <input id="f-title" class="alg-input alg-input--title" placeholder="Untitled Prompt" />
+          </div>
+
+          <div class="alg-divider"></div>
+
+          <div class="alg-settings-section">
+            <div class="alg-label">CATEGORY</div>
+            <div class="alg-tag-input-wrap">
+              <div id="cat-chips" class="alg-tag-chips"></div>
+              <div class="xport-cat-wrap" style="flex:1">
+                <button type="button" id="cat-toggle" class="alg-category-select">
+                  <span id="cat-label" class="alg-category-select__label">Select a category</span>
+                  <span data-icon="chevron"></span>
+                </button>
+                <div id="cat-popover" class="xport-cat-popover" hidden></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alg-divider"></div>
+
+          <div class="alg-settings-section">
+            <div class="alg-label"><span>PREFERRED MODELS</span></div>
+            <div class="alg-model-card alg-model-card--active">
+              <span class="alg-model-card__name">Nano Banana Pro</span>
+              <span class="alg-model-card__price">$0.10</span>
+            </div>
+          </div>
+
+          <div class="alg-divider"></div>
+
+          <div class="alg-settings-section">
+            <div class="alg-label">PREFERRED RATIO</div>
+            <div id="ratio-group" class="alg-ratio-group"></div>
+            <p class="alg-hint-text">Buyer picks the ratio at render time.</p>
+          </div>
+
+          <div class="alg-divider"></div>
+
+          <div class="alg-settings-section">
+            <div class="alg-label">PRICE PER RENDER (USD)</div>
+            <input id="f-price" class="alg-input" type="number" min="0" step="0.01" value="0.10" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 02 — Prompt ═══ -->
+      <section class="alg-panel alg-panel--prompt">
+        <div class="alg-panel__header">
+          <span class="alg-panel__number">02</span>
+          <span class="alg-panel__title">Prompt</span>
+        </div>
+        <div class="alg-panel__body alg-panel__body--workspace">
+          <div class="alg-textarea-box">
+            <textarea id="f-body" class="alg-textarea"
+              placeholder="Describe your image. Wrap any word in [brackets] to turn it into a variable — e.g. a [color] sports car on a [location] road."></textarea>
+          </div>
+          <div class="alg-prompt-footer">
+            <div class="alg-prompt-footer__stat">
+              <span id="stat-chars" class="alg-prompt-footer__stat-value">0</span>
+              <span class="alg-prompt-footer__stat-label">chars</span>
+            </div>
+            <div class="alg-prompt-footer__stat">
+              <span id="stat-vars" class="alg-prompt-footer__stat-value">0</span>
+              <span class="alg-prompt-footer__stat-label">variables</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 03 — Variables ═══ -->
+      <section class="alg-panel alg-panel--variables">
+        <div class="alg-panel__header">
+          <span class="alg-panel__number">03</span>
+          <span class="alg-panel__title">Variables</span>
+          <button id="push-btn" class="xport-push" disabled>
+            Push to Verify <span data-icon="arrow"></span>
+          </button>
+        </div>
+        <div id="var-list" class="alg-panel__body--scroll"></div>
+      </section>
+
+      <!-- ═══ 04 — Verify ═══ -->
+      <section class="alg-panel alg-panel--verify">
+        <div class="alg-panel__header">
+          <span class="alg-panel__number">04</span>
+          <span class="alg-panel__title">Verify</span>
+        </div>
+        <div class="alg-panel__body">
+          <p class="alg-hint-text" style="margin-bottom:16px">
+            Push variables to Verify, attach optional reference images to any card, then Generate.
+          </p>
+          <div id="verify-list"></div>
+          <div id="batch-bar"></div>
+          <div style="height:24px;flex-shrink:0"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="toast" class="xport-toast"></div>
+
+  <script>
+  /* ══════════════════════════════════════════════════════════════════
+     Algency Editor — standalone behaviors (vanilla JS).
+     Recreates the core /editor workflow: prompt → variable detection →
+     variable cards → push to Verify → per-card reference images →
+     generate via /api/generate-free.
+     ══════════════════════════════════════════════════════════════════ */
+  (function () {
+    "use strict";
+
+    var CATEGORIES = ["Portrait","Character","Cinematic","Architecture","Abstract","Product","Minimal","Editorial"];
+    var RATIOS = ["Any ratio","1:1","16:9","9:16","4:3","3:4"];
+    var MAX_VERIFY_REFS = 6;
+
+    /* ── Inline icons (the app uses lucide-react). ── */
+    var ICONS = {
+      chevron: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+      arrow: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+      plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg>',
+      image: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 21"/></svg>',
+      check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+    };
+    function fillIcons(root) {
+      (root || document).querySelectorAll('[data-icon]').forEach(function (el) {
+        if (el.dataset.filled) return;
+        el.innerHTML = ICONS[el.getAttribute('data-icon')] || '';
+        el.dataset.filled = '1';
+      });
+    }
+
+    /* ── State ── */
+    var state = {
+      title: "",
+      tags: [],            // selected categories (lowercased), like the main feed filters
+      price: 0.10,
+      ratio: "Any ratio",
+      body: "",
+      variables: [],       // { name, values: string[] (raw lines) }
+      cards: [],           // verify cards: { id, snapshot:{name:val}, refs:[dataUrl], status, imageUrl }
+      cardSeq: 0
+    };
+
+    /* ── DOM refs ── */
+    var $ = function (id) { return document.getElementById(id); };
+    var apiBaseEl = $('api-base');
+    var bodyEl = $('f-body');
+    var titleEl = $('f-title');
+    var priceEl = $('f-price');
+    var varListEl = $('var-list');
+    var verifyListEl = $('verify-list');
+    var batchBarEl = $('batch-bar');
+    var pushBtn = $('push-btn');
+    var ratioGroupEl = $('ratio-group');
+    var catChipsEl = $('cat-chips');
+    var catToggleEl = $('cat-toggle');
+    var catLabelEl = $('cat-label');
+    var catPopEl = $('cat-popover');
+
+    function apiBase() { return (apiBaseEl.value || '').replace(/\/+$/, ''); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    }); }
+
+    var toastEl = $('toast'); var toastTimer = null;
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('xport-toast--show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toastEl.classList.remove('xport-toast--show'); }, 2600);
+    }
+
+    /* ── Settings: ratio pills ── */
+    function renderRatios() {
+      ratioGroupEl.innerHTML = '';
+      RATIOS.forEach(function (r) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'alg-ratio-pill' + (state.ratio === r ? ' alg-ratio-pill--active' : '');
+        b.textContent = r;
+        b.addEventListener('click', function () { state.ratio = r; renderRatios(); });
+        ratioGroupEl.appendChild(b);
+      });
+    }
+
+    /* ── Settings: category dropdown ── */
+    function renderCatChips() {
+      catChipsEl.innerHTML = '';
+      state.tags.forEach(function (tag) {
+        var span = document.createElement('span');
+        span.className = 'alg-tag-chip';
+        span.innerHTML = esc(tag) + '<button class="alg-tag-chip__remove" aria-label="Remove">\u00d7</button>';
+        span.querySelector('button').addEventListener('click', function () {
+          state.tags = state.tags.filter(function (t) { return t !== tag; });
+          renderCatChips(); renderCatPopover();
+        });
+        catChipsEl.appendChild(span);
+      });
+      catLabelEl.textContent = state.tags.length ? 'Change category' : 'Select a category';
+    }
+    function renderCatPopover() {
+      catPopEl.innerHTML = '';
+      CATEGORIES.forEach(function (label) {
+        var selected = state.tags.indexOf(label.toLowerCase()) !== -1;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'alg-category-option' + (selected ? ' alg-category-option--active' : '');
+        b.innerHTML = '<span>' + esc(label) + '</span>' + (selected ? '<span data-icon="check"></span>' : '');
+        b.addEventListener('click', function () {
+          // Single-select: replace the current category (or clear if active).
+          state.tags = selected ? [] : [label.toLowerCase()];
+          catPopEl.hidden = true;
+          renderCatChips(); renderCatPopover();
+        });
+        catPopEl.appendChild(b);
+      });
+      fillIcons(catPopEl);
+    }
+    catToggleEl.addEventListener('click', function (e) {
+      e.stopPropagation();
+      catPopEl.hidden = !catPopEl.hidden;
+    });
+    document.addEventListener('click', function (e) {
+      if (!catPopEl.hidden && !catPopEl.contains(e.target) && e.target !== catToggleEl) catPopEl.hidden = true;
+    });
+
+    /* ── Prompt → variable detection ── */
+    function detectVariables() {
+      var seen = [];
+      var re = /\[([^\[\]]+)\]/g; var m;
+      while ((m = re.exec(state.body)) !== null) {
+        var name = m[1].trim();
+        if (name && seen.indexOf(name) === -1) seen.push(name);
+      }
+      // Preserve existing value text when a variable persists across edits.
+      var prev = {};
+      state.variables.forEach(function (v) { prev[v.name] = v.values; });
+      state.variables = seen.map(function (name) {
+        return { name: name, values: prev[name] || [] };
+      });
+    }
+
+    function parseValues(text) {
+      return String(text || '')
+        .split(/[\n,]/)
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length > 0; });
+    }
+
+    function renderVariables() {
+      varListEl.innerHTML = '';
+      if (state.variables.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'xport-empty';
+        empty.textContent = 'No variables yet. Wrap a word in [brackets] in the prompt to create one.';
+        varListEl.appendChild(empty);
+      } else {
+        state.variables.forEach(function (v) {
+          var card = document.createElement('div');
+          card.className = 'alg-var-card';
+          card.innerHTML =
+            '<div class="alg-var-card__name-input-wrap">' +
+              '<input class="alg-var-card__name-input" value="' + esc(v.name) + '" readonly title="Variable name is derived from the prompt token" />' +
+            '</div>' +
+            '<textarea class="alg-var-card__values" rows="2" placeholder="value(s) \u2014 one per line or comma-separated for a batch"></textarea>' +
+            '<div class="alg-var-card__hint">Leave empty to keep the literal token. Multiple values \u2192 multiple verify cards.</div>';
+          var ta = card.querySelector('textarea');
+          ta.value = v.values.join('\n');
+          ta.addEventListener('input', function () {
+            v.values = parseValues(ta.value);
+          });
+          varListEl.appendChild(card);
+        });
+      }
+      $('stat-vars').textContent = String(state.variables.length);
+      pushBtn.disabled = state.body.trim().length === 0;
+    }
+
+    bodyEl.addEventListener('input', function () {
+      state.body = bodyEl.value;
+      $('stat-chars').textContent = String(state.body.length);
+      detectVariables();
+      renderVariables();
+    });
+    titleEl.addEventListener('input', function () { state.title = titleEl.value; });
+    priceEl.addEventListener('input', function () {
+      var n = parseFloat(priceEl.value);
+      state.price = isNaN(n) ? 0 : n;
+      renderBatchBar();
+    });
+
+    /* ── Push to Verify ── */
+    pushBtn.addEventListener('click', function () {
+      if (state.body.trim().length === 0) { toast('Write a prompt first.'); return; }
+      var vars = state.variables;
+      // Number of cards = the largest value-stack among variables (min 1).
+      var maxLen = 1;
+      vars.forEach(function (v) { if (v.values.length > maxLen) maxLen = v.values.length; });
+      for (var i = 0; i < maxLen; i++) {
+        var snapshot = {};
+        vars.forEach(function (v) {
+          if (v.values.length === 0) return;
+          snapshot[v.name] = v.values[i] !== undefined ? v.values[i] : v.values[v.values.length - 1];
+        });
+        state.cards.push({
+          id: ++state.cardSeq,
+          snapshot: snapshot,
+          refs: [],
+          status: 'idle',
+          imageUrl: null
+        });
+      }
+      renderVerify();
+      renderBatchBar();
+    });
+
+    /* ── Build the final prompt for a card ── */
+    function buildPrompt(card) {
+      var text = state.body;
+      state.variables.forEach(function (v) {
+        var val = card.snapshot[v.name];
+        if (val === undefined || val === '') return; // keep literal token
+        text = text.split('[' + v.name + ']').join(val);
+      });
+      return text;
+    }
+
+    /* ── Verify cards ── */
+    function renderVerify() {
+      verifyListEl.innerHTML = '';
+      state.cards.forEach(function (card) {
+        var wrap = document.createElement('div');
+        wrap.className = 'alg-version-card-wrapper';
+
+        var statusLabel = card.status === 'complete' ? '\u25cf ready'
+          : card.status === 'generating' ? '\u25cf generating'
+          : card.status === 'failed' ? '\u25cf failed' : '';
+
+        var chips = '';
+        var entries = Object.keys(card.snapshot);
+        if (entries.length === 0) {
+          chips = '<span class="alg-version-card__no-vars-value" style="position:static">No variables</span>';
+        } else {
+          chips = entries.map(function (k) {
+            return '<span class="alg-verify-var-chip">' +
+                     '<span class="alg-verify-var-chip__name">' + esc(k) + '</span>' +
+                     '<span class="alg-verify-var-chip__value">' + esc(card.snapshot[k] || '\u2014') + '</span>' +
+                   '</span>';
+          }).join('');
+        }
+
+        var thumbInner;
+        if (card.status === 'complete' && card.imageUrl) {
+          thumbInner = '<img src="' + esc(card.imageUrl) + '" alt="render" />';
+        } else if (card.status === 'generating') {
+          thumbInner = '<div class="alg-spinner"></div>';
+        } else if (card.status === 'failed') {
+          thumbInner = '<div class="alg-version-card__placeholder"><span class="alg-version-card__placeholder-text" style="color:#c0542a">failed \u2014 retry</span></div>';
+        } else {
+          thumbInner = '<div class="alg-version-card__placeholder"><span data-icon="image"></span>' +
+                       '<span class="alg-version-card__placeholder-text">render appears here</span></div>';
+        }
+
+        wrap.innerHTML =
+          '<div class="alg-version-card">' +
+            '<div class="alg-version-card__thumb">' +
+              thumbInner +
+              '<span class="alg-version-card__overlay-status">' + statusLabel + '</span>' +
+              '<span class="alg-version-card__overlay-label">' + String(card.id).padStart(2, '0') + '</span>' +
+            '</div>' +
+            '<div class="alg-version-card__info">' +
+              '<div class="alg-verify-var-chips">' + chips + '</div>' +
+              '<div class="alg-verify-refs">' +
+                '<span class="alg-verify-refs__label">references</span>' +
+                '<div class="alg-verify-refs__row">' +
+                  '<button type="button" class="alg-verify-ref-add" data-act="add-ref" aria-label="Add reference image"><span data-icon="plus"></span></button>' +
+                  '<div class="alg-verify-ref-stack" data-stack></div>' +
+                '</div>' +
+              '</div>' +
+              '<button type="button" class="xport-gen" data-act="gen">' +
+                (card.status === 'generating' ? 'Generating\u2026' : (card.status === 'complete' ? 'Regenerate' : 'Generate')) +
+              '</button>' +
+            '</div>' +
+          '</div>';
+
+        // reference thumbnails
+        var stack = wrap.querySelector('[data-stack]');
+        card.refs.forEach(function (src, idx) {
+          var slot = document.createElement('div');
+          slot.className = 'alg-verify-ref-slot';
+          slot.style.zIndex = String(idx + 1);
+          slot.innerHTML = '<img src="' + esc(src) + '" alt="ref" draggable="false" />' +
+                           '<button type="button" class="alg-verify-ref-slot__remove" aria-label="Remove">\u00d7</button>';
+          slot.querySelector('button').addEventListener('click', function () {
+            card.refs.splice(idx, 1); renderVerify();
+          });
+          stack.appendChild(slot);
+        });
+
+        var addBtn = wrap.querySelector('[data-act="add-ref"]');
+        if (card.refs.length >= MAX_VERIFY_REFS) addBtn.disabled = true;
+        addBtn.addEventListener('click', function () { pickRefs(card); });
+        wrap.querySelector('[data-act="gen"]').addEventListener('click', function () {
+          if (card.status === 'generating') return;
+          generateCard(card);
+        });
+
+        verifyListEl.appendChild(wrap);
+      });
+      fillIcons(verifyListEl);
+    }
+
+    function pickRefs(card) {
+      var input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+      input.onchange = function () {
+        var files = Array.prototype.slice.call(input.files || []);
+        files.forEach(function (file) {
+          var reader = new FileReader();
+          reader.onload = function () {
+            if (typeof reader.result === 'string' && card.refs.length < MAX_VERIFY_REFS) {
+              card.refs.push(reader.result);
+              renderVerify();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      };
+      input.click();
+    }
+
+    /* ── Batch cost bar ── */
+    function renderBatchBar() {
+      var pending = state.cards.filter(function (c) { return c.status === 'idle' || c.status === 'failed'; });
+      if (state.cards.length === 0) { batchBarEl.innerHTML = ''; return; }
+      var cost = (pending.length * state.price).toFixed(2);
+      batchBarEl.innerHTML =
+        '<div class="xport-batchbar">' +
+          '<div class="xport-batchbar__cost">' +
+            '<span class="xport-batchbar__label">Batch cost</span>' +
+            '<span class="xport-batchbar__value">$' + cost + ' USDC</span>' +
+          '</div>' +
+          '<button class="xport-batchbar__btn" data-act="gen-all"' + (pending.length === 0 ? ' disabled' : '') + '>' +
+            'Generate ' + (pending.length || '') + '</button>' +
+        '</div>';
+      var btn = batchBarEl.querySelector('[data-act="gen-all"]');
+      if (btn) btn.addEventListener('click', function () {
+        pending.forEach(function (c) { generateCard(c); });
+      });
+    }
+
+    /* ── Generation via /api/generate-free ── */
+    function generateCard(card) {
+      var prompt = buildPrompt(card);
+      if (!prompt.trim()) { toast('Prompt is empty.'); return; }
+      card.status = 'generating'; renderVerify(); renderBatchBar();
+
+      var payload = {
+        prompt: prompt,
+        resolution: '2K',
+        aspectRatio: state.ratio === 'Any ratio' ? '1:1' : state.ratio
+      };
+      if (card.refs.length) payload.referenceImages = card.refs;
+
+      fetch(apiBase() + '/api/generate-free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.imageUrl) throw new Error('No image URL returned.');
+        card.status = 'complete'; card.imageUrl = data.imageUrl;
+        renderVerify(); renderBatchBar();
+      })
+      .catch(function (err) {
+        card.status = 'failed';
+        renderVerify(); renderBatchBar();
+        toast('Generation failed: ' + err.message);
+      });
+    }
+
+    /* ── Init ── */
+    fillIcons(document);
+    renderRatios();
+    renderCatChips();
+    renderCatPopover();
+    renderVariables();
+    renderVerify();
+    renderBatchBar();
+  })();
+  </script>
+</body>
+</html>

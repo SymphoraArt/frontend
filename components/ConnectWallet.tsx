@@ -60,7 +60,7 @@ export function ConnectWallet() {
       hiddenWallets={["app.phantom"]}
       connectModal={{
         size: "wide",
-        title: "Sign in to Symphora",
+        title: "Sign in to Enki",
         titleIcon: "/favicon.svg", // Your app logo
         showThirdwebBranding: false,
         termsOfServiceUrl: "https://symphora.com/terms",

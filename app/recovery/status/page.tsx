@@ -182,7 +182,7 @@ export default function RecoveryStatusPage() {
           )}
         </Section>
 
-        <Section title="On-chain guardian (Symphora program)">
+        <Section title="On-chain guardian (Enki program)">
           <p style={{ margin: "0 0 10px", color: "rgba(0,0,0,0.55)", fontSize: 12 }}>
             Program: <Code>{SYMPHORA_PROGRAM_ID.toBase58()}</Code>
           </p>

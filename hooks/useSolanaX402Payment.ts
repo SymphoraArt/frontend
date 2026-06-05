@@ -27,7 +27,6 @@ import {
 import type { ChainKey } from "@/lib/payment-config";
 import { PAYMENT_CHAINS } from "@/lib/payment-config";
 import { useTurnkeySolanaSigner } from "@/hooks/useTurnkeySolanaSigner";
-import { requestPaymentConfirm } from "@/lib/payment-confirm";
 
 const EXPECTED_SOLANA_PLATFORM_WALLET = process.env.NEXT_PUBLIC_SOLANA_PLATFORM_WALLET;
 
@@ -148,23 +147,9 @@ export function useSolanaX402Payment() {
         throw new Error("Insufficient devnet SOL for transaction fees.");
       }
 
-      // Turnkey email wallets sign server-side with no extension popup. Show an explicit
-      // in-app confirm so the user has a real "approve / cancel" step before USDC moves.
-      // External-wallet users get their wallet's native popup; skip the extra modal there.
-      const isTurnkey = !adapterSignTransaction && turnkey.isAvailable;
-      if (isTurnkey) {
-        const confirmed = await requestPaymentConfirm({
-          amount: (Number(amount) / 1_000_000).toFixed(2),
-          asset: "USDC",
-          to: recipient.toBase58(),
-          description: req.description,
-          network: req.network === "mainnet-beta" ? "Solana mainnet" : "Solana devnet",
-        });
-        if (!confirmed) {
-          throw new Error("Payment cancelled");
-        }
-      }
-
+      // No extra "confirm purchase" step: hitting Generate is the approval. The
+      // USDC payment is signed (server-side for Turnkey, native popup for
+      // external wallets) and sent automatically so the image just loads.
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
       const instructions = [

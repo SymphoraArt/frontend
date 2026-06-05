@@ -11,20 +11,27 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
 import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
+import BillingPanel from "@/components/settings/BillingPanel";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
   { id: "profile", label: "Profile" },
   { id: "wallets", label: "Wallets" },
   { id: "recovery", label: "Recovery & 2FA" },
-  { id: "billing", label: "Billing", disabled: true, tooltip: "More payment rails coming soon. For now, they should manage funds via 'Wallets'" },
+  { id: "billing", label: "Billing" },
 ];
 
 export default function SettingsPage() {
   const account = useActiveAccount();
   const { toast } = useToast();
-  
+
   const [activeTab, setActiveTab] = useState("profile");
+
+  // Deep-link support: /settings?tab=billing opens that tab directly.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab);
+  }, []);
   const [loading, setLoading] = useState(false); // keeping it fast since we mock mostly
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -90,6 +97,7 @@ export default function SettingsPage() {
     profile: "Profile.",
     wallets: "Wallets.",
     earnings: "Earnings.",
+    billing: "Billing.",
     recovery: <>Recovery<br/><span>&</span> 2FA.</>
   };
 
@@ -97,6 +105,7 @@ export default function SettingsPage() {
     profile: "Manage your connected social accounts and visibility settings.",
     wallets: "Manage your connected Turnkey networks and external wallets.",
     earnings: "Track your earnings from owned prompts and hunted affiliates.",
+    billing: "Top up with Apple Pay, Google Pay or card — or deposit crypto directly.",
     recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen."
   };
 
@@ -233,6 +242,9 @@ export default function SettingsPage() {
               </div>
             </SettingsSection>
           )}
+
+          {/* === BILLING TAB === */}
+          {activeTab === "billing" && <BillingPanel />}
 
           {/* === EARNINGS TAB === */}
           {activeTab === "earnings" && (

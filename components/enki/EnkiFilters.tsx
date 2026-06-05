@@ -3,16 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { LayoutGrid, MoreHorizontal } from "lucide-react";
 
-const CATEGORIES = [
-  { label: "Portrait" },
-  { label: "Character" },
-  { label: "Cinematic" },
-  { label: "Architecture" },
-  { label: "Abstract" },
-  { label: "Product" },
-  { label: "Minimal" },
-  { label: "Editorial" },
-];
+/** Canonical category labels shown as filters on the main feed page.
+ *  Exported so other surfaces (e.g. the prompt editor's Category field)
+ *  can offer the exact same set instead of free-form text. */
+export const ENKI_CATEGORIES = [
+  "Portrait",
+  "Character",
+  "Cinematic",
+  "Architecture",
+  "Abstract",
+  "Product",
+  "Minimal",
+  "Editorial",
+] as const;
+
+const CATEGORIES = ENKI_CATEGORIES.map((label) => ({ label }));
 
 type EnkiFiltersProps = {
   active: string[];

@@ -16,11 +16,6 @@ import {
   subscribePaymentConfirm,
 } from "@/lib/payment-confirm";
 
-function shortAddr(addr: string): string {
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-6)}`;
-}
-
 export function PaymentConfirmModal() {
   const active = useSyncExternalStore(
     subscribePaymentConfirm,
@@ -34,43 +29,31 @@ export function PaymentConfirmModal() {
 
   if (!active) return null;
 
+  // Money-only framing — no chain, recipient, or "transaction" wording.
+  const dollars = `$${active.amount}`;
+
   return (
     <Dialog open={true} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-base">Confirm payment</DialogTitle>
+          <DialogTitle className="text-base">Confirm purchase</DialogTitle>
           <DialogDescription className="sr-only">
-            Approve sending {active.amount} {active.asset} from your Turnkey wallet.
+            Approve spending {dollars} from your balance.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 space-y-3 text-sm">
           <div className="rounded-lg border border-input bg-muted/40 px-3 py-3">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Amount</div>
-            <div className="mt-1 text-xl font-semibold">
-              {active.amount} <span className="text-base font-normal text-muted-foreground">{active.asset}</span>
-            </div>
+            <div className="mt-1 text-2xl font-semibold">{dollars}</div>
           </div>
 
           {active.description && (
             <div className="text-xs text-muted-foreground">{active.description}</div>
           )}
 
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5 text-xs">
-            <dt className="text-muted-foreground">Recipient</dt>
-            <dd className="font-mono break-all" title={active.to}>{shortAddr(active.to)}</dd>
-            {active.network && (
-              <>
-                <dt className="text-muted-foreground">Network</dt>
-                <dd>{active.network}</dd>
-              </>
-            )}
-            <dt className="text-muted-foreground">Signed by</dt>
-            <dd>Turnkey email wallet</dd>
-          </dl>
-
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            This wallet has no extension popup — confirming here authorizes the server to sign and broadcast the transaction with your Turnkey-managed key.
+            This will be deducted from your account balance.
           </p>
         </div>
 
@@ -87,7 +70,7 @@ export function PaymentConfirmModal() {
             onClick={() => resolvePaymentConfirm(true)}
             className="flex-1 rounded-lg bg-foreground py-2 text-xs font-semibold text-background hover:opacity-90"
           >
-            Confirm &amp; pay
+            Confirm {dollars}
           </button>
         </div>
       </DialogContent>
