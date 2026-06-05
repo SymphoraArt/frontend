@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
+import { loadEditorVersions, saveEditorVersions, type PersistedVersionCard } from "@/lib/editorVersions";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
@@ -416,16 +417,17 @@ function getVariableDeleteLabel(variable: PromptVariable): string {
   return variable.fullToken;
 }
 
-function formatVerifySnapshotValue(
-  val: string,
-  variable?: PromptVariable
-): string {
-  if (!variable) return val?.trim() || "—";
-  if (variable.type === "checkbox") {
-    const on = val === "on" || val === "true";
-    return on ? variable.description || "Yes" : "Off";
-  }
-  return val?.trim() || "—";
+/* Formats a verify card's FROZEN snapshot value for display. It reads
+   only the stored string (never the live variable), so editing a
+   variable after a card is parked can't change what the card shows.
+   Checkbox snapshots store the description text when on, or "off"
+   when off — so "off"/"false" render as "Off" and anything else is
+   shown verbatim. */
+function formatVerifySnapshotValue(val: string): string {
+  const s = String(val ?? "").trim();
+  if (!s) return "—";
+  if (s === "off" || s === "false") return "Off";
+  return s;
 }
 
 function normalizeVariable(v: PromptVariable, colorContext: PromptVariable[] = []): PromptVariable {
@@ -483,6 +485,11 @@ interface VersionCard {
   id: number;
   variableSnapshot: Record<string, string>;
   imageUrl: string | null;
+  /** The original URL returned by generation (hosted https URL or a
+      base64 `data:` URL). `imageUrl` may be turned into an ephemeral
+      `blob:` object URL for display, so this preserves a durable
+      source we can persist when the card is released. */
+  sourceUrl?: string | null;
   status: "idle" | "queued" | "generating" | "complete" | "failed";
   queuePosition?: number; // assigned when batch-queued
   /** Per-card reference images (data URLs) fed to this card's render. */
@@ -664,6 +671,11 @@ export default function AlgencyPromptEditor() {
   }>({ open: false, query: "", startPos: -1, highlighted: 0 });
   const [, setDraftSavedAt] = useState<number | null>(null);
   const draftReadyRef = useRef(false);
+  /* Flips true once the saved verify cards have been loaded (or we
+     confirmed there are none). The versions-autosave effect waits for
+     this so the initial empty `versions` array can't clobber the
+     persisted cards before they're restored. */
+  const versionsReadyRef = useRef(false);
 
   /* ─── Undo / Redo history ─────────────────────────────────────────
      A debounced snapshot stack of the editor's structural state.
@@ -788,6 +800,12 @@ export default function AlgencyPromptEditor() {
        changes between opening the dialog and confirming. */
     selectedDeleteConfirm: null as { ids: number[] } | null,
     selectedRerollConfirm: null as { ids: number[] } | null,
+    /* Set while the user is confirming a "release everything" action
+       (they clicked Release without selecting any specific renders).
+       Holds the ids that will be released on confirm. */
+    releaseAllConfirm: null as { ids: number[] } | null,
+    /* True while images are being persisted + the prompt published. */
+    isReleasing: false,
     /* Prompt-structure lock. When true, the prompt body is read-
        only and the variable structure (add / delete / rename)
        is frozen. ONLY the variable defaults can still be edited
@@ -917,6 +935,79 @@ export default function AlgencyPromptEditor() {
     }, 400);
     return () => clearTimeout(timeoutId);
   }, [promptData, variables, models.selected, ratios.selected, ui.maxImages, ui.settingsCollapsed, referenceImages, promptPrice]);
+
+  /* ─── Restore parked verify cards (images + variable values + per-card
+     reference images) from IndexedDB ─── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await loadEditorVersions();
+        if (cancelled) return;
+        if (saved.length) {
+          const restored: VersionCard[] = saved.map((v) => {
+            // Only `complete` / `idle` survive a reload; anything that was
+            // mid-flight (queued / generating) or failed comes back as idle
+            // so the user can simply re-generate it.
+            const baseStatus = v.status === "complete" ? "complete" : "idle";
+            // `blob:` object URLs die on reload — fall back to the durable
+            // source (data: or hosted https URL).
+            const durable =
+              v.imageUrl && !v.imageUrl.startsWith("blob:")
+                ? v.imageUrl
+                : v.sourceUrl ?? null;
+            const status: VersionCard["status"] =
+              baseStatus === "complete" && !durable ? "idle" : baseStatus;
+            return {
+              id: v.id,
+              variableSnapshot: v.variableSnapshot || {},
+              imageUrl: status === "complete" ? durable : null,
+              sourceUrl: durable,
+              status,
+              referenceImages: v.referenceImages,
+            };
+          });
+          setVersions(restored);
+        }
+      } catch {
+        /* ignore — start with an empty verify panel */
+      } finally {
+        if (!cancelled) versionsReadyRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ─── Autosave verify cards to IndexedDB ─── */
+  useEffect(() => {
+    if (!versionsReadyRef.current) return;
+    const timeoutId = setTimeout(() => {
+      const payload: PersistedVersionCard[] = versions.map((v) => {
+        const baseStatus =
+          v.status === "complete" || v.status === "failed" ? v.status : "idle";
+        const durable =
+          v.sourceUrl && !v.sourceUrl.startsWith("blob:")
+            ? v.sourceUrl
+            : v.imageUrl && !v.imageUrl.startsWith("blob:")
+            ? v.imageUrl
+            : null;
+        const status: PersistedVersionCard["status"] =
+          baseStatus === "complete" && !durable ? "idle" : baseStatus;
+        return {
+          id: v.id,
+          variableSnapshot: v.variableSnapshot,
+          imageUrl: status === "complete" ? durable : null,
+          sourceUrl: durable,
+          status,
+          referenceImages: v.referenceImages,
+        };
+      });
+      void saveEditorVersions(payload);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [versions]);
 
   const addReferenceImage = (file: File) => {
     if (referenceImages.length >= ui.maxImages) {
@@ -2676,12 +2767,24 @@ export default function AlgencyPromptEditor() {
        2. Substitute `[varName]` placeholders with their resolved
           values from the verify-card snapshot or variable defaults. */
     let previewText = expandReferenceImageMentions(promptData.body);
+    /* A verify card is a FROZEN product: its own `variableSnapshot`,
+       captured at push time, is the single source of truth for this
+       render. We substitute every snapshot'd placeholder from the
+       snapshot FIRST, so later edits to the live `variables` (value,
+       type, etc.) can never alter an already-parked generation. Only
+       placeholders NOT present in the snapshot fall back to the live
+       variable's current default. */
+    const frozenNames = new Set<string>();
+    Object.entries(snapshot).forEach(([name, val]) => {
+      if (!name) return;
+      frozenNames.add(name);
+      previewText = previewText.split(`[${name}]`).join(val ?? "");
+    });
     variables.forEach((variable) => {
+      if (frozenNames.has(variable.name)) return;
       const placeholder = `[${variable.name}]`;
       let val: string;
-      if (snapshot[variable.name] !== undefined) {
-        val = snapshot[variable.name];
-      } else if (variable.type === "text") {
+      if (variable.type === "text") {
         val = (variable.defaultValue as string) || "";
       } else if (variable.type === "image") {
         val = variable.description || "";
@@ -2751,7 +2854,7 @@ export default function AlgencyPromptEditor() {
           displayUrl = data.imageUrl;
         }
       }
-      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: displayUrl } : v));
+      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: displayUrl, sourceUrl: data.imageUrl } : v));
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
@@ -2862,6 +2965,27 @@ export default function AlgencyPromptEditor() {
     setUi((p) => ({ ...p, promptLocked: false }));
   }, [ui.promptLocked, versions.length]);
 
+  /* Builds the frozen substitution snapshot for one verify card at
+     batch index `i`. Centralised so every card-creation path (stack,
+     empty slot, mobile generate) freezes text/checkbox/image values
+     the exact same way. Checkboxes store their description text when
+     on, or "off" when off; text vars pull from the `values` stack
+     (falling back to the typed default). */
+  const buildVariableSnapshot = (i = 0): Record<string, string> => {
+    const snapshot: Record<string, string> = {};
+    variables.forEach((v) => {
+      if (v.type === "checkbox") {
+        snapshot[v.name] = v.defaultValue ? v.description || "on" : "off";
+      } else if (v.type === "image") {
+        snapshot[v.name] = v.description || "";
+      } else {
+        const pool = v.values.length > 0 ? v.values : [(v.defaultValue as string) || v.name];
+        snapshot[v.name] = pool[i % pool.length];
+      }
+    });
+    return snapshot;
+  };
+
   /* ─── Stack Variables — bridge button pushes N cards into Verify ─── */
   const handleStackVariables = () => {
     // Hard guard: never create Verify cards from an empty / whitespace-only
@@ -2877,20 +3001,9 @@ export default function AlgencyPromptEditor() {
       const baseId = activeVersions.length > 0 ? Math.max(...activeVersions.map(v => v.id)) : 0;
       const newCards: VersionCard[] = [];
       for (let i = 0; i < stackSize; i++) {
-        const snapshot: Record<string, string> = {};
-        variables.forEach(v => {
-        if (v.type === "checkbox") {
-          snapshot[v.name] = v.defaultValue ? v.description || "on" : "off";
-        } else if (v.type === "image") {
-          snapshot[v.name] = v.description || "";
-        } else {
-          const pool = v.values.length > 0 ? v.values : [(v.defaultValue as string) || v.name];
-          snapshot[v.name] = pool[i % pool.length];
-        }
-      });
-      newCards.push({ id: baseId + i + 1, variableSnapshot: snapshot, imageUrl: null, status: "idle" });
-    }
-    return [...activeVersions, ...newCards];
+        newCards.push({ id: baseId + i + 1, variableSnapshot: buildVariableSnapshot(i), imageUrl: null, status: "idle" });
+      }
+      return [...activeVersions, ...newCards];
     });
   };
 
@@ -2920,10 +3033,8 @@ export default function AlgencyPromptEditor() {
   };
 
   const handleCreateEmptySlots = () => {
-    const snapshot: Record<string, string> = {};
-    variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
-    setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
+    setVersions(prev => [...prev, { id: newId, variableSnapshot: buildVariableSnapshot(), imageUrl: null, status: "idle" }]);
   };
 
   /* ─── Pricing helpers ─── */
@@ -2945,8 +3056,10 @@ export default function AlgencyPromptEditor() {
      batch price; we now let people re-roll for free, so there's
      no cost to compute or display in the dialog / button / toast. */
 
-  /* ─── Pay & Generate — UX shows total cost, fires sequential per-slot x402 ─── */
-  const handlePayAndGenerate = () => {
+  /* ─── Pay & Generate — pays for the batch, then renders every slot
+     strictly one after another (each with its own per-card reference
+     image) so the queue drains consecutively rather than in parallel. */
+  const handlePayAndGenerate = async () => {
     if (!walletConnected) {
       setShowWalletPicker(true);
       toast({ title: "Wallet required", description: "Connect a wallet to generate with x402.", variant: "destructive" });
@@ -2959,7 +3072,7 @@ export default function AlgencyPromptEditor() {
     }
     const cost = getBatchCost(processableCards.length);
     const total = processableCards.length;
-    // Mark all as queued immediately
+    // Mark all as queued immediately with their position in line.
     setVersions(prev => prev.map(v => {
       const pos = processableCards.findIndex(c => c.id === v.id);
       if (pos === -1) return v;
@@ -2968,17 +3081,20 @@ export default function AlgencyPromptEditor() {
     setUi(prev => ({ ...prev, queueTotal: total }));
     toast({
       title: `Paying ${cost} for ${total} image${total > 1 ? "s" : ""}`,
-      description: "Each slot will process a micro-payment via Thirdweb.",
+      description: "Rendering each image one after another…",
     });
-    // Fire each with 400ms stagger — each triggers its own x402 payment
-    processableCards.forEach((card, i) => {
-      setTimeout(() => {
-        setVersions(prev => prev.map(v =>
-          v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
-        ));
-        handleGenerateVersion(card.id);
-      }, i * 400);
-    });
+    // Consecutive generation: await each render before starting the
+    // next so they truly process in order.
+    for (const card of processableCards) {
+      setVersions(prev => prev.map(v =>
+        v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
+      ));
+      try {
+        await handleGenerateVersion(card.id);
+      } catch (e) {
+        console.error("Sequential generation failed for slot", card.id, e);
+      }
+    }
   };
 
   /* ─── Re-roll Selected — fire Grok N times in parallel to pick a
@@ -3101,6 +3217,60 @@ export default function AlgencyPromptEditor() {
     }));
   };
 
+  /* ─── Per-verify-card reference images ───
+     Each verify card can carry its own stack of reference renders
+     (max MAX_VERIFY_REFS). They feed straight into generation via
+     `cardRefs`. The add button / thumbnails stop event propagation
+     so interacting with them never toggles the card's selection. */
+  const MAX_VERIFY_REFS = 4;
+
+  const addVerifyCardRef = (slotId: number, dataUrl: string) => {
+    if (!dataUrl) return;
+    setVersions((prev) =>
+      prev.map((v) => {
+        if (v.id !== slotId) return v;
+        const existing = v.referenceImages ?? [];
+        if (existing.length >= MAX_VERIFY_REFS) return v;
+        return { ...v, referenceImages: [...existing, dataUrl] };
+      })
+    );
+  };
+
+  const pickVerifyCardRefs = (slotId: number) => {
+    const current = versions.find((v) => v.id === slotId)?.referenceImages ?? [];
+    if (current.length >= MAX_VERIFY_REFS) {
+      toast({
+        title: "Limit reached",
+        description: `Up to ${MAX_VERIFY_REFS} reference images per render.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = true;
+    input.onchange = (ev) => {
+      const files = Array.from((ev.target as HTMLInputElement).files || []);
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => addVerifyCardRef(slotId, String(e.target?.result || ""));
+        reader.readAsDataURL(file);
+      });
+    };
+    input.click();
+  };
+
+  const removeVerifyCardRef = (slotId: number, idx: number) => {
+    setVersions((prev) =>
+      prev.map((v) =>
+        v.id === slotId
+          ? { ...v, referenceImages: (v.referenceImages ?? []).filter((_, i) => i !== idx) }
+          : v
+      )
+    );
+  };
+
   /* ─── Grok auto-fill empty variables ─── */
   const handleGrokFill = async () => {
     const emptyVars = variables.filter(v => v.type === "text" && !v.defaultValue);
@@ -3151,7 +3321,10 @@ export default function AlgencyPromptEditor() {
   };
 
   const savePromptMutation = useMutation({
-    mutationFn: async () => {
+    /* `uploadedPhotos` are the durable showcase image URLs chosen at
+       release time (the selected verify renders). They map to the
+       `uploaded_photos` column → `showcaseImages` in the buyer UI. */
+    mutationFn: async (uploadedPhotos: string[] = []) => {
       const payload = {
         id: ui.currentPromptId,
         title: promptData.title,
@@ -3171,7 +3344,8 @@ export default function AlgencyPromptEditor() {
             type: n.type, defaultValue: n.defaultValue, required: n.required, position: n.position,
           };
         }),
-        referenceImages,
+        uploadedPhotos,
+        photoCount: uploadedPhotos.length || undefined,
         price: promptData.type === "premium-prompt" ? promptPrice : 0,
       };
       const response = await apiRequest("POST", "/api/prompt", payload);
@@ -3189,18 +3363,18 @@ export default function AlgencyPromptEditor() {
   });
 
   const publishPromptMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (uploadedPhotos: string[] = []) => {
+      // Always (re)save with the chosen showcase images so the prompt
+      // row carries them — even when it already had an id.
+      const saved = await savePromptMutation.mutateAsync(uploadedPhotos);
       let id = ui.currentPromptId;
-      if (!id) {
-        const saved = await savePromptMutation.mutateAsync();
-        if (typeof saved === "object" && saved !== null && "id" in saved) {
-          id = String((saved as { id?: unknown }).id ?? "");
-        }
+      if (typeof saved === "object" && saved !== null && "id" in saved) {
+        id = String((saved as { id?: unknown }).id ?? "") || id;
       }
       if (!id) throw new Error("Could not save prompt before publishing");
       // Best-effort: try to mark published in DB. Don't fail the whole publish
       // action if the column/route is missing — the prompt is already saved
-      // and shows on /showcase regardless.
+      // and shows on the marketplace regardless.
       try {
         await apiRequest("PATCH", `/api/prompts/${id}`, { published: true });
       } catch (e) {
@@ -3210,11 +3384,12 @@ export default function AlgencyPromptEditor() {
     },
     onSuccess: ({ id }) => {
       toast({
-        title: "Published",
-        description: "Prompt is now live on the marketplace.",
+        title: "Released",
+        description: "Your prompt is live — opening it in the image studio.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/prompts"] });
-      router.push("/showcase");
+      // Land the artist directly in the buyer-facing image UI for this prompt.
+      router.push(`/generator/${id}`);
     },
     onError: (error: unknown) => {
       console.error("Publish failed:", error);
@@ -3261,6 +3436,43 @@ export default function AlgencyPromptEditor() {
   const fieldError = (key: keyof typeof settingsMissing) =>
     !ui.settingsCollapsed && ui.settingsReleaseAttempted && settingsMissing[key];
 
+  /* Persist the chosen verify renders (uploading any base64 data URLs
+     to durable Blob URLs), then save + publish the prompt with those
+     showcase images attached. */
+  const releasePrompt = useCallback(
+    async (cardIds: number[]) => {
+      const chosen = versions.filter(
+        (v) => cardIds.includes(v.id) && v.status === "complete"
+      );
+      const rawUrls = chosen
+        .map((v) => v.sourceUrl || v.imageUrl)
+        .filter((u): u is string => Boolean(u) && !u.startsWith("blob:"));
+
+      setUi((p) => ({ ...p, isReleasing: true }));
+      try {
+        let showcaseUrls = rawUrls;
+        // Upload any data: URLs to Blob so the DB stores durable links.
+        if (rawUrls.some((u) => u.startsWith("data:"))) {
+          try {
+            const res = await apiRequest("POST", "/api/upload-image", {
+              images: rawUrls,
+            });
+            const data = (await res.json()) as { urls?: string[] };
+            if (Array.isArray(data.urls) && data.urls.length) {
+              showcaseUrls = data.urls;
+            }
+          } catch (e) {
+            console.warn("Showcase image upload failed, saving raw URLs:", e);
+          }
+        }
+        await publishPromptMutation.mutateAsync(showcaseUrls);
+      } finally {
+        setUi((p) => ({ ...p, isReleasing: false, selectedCards: [] }));
+      }
+    },
+    [versions, publishPromptMutation]
+  );
+
   const handleReleaseClick = () => {
     if (hasSettingsErrors) {
       setUi((prev) => ({ ...prev, settingsReleaseAttempted: true }));
@@ -3273,7 +3485,30 @@ export default function AlgencyPromptEditor() {
       });
       return;
     }
-    publishPromptMutation.mutate();
+
+    const completed = versions.filter(
+      (v) => v.status === "complete" && (v.sourceUrl || v.imageUrl)
+    );
+    if (completed.length === 0) {
+      toast({
+        title: "Nothing to release",
+        description: "Generate at least one image before releasing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selected = completed.filter((c) => ui.selectedCards.includes(c.id));
+    if (selected.length > 0) {
+      // Release exactly the marked renders.
+      releasePrompt(selected.map((c) => c.id));
+    } else {
+      // None marked → confirm before releasing all.
+      setUi((p) => ({
+        ...p,
+        releaseAllConfirm: { ids: completed.map((c) => c.id) },
+      }));
+    }
   };
 
   const setSettingsSectionRef = useCallback(
@@ -3630,6 +3865,43 @@ export default function AlgencyPromptEditor() {
               }}
             >
               Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm "release everything" — only shown when the user hits
+          Release without selecting specific renders. Releasing all of
+          them publishes the prompt with every completed image as a
+          showcase render, so we make sure that's intentional. */}
+      <AlertDialog
+        open={ui.releaseAllConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setUi((p) => ({ ...p, releaseAllConfirm: null }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Release all images?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const n = ui.releaseAllConfirm?.ids.length ?? 0;
+                return `You haven't marked any specific renders, so all ${n} generated image${
+                  n === 1 ? "" : "s"
+                } will be released as showcase images for this prompt. Are you sure you want to do that?`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const snap = ui.releaseAllConfirm;
+                setUi((p) => ({ ...p, releaseAllConfirm: null }));
+                if (snap) releasePrompt(snap.ids);
+              }}
+            >
+              Release all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -5201,8 +5473,7 @@ export default function AlgencyPromptEditor() {
                                 ? getVariableColors(variable.colorIndex)
                                 : null;
                               const popoverBody = formatVerifySnapshotValue(
-                                String(val ?? ""),
-                                variable
+                                String(val ?? "")
                               );
                               return (
                                 <Popover key={`${slot.id}-${key}`}>
@@ -5242,6 +5513,59 @@ export default function AlgencyPromptEditor() {
                                 </Popover>
                               );
                             })}
+                        </div>
+
+                        {/* Per-card reference images — overlapping
+                            "card stack" in a row, plus an add button.
+                            Every control stops propagation so it never
+                            toggles the card's selection. Clicking the
+                            empty card body still selects as before. */}
+                        <div
+                          className="alg-verify-refs"
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="alg-verify-refs__label">refs</span>
+                          <div className="alg-verify-refs__row">
+                            {(slot.referenceImages?.length ?? 0) < MAX_VERIFY_REFS && (
+                              <button
+                                type="button"
+                                className="alg-verify-ref-add"
+                                aria-label="Add reference image"
+                                title="Add reference image"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pickVerifyCardRefs(slot.id);
+                                }}
+                              >
+                                <Plus size={14} strokeWidth={2} />
+                              </button>
+                            )}
+                            {(slot.referenceImages?.length ?? 0) > 0 && (
+                              <div className="alg-verify-ref-stack">
+                                {(slot.referenceImages ?? []).map((src, i) => (
+                                  <div
+                                    key={`${slot.id}-ref-${i}`}
+                                    className="alg-verify-ref-slot"
+                                    style={{ zIndex: i + 1 }}
+                                  >
+                                    <img src={src} alt={`Reference ${i + 1}`} />
+                                    <button
+                                      type="button"
+                                      className="alg-verify-ref-slot__remove"
+                                      aria-label={`Remove reference ${i + 1}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeVerifyCardRef(slot.id, i);
+                                      }}
+                                    >
+                                      <X size={9} strokeWidth={2.5} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Download link for complete cards */}
@@ -5492,10 +5816,10 @@ export default function AlgencyPromptEditor() {
                   <button
                     className="alg-btn alg-btn--primary alg-btn--sm"
                     style={{ padding: "6px 8px", background: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", borderColor: isPublishDisabled ? "#D5D1CB" : "var(--alg-dark)", color: "white", opacity: 1, cursor: isPublishDisabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
-                    disabled={isPublishDisabled}
+                    disabled={isPublishDisabled || ui.isReleasing}
                     onClick={handleReleaseClick}
                   >
-                    {publishPromptMutation.isPending ? "Releasing…" : "Release"}
+                    {ui.isReleasing || publishPromptMutation.isPending ? "Releasing…" : "Release"}
                   </button>
                 </div>
               </div>
@@ -5576,10 +5900,8 @@ export default function AlgencyPromptEditor() {
             toast({ title: "Wallet required", description: "Connect a wallet to generate with x402.", variant: "destructive" });
             return;
           }
-          const snapshot: Record<string, string> = {};
-          variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
           const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
-          setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
+          setVersions(prev => [...prev, { id: newId, variableSnapshot: buildVariableSnapshot(), imageUrl: null, status: "idle" }]);
           toast({ title: `Paying ${formatCost(getPricePerSlot())}`, description: "Processing micro-payment for generation..." });
           setTimeout(() => { handleGenerateVersion(newId); }, 100);
         }}

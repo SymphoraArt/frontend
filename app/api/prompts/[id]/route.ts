@@ -84,12 +84,24 @@ export async function GET(
       }
     }
 
+    // Expose the released showcase renders. They're persisted in the
+    // `uploaded_photos` column (durable Blob URLs) when the artist hits
+    // Release; the buyer-facing image UI expects them as
+    // `showcaseImages` ({ url, isPrimary }), the first being primary.
+    const showcaseImages = Array.isArray(prompt.uploaded_photos)
+      ? (prompt.uploaded_photos as string[])
+          .filter((url) => typeof url === "string" && url)
+          .map((url, idx) => ({ url, isPrimary: idx === 0 }))
+      : [];
+
     // Return prompt with nested promptData.variables for GeneratorInterface compatibility
     return NextResponse.json({
       prompt: {
         ...prompt,
         _id: prompt.id,
         publicPromptText,
+        showcaseImages,
+        previewImages: showcaseImages,
         promptData: {
           variables: mappedVariables,
         },

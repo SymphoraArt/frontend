@@ -365,10 +365,20 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Trophy size={18} />
                 </button>
-                <button onClick={() => router.push("/referrals")} title="Referrals" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button
+                  disabled
+                  aria-disabled="true"
+                  title="Referrals — coming soon. Invite others and earn rewards; this is part of our go-to-market / affiliate marketing program."
+                  style={{ background: "none", border: "none", cursor: "not-allowed", color: iconColor, opacity: 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
                   <Users size={18} />
                 </button>
-                <button onClick={() => router.push("/feedback")} title="Feedbacks" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button
+                  disabled
+                  aria-disabled="true"
+                  title="Feedback — coming soon. Share ideas and report issues to earn incentives for helping shape the platform."
+                  style={{ background: "none", border: "none", cursor: "not-allowed", color: iconColor, opacity: 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
                   <MessageSquareHeart size={18} />
                 </button>
                 <button title="Notifications" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>

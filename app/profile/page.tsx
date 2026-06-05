@@ -308,10 +308,22 @@ export default function ProfilePage() {
                   {isAuthed ? <em>My</em> : <em>Guest</em>} {isAuthed ? "Profile" : ""}
                 </h1>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <button className="enki-catbar-all" style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }} disabled>
+                  <button
+                    className="enki-catbar-all"
+                    style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }}
+                    disabled
+                    aria-disabled="true"
+                    title="Follow — coming soon. Follow creators to get their latest prompts and drops in your feed."
+                  >
                     <UserPlus size={16} /> Follow
                   </button>
-                  <button className="enki-catbar-all active" style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }} disabled>
+                  <button
+                    className="enki-catbar-all active"
+                    style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }}
+                    disabled
+                    aria-disabled="true"
+                    title="Message — coming soon. Direct-message creators about commissions, prompts and collaborations."
+                  >
                     <MessageSquare size={16} /> Message
                   </button>
                 </div>
