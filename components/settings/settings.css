@@ -611,3 +611,62 @@
     transform: rotate(360deg);
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * DARK-MODE SURFACE FIXES
+ *
+ * The rules above hardcode light backgrounds (#fff, #f0f0f0, #fcfbf8…)
+ * while text colors use the --enki-* variables, which the global
+ * `.dark` theme flips to LIGHT. That left light text sitting on light
+ * surfaces (e.g. the "Amount" / "Buy with…" titles, the dark buttons).
+ * These overrides give every hardcoded light surface a proper dark
+ * equivalent so contrast is restored.
+ * ────────────────────────────────────────────────────────────── */
+.dark .set-section { background: var(--enki-paper-2); }
+
+.dark .set-item-icon {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink-2);
+}
+
+/* Primary "dark" button: --enki-ink flips to near-white in dark mode,
+   so a white label became invisible. Use --enki-paper for the label so
+   it's a light button with dark text (the correct inverted look). */
+.dark .set-btn-dark { color: var(--enki-paper); }
+
+.dark .set-btn-outline { border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-btn-outline:hover { background: var(--enki-paper-3); }
+.dark .set-btn-secondary {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink);
+  border-color: var(--enki-rule);
+}
+
+.dark .set-toggle { background: var(--enki-rule); }
+.dark .set-toggle-thumb { background: var(--enki-ink); }
+
+.dark .set-table th { background: var(--enki-paper-2); }
+
+/* Amount entry */
+.dark .set-amount-wrap { background: var(--enki-paper-3); border-color: var(--enki-rule); }
+.dark .set-amount-wrap:focus-within {
+  border-color: var(--enki-ink);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+.dark .set-amount-prefix,
+.dark .set-amount-input { color: var(--enki-ink); }
+.dark .set-amount-input::placeholder { color: var(--enki-ink-3); }
+
+/* Payment / QR / fiat modals */
+.dark .set-pay-card { background: var(--enki-paper-2); border-color: var(--enki-rule); }
+.dark .set-pay-close { background: var(--enki-paper-3); border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-qr-head { color: var(--enki-ink); }
+/* Keep the QR itself on white so it stays scannable (dark modules need a
+   light quiet-zone) — only restyle its frame border. */
+.dark .set-qr-frame { border-color: var(--enki-rule); }
+.dark .set-qr-addr { background: var(--enki-paper-3); color: var(--enki-ink-2); }
+.dark .set-fiat-amount,
+.dark .set-fiat-success-title { color: var(--enki-ink); }
+.dark .set-fiat-sub,
+.dark .set-fiat-success-sub,
+.dark .set-fiat-loading { color: var(--enki-ink-3); }

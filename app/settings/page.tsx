@@ -105,7 +105,7 @@ export default function SettingsPage() {
     profile: "Manage your connected social accounts and visibility settings.",
     wallets: "Manage your connected Turnkey networks and external wallets.",
     earnings: "Track your earnings from owned prompts and hunted affiliates.",
-    billing: "Top up with Apple Pay, Google Pay or card — or deposit crypto directly.",
+    billing: "Top up with Stripe or Paypal",
     recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen."
   };
 

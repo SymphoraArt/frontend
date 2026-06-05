@@ -4654,28 +4654,12 @@ export default function AlgencyPromptEditor() {
                   refMentionIndices.push(n);
                 }
               }
-              if (variables.length === 0 && refMentionIndices.length === 0) return null;
+              // Variable pills were removed as redundant — the Variables
+              // panel (03) is the source of truth. Only reference-image
+              // mention chips remain in this row.
+              if (refMentionIndices.length === 0) return null;
               return (
                 <div className="alg-prompt-var-tabs">
-                  {variables.map((v) => {
-                    const colors = getVariableColors(v.colorIndex);
-                    const isTabActive = ui.selectedVariableId === v.id;
-                    return (
-                      <button
-                        key={v.id}
-                        type="button"
-                        className={`alg-prompt-var-tab ${isTabActive ? "alg-prompt-var-tab--active" : ""}`}
-                        style={{
-                          backgroundColor: colors.bg,
-                          color: colors.text,
-                          borderColor: colors.border,
-                        }}
-                        onClick={() => selectVariable(v.id)}
-                      >
-                        [{v.name || "..."}]
-                      </button>
-                    );
-                  })}
                   {refMentionIndices.map((n) => {
                     const src = referenceImages[n - 1];
                     return (
@@ -4872,12 +4856,20 @@ export default function AlgencyPromptEditor() {
                   <div className="alg-type-toggle">
                     <button
                       className={`alg-type-toggle__btn ${variable.type === "text" ? "alg-type-toggle__btn--active" : ""}`}
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        updateVariable(variable.id, { 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Re-clicking the already-active type is a no-op so we
+                        // never recompute (and clobber) the saved text.
+                        if (variable.type === "text") return;
+                        // Restore the text from `description` (where checkbox
+                        // mode parks it) — never fall back to the boolean
+                        // `defaultValue`, which would render as "true".
+                        const restored = String(variable.description || variable.label || "");
+                        updateVariable(variable.id, {
                           type: "text",
-                          defaultValue: variable.description || variable.defaultValue || variable.label
-                        }); 
+                          defaultValue: restored,
+                          values: restored ? [restored] : [],
+                        });
                       }}
                     >
                       Text input
@@ -4886,9 +4878,12 @@ export default function AlgencyPromptEditor() {
                       className={`alg-type-toggle__btn ${variable.type === "checkbox" ? "alg-type-toggle__btn--active" : ""}`}
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Re-clicking checkbox while already in checkbox mode
+                        // must not overwrite the parked text with "true".
+                        if (variable.type === "checkbox") return;
                         updateVariable(variable.id, {
                           type: "checkbox",
-                          description: String(variable.defaultValue || variable.description || variable.label),
+                          description: String(variable.defaultValue || variable.description || variable.label || ""),
                           defaultValue: true
                         });
                       }}
@@ -4904,7 +4899,18 @@ export default function AlgencyPromptEditor() {
                       <input
                         className="alg-var-card__default-input"
                         value={String(variable.defaultValue || "")}
-                        onChange={(e) => updateVariable(variable.id, { defaultValue: e.target.value, type: "text" })}
+                        onChange={(e) =>
+                          updateVariable(variable.id, {
+                            defaultValue: e.target.value,
+                            type: "text",
+                            // Keep the batch `values` stack in sync with the
+                            // typed default. Verify-card snapshots prefer
+                            // `values` over `defaultValue`, so without this the
+                            // push would capture the stale original token text
+                            // instead of what's currently in the textbox.
+                            values: e.target.value ? [e.target.value] : [],
+                          })
+                        }
                         placeholder="e.g. a young woman..."
                       />
                       <div className="alg-var-card__hint">Used until the buyer changes it.</div>

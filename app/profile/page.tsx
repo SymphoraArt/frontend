@@ -14,7 +14,7 @@ import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { listCreations, subscribeCreations, type StoredCreation } from "@/lib/creations";
 import GalleryImageModal from "@/components/GalleryImageModal";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ChevronDown, MessageSquare, UserPlus, Sparkles, ImageOff } from "lucide-react";
+import { ChevronDown, MessageSquare, UserPlus, Sparkles, ImageOff, Pencil, Check } from "lucide-react";
 import "@/components/enki/enki.css";
 
 const PROFILE_STAT_LABELS = ["Prompts", "Uses", "Followers", "This month"] as const;
@@ -73,12 +73,37 @@ export default function ProfilePage() {
   // Address used to charge the balance when regenerating from the gallery modal.
   const payAddress = account?.address ?? turnkeyAddress ?? null;
   const isAuthed = !!walletAddress;
-  const shortAddress = walletAddress
-    ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
-    : null;
-  const avatarInitials = walletAddress
-    ? (walletAddress.startsWith("0x") ? walletAddress.slice(2, 4) : walletAddress.slice(0, 2)).toUpperCase()
-    : "—";
+
+  // ─── Editable username (stored locally per wallet) ───
+  // The wallet address is intentionally never shown — users identify
+  // themselves with a chosen username instead. Until a profile picture
+  // is set, the avatar shows the username's first letter.
+  const [username, setUsername] = useState<string>("");
+  const [editingName, setEditingName] = useState(false);
+
+  useEffect(() => {
+    if (!walletAddress) { setUsername(""); return; }
+    try {
+      setUsername(localStorage.getItem(`enki:username:${walletAddress}`) ?? "");
+    } catch {
+      setUsername("");
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!walletAddress) return;
+    try {
+      localStorage.setItem(`enki:username:${walletAddress}`, username);
+    } catch {
+      /* ignore quota / privacy-mode errors */
+    }
+  }, [username, walletAddress]);
+
+  const avatarInitial = username.trim()
+    ? username.trim().charAt(0).toUpperCase()
+    : isAuthed
+      ? "?"
+      : "—";
   
   // Favorites logic (reused from feed)
   const [favs, setFavs] = useState<Record<string, boolean>>(() => {
@@ -217,13 +242,66 @@ export default function ProfilePage() {
               zIndex: 2,
               overflow: "hidden",
             }}>
-              {avatarInitials}
+              {avatarInitial}
             </div>
 
             {/* Title & Actions */}
             <div style={{ flex: 1, width: isMobile ? "100%" : "auto", paddingBottom: isMobile ? 0 : 10 }}>
-              <div className="mono" style={{ fontSize: isMobile ? 11 : 13, color: "var(--enki-ember)", marginBottom: 8, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                {shortAddress ?? "Not connected"}
+              {/* Editable username — replaces the wallet address. Click the
+                  pencil to rename; the first letter feeds the avatar above. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, minHeight: 20 }}>
+                {editingName ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      onBlur={() => setEditingName(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setEditingName(false);
+                        if (e.key === "Escape") setEditingName(false);
+                      }}
+                      maxLength={32}
+                      placeholder="Your username"
+                      className="mono"
+                      style={{
+                        fontSize: isMobile ? 11 : 13,
+                        color: "var(--enki-ember)",
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        background: "transparent",
+                        border: "none",
+                        borderBottom: "1px solid var(--enki-ember)",
+                        outline: "none",
+                        padding: "2px 0",
+                        width: "min(260px, 60vw)",
+                      }}
+                    />
+                    <button
+                      onClick={() => setEditingName(false)}
+                      aria-label="Save username"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--enki-ember)", display: "flex", padding: 2 }}
+                    >
+                      <Check size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="mono" style={{ fontSize: isMobile ? 11 : 13, color: "var(--enki-ember)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      {username.trim() ? username : isAuthed ? "Set a username" : "Not connected"}
+                    </span>
+                    {isAuthed && (
+                      <button
+                        onClick={() => setEditingName(true)}
+                        aria-label="Edit username"
+                        title="Edit username"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--enki-ink-3)", display: "flex", padding: 2 }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: isMobile ? 16 : 0 }}>
                 <h1 className="serif" style={{ fontSize: isMobile ? "clamp(30px, 8vw, 40px)" : "clamp(48px, 5vw, 72px)", fontWeight: 400, margin: 0, lineHeight: 1 }}>
