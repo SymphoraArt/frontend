@@ -318,7 +318,9 @@ function parseImageInput(
   input: string
 ): { mimeType: string; data: string } | null {
   if (!input || typeof input !== "string") return null;
-  const match = input.match(/^data:(.+?);base64,(.*)$/s);
+  // Use [\s\S] instead of the `s` (dotAll) flag so the build doesn't require
+  // an es2018+ target.
+  const match = input.match(/^data:([\s\S]+?);base64,([\s\S]*)$/);
   if (match) {
     return { mimeType: match[1], data: match[2] };
   }
