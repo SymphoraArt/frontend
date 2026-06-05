@@ -10,6 +10,13 @@ import type { ImageGenerationRequest } from "@/backend/services/types";
  * are responsible for charging the user's balance separately.
  */
 
+/**
+ * Nano Banana Pro — Gemini 3 Pro Image. This is the model the platform offers
+ * (the DB "Nano Banana Pro" model maps here). The cheaper `gemini-2.5-flash-image`
+ * is plain "Nano Banana" and is NOT used for paid renders.
+ */
+export const NANO_BANANA_PRO_MODEL = "gemini-3-pro-image-preview";
+
 export interface GenerateCoreParams {
   prompt: string;
   aspectRatio?: string;
@@ -81,19 +88,39 @@ export async function generateAndUploadImage(
     return { imageUrl: await uploadImage(buffer), model: "grok-imagine-image" };
   }
 
-  const result = await generateImagesWithGemini({
+  // Gemini occasionally returns a candidate with no image part (an empty /
+  // soft-refusal response), especially with reference images. That's transient,
+  // so we retry once before giving up — otherwise a perfectly good prompt fails
+  // and the caller has to refund + manually retry.
+  let result = await generateImagesWithGemini({
     prompt,
     aspectRatio: aspectRatio as ImageGenerationRequest["aspectRatio"],
     imageSize: resolution as ImageGenerationRequest["imageSize"],
     numImages: 1,
     referenceImages,
+    modelVersion: NANO_BANANA_PRO_MODEL,
   });
+  // Only retry transient/empty failures — never a hard refusal (SAFETY) or a
+  // non-retryable validation error.
+  if ((!result.success || !result.imageBuffers?.length) && result.retryable !== false) {
+    console.warn(
+      `[generate-core] empty/failed Gemini response (\"${result.error}\") — retrying once`
+    );
+    result = await generateImagesWithGemini({
+      prompt,
+      aspectRatio: aspectRatio as ImageGenerationRequest["aspectRatio"],
+      imageSize: resolution as ImageGenerationRequest["imageSize"],
+      numImages: 1,
+      referenceImages,
+      modelVersion: NANO_BANANA_PRO_MODEL,
+    });
+  }
   if (!result.success || !result.imageBuffers?.length) {
     throw new Error(result.error || "Image generation failed");
   }
   return {
     imageUrl: await uploadImage(result.imageBuffers[0]),
-    model: result.metadata?.model || "gemini-3-pro-image-preview",
+    model: result.metadata?.model || NANO_BANANA_PRO_MODEL,
   };
 }
 

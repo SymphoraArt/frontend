@@ -120,6 +120,10 @@ interface AlgencyMobileGenerateModalProps {
   onGenerate: () => void;
   onAutoFill?: () => void;
   isAutoFilling?: boolean;
+  /* Which tab to land on when the sheet opens. The editor opens straight into
+     "Release" on mobile (it IS the mobile editor); the feed launcher stays on
+     "Generate". */
+  initialTab?: "Generate" | "Release";
   /* Feed launcher additions (all optional → editor usage unchanged):
      hide the Release tab and surface reference-image inputs. */
   hideReleaseTab?: boolean;
@@ -265,8 +269,11 @@ export default function AlgencyMobileGenerateModal({
   onOpenPromptEditor,
   balance,
   onTopUp,
+  initialTab,
 }: AlgencyMobileGenerateModalProps) {
-  const [activeTab, setActiveTab] = useState<"Generate" | "Release">("Generate");
+  const [activeTab, setActiveTab] = useState<"Generate" | "Release">(
+    initialTab ?? "Generate"
+  );
   const [releaseSection, setReleaseSection] = useState<"settings" | "prompt" | "verify">("settings");
   const [isDesktop, setIsDesktop] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -294,6 +301,12 @@ export default function AlgencyMobileGenerateModal({
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Land on the requested tab each time the sheet opens (e.g. the editor opens
+  // straight into "Release" on mobile).
+  useEffect(() => {
+    if (isOpen && initialTab) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   // Close on Escape while open
   useEffect(() => {

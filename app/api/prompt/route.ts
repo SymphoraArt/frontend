@@ -25,6 +25,9 @@ type PromptPayload = {
   photoCount?: number;
   promptType?: PromptType;
   uploadedPhotos?: string[];
+  /* Each released render paired with the variable values that produced it,
+     so the buyer image UI can surface the values per showcase image. */
+  showcaseImages?: { url: string; values?: Record<string, string> }[];
   resolution?: string | null;
   isFreeShowcase?: boolean;
 };
@@ -78,6 +81,111 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
+}
+
+/**
+ * When the live DB hasn't had the encryption/showcase columns added yet,
+ * Supabase/PostgREST rejects the write with PGRST204 naming the missing
+ * column. Pull that column name out so we can drop it and retry — the prompt
+ * still saves (plaintext `content`) instead of hard-failing the Release.
+ */
+function missingColumnFromError(e: unknown): string | null {
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    if (
+      obj.code === "PGRST204" &&
+      typeof obj.message === "string" &&
+      obj.message.includes("column")
+    ) {
+      const m = /Could not find the '([^']+)' column/.exec(obj.message);
+      if (m) return m[1];
+    }
+  }
+  return null;
+}
+
+type PromptRow = Record<string, unknown>;
+
+async function insertPromptWithFallback(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  row: PromptRow
+): Promise<{ id?: unknown } | null> {
+  const current: PromptRow = { ...row };
+  for (let i = 0; i < 12; i++) {
+    const { data, error } = await supabase
+      .from("prompts")
+      .insert(current)
+      .select("id")
+      .single();
+    if (!error) return data;
+    const missing = missingColumnFromError(error);
+    if (missing && missing in current) {
+      delete current[missing];
+      continue;
+    }
+    throw error;
+  }
+  throw new Error("Failed to insert prompt (too many unknown columns).");
+}
+
+async function updatePromptWithFallback(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  row: PromptRow,
+  id: string
+): Promise<void> {
+  const current: PromptRow = { ...row };
+  for (let i = 0; i < 12; i++) {
+    const { error } = await supabase.from("prompts").update(current).eq("id", id);
+    if (!error) return;
+    const missing = missingColumnFromError(error);
+    if (missing && missing in current) {
+      delete current[missing];
+      continue;
+    }
+    throw error;
+  }
+  throw new Error("Failed to update prompt (too many unknown columns).");
+}
+
+/**
+ * `prompts.creator_id` is a UUID FK to `users.id` — NOT the raw wallet string.
+ * The wallet→user mapping lives in `user_wallets.address` (stored lowercased,
+ * mirroring the auth route). Resolve the creator's user UUID from their wallet,
+ * creating the user + wallet row on first publish (same as /api/auth/session).
+ */
+async function resolveCreatorUuid(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  wallet: string
+): Promise<string | null> {
+  const address = wallet.trim().toLowerCase();
+  if (!address) return null;
+
+  const { data: walletRow } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", address)
+    .is("removed_at", null)
+    .maybeSingle();
+  if (walletRow?.user_id) return String(walletRow.user_id);
+
+  // No mapping yet — create the user and link the wallet.
+  const userInsert = await supabase.from("users").insert({}).select("id").single();
+  if (userInsert.error || !userInsert.data?.id) {
+    console.warn("[/api/prompt] could not create creator user:", userInsert.error);
+    return null;
+  }
+  const userId = String(userInsert.data.id);
+  const { error: linkError } = await supabase.from("user_wallets").insert({
+    user_id: userId,
+    address,
+    chain_family: "solana",
+    wallet_type: "external_eoa",
+    is_primary: true,
+  });
+  if (linkError) {
+    console.warn("[/api/prompt] could not link creator wallet:", linkError);
+  }
+  return userId;
 }
 
 function getEncryptionKey(): Buffer {
@@ -154,18 +262,54 @@ export async function POST(req: Request) {
       ? body.uploadedPhotos.filter((p): p is string => typeof p === "string")
       : [];
 
+    // Sanitize the {url, values} pairs for the showcase image strip.
+    const showcaseImages = Array.isArray(body.showcaseImages)
+      ? body.showcaseImages
+          .filter((s) => s && typeof s.url === "string" && s.url)
+          .map((s) => ({
+            url: s.url,
+            values:
+              s.values && typeof s.values === "object" ? s.values : {},
+          }))
+      : [];
+
     const supabase = getSupabaseServerClient();
 
     const { encryptedContent, iv, authTag } = encryptString(body.content);
 
     const nowIso = new Date().toISOString();
 
+    // Creator identity. `creator_id` is a NOT NULL UUID FK to `users.id`, so we
+    // resolve the signed-in wallet to its user UUID (creating it on first
+    // publish). We only stamp it when present so an update never nulls it.
+    const creatorWallet =
+      typeof body.userId === "string" && body.userId.trim()
+        ? body.userId.trim()
+        : null;
+    const creatorId = creatorWallet
+      ? await resolveCreatorUuid(supabase, creatorWallet)
+      : null;
+
     const promptRow = {
       title: body.title,
       encrypted_content: encryptedContent,
+      /* Schemas disagree on the IV/auth-tag column names. Some use the short
+         `iv` / `auth_tag`, others the prefixed `encrypted_content_iv` /
+         `encrypted_content_auth_tag` (and mark them NOT NULL). Write both —
+         the PGRST204 fallback drops whichever columns don't exist, so the
+         NOT NULL ones always get a value and the insert no longer 500s. */
       iv,
       auth_tag: authTag,
-      user_id: body.userId ?? null,
+      tag: authTag,
+      encrypted_content_iv: iv,
+      encrypted_content_tag: authTag,
+      encrypted_content_auth_tag: authTag,
+      /* Plaintext fallback. On a DB that already has the encryption columns
+         this is redundant (and dropped if no `content` column exists); on a DB
+         that hasn't been migrated yet, the encryption columns get stripped via
+         the PGRST204 retry and this keeps the full prompt body. */
+      content: body.content,
+      ...(creatorId ? { creator_id: creatorId, user_id: creatorId } : {}),
       category: body.category ?? "",
       tags,
       ai_model: body.aiModel ?? "gemini",
@@ -176,6 +320,10 @@ export async function POST(req: Request) {
       uploaded_photos: uploadedPhotos,
       resolution: body.resolution ?? null,
       is_free_showcase: Boolean(body.isFreeShowcase ?? false),
+      /* Structured showcase strip: durable URL + the variable values used for
+         each render. Dropped automatically (PGRST204 retry) on databases that
+         don't have the column yet — `uploaded_photos` still carries the URLs. */
+      showcase_images: showcaseImages,
       public_prompt_text: body.content.slice(0, 220),
       updated_at: nowIso,
     };
@@ -184,14 +332,7 @@ export async function POST(req: Request) {
 
     if (body.id) {
       promptId = body.id;
-      const { error: updateError } = await supabase
-        .from("prompts")
-        .update(promptRow)
-        .eq("id", promptId);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await updatePromptWithFallback(supabase, promptRow, promptId);
 
       const { error: deleteError } = await supabase
         .from("variables")
@@ -202,20 +343,18 @@ export async function POST(req: Request) {
         throw deleteError;
       }
     } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from("prompts")
-        .insert({
-          ...promptRow,
-          created_at: nowIso,
-          downloads: 0,
-          rating: 0,
-        })
-        .select("id")
-        .single();
-
-      if (insertError) {
-        throw insertError;
+      if (!creatorId) {
+        return NextResponse.json(
+          { error: "Sign in to release a prompt." },
+          { status: 401 }
+        );
       }
+      const inserted = await insertPromptWithFallback(supabase, {
+        ...promptRow,
+        created_at: nowIso,
+        downloads: 0,
+        rating: 0,
+      });
 
       promptId = String(inserted?.id ?? "");
       if (!promptId) {
@@ -290,9 +429,7 @@ export async function GET(req: Request) {
 
     const { data: prompt, error: promptError } = await supabase
       .from("prompts")
-      .select(
-        "id,title,encrypted_content,iv,auth_tag,user_id,category,tags,ai_model,price,aspect_ratio,photo_count,prompt_type,uploaded_photos,resolution,is_free_showcase"
-      )
+      .select("*")
       .eq("id", id)
       .maybeSingle();
 
@@ -316,11 +453,25 @@ export async function GET(req: Request) {
       throw varsError;
     }
 
-    const content = decryptString(
-      String(prompt.encrypted_content),
-      String(prompt.iv),
-      String(prompt.auth_tag)
-    );
+    // Accept either column-naming convention for the IV / auth tag, and fall
+    // back to the plaintext `content` column if the row was saved un-encrypted.
+    const ivValue = (prompt.iv ?? prompt.encrypted_content_iv) as string | undefined;
+    const authTagValue = (prompt.auth_tag ??
+      prompt.tag ??
+      prompt.encrypted_content_tag ??
+      prompt.encrypted_content_auth_tag) as string | undefined;
+    let content = typeof prompt.content === "string" ? prompt.content : "";
+    if (prompt.encrypted_content && ivValue && authTagValue) {
+      try {
+        content = decryptString(
+          String(prompt.encrypted_content),
+          String(ivValue),
+          String(authTagValue)
+        );
+      } catch {
+        // Fall back to whatever plaintext content we have.
+      }
+    }
 
     return NextResponse.json({
       id,

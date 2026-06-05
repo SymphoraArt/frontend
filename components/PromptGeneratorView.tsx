@@ -52,6 +52,9 @@ interface ShowcaseImage {
   url: string;
   thumbnail?: string;
   isPrimary?: boolean;
+  /* The variable values that produced this render, so clicking the image
+     loads the exact settings used for it. */
+  values?: Record<string, string>;
 }
 
 interface Props {
@@ -248,8 +251,15 @@ export default function PromptGeneratorView({
           init[v.name] = v.defaultValue != null ? String(v.defaultValue) : "";
         }
       });
+      // Seed with the primary showcase render's values so the panel matches
+      // the first image the buyer sees.
+      const primaryVals = showcaseImages[0]?.values;
+      if (primaryVals && typeof primaryVals === "object") {
+        Object.assign(init, primaryVals);
+      }
       setVars(init);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variables]);
 
   /* Handlers */
@@ -402,10 +412,11 @@ export default function PromptGeneratorView({
     );
   }
 
-  const displayImage = resultUrl || mainImage;
-  const allImages = resultUrl
+  const allImages: ShowcaseImage[] = resultUrl
     ? [{ url: resultUrl, thumbnail: resultUrl }, ...showcaseImages]
     : showcaseImages;
+  const activeImage = allImages[activeThumb];
+  const displayImage = activeImage?.url || activeImage?.thumbnail || resultUrl || mainImage;
   const visibleThumbs = allImages.slice(thumbOffset, thumbOffset + 6);
 
   return (
@@ -693,7 +704,15 @@ export default function PromptGeneratorView({
                 <div
                   key={absIdx}
                   className={`pgv-thumb-item ${activeThumb === absIdx ? "active" : ""}`}
-                  onClick={() => { setActiveThumb(absIdx); }}
+                  onClick={() => {
+                    setActiveThumb(absIdx);
+                    // Load the variable values that produced this render so the
+                    // left panel reflects the settings behind the image.
+                    const vals = img.values;
+                    if (vals && typeof vals === "object" && Object.keys(vals).length) {
+                      setVars((prev) => ({ ...prev, ...vals }));
+                    }
+                  }}
                 >
                   {(img.thumbnail || img.url)
                     ? <img src={img.thumbnail || img.url} alt="" />

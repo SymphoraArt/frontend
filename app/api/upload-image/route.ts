@@ -15,11 +15,19 @@ export const dynamic = "force-dynamic";
 const MAX_IMAGES = 12;
 
 function parseDataUrl(input: string): { buffer: Buffer; contentType: string } | null {
-  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(input);
-  if (!match) return null;
+  // NOTE: do NOT run a `(.+)$` regex over the payload — base64 images are
+  // multi-MB and the backtracking engine throws "Maximum call stack size
+  // exceeded". Split on the first comma and only regex the short header.
+  if (!input.startsWith("data:")) return null;
+  const comma = input.indexOf(",");
+  if (comma === -1) return null;
+  const header = input.slice(5, comma); // strip leading "data:"
+  if (!/;base64$/i.test(header)) return null;
+  const contentType = header.slice(0, -";base64".length);
+  if (!/^image\/[a-zA-Z0-9.+-]+$/.test(contentType)) return null;
   return {
-    contentType: match[1],
-    buffer: Buffer.from(match[2], "base64"),
+    contentType,
+    buffer: Buffer.from(input.slice(comma + 1), "base64"),
   };
 }
 

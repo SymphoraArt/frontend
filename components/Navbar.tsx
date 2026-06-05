@@ -11,7 +11,6 @@ import {
   Trophy,
   Users,
   MessageSquareHeart,
-  PenLine,
   Menu,
   Sun,
   Moon,
@@ -144,7 +143,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   };
 
   const NAV_LINKS = [
-    { label: "DISCOVER", href: "/", disabled: false },
+    { label: "EXPLORE", href: "/", disabled: false },
     { label: "IMAGES", href: "/images", disabled: false },
     { label: "VIDEOS", href: "/showcase", disabled: true, tooltip: "Video prompts will be implemented soon" },
   ];
@@ -173,14 +172,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             role="link"
             tabIndex={0}
             aria-label="Go to home"
-            onClick={() => router.push("/")}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push("/"); } }}
+            onClick={() => router.push("/landing")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push("/landing"); } }}
             style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, position: "relative", zIndex: 10, pointerEvents: "auto" }}
           >
             <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
               Enki Art
             </span>
-            <span style={{ color: "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+            <span style={{ color: isDark ? "#a855f7" : "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
           </div>
 
           {isMobile && (
@@ -243,7 +242,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           {!isMobile && (
             <nav style={{ display: "flex", alignItems: "center", gap: isTablet ? 0 : 4, margin: "0 auto" }}>
               {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
-                const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/images");
+                const isActive = (label === "EXPLORE" && pathname === "/") || (label === "IMAGES" && pathname === "/images");
                 return (
                   <button
                     key={label}
@@ -341,7 +340,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
               onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
             >
-              <Wallet size={14} color="#c96838" />
+              <Wallet size={14} color={isDark ? "#a855f7" : "#c96838"} />
               ${holdingsReady ? holdings.toFixed(2) : "0.00"}
             </button>
 
@@ -384,26 +383,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <button title="Notifications" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Bell size={18} />
                 </button>
-                <button onClick={() => router.push("/editor")} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "0 20px", height: 36,
-                  background: isDark ? "linear-gradient(135deg, #c96838 0%, #ea580c 100%)" : "#111",
-                  color: "#fff",
-                  border: "none", borderRadius: 8, cursor: "pointer",
-                  fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)" : "0 2px 10px rgba(0,0,0,0.1)",
-                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.02)";
-                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(201, 104, 56, 0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)";
-                }}>
-                  Release prompt
-                </button>
               </div>
             )}
 
@@ -414,16 +393,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 </button>
                 <button title="Notifications" style={{ color: iconColor, background: "none", border: "none" }}>
                   <Bell size={16} />
-                </button>
-                <button onClick={() => router.push("/editor")} title="Release prompt" style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: "#111", border: "none",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", color: "#fff", transition: "transform 0.2s ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}>
-                  <PenLine size={15} />
                 </button>
               </div>
             )}

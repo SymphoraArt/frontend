@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
       const gemini = await generateImagesWithGemini({
         prompt,
         aspectRatio: body.aspectRatio || '1:1',
+        imageSize: body.resolution || '2K',
         referenceImages,
+        // Nano Banana Pro (Gemini 3 Pro Image) — same model as paid renders.
+        modelVersion: 'gemini-3-pro-image-preview',
       });
 
       if (!gemini.success || !gemini.imageBuffers || gemini.imageBuffers.length === 0) {
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
         imageUrl,
         prompt,
         provider: "gemini",
-        model: "gemini-2.5-flash-image",
+        model: "gemini-3-pro-image-preview",
         generationTime: gemini.generationTime,
         free: true,
       });

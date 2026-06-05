@@ -17,15 +17,15 @@
 }
 
 .dark {
-  --enki-paper: #0a0a0a;
-  --enki-paper-2: #17171a;
-  --enki-paper-3: #1a1a1f;
-  --enki-ink: #f1f1f3;
-  --enki-ink-2: #a3a3a3;
-  --enki-ink-3: #737373;
-  --enki-rule: #27272b;
-  --enki-rule-2: #3f3f46;
-  --enki-ember: #c96838;
+  --enki-paper: #0c0b14;
+  --enki-paper-2: #15131f;
+  --enki-paper-3: #1c1929;
+  --enki-ink: #f3f1f8;
+  --enki-ink-2: #a7a2b6;
+  --enki-ink-3: #7c7591;
+  --enki-rule: #2a2540;
+  --enki-rule-2: #3a3358;
+  --enki-ember: #a855f7;
 }
 
 /* ConnectWallet Button - Theme-aware styling */
@@ -223,46 +223,46 @@ textarea {
 }
 
 .dark {
-  --background: 240 20% 5%; /* #0a0a0f */
-  --foreground: 260 15% 90%; /* #e4e1e9 */
+  --background: 255 28% 6%; /* #0c0b14 */
+  --foreground: 260 20% 92%; /* #f3f1f8 */
   
-  --card: 240 10% 10%; /* #16161b */
-  --card-foreground: 260 15% 90%;
-  --card-border: 270 20% 15%; 
+  --card: 255 22% 11%; /* #15131f */
+  --card-foreground: 260 20% 92%;
+  --card-border: 262 30% 22%; 
   
-  --sidebar: 240 10% 10%;
-  --sidebar-foreground: 260 15% 90%;
-  --sidebar-border: 270 20% 15%;
-  --sidebar-primary: 20 57% 50%; /* #c96838 */
+  --sidebar: 255 22% 11%;
+  --sidebar-foreground: 260 20% 92%;
+  --sidebar-border: 262 30% 22%;
+  --sidebar-primary: 262 83% 62%; /* #8b5cf6 */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 10% 14%;
-  --sidebar-accent-foreground: 260 15% 90%;
+  --sidebar-accent: 255 20% 15%;
+  --sidebar-accent-foreground: 260 20% 92%;
   
-  --popover: 240 10% 10%;
-  --popover-foreground: 260 15% 90%;
-  --popover-border: 270 20% 15%;
+  --popover: 255 22% 11%;
+  --popover-foreground: 260 20% 92%;
+  --popover-border: 262 30% 22%;
   
-  --primary: 20 57% 50%; /* #c96838 */
+  --primary: 262 83% 62%; /* #8b5cf6 */
   --primary-foreground: 0 0% 100%;
-  --secondary: 35 92% 52%; /* #f59e0b - orange-500 */
+  --secondary: 271 91% 65%; /* #a855f7 */
   --secondary-foreground: 0 0% 100%;
   
-  --muted: 240 10% 14%;
-  --muted-foreground: 260 10% 65%;
-  --accent: 20 57% 50%;
+  --muted: 255 20% 15%;
+  --muted-foreground: 260 14% 68%;
+  --accent: 262 83% 62%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   
-  --input: 240 10% 14%;
-  --border: 270 20% 15%;
-  --ring: 20 57% 50%;
+  --input: 255 20% 15%;
+  --border: 262 30% 22%;
+  --ring: 262 83% 62%;
 
-  --chart-1: 20 57% 50%;
-  --chart-2: 35 92% 52%;
-  --chart-3: 260 15% 90%;
-  --chart-4: 240 10% 10%;
-  --chart-5: 20 57% 50%;
+  --chart-1: 262 83% 62%;
+  --chart-2: 271 91% 65%;
+  --chart-3: 260 20% 92%;
+  --chart-4: 255 22% 11%;
+  --chart-5: 262 83% 62%;
 
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0, 0.6);
   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0, 0.7);

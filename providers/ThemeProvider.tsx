@@ -36,21 +36,23 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
  * Falls back to localStorage, then to "light".
  */
 function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+  // Dark (purple) is the default/standard theme; only an explicit "light"
+  // preference opts out.
+  if (typeof window === "undefined") return "dark";
 
-  // The inline script already added .dark to <html> if needed,
+  // The inline script already added .dark to <html> by default,
   // so reading the classList is the most reliable source of truth.
   if (document.documentElement.classList.contains("dark")) return "dark";
 
   // Fallback: check localStorage in case classList was not set yet
   try {
     const stored = localStorage.getItem("theme");
-    if (stored === "dark") return "dark";
+    if (stored === "light") return "light";
   } catch {
     // localStorage might throw in private browsing
   }
 
-  return "light";
+  return "dark";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

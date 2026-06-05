@@ -84,15 +84,30 @@ export async function GET(
       }
     }
 
-    // Expose the released showcase renders. They're persisted in the
-    // `uploaded_photos` column (durable Blob URLs) when the artist hits
-    // Release; the buyer-facing image UI expects them as
-    // `showcaseImages` ({ url, isPrimary }), the first being primary.
-    const showcaseImages = Array.isArray(prompt.uploaded_photos)
-      ? (prompt.uploaded_photos as string[])
-          .filter((url) => typeof url === "string" && url)
-          .map((url, idx) => ({ url, isPrimary: idx === 0 }))
+    // Expose the released showcase renders. Prefer the structured
+    // `showcase_images` ({ url, values }) so the buyer image UI can show the
+    // exact variable values used for each render as you click through them.
+    // Fall back to the legacy `uploaded_photos` (URLs only) for older rows.
+    const structured = Array.isArray(prompt.showcase_images)
+      ? (prompt.showcase_images as Array<{ url?: unknown; values?: unknown }>)
+          .filter((s) => s && typeof s.url === "string" && s.url)
+          .map((s, idx) => ({
+            url: s.url as string,
+            values:
+              s.values && typeof s.values === "object"
+                ? (s.values as Record<string, string>)
+                : {},
+            isPrimary: idx === 0,
+          }))
       : [];
+    const showcaseImages =
+      structured.length > 0
+        ? structured
+        : Array.isArray(prompt.uploaded_photos)
+          ? (prompt.uploaded_photos as string[])
+              .filter((url) => typeof url === "string" && url)
+              .map((url, idx) => ({ url, values: {}, isPrimary: idx === 0 }))
+          : [];
 
     // Return prompt with nested promptData.variables for GeneratorInterface compatibility
     return NextResponse.json({

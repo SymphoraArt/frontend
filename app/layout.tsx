@@ -126,7 +126,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `(function(){
               // Theme initialization
-              try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='dark'){d.classList.add('dark');}else{d.classList.remove('dark');}}catch(e){}
+              try{var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='light'){d.classList.remove('dark');}else{d.classList.add('dark');}}catch(e){}
 
               // React 19 × Radix UI fix: Radix primitives (Dialog/Select/Slider/
               // Toast/Popover) call releasePointerCapture on pointerup, but under

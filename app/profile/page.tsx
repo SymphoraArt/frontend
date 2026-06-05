@@ -1,64 +1,66 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
-import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
-import {
-  mapMarketplacePromptToEnkiPrompt
-} from "@/lib/enkiPromptAdapter";
+import { mapMarketplacePromptToEnkiPrompt } from "@/lib/enkiPromptAdapter";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { listCreations, subscribeCreations, type StoredCreation } from "@/lib/creations";
 import GalleryImageModal from "@/components/GalleryImageModal";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ChevronDown, MessageSquare, UserPlus, Sparkles, ImageOff, Pencil, Check } from "lucide-react";
-import "@/components/enki/enki.css";
+import {
+  LayoutGrid,
+  Bookmark,
+  Clock,
+  User,
+  CreditCard,
+  BarChart3,
+  Sparkles,
+  Plus,
+  ImageOff,
+  Pencil,
+  Check,
+  SlidersHorizontal,
+} from "lucide-react";
 
-const PROFILE_STAT_LABELS = ["Prompts", "Uses", "Followers", "This month"] as const;
+// ─── Dark dashboard palette (matches the profile reference design) ───
+const C = {
+  bg: "#0c0c11",
+  panel: "#15151d",
+  panelHover: "#1b1b25",
+  border: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.14)",
+  text: "#f4f4f6",
+  muted: "#8a8a95",
+  faint: "#5f5f6a",
+  accent: "#8b5cf6",
+  accentGrad: "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
+};
+
+type Mode = "buyer" | "creator";
+type Section =
+  | "renders"
+  | "saved"
+  | "purchases"
+  | "analytics"
+  | "prompts"
+  | "profile"
+  | "billing";
 
 function useSafeActiveAccount() {
   try { return useActiveAccount(); } catch { return null; }
 }
 
-const PROFILE_TABS = ["Released", "Gallery", "Reviews", "About"] as const;
-
 export default function ProfilePage() {
   const searchParams = useSearchParams();
-  // Open straight to a specific tab when ?tab=... is set (e.g. "My Gallery"
-  // in the navbar links here with ?tab=Gallery).
-  const tabParam = searchParams.get("tab");
-  const initialTab = PROFILE_TABS.includes(tabParam as (typeof PROFILE_TABS)[number])
-    ? (tabParam as string)
-    : "Released";
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<string>(initialTab);
-  const [open, setOpen] = useState<EnkiPrompt | null>(null);
-  const [activeCreation, setActiveCreation] = useState<StoredCreation | null>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
-
-  // When arriving via a deep-linked tab (e.g. ?tab=Gallery), scroll so the
-  // sticky tab bar pins to the top — the banner/avatar scroll up out of view
-  // and the selected tab's content is what you land on.
-  useEffect(() => {
-    if (!tabParam || tabParam === "Released") return;
-    // Small delay so the responsive (isMobile) reflow settles before measuring.
-    const id = window.setTimeout(() => {
-      const el = tabsRef.current;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - 64;
-      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-    }, 160);
-    return () => window.clearTimeout(id);
-    // Run once on mount for the initial deep link.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
+    const mq = window.matchMedia("(max-width: 860px)");
     const update = () => setIsMobile(mq.matches);
     update();
     mq.addEventListener("change", update);
@@ -70,14 +72,21 @@ export default function ProfilePage() {
   const { address: turnkeyAddress, sessionToken: turnkeySession } = useTurnkeyEmailAuth();
   const walletAddress =
     account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
-  // Address used to charge the balance when regenerating from the gallery modal.
   const payAddress = account?.address ?? turnkeyAddress ?? null;
   const isAuthed = !!walletAddress;
 
+  // ─── Mode (Buyer / Creator) + active sidebar section ───
+  const [mode, setMode] = useState<Mode>("buyer");
+  const tabParam = searchParams.get("tab");
+  const initialSection: Section = tabParam === "Gallery" ? "renders" : "renders";
+  const [section, setSection] = useState<Section>(initialSection);
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setSection(next === "buyer" ? "renders" : "analytics");
+  };
+
   // ─── Editable username (stored locally per wallet) ───
-  // The wallet address is intentionally never shown — users identify
-  // themselves with a chosen username instead. Until a profile picture
-  // is set, the avatar shows the username's first letter.
   const [username, setUsername] = useState<string>("");
   const [editingName, setEditingName] = useState(false);
 
@@ -85,57 +94,51 @@ export default function ProfilePage() {
     if (!walletAddress) { setUsername(""); return; }
     try {
       setUsername(localStorage.getItem(`enki:username:${walletAddress}`) ?? "");
-    } catch {
-      setUsername("");
-    }
+    } catch { setUsername(""); }
   }, [walletAddress]);
 
   useEffect(() => {
     if (!walletAddress) return;
-    try {
-      localStorage.setItem(`enki:username:${walletAddress}`, username);
-    } catch {
-      /* ignore quota / privacy-mode errors */
-    }
+    try { localStorage.setItem(`enki:username:${walletAddress}`, username); } catch { /* ignore */ }
   }, [username, walletAddress]);
 
-  const avatarInitial = username.trim()
-    ? username.trim().charAt(0).toUpperCase()
+  const displayName = username.trim() || (isAuthed ? "Your account" : "Guest");
+  const handle = username.trim()
+    ? `@${username.trim().toLowerCase().replace(/\s+/g, "")}`
     : isAuthed
-      ? "?"
-      : "—";
-  
-  // Favorites logic (reused from feed)
+      ? "@you"
+      : "@guest";
+  const avatarInitials = useMemo(() => {
+    const base = username.trim();
+    if (!base) return isAuthed ? "EA" : "—";
+    const parts = base.split(/\s+/).filter(Boolean).slice(0, 2);
+    return parts.map((p) => p[0]?.toUpperCase()).join("") || base[0]?.toUpperCase() || "EA";
+  }, [username, isAuthed]);
+
+  // ─── Favorites (saved styles) ───
   const [favs, setFavs] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(localStorage.getItem("enki:favorites") || "{}");
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(localStorage.getItem("enki:favorites") || "{}"); } catch { return {}; }
   });
-
   const toggleFav = (id: string) => {
     setFavs((current) => {
       const next = { ...current, [id]: !current[id] };
-      if (typeof window !== "undefined") {
-        localStorage.setItem("enki:favorites", JSON.stringify(next));
-      }
+      if (typeof window !== "undefined") localStorage.setItem("enki:favorites", JSON.stringify(next));
       return next;
     });
   };
 
+  // ─── Released / marketplace prompts ───
   const { data, isError } = useQuery({
     queryKey: ["/api/marketplace/prompts", "profile"],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "20", sortBy: "newest" });
+      const params = new URLSearchParams({ limit: "24", sortBy: "newest" });
       const res = await fetch(`/api/marketplace/prompts?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load prompts");
       return res.json();
     },
     staleTime: 60_000,
   });
-
   const prompts = useMemo<EnkiPrompt[]>(() => {
     if (isError) return [];
     return Array.isArray(data?.prompts)
@@ -143,7 +146,9 @@ export default function ProfilePage() {
       : [];
   }, [data, isError]);
 
-  // Gallery state
+  const savedPrompts = useMemo(() => prompts.filter((p) => favs[p.id]), [prompts, favs]);
+
+  // ─── Gallery / "My renders" ───
   const [galleryItems, setGalleryItems] = useState<StoredCreation[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
 
@@ -185,312 +190,385 @@ export default function ProfilePage() {
     return () => { cancelled = true; unsub(); };
   }, [walletAddress]);
 
-  return (
-    <div className="enki" style={{ paddingTop: 64 }}>
-      {/* ─── Profile Header Section ─── */}
-      <div style={{ position: "relative" }}>
-        {/* Banner */}
-        <div style={{ 
-          height: isMobile ? 180 : 320, 
-          background: "var(--enki-paper-3)", 
-          backgroundImage: "linear-gradient(135deg, var(--enki-paper-3) 0%, var(--enki-paper-2) 100%)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          {/* Subtle geometric pattern or abstract art for the banner */}
-          <div style={{ 
-            position: "absolute", 
-            inset: 0, 
-            opacity: 0.1, 
-            backgroundImage: "radial-gradient(circle at 2px 2px, var(--enki-ink) 1px, transparent 0)",
-            backgroundSize: "40px 40px"
-          }} />
-        </div>
+  const [open, setOpen] = useState<EnkiPrompt | null>(null);
+  const [activeCreation, setActiveCreation] = useState<StoredCreation | null>(null);
 
-        {/* Hero Content Container */}
-        <div style={{ 
-          maxWidth: 1400, 
-          margin: "0 auto", 
-          padding: isMobile ? "0 16px" : "0 40px",
-          position: "relative",
-          marginTop: isMobile ? -44 : -80
-        }}>
-          <div style={{
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "flex-start" : "flex-end",
-            gap: isMobile ? 16 : 32,
-            marginBottom: isMobile ? 28 : 40,
-          }}>
-            {/* Avatar */}
-            <div style={{ 
-              width: isMobile ? 88 : 160, 
-              height: isMobile ? 88 : 160, 
-              flexShrink: 0,
-              aspectRatio: "1 / 1",
-              borderRadius: "50%", 
-              background: "#111", 
-              color: "#fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: isMobile ? 30 : 48,
-              fontFamily: "var(--font-instrument-serif), serif",
-              fontStyle: "italic",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
-              border: `${isMobile ? 5 : 8}px solid var(--enki-paper)`,
-              zIndex: 2,
-              overflow: "hidden",
-            }}>
-              {avatarInitial}
-            </div>
+  const savedCount = Object.values(favs).filter(Boolean).length;
 
-            {/* Title & Actions */}
-            <div style={{ flex: 1, width: isMobile ? "100%" : "auto", paddingBottom: isMobile ? 0 : 10 }}>
-              {/* Editable username — replaces the wallet address. Click the
-                  pencil to rename; the first letter feeds the avatar above. */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, minHeight: 20 }}>
-                {editingName ? (
-                  <>
-                    <input
-                      autoFocus
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onBlur={() => setEditingName(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") setEditingName(false);
-                        if (e.key === "Escape") setEditingName(false);
-                      }}
-                      maxLength={32}
-                      placeholder="Your username"
-                      className="mono"
-                      style={{
-                        fontSize: isMobile ? 11 : 13,
-                        color: "var(--enki-ember)",
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        background: "transparent",
-                        border: "none",
-                        borderBottom: "1px solid var(--enki-ember)",
-                        outline: "none",
-                        padding: "2px 0",
-                        width: "min(260px, 60vw)",
-                      }}
-                    />
-                    <button
-                      onClick={() => setEditingName(false)}
-                      aria-label="Save username"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--enki-ember)", display: "flex", padding: 2 }}
-                    >
-                      <Check size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="mono" style={{ fontSize: isMobile ? 11 : 13, color: "var(--enki-ember)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                      {username.trim() ? username : isAuthed ? "Set a username" : "Not connected"}
-                    </span>
-                    {isAuthed && (
-                      <button
-                        onClick={() => setEditingName(true)}
-                        aria-label="Edit username"
-                        title="Edit username"
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--enki-ink-3)", display: "flex", padding: 2 }}
-                      >
-                        <Pencil size={13} />
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: isMobile ? 16 : 0 }}>
-                <h1 className="serif" style={{ fontSize: isMobile ? "clamp(30px, 8vw, 40px)" : "clamp(48px, 5vw, 72px)", fontWeight: 400, margin: 0, lineHeight: 1 }}>
-                  {isAuthed ? <em>My</em> : <em>Guest</em>} {isAuthed ? "Profile" : ""}
-                </h1>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button
-                    className="enki-catbar-all"
-                    style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }}
-                    disabled
-                    aria-disabled="true"
-                    title="Follow — coming soon. Follow creators to get their latest prompts and drops in your feed."
-                  >
-                    <UserPlus size={16} /> Follow
-                  </button>
-                  <button
-                    className="enki-catbar-all active"
-                    style={{ height: 44, opacity: 0.5, cursor: "not-allowed" }}
-                    disabled
-                    aria-disabled="true"
-                    title="Message — coming soon. Direct-message creators about commissions, prompts and collaborations."
-                  >
-                    <MessageSquare size={16} /> Message
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+  // ─── Sidebar nav config ───
+  const activityItems =
+    mode === "buyer"
+      ? [
+          { id: "renders" as Section, label: "My renders", icon: LayoutGrid, badge: galleryItems.length || undefined },
+          { id: "saved" as Section, label: "Saved styles", icon: Bookmark, badge: savedCount || undefined },
+          { id: "purchases" as Section, label: "Purchases", icon: Clock, badge: undefined },
+        ]
+      : [
+          { id: "analytics" as Section, label: "Analytics", icon: BarChart3, badge: undefined },
+          { id: "prompts" as Section, label: "My prompts", icon: LayoutGrid, badge: prompts.length || undefined },
+        ];
 
-          {/* Bio & Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 420px", gap: isMobile ? 28 : 80, marginBottom: isMobile ? 40 : 60 }}>
-            <div style={{ fontSize: isMobile ? 16 : 18, lineHeight: 1.6, color: "var(--enki-ink-3)", maxWidth: 640, fontStyle: "italic" }}>
-              {isAuthed
-                ? "Add a bio in Settings."
-                : "Connect your wallet to see your profile."}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: isMobile ? "20px 24px" : "24px 40px" }}>
-              {PROFILE_STAT_LABELS.map(label => (
-                <div key={label}>
-                  <div className="serif" style={{ fontSize: isMobile ? 28 : 32, lineHeight: 1, marginBottom: 4 }}>—</div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--enki-ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+  const accountItems = [
+    { id: "profile" as Section, label: "Profile", icon: User },
+    { id: "billing" as Section, label: "Billing", icon: CreditCard },
+  ];
 
-      {/* ─── Tabs & Filter Section ─── */}
-      <div ref={tabsRef} style={{ 
-        borderTop: "1px solid var(--enki-rule)", 
-        borderBottom: "1px solid var(--enki-rule)",
-        background: "var(--enki-paper)",
-        position: "sticky",
-        top: 64, // below global navbar
-        zIndex: 40
-      }}>
-        <div style={{ 
-          maxWidth: 1400, 
-          margin: "0 auto", 
-          padding: isMobile ? "0 16px" : "0 40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          overflowX: isMobile ? "auto" : "visible",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 20 : 32 }}>
-            {["Released", "Gallery", "Reviews", "About"].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "20px 0",
-                  background: "none",
-                  border: "none",
-                  borderBottom: activeTab === tab ? "2px solid var(--enki-ink)" : "2px solid transparent",
-                  color: activeTab === tab ? "var(--enki-ink)" : "var(--enki-ink-3)",
-                  fontSize: 14,
-                  fontWeight: activeTab === tab ? 600 : 400,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease"
-                }}
-              >
-                {tab}
-                {tab === "Released" && prompts.length > 0 && (
-                  <span className="mono" style={{ fontSize: 11, marginLeft: 8, opacity: 0.6 }}>{prompts.length}</span>
-                )}
-                {tab === "Gallery" && galleryItems.length > 0 && (
-                  <span className="mono" style={{ fontSize: 11, marginLeft: 8, opacity: 0.6 }}>{galleryItems.length}</span>
-                )}
-              </button>
-            ))}
-            
-            <button className="enki-catbar-all" style={{ height: 36, fontSize: 11, gap: 6, marginLeft: 16 }}>
-              <Sparkles size={14} /> Filter by NFT <ChevronDown size={12} />
-            </button>
-          </div>
+  const handleSectionClick = (id: Section) => {
+    if (id === "billing") { router.push("/settings?tab=billing"); return; }
+    setSection(id);
+  };
 
-        </div>
-      </div>
-
-      {/* ─── Content Section ─── */}
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "24px 16px" : "40px" }}>
-        {activeTab === "Released" && prompts.length > 0 ? (
-          <div className="enki-masonry">
-            {prompts.map((prompt) => (
-              <EnkiCard
-                key={prompt.id}
-                prompt={prompt}
-                onOpen={setOpen}
-                faved={Boolean(favs[prompt.id])}
-                toggleFav={toggleFav}
-              />
-            ))}
-          </div>
-        ) : activeTab === "Gallery" ? (
-          galleryLoading ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}>
-              <div className="mono" style={{ fontSize: 13, color: "var(--enki-ink-3)" }}>Loading gallery…</div>
-            </div>
-          ) : galleryItems.length === 0 ? (
-            <div style={{ padding: "80px 0", textAlign: "center" }}>
-              <ImageOff size={32} color="var(--enki-ink-3)" style={{ margin: "0 auto 12px" }} />
-              <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>
-                No creations yet.
-              </div>
-              <p style={{ fontSize: 14, color: "var(--enki-ink-3)", marginTop: 8 }}>
-                Generate an image or upload one and it will appear here.
-              </p>
-            </div>
-          ) : (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: 16,
-            }}>
-              {galleryItems.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    border: "1px solid var(--enki-rule)",
-                    background: "var(--enki-paper)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    onClick={() => setActiveCreation(c)}
-                    style={{ aspectRatio: "4/3", position: "relative", overflow: "hidden", background: "var(--enki-paper-3)", cursor: "pointer" }}
-                  >
-                    <img
-                      src={c.imageUrl}
-                      alt={(c as any).isUploaded ? "Uploaded" : "Generated"}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                    {(c as any).isUploaded && (
-                      <span style={{
-                        position: "absolute", top: 8, left: 8,
-                        fontSize: 9, fontFamily: "var(--font-mono)", letterSpacing: "1px",
-                        textTransform: "uppercase",
-                        background: "rgba(26,23,21,0.8)", color: "#fff",
-                        padding: "3px 7px",
-                      }}>
-                        Uploaded
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ padding: 12 }}>
-                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--enki-ink-3)" }}>
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </span>
-                    <p style={{
-                      margin: "4px 0 0", fontSize: 12, color: "var(--enki-ink-2)",
-                      lineHeight: 1.5, maxHeight: 60, overflow: "hidden",
-                      textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
-                    }}>
-                      {c.prompt}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : (
-          <div style={{ padding: "80px 0", textAlign: "center" }}>
-            <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>
-              Nothing to show in {activeTab} yet.
-            </div>
-          </div>
+  // ─── Reusable bits ───
+  const navButton = (
+    id: Section,
+    label: string,
+    Icon: any,
+    badge?: number,
+  ) => {
+    const active = section === id;
+    return (
+      <button
+        key={id}
+        onClick={() => handleSectionClick(id)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%",
+          padding: "9px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+          background: active ? "rgba(139,92,246,0.14)" : "transparent",
+          color: active ? C.text : C.muted,
+          fontSize: 13.5, fontWeight: active ? 600 : 500, textAlign: "left",
+          fontFamily: "var(--font-sans)", transition: "background 0.15s, color 0.15s",
+        }}
+        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = C.panelHover; e.currentTarget.style.color = C.text; } }}
+        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.muted; } }}
+      >
+        <Icon size={16} style={{ flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>{label}</span>
+        {typeof badge === "number" && (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 999,
+            background: C.accentGrad, color: "#fff", lineHeight: 1.7,
+          }}>{badge}</span>
         )}
+      </button>
+    );
+  };
+
+  const Sidebar = (
+    <aside
+      style={{
+        width: isMobile ? "100%" : 264,
+        flexShrink: 0,
+        borderRight: isMobile ? "none" : `1px solid ${C.border}`,
+        padding: isMobile ? "16px 16px 0" : "28px 20px",
+        position: isMobile ? "static" : "sticky",
+        top: 64,
+        alignSelf: "flex-start",
+        height: isMobile ? "auto" : "calc(100vh - 64px)",
+        overflowY: "auto",
+      }}
+    >
+      {/* Identity */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: isMobile ? "center" : "center", gap: 10, textAlign: "center" }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: "50%", background: C.accentGrad,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "0.5px",
+        }}>{avatarInitials}</div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{displayName}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+            {handle} · {mode === "creator" ? "Creator" : "Buyer"}
+          </div>
+        </div>
+      </div>
+
+      {/* Buyer / Creator toggle */}
+      <div style={{
+        display: "flex", gap: 4, marginTop: 18, padding: 4, borderRadius: 12,
+        background: C.panel, border: `1px solid ${C.border}`,
+      }}>
+        {(["buyer", "creator"] as Mode[]).map((m) => {
+          const active = mode === m;
+          return (
+            <button
+              key={m}
+              onClick={() => switchMode(m)}
+              style={{
+                flex: 1, padding: "8px 0", borderRadius: 9, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, textTransform: "capitalize",
+                background: active ? C.accentGrad : "transparent",
+                color: active ? "#fff" : C.muted,
+                transition: "all 0.15s", fontFamily: "var(--font-sans)",
+              }}
+            >{m}</button>
+          );
+        })}
+      </div>
+
+      {/* Activity / Creator group */}
+      <div style={{ marginTop: 22 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", color: C.faint, textTransform: "uppercase", padding: "0 12px 8px" }}>
+          {mode === "buyer" ? "My activity" : "Creator"}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {activityItems.map((it) => navButton(it.id, it.label, it.icon, it.badge))}
+          {mode === "creator" && (
+            <button
+              onClick={() => router.push("/editor")}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, width: "100%",
+                padding: "9px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+                background: "transparent", color: C.muted, fontSize: 13.5, fontWeight: 500,
+                textAlign: "left", fontFamily: "var(--font-sans)",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = C.panelHover; e.currentTarget.style.color = C.text; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.muted; }}
+            >
+              <Plus size={16} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>Upload new</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Account group */}
+      <div style={{ marginTop: 22 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", color: C.faint, textTransform: "uppercase", padding: "0 12px 8px" }}>
+          Account
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {accountItems.map((it) => navButton(it.id, it.label, it.icon))}
+        </div>
+      </div>
+
+      {/* Become a creator */}
+      {mode === "buyer" && (
+        <button
+          onClick={() => switchMode("creator")}
+          style={{
+            marginTop: 24, width: "100%", padding: "11px 0", borderRadius: 12, border: "none",
+            cursor: "pointer", background: C.accentGrad, color: "#fff", fontSize: 13.5, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            boxShadow: "0 8px 24px rgba(124,58,237,0.35)", fontFamily: "var(--font-sans)",
+          }}
+        >
+          <Sparkles size={15} /> Become a creator →
+        </button>
+      )}
+    </aside>
+  );
+
+  // ─── Main content header ───
+  const HEADINGS: Record<Section, { title: string; sub: string }> = {
+    renders: { title: "My renders", sub: "All your generated images" },
+    saved: { title: "Saved styles", sub: "Prompts you bookmarked for later" },
+    purchases: { title: "Purchases", sub: "Styles and prompts you've bought" },
+    analytics: { title: "Analytics", sub: "How your prompts are performing" },
+    prompts: { title: "My prompts", sub: "Styles you've released to the marketplace" },
+    profile: { title: "Profile", sub: "How you appear across Enki Art" },
+    billing: { title: "Billing", sub: "" },
+  };
+  const heading = HEADINGS[section];
+
+  const cardGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(220px, 1fr))",
+    gap: 16,
+  };
+
+  const emptyState = (icon: React.ReactNode, title: string, body: string) => (
+    <div style={{ padding: "90px 0", textAlign: "center" }}>
+      <div style={{ marginBottom: 14, display: "flex", justifyContent: "center", color: C.faint }}>{icon}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: C.text }}>{title}</div>
+      <p style={{ fontSize: 13.5, color: C.muted, marginTop: 6, maxWidth: 360, margin: "6px auto 0" }}>{body}</p>
+    </div>
+  );
+
+  const renderCard = (c: StoredCreation) => (
+    <div
+      key={c.id}
+      onClick={() => setActiveCreation(c)}
+      style={{
+        borderRadius: 14, overflow: "hidden", background: C.panel,
+        border: `1px solid ${C.border}`, cursor: "pointer", transition: "transform 0.15s, border-color 0.15s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.transform = "translateY(-2px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ aspectRatio: "1 / 1", position: "relative", background: "#0a0a0f" }}>
+        <img src={c.imageUrl} alt="render" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {(c as any).isUploaded && (
+          <span style={{
+            position: "absolute", top: 8, left: 8, fontSize: 9, letterSpacing: "0.5px",
+            textTransform: "uppercase", background: "rgba(0,0,0,0.65)", color: "#fff", padding: "3px 7px", borderRadius: 6,
+          }}>Uploaded</span>
+        )}
+      </div>
+    </div>
+  );
+
+  const promptCard = (p: EnkiPrompt) => (
+    <div
+      key={p.id}
+      onClick={() => setOpen(p)}
+      style={{
+        borderRadius: 14, overflow: "hidden", background: C.panel,
+        border: `1px solid ${C.border}`, cursor: "pointer", transition: "transform 0.15s, border-color 0.15s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.transform = "translateY(-2px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ aspectRatio: "1 / 1", background: "#0a0a0f" }}>
+        {p.art?.url && <img src={p.art.url} alt={p.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+      </div>
+      <div style={{ padding: "10px 12px" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+          <span style={{ fontSize: 11.5, color: C.muted }}>{p.artist?.name}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>{p.price ? `$${p.price.toFixed(2)}` : "Free"}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const statCard = (label: string, value: string, hint?: string) => (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "18px 18px" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: C.muted }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 700, color: C.text, marginTop: 8, lineHeight: 1 }}>{value}</div>
+      {hint && <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>{hint}</div>}
+    </div>
+  );
+
+  let content: React.ReactNode;
+  if (!isAuthed) {
+    content = emptyState(<User size={34} />, "You're not signed in", "Connect a wallet or sign in to see your renders, saved styles and analytics.");
+  } else if (section === "renders") {
+    content = galleryLoading
+      ? emptyState(<LayoutGrid size={34} />, "Loading renders…", "")
+      : galleryItems.length === 0
+        ? emptyState(<ImageOff size={34} />, "No renders yet", "Generate an image or upload one and it will appear here.")
+        : <div style={cardGridStyle}>{galleryItems.map(renderCard)}</div>;
+  } else if (section === "saved") {
+    content = savedPrompts.length === 0
+      ? emptyState(<Bookmark size={34} />, "No saved styles yet", "Tap the bookmark on any prompt to save it here for later.")
+      : <div style={cardGridStyle}>{savedPrompts.map(promptCard)}</div>;
+  } else if (section === "purchases") {
+    content = emptyState(<Clock size={34} />, "No purchases yet", "Styles and prompts you buy from the marketplace will show up here.");
+  } else if (section === "analytics") {
+    content = (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 16 }}>
+          {statCard("Prompts released", String(prompts.length))}
+          {statCard("Total renders", String(galleryItems.length))}
+          {statCard("Saved by others", String(savedCount))}
+          {statCard("Revenue", "—", "Coming soon")}
+        </div>
+        <div style={{ marginTop: 20, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "22px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Performance over time</div>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
+            Detailed charts for views, sales and conversion are on the way. Release a prompt to start collecting data.
+          </p>
+          <button
+            onClick={() => router.push("/editor")}
+            style={{
+              marginTop: 16, padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              background: C.accentGrad, color: "#fff", fontSize: 13, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8,
+            }}
+          >
+            <Plus size={15} /> Release a new prompt
+          </button>
+        </div>
+      </div>
+    );
+  } else if (section === "prompts") {
+    content = (
+      <div style={cardGridStyle}>
+        <button
+          onClick={() => router.push("/editor")}
+          style={{
+            borderRadius: 14, border: `1px dashed ${C.borderStrong}`, background: "transparent",
+            cursor: "pointer", color: C.muted, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 8, minHeight: 220, fontFamily: "var(--font-sans)",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.accent; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.borderStrong; }}
+        >
+          <Plus size={26} />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Upload new</span>
+          <span style={{ fontSize: 11.5 }}>Open the Prompt Editor</span>
+        </button>
+        {prompts.map(promptCard)}
+      </div>
+    );
+  } else if (section === "profile") {
+    content = (
+      <div style={{ maxWidth: 520 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Display name</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+          {editingName ? (
+            <>
+              <input
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
+                maxLength={32}
+                placeholder="Your name"
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 14,
+                  background: C.panel, border: `1px solid ${C.borderStrong}`, color: C.text, outline: "none",
+                }}
+              />
+              <button onClick={() => setEditingName(false)} aria-label="Save" style={{ background: C.accentGrad, border: "none", borderRadius: 10, padding: "10px 12px", cursor: "pointer", color: "#fff", display: "flex" }}>
+                <Check size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 14, background: C.panel, border: `1px solid ${C.border}`, color: C.text }}>
+                {username.trim() || "Set a display name"}
+              </div>
+              <button onClick={() => setEditingName(true)} aria-label="Edit" style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", cursor: "pointer", color: C.muted, display: "flex" }}>
+                <Pencil size={16} />
+              </button>
+            </>
+          )}
+        </div>
+        <p style={{ fontSize: 12.5, color: C.faint, marginTop: 10 }}>
+          Your wallet address is never shown publicly — you appear as {handle}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", paddingTop: 64, color: C.text, fontFamily: "var(--font-sans)" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: 1500, margin: "0 auto" }}>
+        {Sidebar}
+
+        <main style={{ flex: 1, minWidth: 0, padding: isMobile ? "20px 16px 60px" : "32px 40px 80px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 26 }}>
+            <div>
+              <h1 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 700, margin: 0, color: C.text }}>{heading.title}</h1>
+              {heading.sub && <p style={{ fontSize: 13.5, color: C.muted, marginTop: 4 }}>{heading.sub}</p>}
+            </div>
+            {(section === "renders" || section === "saved" || section === "prompts") && (
+              <button
+                style={{
+                  display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10,
+                  background: "transparent", border: `1px solid ${C.borderStrong}`, color: C.text,
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0, fontFamily: "var(--font-sans)",
+                }}
+                title="Filtering options are on the way"
+              >
+                <SlidersHorizontal size={15} /> Filter
+              </button>
+            )}
+          </div>
+
+          {content}
+        </main>
       </div>
 
       {/* ─── Modals ─── */}
@@ -512,10 +590,7 @@ export default function ProfilePage() {
         payAddress={payAddress}
         sessionToken={turnkeySession ?? null}
         userKey={walletAddress}
-        onTopUp={() => {
-          setActiveCreation(null);
-          router.push("/settings?tab=billing");
-        }}
+        onTopUp={() => { setActiveCreation(null); router.push("/settings?tab=billing"); }}
       />
     </div>
   );

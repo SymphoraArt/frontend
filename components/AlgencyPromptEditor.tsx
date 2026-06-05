@@ -10,11 +10,10 @@ import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { loadEditorVersions, saveEditorVersions, type PersistedVersionCard } from "@/lib/editorVersions";
+import { fireReleaseConfetti } from "@/lib/confetti";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
-import { useBestPaymentChain } from "@/hooks/useWalletBalance";
-import type { ChainKey } from "@/shared/payment-config";
 import AlgencyMobileGenerateModal from "./AlgencyMobileGenerateModal";
 import { WalletPickerModal } from "./WalletPickerModal";
 import {
@@ -507,20 +506,33 @@ function EmptyVarIcon() {
   );
 }
 
+/* Raised when /api/generate answers 402 INSUFFICIENT_BALANCE, so a batch can
+   stop the queue early instead of firing every remaining request. */
+class InsufficientBalanceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InsufficientBalanceError";
+  }
+}
+
 /* ─── Component ─── */
 export default function AlgencyPromptEditor() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const account = useActiveAccount();
   const { connected: solanaAdapterConnected } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: turnkeyAddress, sessionToken: turnkeySession } = useTurnkeyEmailAuth();
   // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
   // signing through `/api/turnkey/sign-transaction` instead of the wallet adapter.
   const solanaConnected = solanaAdapterConnected || !!turnkeyAddress;
-  const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
-  const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
-  const { chainKey: bestChain } = useBestPaymentChain();
-  const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
+  // Identity for platform-paid generation. The DB balance (turnkey_users.balance)
+  // is keyed off this address; the session token lets the server resolve the
+  // Turnkey email user without a wallet signature.
+  const payAddress = account?.address ?? turnkeyAddress ?? null;
+  // x402 hooks are retained only for their pending flags (used to disable
+  // controls); the actual paid generation now goes through `/api/generate`.
+  const { isPending: isPaymentPending } = useX402PaymentProduction();
+  const { isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -2750,8 +2762,13 @@ export default function AlgencyPromptEditor() {
     }
   };
 
-  /* ─── Generate Image — uses per-card snapshot for interpolation ─── */
-  const handleGenerateVersion = async (versionId: number) => {
+  /* ─── Generate Image — uses per-card snapshot for interpolation.
+     Returns a small result so batch callers (Pay & Gen) can react to an
+     out-of-funds 402 by stopping the queue instead of firing every
+     remaining request and stacking duplicate errors. ─── */
+  const handleGenerateVersion = async (
+    versionId: number
+  ): Promise<{ ok: boolean; insufficientBalance?: boolean }> => {
     // Get this card's snapshot to build the prompt
     const card = versions.find(v => v.id === versionId) ??
       { variableSnapshot: {} as Record<string, string> };
@@ -2796,13 +2813,13 @@ export default function AlgencyPromptEditor() {
 
     if (!previewText.trim()) {
       toast({ title: "Error", description: "Please enter a prompt.", variant: "destructive" });
-      return;
+      return { ok: false };
     }
     const isFreePrompt = promptData.type === "free-prompt";
-    if (!isFreePrompt && !walletConnected) {
+    if (!isFreePrompt && !payAddress) {
       setShowWalletPicker(true);
-      toast({ title: "Wallet required", description: "Connect a wallet to generate with x402.", variant: "destructive" });
-      return;
+      toast({ title: "Sign in to generate", description: "Sign in to generate verify renders — the cost comes off your balance.", variant: "destructive" });
+      return { ok: false };
     }
     setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "generating" } : v));
     try {
@@ -2826,16 +2843,40 @@ export default function AlgencyPromptEditor() {
         }
         data = await res.json() as { imageUrl: string; provider?: string; usedGemini?: boolean };
       } else {
-        data = solanaConnected
-          ? await generateImageWithSolana({
-              prompt: previewText,
-              resolution: "2K",
-              chain: "solana-devnet",
-            }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
-          : await generateImageWithPayment(
-              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected === "Any ratio" ? "1:1" : ratios.selected, referenceImages: cardRefs.length ? cardRefs : undefined },
-              selectedChain
-            ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
+        // Platform-paid generation: the platform's own API keys pay for the
+        // render and the cost is deducted from the artist's DB balance. No
+        // on-chain x402 payment (that path returned 402 here).
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(turnkeySession ? { "X-Session-Token": turnkeySession } : {}),
+          },
+          body: JSON.stringify({
+            prompt: previewText,
+            aspectRatio: ratios.selected === "Any ratio" ? "1:1" : ratios.selected,
+            resolution: "2K",
+            address: payAddress,
+            referenceImages: cardRefs.length ? cardRefs : undefined,
+          }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            code?: string;
+          };
+          if (err.code === "INSUFFICIENT_BALANCE") {
+            throw new InsufficientBalanceError(
+              "Insufficient balance — top up in Settings → Billing."
+            );
+          }
+          throw new Error(err.error || "Generation failed");
+        }
+        data = (await res.json()) as {
+          imageUrl: string;
+          provider?: string;
+          usedGemini?: boolean;
+        };
       }
       if (!data?.imageUrl) {
         throw new Error("Image generated, but no image URL was returned.");
@@ -2874,10 +2915,21 @@ export default function AlgencyPromptEditor() {
         }
       }
       toast({ title: "Done", description: `Slot ${versionId} complete.` });
+      return { ok: true };
     } catch (error: unknown) {
-      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "failed" } : v));
+      const insufficient = error instanceof InsufficientBalanceError;
+      // Out-of-funds isn't a generation failure — reset the slot to idle so it
+      // can simply be retried after a top-up, rather than showing a red FAILED.
+      setVersions(prev => prev.map(v =>
+        v.id === versionId ? { ...v, status: insufficient ? "idle" : "failed" } : v
+      ));
       const msg = error instanceof Error ? error.message : String(error);
-      toast({ title: "Failed", description: msg || "Error generating.", variant: "destructive" });
+      toast({
+        title: insufficient ? "Top up to continue" : "Failed",
+        description: msg || "Error generating.",
+        variant: "destructive",
+      });
+      return { ok: false, insufficientBalance: insufficient };
     }
   };
 
@@ -3060,25 +3112,37 @@ export default function AlgencyPromptEditor() {
      strictly one after another (each with its own per-card reference
      image) so the queue drains consecutively rather than in parallel. */
   const handlePayAndGenerate = async () => {
-    if (!walletConnected) {
+    const isFreePrompt = promptData.type === "free-prompt";
+    if (!isFreePrompt && !payAddress) {
       setShowWalletPicker(true);
-      toast({ title: "Wallet required", description: "Connect a wallet to generate with x402.", variant: "destructive" });
+      toast({ title: "Sign in to generate", description: "Sign in to pay for renders from your balance.", variant: "destructive" });
       return;
     }
-    const processableCards = versions.filter(v => v.status === "idle" || v.status === "failed");
+    /* If the user has MARKED cards, "Pay & Gen" recreates exactly those —
+       re-rendering them even when they already hold a completed image
+       (the old render is replaced by the fresh one). With no selection we
+       fall back to rendering every slot that hasn't been generated yet. */
+    const selected = ui.selectedCards;
+    const processableCards = selected.length > 0
+      ? versions.filter(v => selected.includes(v.id))
+      : versions.filter(v => v.status === "idle" || v.status === "failed");
     if (processableCards.length === 0) {
-      toast({ title: "No slots ready", description: "Stack variables first." });
+      toast({
+        title: selected.length > 0 ? "Nothing to recreate" : "No slots ready",
+        description: selected.length > 0 ? "The marked slots are gone." : "Stack variables first.",
+      });
       return;
     }
     const cost = getBatchCost(processableCards.length);
     const total = processableCards.length;
-    // Mark all as queued immediately with their position in line.
+    // Mark all targets as queued immediately with their position in line, and
+    // clear the selection now that it's been consumed by this batch.
     setVersions(prev => prev.map(v => {
       const pos = processableCards.findIndex(c => c.id === v.id);
       if (pos === -1) return v;
-      return { ...v, status: "queued", queuePosition: pos + 1 };
+      return { ...v, status: "queued", queuePosition: pos + 1, imageUrl: null };
     }));
-    setUi(prev => ({ ...prev, queueTotal: total }));
+    setUi(prev => ({ ...prev, queueTotal: total, selectedCards: [] }));
     toast({
       title: `Paying ${cost} for ${total} image${total > 1 ? "s" : ""}`,
       description: "Rendering each image one after another…",
@@ -3090,7 +3154,17 @@ export default function AlgencyPromptEditor() {
         v.id === card.id ? { ...v, status: "generating", queuePosition: undefined } : v
       ));
       try {
-        await handleGenerateVersion(card.id);
+        const res = await handleGenerateVersion(card.id);
+        // Out of funds: stop the queue (no point hammering the API for the
+        // rest) and return the still-queued slots to idle so they can be
+        // retried after a top-up. handleGenerateVersion already toasted the
+        // "Top up to continue" message for the slot that hit the wall.
+        if (res?.insufficientBalance) {
+          setVersions(prev => prev.map(v =>
+            v.status === "queued" ? { ...v, status: "idle", queuePosition: undefined } : v
+          ));
+          break;
+        }
       } catch (e) {
         console.error("Sequential generation failed for slot", card.id, e);
       }
@@ -3321,10 +3395,14 @@ export default function AlgencyPromptEditor() {
   };
 
   const savePromptMutation = useMutation({
-    /* `uploadedPhotos` are the durable showcase image URLs chosen at
-       release time (the selected verify renders). They map to the
-       `uploaded_photos` column → `showcaseImages` in the buyer UI. */
-    mutationFn: async (uploadedPhotos: string[] = []) => {
+    /* `showcaseAssets` are the chosen verify renders at release time: each
+       carries its durable image URL plus the exact variable values that
+       produced it (`variableSnapshot`). The URLs map to `uploaded_photos`
+       (legacy/back-compat) and the full {url, values} list maps to
+       `showcase_images` so the buyer image UI can show the values used for
+       each render as you click through them. */
+    mutationFn: async (showcaseAssets: { url: string; values: Record<string, string> }[] = []) => {
+      const uploadedPhotos = showcaseAssets.map((a) => a.url);
       const payload = {
         id: ui.currentPromptId,
         title: promptData.title,
@@ -3333,7 +3411,8 @@ export default function AlgencyPromptEditor() {
            leaves the editor (DB, marketplace, AI providers) it
            should always read as "Reference image N". */
         content: expandReferenceImageMentions(promptData.body),
-        userId: null,
+        // The signed-in creator — required because prompts.creator_id is NOT NULL.
+        userId: payAddress,
         promptType: promptData.type,
         aiModel: models.selected[0],
         tags: promptData.tags,
@@ -3345,6 +3424,7 @@ export default function AlgencyPromptEditor() {
           };
         }),
         uploadedPhotos,
+        showcaseImages: showcaseAssets,
         photoCount: uploadedPhotos.length || undefined,
         price: promptData.type === "premium-prompt" ? promptPrice : 0,
       };
@@ -3363,10 +3443,10 @@ export default function AlgencyPromptEditor() {
   });
 
   const publishPromptMutation = useMutation({
-    mutationFn: async (uploadedPhotos: string[] = []) => {
+    mutationFn: async (showcaseAssets: { url: string; values: Record<string, string> }[] = []) => {
       // Always (re)save with the chosen showcase images so the prompt
       // row carries them — even when it already had an id.
-      const saved = await savePromptMutation.mutateAsync(uploadedPhotos);
+      const saved = await savePromptMutation.mutateAsync(showcaseAssets);
       let id = ui.currentPromptId;
       if (typeof saved === "object" && saved !== null && "id" in saved) {
         id = String((saved as { id?: unknown }).id ?? "") || id;
@@ -3388,8 +3468,12 @@ export default function AlgencyPromptEditor() {
         description: "Your prompt is live — opening it in the image studio.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/prompts"] });
-      // Land the artist directly in the buyer-facing image UI for this prompt.
-      router.push(`/generator/${id}`);
+      // Celebrate: confetti pops from both bottom corners. The canvas lives on
+      // <body>, so it keeps falling across the route change. Give it a beat to
+      // be seen on the editor before landing in the buyer-facing image UI
+      // (variables on the left) for this prompt.
+      fireReleaseConfetti();
+      setTimeout(() => router.push(`/generator/${id}`), 1100);
     },
     onError: (error: unknown) => {
       console.error("Publish failed:", error);
@@ -3444,9 +3528,18 @@ export default function AlgencyPromptEditor() {
       const chosen = versions.filter(
         (v) => cardIds.includes(v.id) && v.status === "complete"
       );
-      const rawUrls = chosen
-        .map((v) => v.sourceUrl || v.imageUrl)
-        .filter((u): u is string => Boolean(u) && !u.startsWith("blob:"));
+      /* Pair every chosen render with the variable values that produced it,
+         keeping URL ↔ values aligned through the Blob upload step. */
+      const usable = chosen
+        .map((v) => ({
+          url: v.sourceUrl || v.imageUrl,
+          values: v.variableSnapshot || {},
+        }))
+        .filter(
+          (a): a is { url: string; values: Record<string, string> } =>
+            Boolean(a.url) && !a.url!.startsWith("blob:")
+        );
+      const rawUrls = usable.map((a) => a.url);
 
       setUi((p) => ({ ...p, isReleasing: true }));
       try {
@@ -3458,14 +3551,18 @@ export default function AlgencyPromptEditor() {
               images: rawUrls,
             });
             const data = (await res.json()) as { urls?: string[] };
-            if (Array.isArray(data.urls) && data.urls.length) {
+            if (Array.isArray(data.urls) && data.urls.length === rawUrls.length) {
               showcaseUrls = data.urls;
             }
           } catch (e) {
             console.warn("Showcase image upload failed, saving raw URLs:", e);
           }
         }
-        await publishPromptMutation.mutateAsync(showcaseUrls);
+        const showcaseAssets = usable.map((a, i) => ({
+          url: showcaseUrls[i] ?? a.url,
+          values: a.values,
+        }));
+        await publishPromptMutation.mutateAsync(showcaseAssets);
       } finally {
         setUi((p) => ({ ...p, isReleasing: false, selectedCards: [] }));
       }
@@ -5476,55 +5573,41 @@ export default function AlgencyPromptEditor() {
                                 String(val ?? "")
                               );
                               return (
-                                <Popover key={`${slot.id}-${key}`}>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="alg-verify-var-chip"
-                                      style={
-                                        colors
-                                          ? ({
-                                              backgroundColor: colors.bg,
-                                              color: colors.text,
-                                              borderColor: colors.border,
-                                            } as React.CSSProperties)
-                                          : undefined
-                                      }
-                                      onClick={(e) => e.stopPropagation()}
-                                      onPointerDown={(e) => e.stopPropagation()}
-                                    >
-                                      <span className="alg-verify-var-chip__name">{key}</span>
-                                      {popoverBody && (
-                                        <span className="alg-verify-var-chip__value">
-                                          {popoverBody}
-                                        </span>
-                                      )}
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    className="alg-verify-var-popover z-[120] w-auto max-w-[min(280px,90vw)] border-[var(--alg-border)] bg-[var(--alg-panel)] p-3 text-[var(--alg-text)] shadow-lg"
-                                    side="top"
-                                    align="start"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <p className="alg-verify-var-popover__label">{key}</p>
-                                    <p className="alg-verify-var-popover__value">{popoverBody}</p>
-                                  </PopoverContent>
-                                </Popover>
+                                /* Display-only chip — NOT a button/popover, so
+                                   clicking it bubbles up and marks the card
+                                   (the full value stays available via the
+                                   native hover tooltip). */
+                                <span
+                                  key={`${slot.id}-${key}`}
+                                  className="alg-verify-var-chip"
+                                  title={popoverBody ? `${key}: ${popoverBody}` : key}
+                                  style={
+                                    colors
+                                      ? ({
+                                          backgroundColor: colors.bg,
+                                          color: colors.text,
+                                          borderColor: colors.border,
+                                        } as React.CSSProperties)
+                                      : undefined
+                                  }
+                                >
+                                  <span className="alg-verify-var-chip__name">{key}</span>
+                                  {popoverBody && (
+                                    <span className="alg-verify-var-chip__value">
+                                      {popoverBody}
+                                    </span>
+                                  )}
+                                </span>
                               );
                             })}
                         </div>
 
                         {/* Per-card reference images — overlapping
                             "card stack" in a row, plus an add button.
-                            Every control stops propagation so it never
-                            toggles the card's selection. Clicking the
-                            empty card body still selects as before. */}
-                        <div
-                          className="alg-verify-refs"
-                          onClick={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
+                            Only the actual buttons (add / remove) stop
+                            propagation; the row itself does NOT, so clicking
+                            anywhere in this area still marks the card. */}
+                        <div className="alg-verify-refs">
                           <span className="alg-verify-refs__label">refs</span>
                           <div className="alg-verify-refs__row">
                             {(slot.referenceImages?.length ?? 0) < MAX_VERIFY_REFS && (
@@ -5793,8 +5876,9 @@ export default function AlgencyPromptEditor() {
                     className="alg-pay-btn"
                     onClick={handlePayAndGenerate}
                     disabled={
-                      isGeneratingPaymentPending || 
-                      versions.filter(v => v.status === "idle" || v.status === "failed").length === 0 ||
+                      isGeneratingPaymentPending ||
+                      (ui.selectedCards.length === 0 &&
+                        versions.filter(v => v.status === "idle" || v.status === "failed").length === 0) ||
                       (promptData.type === "premium-prompt" && variables.some(v => !v.name))
                     }
                     style={{ padding: "6px 8px", height: "auto", whiteSpace: "nowrap", fontSize: 9 }}
@@ -5804,10 +5888,17 @@ export default function AlgencyPromptEditor() {
                     ) : (
                       <>
                         <Zap size={10} />
-                        Pay &amp; Gen
-                        {versions.filter(v => v.status === "idle" || v.status === "failed").length > 0 && (
+                        {/* When cards are marked, Pay & Gen RECREATES exactly
+                            those (count = selection); otherwise it renders all
+                            not-yet-generated slots. */}
+                        {ui.selectedCards.length > 0 ? "Recreate" : "Pay & Gen"}
+                        {(ui.selectedCards.length > 0
+                          ? ui.selectedCards.length
+                          : versions.filter(v => v.status === "idle" || v.status === "failed").length) > 0 && (
                           <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400, fontSize: 8 }}>
-                            ({versions.filter(v => v.status === "idle" || v.status === "failed").length})
+                            ({ui.selectedCards.length > 0
+                              ? ui.selectedCards.length
+                              : versions.filter(v => v.status === "idle" || v.status === "failed").length})
                           </span>
                         )}
                       </>
@@ -5828,40 +5919,29 @@ export default function AlgencyPromptEditor() {
         </section>
       </div>
 
-      {/* Mobile Base View (Background for Modal) */}
+      {/* On mobile the editor IS the full-screen Release sheet (the desktop
+          4-panel layout doesn't fit a phone). We render a plain backdrop
+          behind the always-open sheet — no half-built placeholder mockup —
+          and there's no floating "Generate" button because the sheet is
+          already the editor. */}
       {isMobileViewport && (
-        <div style={{ position: "fixed", inset: 0, background: "#f2efe8", zIndex: 100 }}>
-          <div style={{ padding: "40px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: "var(--font-serif), 'Playfair Display', serif", fontSize: 28, fontStyle: "italic", fontWeight: 700, color: "#9A938A", letterSpacing: "-1px" }}>Enki.</span>
-            <div style={{ width: 16, height: 4, background: "#C4BDB5", borderRadius: 2 }}></div>
-          </div>
-          <div style={{ display: "flex", gap: 16, padding: "0 20px" }}>
-            <div style={{ width: 160, height: 160, borderRadius: 12, background: "#C4BDB5", opacity: 0.5 }}></div>
-            <div style={{ width: 160, height: 160, borderRadius: 12, background: "#C4BDB5", opacity: 0.5 }}></div>
-          </div>
-        </div>
+        <div style={{ position: "fixed", inset: 0, background: "var(--alg-bg, #f2efe8)", zIndex: 100 }} />
       )}
 
-      {/* Mobile Floating Button */}
-      {isMobileViewport && !isMobileModalOpen && (
-        <div style={{ position: "fixed", bottom: 24, left: 24, right: 24, zIndex: 150 }}>
-          <button 
-            style={{ width: "100%", background: "var(--alg-dark)", color: "white", padding: "16px 24px", borderRadius: 32, display: "flex", justifyContent: "space-between", alignItems: "center", border: "none", boxShadow: "0 12px 32px rgba(0,0,0,0.2)", cursor: "pointer" }}
-            onClick={() => setIsMobileModalOpen(true)}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Sparkles size={18} style={{ fill: "white" }} />
-              <span style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontSize: 16, fontWeight: 500 }}>Generate</span>
-            </div>
-            <span style={{ fontFamily: "var(--font-serif), 'Playfair Display', serif", fontStyle: "italic", fontSize: 15, color: "#9A938A" }}>new image</span>
-          </button>
-        </div>
-      )}
-
-      {/* Render Mobile Modal */}
+      {/* Render Mobile Modal — opened straight into the Release variant on
+          mobile so the editor lands in its proper polished surface. Closing
+          it leaves the editor (back to the feed) rather than revealing the
+          empty backdrop. */}
       <AlgencyMobileGenerateModal
-        isOpen={isMobileModalOpen}
-        onClose={() => setIsMobileModalOpen(false)}
+        isOpen={isMobileViewport || isMobileModalOpen}
+        initialTab={isMobileViewport ? "Release" : undefined}
+        onClose={() => {
+          if (isMobileViewport) {
+            router.push("/");
+          } else {
+            setIsMobileModalOpen(false);
+          }
+        }}
         promptBody={promptData.body}
         setPromptBody={(val) => setPromptData(prev => ({ ...prev, body: val }))}
         variables={variables}
