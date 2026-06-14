@@ -45,32 +45,36 @@ html.dark .alg-model-card {
   background: var(--alg-surface);
 }
 
+/* Map the editor's dark tokens onto the shared theme vars so the editor
+   follows the active theme: navy + gold in dark, violet in purple. The
+   shared vars (--surface-*, --ember-rgb, --background, --muted-foreground)
+   are re-tinted by .theme-purple, so no separate purple block is needed. */
 html.dark {
-  --alg-bg: #0F0E0D;
-  --alg-panel: #161514;
-  --alg-border: #2C2A26;
-  --alg-accent: #D07B55;
-  --alg-accent-light: #4A3326;
+  --alg-bg: hsl(var(--background));
+  --alg-panel: var(--surface-1);
+  --alg-border: var(--surface-rule);
+  --alg-accent: rgb(var(--ember-rgb));
+  --alg-accent-light: rgba(var(--ember-rgb), 0.16);
   --alg-dark: #FFFFFF;
-  --alg-muted: #A39B92;
-  --alg-hint: #706B64;
+  --alg-muted: hsl(var(--muted-foreground));
+  --alg-hint: hsl(var(--muted-foreground) / 0.7);
   --alg-green: #22C55E;
-  --alg-text: #E8E5DF;
-  --alg-white: #1C1A18;
-  --alg-tag-subject: #D07B55;
-  --alg-tag-subject-bg: #4A3326;
+  --alg-text: var(--surface-text);
+  --alg-white: var(--surface-1);
+  --alg-tag-subject: rgb(var(--ember-rgb));
+  --alg-tag-subject-bg: rgba(var(--ember-rgb), 0.16);
   --alg-tag-mood: #4FB385;
-  --alg-tag-mood-bg: #1C3B2B;
+  --alg-tag-mood-bg: #16332a;
   --alg-tag-lighting: #6296ED;
-  --alg-tag-lighting-bg: #1D2E4A;
-  --alg-peach-bg: #2C1F18;
-  --alg-peach-border: #4A3326;
-  --alg-warm-white: #1C1A18;
-  --alg-disabled-bg: #2C2A26;
-  --alg-hover-bg: #252320;
-  --alg-input-border: #3A3631;
-  --alg-surface: #1C1A18;
-  --alg-surface-elevated: #22201d;
+  --alg-tag-lighting-bg: #16263f;
+  --alg-peach-bg: rgba(var(--ember-rgb), 0.10);
+  --alg-peach-border: rgba(var(--ember-rgb), 0.30);
+  --alg-warm-white: var(--surface-1);
+  --alg-disabled-bg: var(--surface-2);
+  --alg-hover-bg: var(--surface-2);
+  --alg-input-border: var(--surface-rule);
+  --alg-surface: var(--surface-1);
+  --alg-surface-elevated: var(--surface-2);
 }
 
 /* ─── Page ─── */
@@ -897,7 +901,7 @@ html.dark .alg-textarea-box {
   font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
 }
 .alg-toggle-inserts-block {
-  border-left: 2.5px solid #E07045; padding-left: 10px; margin: 6px 0;
+  border-left: 2.5px solid rgb(var(--ember-rgb)); padding-left: 10px; margin: 6px 0;
   font-family: var(--font-serif), 'Playfair Display', serif;
   font-size: clamp(14px, 1vw + 6px, 18px); font-style: italic; color: #5A5550; line-height: 1.2;
 }
@@ -953,34 +957,18 @@ html.dark .alg-textarea-box {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.07s ease, box-shadow 0.07s ease;
   min-height: clamp(80px, 6vw + 30px, 140px);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 .alg-version-card:hover {
   border-color: var(--alg-accent);
-  box-shadow: 0 3px 10px rgba(199,102,58,0.12);
+  box-shadow: 0 3px 10px rgba(var(--ember-rgb),0.12);
 }
-/* Selected state. We KEEP the 1px structural border to avoid a
-   1px layout shift between selected and non-selected cards in the
-   column, and stack a 1px outer box-shadow ring in the same
-   accent color on top — visually reading as a 2px-thick border
-   without disturbing the surrounding flow. The drop shadow is
-   amplified at the same time so a selected card lifts subtly off
-   the page even when it's not being hovered. The `:hover`
-   override below keeps the ring in place when the user mouses
-   over a selected card (otherwise the base `.alg-version-card:hover`
-   shadow would replace ours and the visual ring would vanish). */
 .alg-version-card--selected {
   border-color: var(--alg-accent);
-  box-shadow:
-    0 0 0 1px var(--alg-accent),
-    0 1px 4px rgba(0, 0, 0, 0.05);
-}
-.alg-version-card--selected:hover {
-  box-shadow:
-    0 0 0 1px var(--alg-accent),
-    0 3px 10px rgba(199, 102, 58, 0.18);
+  /* Fat, dominant selection ring (box-shadow avoids any layout shift). */
+  box-shadow: 0 0 0 3px var(--alg-accent), 0 3px 12px rgba(var(--ember-rgb),0.25);
 }
 /* — Thumbnail — */
 .alg-version-card__thumb {
@@ -1000,64 +988,17 @@ html.dark .alg-textarea-box {
   position: absolute; inset: 0;
 }
 
-/* ─── Idle thumb placeholder ───
-   Shown when a version slot is empty (status: "idle"). Without it
-   the dark square is just a featureless block — users couldn't tell
-   it was the spot a generated image would land in. A faint image
-   glyph plus a tiny mono caption makes the intent obvious without
-   stealing attention from the real generating/queued/complete/failed
-   states (which are anchored centrally in the same thumb and visually
-   override this placeholder simply by NOT being idle). */
-.alg-version-card__placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 10px;
-  text-align: center;
-  z-index: 2;
-  color: rgba(255, 255, 255, 0.32);
-  pointer-events: none;
-  user-select: none;
-}
-.alg-version-card__placeholder-text {
-  font-family: monospace;
-  font-size: clamp(7px, 0.5vw + 4px, 9px);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.42);
-}
-
 /* Overlay labels on the thumb */
 .alg-version-card__overlay-status {
   position: absolute; top: 4px; right: 4px;
   font-family: monospace; font-size: clamp(7px, 0.5vw + 4px, 10px);
-  color: #c0542a; letter-spacing: 0.03em;
+  color: rgb(var(--ember-rgb)); letter-spacing: 0.03em;
 }
-/* Compact version-enumeration glyph anchored to the top-left of
-   the thumb. Replaces the previous "Version 01" caption that sat
-   centered at the bottom — far less verbose, and the row of
-   cards now reads as 01 / 02 / 03 / 04 down the thumbs at a
-   glance. Subtly increases its opacity on card hover so the
-   number reads clearly while the user is interacting with that
-   specific slot. */
 .alg-version-card__overlay-label {
-  position: absolute;
-  top: 6px;
-  left: 8px;
-  font-family: monospace;
-  font-size: clamp(8px, 0.5vw + 5px, 11px);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.65);
-  pointer-events: none;
-  z-index: 5;
-  transition: color 0.15s ease;
-}
-.alg-version-card:hover .alg-version-card__overlay-label,
-.alg-version-card--selected .alg-version-card__overlay-label {
-  color: rgba(255, 255, 255, 0.92);
+  position: absolute; bottom: 4px;
+  left: 0; right: 0; text-align: center;
+  font-family: monospace; font-size: clamp(7px, 0.5vw + 4px, 10px);
+  color: rgba(255,255,255,0.5);
 }
 
 /* — Info panel — */
@@ -1069,8 +1010,6 @@ html.dark .alg-textarea-box {
   flex-direction: column;
   justify-content: center;
   gap: 4px;
-  /* Anchor for the absolutely-positioned `__no-vars` header below. */
-  position: relative;
 }
 
 .alg-verify-var-chips {
@@ -1080,79 +1019,143 @@ html.dark .alg-textarea-box {
   align-items: center;
 }
 
-/* Empty-state for the right-hand info column when the prompt has
-   no variables at all. The visible result reads as:
-
-       VARIABLES                                              .
-                                None
-                                                              .
-
-   - `__no-vars` is the section heading container, pinned
-     absolutely to the upper-left of the info panel. Its label
-     uses the SAME typography as the `.alg-label` in the
-     settings panel on the left (mono, 9px, wide-tracked
-     uppercase, hint color) so the two columns read as a
-     deliberate pair.
-   - `__no-vars-value` is a flow-positioned caption rendering
-     "None" in the centre of the white area. Since the parent
-     `.alg-version-card__info` already uses `flex-direction:
-     column; justify-content: center;`, dropping a single span
-     into it is enough to vertically centre the word. We add
-     `text-align: center` to also centre it horizontally.
-
-   Heading is positioned absolutely (rather than as a flow
-   child) so it doesn't disturb the existing
-   vertically-centered chip row in the populated state. */
-.alg-version-card__no-vars {
-  position: absolute;
-  top: 6px;
-  left: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  user-select: none;
-  pointer-events: none;
-}
-.alg-version-card__no-vars-label {
-  font-family: var(--alg-font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--alg-hint);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  white-space: nowrap;
-  text-align: left;
-}
-.alg-version-card__no-vars-value {
-  font-family: var(--alg-font-mono);
-  font-size: clamp(10px, 0.6vw + 6px, 13px);
-  color: rgba(0, 0, 0, 0.32);
-  letter-spacing: 0.04em;
-  text-align: center;
-  width: 100%;
-  user-select: none;
-  pointer-events: none;
-}
-
 .alg-verify-var-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  max-width: 100%;
   border: 1px solid var(--alg-border);
-  border-radius: 3px;
-  padding: 0 5px;
-  line-height: 1.25;
+  border-radius: 4px;
+  padding: 2px 6px;
+  line-height: 1.2;
   font-family: var(--alg-font-mono);
   font-size: 9px;
   font-weight: 500;
   color: var(--alg-text);
   background: var(--alg-surface);
-  cursor: pointer;
+  text-align: left;
   transition: opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Variable name — bold top line of the chip. */
+.alg-verify-var-chip__name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Variable value — subtitle below the name, truncated to one line. */
+.alg-verify-var-chip__value {
+  font-weight: 500;
+  font-size: 8px;
+  opacity: 0.78;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alg-verify-var-chip:hover {
   opacity: 0.92;
   box-shadow: 0 0 0 1px var(--alg-border);
 }
+
+/* ─── Per-verify-card reference images ─── */
+.alg-verify-refs {
+  --alg-vref-tile: 30px;
+  --alg-vref-overlap: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+.alg-verify-refs__label {
+  font-family: var(--alg-font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--alg-hint);
+  user-select: none;
+}
+.alg-verify-refs__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.alg-verify-ref-add {
+  flex: 0 0 var(--alg-vref-tile);
+  width: var(--alg-vref-tile);
+  height: var(--alg-vref-tile);
+  border-radius: 5px;
+  border: 1.5px dashed var(--alg-border);
+  background: var(--alg-surface);
+  color: var(--alg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.alg-verify-ref-add:hover:not(:disabled) {
+  border-color: var(--alg-accent);
+  color: var(--alg-accent);
+}
+.alg-verify-ref-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.alg-verify-ref-stack {
+  display: flex;
+  align-items: center;
+  padding-left: var(--alg-vref-overlap);
+}
+.alg-verify-ref-slot {
+  flex: 0 0 var(--alg-vref-tile);
+  width: var(--alg-vref-tile);
+  height: var(--alg-vref-tile);
+  border-radius: 5px;
+  position: relative;
+  margin-left: calc(var(--alg-vref-overlap) * -1);
+  overflow: visible;
+  box-shadow: 0 0 0 1.5px var(--alg-surface);
+  transition: transform 0.12s ease, z-index 0s;
+}
+.alg-verify-ref-slot:hover,
+.alg-verify-ref-slot:focus-within {
+  z-index: 30 !important;
+  transform: translateY(-2px);
+}
+.alg-verify-ref-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+  display: block;
+}
+.alg-verify-ref-slot__remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--alg-dark);
+  color: var(--alg-white);
+  border: 1px solid var(--alg-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  padding: 0;
+}
+.alg-verify-ref-slot:hover .alg-verify-ref-slot__remove,
+.alg-verify-ref-slot:focus-within .alg-verify-ref-slot__remove { opacity: 1; }
+.alg-verify-ref-slot__remove:hover { transform: scale(1.12); }
 
 .alg-verify-var-popover__label {
   margin: 0 0 4px;
@@ -1226,7 +1229,7 @@ html.dark .alg-textarea-box {
   width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.alg-version-card__checkbox--checked { background: #c0542a; }
+.alg-version-card__checkbox--checked { background: rgb(var(--ember-rgb)); }
 .alg-version-card__checkbox--unchecked { background: transparent; border: 1.5px solid #c8c0b4; }
 .alg-version-card__checkbox-label {
   font-family: monospace; font-size: clamp(8px, 0.5vw + 5px, 11px); color: #2c2822;
@@ -1495,13 +1498,111 @@ html.dark .alg-textarea-box {
   color: var(--alg-hint); font-size: 12px; line-height: 1;
   padding: 0; margin-left: 2px;
 }
-.alg-tag-chip__remove:hover { color: #E07045; }
+.alg-tag-chip__remove:hover { color: rgb(var(--ember-rgb)); }
 .alg-tag-input {
   flex: 1; min-width: 120px; border: none; outline: none; background: transparent;
   font-size: 11px; font-family: var(--font-jetbrains-mono), monospace;
   color: var(--alg-text);
 }
 .alg-tag-input::placeholder { color: var(--alg-hint); }
+
+/* ─── Category dropdown (single-select, mirrors feed categories) ─── */
+.alg-category-select {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 11px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  letter-spacing: 0.5px;
+  color: var(--alg-text);
+}
+.alg-category-select__label { color: var(--alg-hint); }
+.alg-category-select:hover .alg-category-select__label { color: var(--alg-text); }
+
+.alg-category-popover {
+  border-radius: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.alg-category-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  letter-spacing: 0.3px;
+  color: var(--alg-text);
+}
+.alg-category-option:hover { background: var(--alg-bg); }
+.alg-category-option--active {
+  color: rgb(var(--ember-rgb));
+  font-weight: 600;
+}
+
+/* ─── Undo / Redo buttons (Prompt header) ─── */
+.alg-prompt-history-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--alg-border);
+  background: transparent;
+  color: var(--alg-hint);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.alg-prompt-history-btn:hover:not(:disabled) {
+  color: var(--alg-dark);
+  background: var(--alg-bg);
+}
+.alg-prompt-history-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.alg-prompt-history-btn svg { display: block; }
+
+/* "New" button — sits to the left of Undo in the Prompt header. */
+.alg-prompt-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 4px;
+  border: 1px solid var(--alg-border);
+  background: transparent;
+  color: var(--alg-hint);
+  cursor: pointer;
+  font-family: var(--alg-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.alg-prompt-new-btn:hover {
+  color: var(--alg-dark);
+  background: var(--alg-bg);
+}
+.alg-prompt-new-btn svg { display: block; }
 
 .alg-stack-btn__count {
   font-family: var(--font-jetbrains-mono), monospace;
@@ -1545,7 +1646,7 @@ html.dark .alg-textarea-box {
   z-index: 20;
   border-radius: 4px 4px 0 0;
 }
-.alg-bridge-btn:hover:not(:disabled) { background: #E07045; }
+.alg-bridge-btn:hover:not(:disabled) { background: rgb(var(--ember-rgb)); }
 .alg-bridge-btn:disabled { background: #D5D1CB; cursor: not-allowed; opacity: 0.5; }
 .alg-bridge-btn__icon {
   font-size: 12px;
@@ -1565,7 +1666,7 @@ html.dark .alg-textarea-box {
   color: #6A6560; font-size: 11px; padding: 0; line-height: 1;
   flex-shrink: 0;
 }
-.alg-val-chip__remove:hover { color: #E07045; }
+.alg-val-chip__remove:hover { color: rgb(var(--ember-rgb)); }
 .alg-val-add-input {
   width: 100%; border: none; border-bottom: 1px dashed var(--alg-border);
   background: transparent; outline: none; padding: 4px 0;
@@ -1590,7 +1691,7 @@ html.dark .alg-textarea-box {
   transition: background 0.15s ease, transform 0.15s ease;
   border-radius: 6px;
 }
-.alg-pay-btn:hover:not(:disabled) { background: #b35a30; transform: translateY(-1px); }
+.alg-pay-btn:hover:not(:disabled) { background: rgb(var(--ember-rgb)); transform: translateY(-1px); }
 .alg-pay-btn:disabled { background: var(--alg-disabled-bg); cursor: not-allowed; }
 .alg-pay-btn--footer {
   width: auto; padding: 8px 18px;
@@ -1608,39 +1709,20 @@ html.dark .alg-textarea-box {
   padding: 10px 0; border-top: 1px solid var(--alg-border); margin-top: 8px;
   flex-shrink: 0;
 }
-/* Icon-only trash button (replaces the old "Delete only" text
-   label). Square-ish footprint, sized to roughly match the height
-   of the adjacent "Re-roll" button so the two buttons sit on a
-   common baseline. Hover lights the icon + border in the same
-   accent that lights the destructive state on individual variable
-   delete affordances. */
 .alg-refill-bar__delete {
-  background: transparent;
-  color: #9A9590;
-  border: 1px solid var(--alg-border);
-  padding: 5px 8px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  background: transparent; color: #9A9590;
+  border: 1px solid var(--alg-border); padding: 5px 12px;
+  font-family: var(--font-jetbrains-mono), monospace; font-size: 9px; cursor: pointer;
+  letter-spacing: 0.5px;
 }
-.alg-refill-bar__delete:hover {
-  color: #E07045;
-  border-color: #E07045;
-  background: rgba(224, 112, 69, 0.06);
-}
-.alg-refill-bar__delete svg {
-  display: block;
-}
+.alg-refill-bar__delete:hover { color: rgb(var(--ember-rgb)); border-color: rgb(var(--ember-rgb)); }
 .alg-refill-bar__refill {
   background: #1C1A18; color: #FFFFFF; border: none; cursor: pointer;
   padding: 6px 14px; display: flex; align-items: center; gap: 6px;
   font-family: var(--font-jetbrains-mono), monospace; font-size: 9px;
   font-weight: 600; letter-spacing: 0.5px; transition: background 0.15s;
 }
-.alg-refill-bar__refill:hover { background: #E07045; }
+.alg-refill-bar__refill:hover { background: rgb(var(--ember-rgb)); }
 .alg-refill-bar__cost {
   background: rgba(255,255,255,0.12); padding: 1px 6px; font-size: 9px;
   color: #E8B89A; border-radius: 2px;
@@ -1678,7 +1760,7 @@ html.dark .alg-textarea-box {
   z-index: 2;
 }
 .alg-bridge-track__dot:last-child {
-  border-color: #c7663a;
+  border-color: rgb(var(--ember-rgb));
 }
 /* Dashed circuit trace */
 .alg-bridge-track__line {
@@ -1704,22 +1786,22 @@ html.dark .alg-textarea-box {
 /* Back ("Edit — send selected back to Variables") button.
  *
  * Designed as the visual INVERSE of the forward Push button:
- *   - Forward / Push: deep rust fill (#c7663a) + WHITE arrow
- *   - Back  / Edit:   soft / faded rust fill          + RUST arrow (#c7663a)
+ *   - Forward / Push: deep rust fill (rgb(var(--ember-rgb))) + WHITE arrow
+ *   - Back  / Edit:   soft / faded rust fill          + RUST arrow (rgb(var(--ember-rgb)))
  *
  * Same hue family, opposite contrast role. Lets the user read at a
  * glance that the two arrows do opposite things, while keeping the
  * Edit button always feeling "warm" (orange family) instead of the
  * old neutral grey-outlined look. */
 .alg-arrow-btn--back {
-  background: rgba(199, 102, 58, 0.10);   /* soft orange wash */
-  border: 1px solid rgba(199, 102, 58, 0.35);
-  color: #c7663a;                          /* the orange arrow */
+  background: rgba(var(--ember-rgb), 0.10);   /* soft orange wash */
+  border: 1px solid rgba(var(--ember-rgb), 0.35);
+  color: rgb(var(--ember-rgb));                          /* the orange arrow */
 }
 .alg-arrow-btn--back:hover:not(:disabled) {
-  background: rgba(199, 102, 58, 0.18);
-  border-color: rgba(199, 102, 58, 0.55);
-  color: #c7663a;
+  background: rgba(var(--ember-rgb), 0.18);
+  border-color: rgba(var(--ember-rgb), 0.55);
+  color: rgb(var(--ember-rgb));
 }
 .alg-arrow-btn--back.alg-arrow-btn--active {
   /* Armed state (exactly one verify card selected) — the resting
@@ -1727,38 +1809,38 @@ html.dark .alg-textarea-box {
      contrast: the fill is a SOLID, clearly-visible soft peach so
      it reads as its own colour (not just a transparent wash of
      rust), while the arrow stroke and border stay in the deep
-     rust #c7663a used by the Push button.
+     rust rgb(var(--ember-rgb)) used by the Push button.
      Result: same hue family, opposite lightness, strong glyph
      contrast — the precise "conflicting colours" the design calls
      for and the exact inverse of Push (deep rust fill + white
      arrow). */
-  background: #fadbc4;       /* solid soft orange — the "big color" */
-  border-color: #c7663a;     /* deep rust outline */
-  color: #c7663a;            /* deep rust arrow stroke */
-  box-shadow: 0 0 0 2px rgba(199, 102, 58, 0.18);
+  background: rgba(var(--ember-rgb), 0.22);       /* solid soft orange — the "big color" */
+  border-color: rgb(var(--ember-rgb));     /* deep rust outline */
+  color: rgb(var(--ember-rgb));            /* deep rust arrow stroke */
+  box-shadow: 0 0 0 2px rgba(var(--ember-rgb), 0.18);
 }
 .alg-arrow-btn--back.alg-arrow-btn--active:hover:not(:disabled) {
   /* On hover, lift the soft-orange a notch and keep the rust
      accents — never collapse to a filled rust circle (that's the
      Push design and would defeat the inverse). */
-  background: #f6c8a6;
-  border-color: #a8482a;
-  color: #a8482a;
+  background: rgba(var(--ember-rgb), 0.18);
+  border-color: rgb(var(--ember-rgb));
+  color: rgb(var(--ember-rgb));
 }
 
 .alg-bridge-overlay--back-active .alg-bridge-track__dot:first-child {
-  border-color: #c7663a;
-  background: rgba(199, 102, 58, 0.18);
+  border-color: rgb(var(--ember-rgb));
+  background: rgba(var(--ember-rgb), 0.18);
 }
 
 /* Forward button — filled rust circle */
 .alg-arrow-btn--forward {
-  background: #c7663a;
+  background: rgb(var(--ember-rgb));
   color: #fff;
-  border: 1px solid #c7663a;
+  border: 1px solid rgb(var(--ember-rgb));
 }
 .alg-arrow-btn--forward:hover:not(:disabled) {
-  background: #a8482a; border-color: #a8482a;
+  background: rgb(var(--ember-rgb)); border-color: rgb(var(--ember-rgb));
 }
 
 /* ═══════════════════════════════════════════
@@ -2776,29 +2858,17 @@ html.dark .alg-textarea-box {
  *     dismiss so closing never feels sluggish.
  *
  * Targets `[role="dialog"]` and `[role="alertdialog"]`, both of which
- * Radix sets on the content panel.
- *
- * IMPORTANT: these keyframes intentionally do NOT include a
- * `translate(-50%, -50%)`. Our `AlertDialogContent` (see
- * `components/ui/alert-dialog.tsx`) wraps the Radix Content in a
- * `fixed inset-0 flex items-center justify-center` parent, which
- * means the panel is centered by the FLEX layout — not by an
- * absolute `top:50%; left:50%; translate(-50%, -50%)` trick. If we
- * baked a translate into these keyframes, the keyframe would
- * override the flex centering for the duration of the animation,
- * shoving the panel ~half-width up-and-left at frame 0 and snapping
- * it back to true-center at frame 100. That manifests exactly as
- * "the popup pops up on the upper-left and slides to the middle".
- * Pure scale + opacity is the right choice for flex-centered
- * dialogs because `transform-origin` defaults to `center center`
- * and scale is purely radial — no positional drift. */
+ * Radix sets on the content panel. The translate(-50%, -50%) is the
+ * baseline transform Radix applies for centering — the keyframes
+ * preserve it so the popup stays centered while it scales.
+ * ────────────────────────────────────────────────────────────────── */
 @keyframes alg-popup-in {
-  0%   { opacity: 0; transform: scale(0.94); }
-  100% { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 @keyframes alg-popup-out {
-  0%   { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.96); }
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
 }
 @keyframes alg-popup-fade-in {
   0% { opacity: 0; }
@@ -2837,6 +2907,44 @@ html.dark .alg-textarea-box {
 }
 
 /* ──────────────────────────────────────────────────────────────────
+ * FLEX-CENTERED POPUP ANIMATION (.alg-pop)
+ *
+ * The global `alg-popup-in` keyframe above bakes in
+ * `transform: translate(-50%, -50%)`, which is correct for panels that
+ * center themselves with that same translate. Panels marked `.alg-pop`
+ * instead center via a flex wrapper (no transform), so that translate
+ * would shove them toward the top-left during the animation, then snap
+ * them back to center when it ends — a visible corner-to-center flash.
+ *
+ * These rules opt `.alg-pop` panels into a transform-only (scale)
+ * entrance so their centering is never disturbed. The selectors include
+ * the `[role]` attribute so they out-specify the role-only global rule
+ * regardless of stylesheet order.
+ * ────────────────────────────────────────────────────────────────── */
+@keyframes alg-pop-scale-in {
+  0%   { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes alg-pop-scale-out {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+[role="alertdialog"].alg-pop[data-state="open"],
+[role="dialog"].alg-pop[data-state="open"] {
+  animation: alg-pop-scale-in 220ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+[role="alertdialog"].alg-pop[data-state="closed"],
+[role="dialog"].alg-pop[data-state="closed"] {
+  animation: alg-pop-scale-out 150ms cubic-bezier(0.4, 0, 1, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="alertdialog"].alg-pop[data-state],
+  [role="dialog"].alg-pop[data-state] {
+    animation: none !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
  * REFERENCE IMAGES — single compact row
  *
  * Layout goals (per the latest design pass):
@@ -2867,7 +2975,7 @@ html.dark .alg-textarea-box {
   transition: background 0.15s ease;
 }
 .alg-ref-zone--drop-active {
-  background: rgba(199, 102, 58, 0.06);
+  background: rgba(var(--ember-rgb), 0.06);
   outline: 1px dashed var(--alg-accent);
   outline-offset: 2px;
 }
@@ -3241,206 +3349,4 @@ body.alg-ref-preview-open > * > header:first-child {
   .alg-ref-preview__img--prev {
     animation: none;
   }
-}
-
-/* ──────────────────────────────────────────────────────────────────
- * Prompt-structure lock
- *
- * The lock-toggle button sits in the Prompt panel header (next to
- * the "+ Variable" button). Two visual states:
- *   - Unlocked: ghost-button neutral chrome, open-padlock icon.
- *   - Locked  : faint accent tint + slightly stronger border so
- *               the button reads as "active / engaged" without
- *               competing with the destructive (orange) actions
- *               elsewhere in the editor.
- *
- * `.alg-textarea-box--locked` dims the prompt body slightly when
- * the lock is engaged. We DO NOT set `pointer-events: none` on the
- * textarea — the user still needs to be able to scroll, select
- * text, and copy from a locked prompt. The `readOnly` attribute
- * on the <textarea> itself is what blocks edits; this class only
- * provides the visual cue.
- * ────────────────────────────────────────────────────────────── */
-.alg-prompt-lock-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 4px;
-  border: 1px solid var(--alg-border);
-  background: transparent;
-  color: var(--alg-muted);
-  font-family: var(--font-jetbrains-mono), monospace;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-.alg-prompt-lock-btn:hover {
-  color: var(--alg-dark);
-  background: var(--alg-bg);
-}
-.alg-prompt-lock-btn--locked {
-  /* Engaged state: subtle accent tint reads as "active" without
-     screaming destructive-orange. Same treatment as the selected
-     verify card border so the visual language stays coherent. */
-  color: var(--alg-accent);
-  border-color: var(--alg-accent);
-  background: rgba(199, 102, 58, 0.06);
-}
-.alg-prompt-lock-btn--locked:hover {
-  background: rgba(199, 102, 58, 0.12);
-}
-.alg-prompt-lock-btn svg {
-  display: block;
-}
-
-/* ─── Undo / Redo toolbar buttons ─────────────────────────────────
-   Square icon-only siblings of the lock button. They share the
-   same chrome (border, hover transition, monospace label cadence)
-   so the toolbar reads as one cohesive cluster, but they're
-   compressed to a 26x26 square — no label, just the arrow icon —
-   to keep the toolbar tight when both buttons are visible. The
-   `:disabled` state mutes the icon and removes the hover affordance
-   so an empty undo/redo stack reads as "nothing to do here" rather
-   than as a broken click target. */
-.alg-prompt-history-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 4px;
-  border: 1px solid var(--alg-border);
-  background: transparent;
-  color: var(--alg-muted);
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease,
-    opacity 0.15s ease;
-}
-.alg-prompt-history-btn:hover:not(:disabled) {
-  color: var(--alg-dark);
-  background: var(--alg-bg);
-}
-.alg-prompt-history-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.alg-prompt-history-btn svg {
-  display: block;
-}
-
-/* Locked-prompt visual feedback. Just a faint dimming on the body
-   text + a hint-color tint on the box edges so the user
-   immediately sees "this is frozen" without losing legibility. */
-.alg-textarea-box--locked {
-  background: color-mix(in srgb, var(--alg-bg) 96%, var(--alg-accent) 4%);
-  /* Anchor for the absolutely-positioned `.alg-locked-hint` below. */
-  position: relative;
-}
-.alg-textarea-box--locked .alg-textarea {
-  /* Slight desaturation cue. Not strong enough to hurt
-     readability when the user wants to verify the prompt body. */
-  color: var(--alg-muted) !important;
-}
-
-/* Hover hint shown on locked controls (prompt body + variable
-   name inputs). Replaces the slow, ugly browser-native `title`
-   tooltip with a styled callout that animates in cleanly. The
-   element is rendered conditionally in JSX (only while the
-   prompt is locked); CSS handles the show/hide transition on
-   parent hover. Two variants:
-     `--prompt`: anchored to the bottom-right of the textarea-box.
-     `--name`  : anchored above the variable-name input.
-   `pointer-events: none` so the tip doesn't itself trigger
-   hover on something else and create flicker loops. */
-.alg-locked-hint {
-  position: absolute;
-  z-index: 8;
-  max-width: 240px;
-  padding: 8px 10px;
-  background: var(--alg-dark, #1a1715);
-  color: rgba(255, 255, 255, 0.92);
-  border-radius: 5px;
-  font-family: var(--alg-font-mono, var(--font-jetbrains-mono), monospace);
-  font-size: 10px;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(2px);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease,
-    visibility 0s linear 0.14s;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* `--prompt` variant: floats just inside the bottom-right of the
-   textarea-box. Hover anywhere over the locked textarea reveals it. */
-.alg-locked-hint--prompt {
-  bottom: 8px;
-  right: 8px;
-}
-.alg-textarea-box--locked:hover .alg-locked-hint--prompt {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease,
-    visibility 0s;
-}
-
-/* `--name` variant: floats above the variable-name input with a
-   small downward-pointing arrow so it clearly belongs to the
-   field. The wrapper `.alg-var-card__name-wrap` provides the
-   positioning anchor (see component file). */
-.alg-var-card__name-wrap {
-  position: relative;
-}
-.alg-locked-hint--name {
-  bottom: calc(100% + 6px);
-  left: 0;
-  right: auto;
-  transform: translateY(4px);
-}
-.alg-locked-hint--name::after {
-  /* Tiny pointer arrow under the bubble. */
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 14px;
-  width: 8px;
-  height: 8px;
-  background: var(--alg-dark, #1a1715);
-  transform: translateY(-4px) rotate(45deg);
-  border-radius: 1px;
-}
-.alg-var-card__name-wrap:hover .alg-locked-hint--name {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease,
-    visibility 0s;
-}
-
-/* Reduced-motion users get instant show/hide. */
-@media (prefers-reduced-motion: reduce) {
-  .alg-locked-hint {
-    transition: none;
-  }
-}
+}

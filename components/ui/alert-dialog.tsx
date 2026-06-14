@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
-import { cn } from "@/lib/utils"
+import { cn, renderSentencesPerLine } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
 const AlertDialog = AlertDialogPrimitive.Root
@@ -31,34 +31,20 @@ const AlertDialogContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay />
-    {/* Flex-based centering wrapper.
-
-        Why not use `left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]`
-        directly on Content? Because tailwindcss-animate's `animate-in`
-        / `zoom-in-95` keyframes set `transform: translate3d(...) scale3d(...)`
-        which OVERRIDES any inline `translate-*` transform on the
-        animated element. The result: at frame 0 the dialog is
-        positioned with its TOP-LEFT corner at viewport-center
-        (centering translate clobbered by the keyframe), and at
-        frame 100 it suddenly snaps to true-center as the keyframe
-        ends and the inline translate kicks back in. The same
-        clobbering happens in reverse on close — hence the
-        "off-center → snap → off-center → vanish" jump.
-
-        Centering via flex on a parent (which is NOT animated)
-        decouples positioning from transform, so the keyframe is
-        free to drive scale/opacity without disturbing layout. */}
-    <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-none"
-    >
+    {/* Centering is done by this flex wrapper (which is NOT animated), so
+        the panel's position never depends on `transform`. The `alg-pop`
+        class on Content opts it into a transform-only (scale + opacity)
+        entrance animation defined in algency-editor.css, with a selector
+        specific enough to override the app-wide `alg-popup-in` keyframe —
+        that global keyframe forces `translate(-50%, -50%)` and would
+        otherwise shove this flex-centered panel toward the top-left for the
+        length of the animation (the "spawn in corner, jump to middle"
+        flash). A pure scale animation leaves the centering untouched. */}
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-none">
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
-          "relative grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg duration-200 pointer-events-auto",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
-          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-          "sm:rounded-lg",
+          "alg-pop relative grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg pointer-events-auto sm:rounded-lg",
           className
         )}
         {...props}
@@ -111,12 +97,17 @@ AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName
 const AlertDialogDescription = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn(
+      "text-sm text-muted-foreground text-left space-y-1",
+      className
+    )}
     {...props}
-  />
+  >
+    {renderSentencesPerLine(children)}
+  </AlertDialogPrimitive.Description>
 ))
 AlertDialogDescription.displayName =
   AlertDialogPrimitive.Description.displayName

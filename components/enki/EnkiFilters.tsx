@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LayoutGrid, MoreHorizontal } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 
-const CATEGORIES = [
-  { label: "Portrait" },
-  { label: "Character" },
-  { label: "Cinematic" },
-  { label: "Architecture" },
-  { label: "Abstract" },
-  { label: "Product" },
-  { label: "Minimal" },
-  { label: "Editorial" },
-];
+/**
+ * Canonical category list — shared between the feed filter bar and the
+ * prompt editor's category dropdown so both always offer the same set.
+ * Add/rename categories here only.
+ */
+export const ENKI_CATEGORIES = [
+  "Portrait",
+  "Character",
+  "Cinematic",
+  "Architecture",
+  "Abstract",
+  "Product",
+  "Minimal",
+  "Editorial",
+] as const;
+
+const CATEGORIES = ENKI_CATEGORIES.map((label) => ({ label }));
 
 type EnkiFiltersProps = {
   active: string[];
@@ -32,23 +39,15 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
       if (!ticking.current) {
         window.requestAnimationFrame(() => {
           const currentY = window.scrollY;
-          if (currentY < 80) {
-            // Always show near top
-            setVisible(true);
-          } else if (currentY < lastScrollY.current - 4) {
-            // Scrolling up
-            setVisible(true);
-          } else if (currentY > lastScrollY.current + 4) {
-            // Scrolling down
-            setVisible(false);
-          }
+          if (currentY < 80) setVisible(true);
+          else if (currentY < lastScrollY.current - 4) setVisible(true);
+          else if (currentY > lastScrollY.current + 4) setVisible(false);
           lastScrollY.current = currentY;
           ticking.current = false;
         });
         ticking.current = true;
       }
     };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -68,7 +67,7 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
 
       <div className="enki-catbar-divider" />
 
-      {/* Category chips */}
+      {/* All categories, inline in a single row */}
       <div className="enki-catbar-scroll">
         {CATEGORIES.map((cat) => {
           const key = cat.label.toLowerCase();
@@ -85,12 +84,6 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
           );
         })}
       </div>
-
-      <div className="enki-catbar-divider" />
-
-      <button className="enki-catbar-more" type="button" aria-label="More">
-        <MoreHorizontal size={15} />
-      </button>
     </div>
   );
 }

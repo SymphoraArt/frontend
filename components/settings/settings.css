@@ -371,3 +371,288 @@
   margin-right: 16px;
   margin-top: 2px;
 }
+
+/* ── Billing: pay / deposit modals (ported from pr45) ── */
+.set-pay-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 18, 16, 0.5);
+  backdrop-filter: blur(3px);
+}
+.set-pay-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #fcfbf8;
+  border: 1px solid #e8e5de;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.set-pay-card--qr {
+  max-width: 340px;
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.set-pay-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #e8e5de;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #4a4540;
+}
+.set-qr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #1c1a18;
+}
+.set-qr-frame {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e8e5de;
+  border-radius: 12px;
+  line-height: 0;
+}
+.set-qr-addr {
+  width: 100%;
+  word-break: break-all;
+  text-align: center;
+  font-family: monospace;
+  font-size: 12px;
+  color: #5a5550;
+  background: #f5f3ee;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.set-qr-warn {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #a06a2a;
+  text-align: center;
+}
+
+/* ── Manual amount entry ── */
+.set-amount-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #e2ded6;
+  border-radius: 10px;
+  padding: 0 12px;
+  height: 40px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.set-amount-wrap:focus-within {
+  border-color: #1c1a18;
+  box-shadow: 0 0 0 3px rgba(28, 26, 24, 0.08);
+}
+.set-amount-wrap.is-invalid {
+  border-color: #d8a08f;
+  box-shadow: 0 0 0 3px rgba(180, 69, 47, 0.08);
+}
+.set-amount-prefix {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #1c1a18;
+}
+.set-amount-input {
+  width: 92px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #1c1a18;
+  -moz-appearance: textfield;
+}
+.set-amount-input::-webkit-outer-spin-button,
+.set-amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ── Fiat (dollars) checkout — Stripe ── */
+.set-pay-card--fiat {
+  max-width: 380px;
+  max-height: min(90vh, 680px);
+  padding: 28px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.set-pay-card--fiat .set-fiat-head,
+.set-pay-card--fiat .set-fiat-foot,
+.set-pay-card--fiat .set-fiat-error {
+  flex: 0 0 auto;
+}
+.set-fiat-head {
+  text-align: center;
+}
+.set-fiat-amount {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.05;
+  color: #1c1a18;
+}
+.set-fiat-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6b6660;
+}
+.set-fiat-body {
+  flex: 1 1 auto;
+  min-height: 48px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 -4px;
+  padding: 2px 4px;
+}
+.set-fiat-wallet-btn {
+  width: 100%;
+  justify-content: center;
+  height: 46px;
+  font-size: 14px;
+  gap: 8px;
+}
+.set-fiat-loading,
+.set-fiat-error,
+.set-fiat-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-size: 13px;
+  text-align: center;
+}
+.set-fiat-loading {
+  color: #6b6660;
+  padding: 12px 0;
+}
+.set-fiat-error {
+  color: #b4452f;
+  background: #fbeae6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  line-height: 1.45;
+}
+.set-fiat-note {
+  color: #a06a2a;
+  margin-bottom: 10px;
+}
+.set-fiat-foot {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #8a857e;
+}
+.set-fiat-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 12px 6px 4px;
+}
+.set-fiat-success-icon {
+  color: #1f9d55;
+  animation: set-pop 0.45s cubic-bezier(0.17, 0.89, 0.32, 1.28) both;
+}
+@keyframes set-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.set-fiat-success-title {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: #1c1a18;
+}
+.set-fiat-success-sub {
+  font-size: 13px;
+  color: #6b6660;
+  margin-bottom: 8px;
+}
+.set-spin {
+  animation: set-spin 0.8s linear infinite;
+}
+@keyframes set-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Settings dark-mode overrides (ported from pr45) ── */
+.dark .set-section { background: var(--enki-paper-2); }
+
+.dark .set-item-icon {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink-2);
+}
+
+/* Primary "dark" button: --enki-ink flips to near-white in dark mode, so a
+   white label became invisible. Use --enki-paper for the label so it's a
+   light button with dark text (the correct inverted look). */
+.dark .set-btn-dark { color: var(--enki-paper); }
+
+.dark .set-btn-outline { border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-btn-outline:hover { background: var(--enki-paper-3); }
+.dark .set-btn-secondary {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink);
+  border-color: var(--enki-rule);
+}
+
+.dark .set-toggle { background: var(--enki-rule); }
+.dark .set-toggle-thumb { background: var(--enki-ink); }
+
+.dark .set-table th { background: var(--enki-paper-2); }
+
+/* ── Billing dark-mode overrides ── */
+.dark .set-amount-wrap { background: var(--enki-paper-3); border-color: var(--enki-rule); }
+.dark .set-amount-wrap:focus-within {
+  border-color: var(--enki-ink);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+.dark .set-amount-prefix,
+.dark .set-amount-input { color: var(--enki-ink); }
+.dark .set-amount-input::placeholder { color: var(--enki-ink-3); }
+.dark .set-pay-card { background: var(--enki-paper-2); border-color: var(--enki-rule); }
+.dark .set-pay-close { background: var(--enki-paper-3); border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-qr-head { color: var(--enki-ink); }
+.dark .set-qr-frame { border-color: var(--enki-rule); }
+.dark .set-qr-addr { background: var(--enki-paper-3); color: var(--enki-ink-2); }
+.dark .set-fiat-amount,
+.dark .set-fiat-success-title { color: var(--enki-ink); }
+.dark .set-fiat-sub,
+.dark .set-fiat-success-sub,
+.dark .set-fiat-loading { color: var(--enki-ink-3); }

@@ -91,6 +91,13 @@ textarea {
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
+  /* Brand accent as rgb components for rgba() glows. Orange in light. */
+  --ember-rgb: 201, 104, 56;
+  /* Theme-driven chrome so the header/launcher paint the right color from the
+     first frame (resolved from the <html> class, no JS flash). */
+  --header-bg: rgba(255, 255, 255, 0.98);
+  --qc-bg: #1a1715;   /* generate launcher pill */
+  --qc-ink: #ffffff;
   --background: 45 45% 97%;
   --foreground: 190 30% 12%;
   --border: 182 16% 78%;
@@ -223,46 +230,63 @@ textarea {
 }
 
 .dark {
-  --background: 240 20% 5%; /* #0a0a0f */
-  --foreground: 260 15% 90%; /* #e4e1e9 */
-  
-  --card: 240 10% 10%; /* #16161b */
-  --card-foreground: 260 15% 90%;
-  --card-border: 270 20% 15%; 
-  
-  --sidebar: 240 10% 10%;
-  --sidebar-foreground: 260 15% 90%;
-  --sidebar-border: 270 20% 15%;
-  --sidebar-primary: 20 57% 50%; /* #c96838 */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 10% 14%;
-  --sidebar-accent-foreground: 260 15% 90%;
-  
-  --popover: 240 10% 10%;
-  --popover-foreground: 260 15% 90%;
-  --popover-border: 270 20% 15%;
-  
-  --primary: 20 57% 50%; /* #c96838 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 35 92% 52%; /* #f59e0b - orange-500 */
-  --secondary-foreground: 0 0% 100%;
-  
-  --muted: 240 10% 14%;
-  --muted-foreground: 260 10% 65%;
-  --accent: 20 57% 50%;
-  --accent-foreground: 0 0% 100%;
+  /* Portion.io-inspired dark theme: midnight navy/teal base + gold accent. */
+  --ember-rgb: 203, 162, 74; /* gold glow in dark */
+  /* Surface + accent helpers consumed by the modal & navbar, so the purple
+     theme can re-tint every dark surface from one place. */
+  --surface-1: #0f2230;     /* sheet / primary panel */
+  --surface-2: #16303f;     /* raised / active card */
+  --surface-3: #0b1c29;     /* inputs / secondary */
+  --surface-chrome: #0c1e2b;/* footer / nav chrome */
+  --surface-text: #e4edf1;
+  --surface-rule: #1e3849;
+  --cta-bg: linear-gradient(135deg, #cba24a 0%, #b8862f 100%);
+  --cta-solid: #cba24a;
+  --cta-ink: #0a1825;
+  --cta-hover: #d8b362;
+  --header-bg: rgba(10, 24, 37, 0.98);
+  --qc-bg: #f0a868;   /* peach launcher in dark */
+  --qc-ink: #3a2410;
+  --background: 205 52% 8%; /* #0a1825 midnight navy */
+  --foreground: 200 27% 92%; /* #e4edf1 */
+
+  --card: 204 46% 12%; /* #102433 */
+  --card-foreground: 200 27% 92%;
+  --card-border: 203 36% 19%; /* #1e3849 */
+
+  --sidebar: 204 46% 12%;
+  --sidebar-foreground: 200 27% 92%;
+  --sidebar-border: 203 36% 19%;
+  --sidebar-primary: 43 55% 54%; /* #cba24a gold */
+  --sidebar-primary-foreground: 205 50% 9%;
+  --sidebar-accent: 204 40% 15%;
+  --sidebar-accent-foreground: 200 27% 92%;
+
+  --popover: 204 46% 12%;
+  --popover-foreground: 200 27% 92%;
+  --popover-border: 203 36% 19%;
+
+  --primary: 43 55% 54%; /* #cba24a gold */
+  --primary-foreground: 205 50% 9%;
+  --secondary: 176 45% 46%; /* #41ada3 teal */
+  --secondary-foreground: 205 50% 9%;
+
+  --muted: 204 40% 15%;
+  --muted-foreground: 201 20% 66%; /* #97aebb */
+  --accent: 43 55% 54%; /* gold */
+  --accent-foreground: 205 50% 9%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  
-  --input: 240 10% 14%;
-  --border: 270 20% 15%;
-  --ring: 20 57% 50%;
 
-  --chart-1: 20 57% 50%;
-  --chart-2: 35 92% 52%;
-  --chart-3: 260 15% 90%;
-  --chart-4: 240 10% 10%;
-  --chart-5: 20 57% 50%;
+  --input: 204 40% 15%;
+  --border: 203 36% 19%;
+  --ring: 43 55% 54%;
+
+  --chart-1: 43 55% 54%;   /* gold */
+  --chart-2: 176 45% 46%;  /* teal */
+  --chart-3: 200 27% 92%;
+  --chart-4: 204 46% 12%;
+  --chart-5: 192 52% 42%;  /* blue-teal */
 
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0, 0.6);
   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0, 0.7);
@@ -275,7 +299,7 @@ textarea {
 
   --app-bg: hsl(var(--background));
   --panel-bg: hsl(var(--card));
-  --panel-hairline: rgba(201, 104, 56, 0.15); /* orange stroke */
+  --panel-hairline: rgba(203, 162, 74, 0.16); /* gold stroke */
   --panel-hairline-soft: rgba(255, 255, 255, 0.02);
 
 
@@ -327,6 +351,70 @@ textarea {
     from hsl(var(--destructive)) h s
       calc(l + var(--opaque-button-border-intensity)) / alpha
   );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Purple theme — a dark variant (always paired with `.dark`). Re-tints
+   the dark palette to the landing page's violet (#7c3aed/#a855f7) so the
+   user can preserve that look as an optional mode. Only color tokens +
+   the surface/accent helpers change; all `.dark` structure is inherited.
+   ════════════════════════════════════════════════════════════════ */
+.dark.theme-purple {
+  --ember-rgb: 168, 85, 247; /* #a855f7 violet glow */
+  --surface-1: #1a1228;
+  --surface-2: #241a37;
+  --surface-3: #140e1f;
+  --surface-chrome: #160f22;
+  --surface-text: #ece8f5;
+  --surface-rule: #342a4a;
+  --cta-bg: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  --cta-solid: #a855f7;
+  --cta-ink: #ffffff;
+  --cta-hover: #9d6ef8;
+  --header-bg: rgba(20, 14, 32, 0.98);
+  --qc-bg: #8b5cf6;   /* violet launcher in purple */
+  --qc-ink: #ffffff;
+
+  --background: 263 45% 9%;   /* deep violet-black */
+  --foreground: 260 28% 93%;
+
+  --card: 263 36% 14%;
+  --card-foreground: 260 28% 93%;
+  --card-border: 258 26% 23%;
+
+  --sidebar: 263 36% 14%;
+  --sidebar-foreground: 260 28% 93%;
+  --sidebar-border: 258 26% 23%;
+  --sidebar-primary: 271 85% 66%; /* violet */
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 262 32% 17%;
+  --sidebar-accent-foreground: 260 28% 93%;
+
+  --popover: 263 36% 14%;
+  --popover-foreground: 260 28% 93%;
+  --popover-border: 258 26% 23%;
+
+  --primary: 271 85% 66%;   /* #a855f7 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 199 85% 60%; /* #38bdf8 sky */
+  --secondary-foreground: 263 45% 10%;
+
+  --muted: 262 32% 16%;
+  --muted-foreground: 260 20% 70%;
+  --accent: 271 85% 66%;
+  --accent-foreground: 0 0% 100%;
+
+  --input: 262 32% 16%;
+  --border: 258 26% 23%;
+  --ring: 271 85% 66%;
+
+  --chart-1: 271 85% 66%;
+  --chart-2: 199 85% 60%;
+  --chart-3: 260 28% 93%;
+  --chart-4: 263 36% 14%;
+  --chart-5: 286 70% 60%;
+
+  --panel-hairline: rgba(168, 85, 247, 0.18);
 }
 
 @theme inline {
@@ -500,30 +588,6 @@ p {
 html {
   scrollbar-gutter: stable;
   scrollbar-color: hsl(var(--border) / 0.8) transparent;
-}
-
-/* ─── Neutralize Radix dialog body-shift ─────────────────────────
-   Radix UI's AlertDialog / Dialog use `react-remove-scroll`
-   internally to lock page scroll while the dialog is open. That
-   library inline-styles `padding-right: <scrollbar-width>px` AND
-   `overflow: hidden` onto <body> to "compensate" for a removed
-   scrollbar. The problem: we already reserve the scrollbar gutter
-   on <html> via `scrollbar-gutter: stable` above, so the body
-   never actually loses any width when scroll is locked. The
-   compensation therefore creates a visible horizontal jump of
-   the entire UI behind the dialog (~10–15px to the right on
-   open, back to the left on close) — which manifests as the
-   delete-variable / overwrite-defaults / set-variable-names
-   popups appearing to "spring from one side into the middle".
-
-   We scope the override to "while any dialog/alertdialog is
-   mounted under <body>" via `:has()`. Without scoping, body would
-   never get padding even when an external script wanted to add
-   it. Inline styles require `!important` to override. */
-body:has([role="alertdialog"]),
-body:has([role="dialog"]) {
-  padding-right: 0 !important;
-  margin-right: 0 !important;
 }
 
 * {

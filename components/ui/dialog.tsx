@@ -4,7 +4,7 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn, renderSentencesPerLine } from "@/lib/utils"
 
 const Dialog = DialogPrimitive.Root
 
@@ -99,12 +99,17 @@ DialogTitle.displayName = DialogPrimitive.Title.displayName
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn(
+      "text-sm text-muted-foreground text-left space-y-1",
+      className
+    )}
     {...props}
-  />
+  >
+    {renderSentencesPerLine(children)}
+  </DialogPrimitive.Description>
 ))
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 

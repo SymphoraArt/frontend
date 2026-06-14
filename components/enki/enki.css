@@ -17,15 +17,33 @@
 }
 
 .dark .enki {
-  --enki-paper: #0a0a0a;
-  --enki-paper-2: #17171a;
-  --enki-paper-3: #1a1a1f;
-  --enki-ink: #f1f1f3;
-  --enki-ink-2: #a3a3a3;
-  --enki-ink-3: #737373;
-  --enki-rule: #27272b;
-  --enki-rule-2: #3f3f46;
-  --enki-ember: #c96838;
+  /* Portion.io-inspired: midnight navy/teal base + gold accent. */
+  --enki-paper: #0a1825;
+  --enki-paper-2: #102433;
+  --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1;
+  --enki-ink-2: #97aebb;
+  --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849;
+  --enki-rule-2: #2a4658;
+  --enki-ember: #cba24a;
+}
+
+/* Purple variant of the feed palette (landing-page violet). */
+.dark.theme-purple .enki {
+  --enki-paper: #140e1f;
+  --enki-paper-2: #1c1330;
+  --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5;
+  --enki-ink-2: #a99fc0;
+  --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442;
+  --enki-rule-2: #3d3154;
+  --enki-ember: #a855f7;
+}
+
+.dark.theme-purple .enki-catbar {
+  background: rgba(20, 14, 32, 0.98);
 }
 
 .enki .serif {
@@ -99,7 +117,7 @@
 }
 
 .dark .enki-catbar {
-  background: rgba(10, 10, 12, 0.98);
+  background: rgba(10, 24, 37, 0.98);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -159,7 +177,7 @@
 
 .dark .enki-catbar-all.active {
   color: rgba(255,255,255,0.9);
-  border-bottom-color: rgba(201, 104, 56, 0.8);
+  border-bottom-color: rgba(var(--ember-rgb), 0.8);
   background: none;
 }
 
@@ -245,7 +263,7 @@
 
 .dark .enki-catbar-chip.active {
   color: rgba(255,255,255,0.9);
-  border-bottom-color: rgba(201, 104, 56, 0.8);
+  border-bottom-color: rgba(var(--ember-rgb), 0.8);
   background: none;
   font-weight: 600;
 }
@@ -802,8 +820,8 @@
 .enki-tag-pill {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(201, 104, 56, 0.3);
-  background: rgba(201, 104, 56, 0.1);
+  border: 1px solid rgba(var(--ember-rgb), 0.3);
+  background: rgba(var(--ember-rgb), 0.1);
   border-radius: 999px;
   color: #c96838;
   font-family: var(--font-jetbrains-mono), monospace;
@@ -813,10 +831,10 @@
 }
 
 .dark .enki-tag-pill {
-  background: rgba(201, 104, 56, 0.15);
-  color: #ddb7ff;
-  border: 1px solid rgba(201, 104, 56, 0.4);
-  box-shadow: 0 0 10px rgba(201, 104, 56, 0.1);
+  background: rgba(var(--ember-rgb), 0.15);
+  color: #cba24a;
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 0 10px rgba(var(--ember-rgb), 0.1);
 }
 
 .enki-rule {
@@ -1355,68 +1373,6 @@
 [data-theme="dark"] .enki-qc-summary-text-v3 { color: #fff; }
 [data-theme="dark"] .enki-qc-selector-v3 select { color: #aaa; }
 
-/* Grayed, self-explanatory prompt placeholder */
-.enki-qc-textarea-v3::placeholder {
-  color: #b8b3aa;
-  opacity: 1;
-}
-[data-theme="dark"] .enki-qc-textarea-v3::placeholder {
-  color: #6f6a64;
-}
-
-/* Mobile: turn the centered two-column panel into a scrollable bottom sheet
-   so the Generate button is always reachable. */
-@media (max-width: 768px) {
-  .enki-qc-panel-v3 {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    transform: none;
-    width: 100vw;
-    max-width: 100vw;
-    max-height: 90vh;
-    border-radius: 16px 16px 0 0;
-    animation: enki-qc-in-v3-mobile 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  @keyframes enki-qc-in-v3-mobile {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
-  }
-
-  /* Stack the columns and let the whole body scroll */
-  .enki-qc-grid-v3 {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .enki-qc-col-left-v3 {
-    border-right: none;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    padding: 16px;
-  }
-
-  .enki-qc-col-right-v3 {
-    padding: 16px;
-    height: auto;
-  }
-
-  /* Let the variables list grow naturally; the panel itself scrolls */
-  .enki-qc-vars-list-v3 {
-    overflow: visible;
-  }
-
-  .enki-qc-selectors-v3 {
-    gap: 12px;
-  }
-
-  [data-theme="dark"] .enki-qc-col-left-v3 {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-  }
-}
-
 .enki-qc-source-tabs {
   display: flex;
   gap: 8px;
@@ -1641,7 +1597,7 @@
 
 .dark .enki-qc-bar {
   background: rgba(19, 19, 24, 0.98);
-  border: 1px solid rgba(201, 104, 56, 0.4);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
   color: #fff;
 }
@@ -1654,8 +1610,8 @@
 
 .dark .enki-qc-bar:hover {
   background: rgba(19, 19, 24, 0.85);
-  box-shadow: 0 16px 48px rgba(201, 104, 56, 0.25), inset 0 0 20px rgba(201, 104, 56, 0.1);
-  border-color: rgba(201, 104, 56, 0.4);
+  box-shadow: 0 16px 48px rgba(var(--ember-rgb), 0.25), inset 0 0 20px rgba(var(--ember-rgb), 0.1);
+  border-color: rgba(var(--ember-rgb), 0.4);
 }
 
 .enki-qc-bar-bolt {
@@ -1668,7 +1624,7 @@
   background: linear-gradient(135deg, #c96838 0%, #ea580c 100%);
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 0 16px rgba(201, 104, 56, 0.4);
+  box-shadow: 0 0 16px rgba(var(--ember-rgb), 0.4);
   margin-left: -12px;
   position: relative;
 }
@@ -1698,8 +1654,8 @@
 
 .dark .enki-qc-panel {
   background: rgba(19, 19, 24, 0.98);
-  border: 1px solid rgba(201, 104, 56, 0.4);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(201, 104, 56, 0.05);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(var(--ember-rgb), 0.05);
 }
 
 @keyframes qc-panel-in {
@@ -1738,7 +1694,7 @@
 
 .dark .enki-qc-editor-btn:hover {
   background: rgba(255,255,255,0.1);
-  border-color: rgba(201, 104, 56, 0.4);
+  border-color: rgba(var(--ember-rgb), 0.4);
   color: #c96838;
 }
 
@@ -1815,8 +1771,8 @@
 .dark .enki-qc-textarea:focus,
 .dark .enki-qc-var-input:focus,
 .dark .enki-qc-select:focus {
-  border-color: rgba(201, 104, 56, 0.5);
-  box-shadow: 0 0 0 1px rgba(201, 104, 56, 0.5), inset 0 2px 4px rgba(0,0,0,0.2);
+  border-color: rgba(var(--ember-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--ember-rgb), 0.5), inset 0 2px 4px rgba(0,0,0,0.2);
   outline: none;
 }
 

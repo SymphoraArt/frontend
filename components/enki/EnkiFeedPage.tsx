@@ -4,9 +4,8 @@ import { useMemo, useState, useRef, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import EnkiCard from "@/components/enki/EnkiCard";
-import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import EnkiFilters from "@/components/enki/EnkiFilters";
-import EnkiQuickCreate from "@/components/enki/EnkiQuickCreate";
+import GenerateLauncher from "@/components/GenerateLauncher";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { mapMarketplacePromptToEnkiPrompt } from "@/lib/enkiPromptAdapter";
 
@@ -157,15 +156,9 @@ export default function EnkiFeedPage() {
           </section>
         ) : null}
 
-        <EnkiQuickCreate />
-        {open && (
-          <EnkiDetailPanel
-            prompt={open}
-            onClose={() => setOpen(null)}
-            faved={Boolean(favs[open.id])}
-            toggleFav={toggleFav}
-          />
-        )}
+        {/* One launcher drives both the blank floating "Generate" button and the
+            seeded view opened by clicking a feed card. */}
+        <GenerateLauncher seedPrompt={open} onSeedClose={() => setOpen(null)} />
       </main>
 
       <EnkiFilters active={tags} toggle={toggleTag} />

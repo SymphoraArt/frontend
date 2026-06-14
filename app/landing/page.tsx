@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useTheme } from "../providers/ThemeProvider";
+import { useTheme } from "../../providers/ThemeProvider";
 
-// The marketing site is the landing page. It lives as a self-contained
-// document at /landing.html and is embedded below the app's global header.
-// The browse/feed experience now lives at /explore.
-//
-// The landing reads the active "Color setup" from localStorage on load and
-// from the `storage` event; we also postMessage the theme directly so a switch
-// in the profile menu re-tints the landing instantly.
-export default function HomePage() {
+// The marketing site lives as a self-contained document at /landing.html.
+// We embed it below the app's global header and forward the active "Color
+// setup" theme so the landing re-tints to match (teal / dark / purple).
+export default function LandingPage() {
   const { theme } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 

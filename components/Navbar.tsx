@@ -9,14 +9,11 @@ import {
   Copy,
   Bell,
   Trophy,
-  Users,
+  BadgeDollarSign,
   MessageSquareHeart,
   PenLine,
   Menu,
-  Sun,
-  Moon,
   Check,
-  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
+import { useHoldings } from "@/hooks/useHoldings";
 import { useTheme } from "../providers/ThemeProvider";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
@@ -93,10 +91,16 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
   const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress, logout: solanaSessionLogout } = useSolanaAuth();
   const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
-  const { theme, toggleTheme } = useTheme();
+  // Same key as the billing recipient so the navbar shows the balance that
+  // top-ups credit (see BillingPanel / useHoldings).
+  const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
+  const { balance: holdings, ready: holdingsReady } = useHoldings(holdingsAddress);
+  const { theme, setTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Falls back to the text wordmark if the logo asset is missing/broken.
+  const [logoError, setLogoError] = useState(false);
   const evmAuthenticated = !!account && walletInfo.isConnected;
   // Solana는 서명까지 끝나야(=session active) 인증으로 본다. 단순 connect 상태로는
   // 인증된 것처럼 표시하지 않는다 (premature-login 버그 방지).
@@ -118,7 +122,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   }, []);
   const walletAddress = walletInfo.address ?? solanaSessionAddress ?? turnkeyAddress ?? (solanaSessionActive ? solanaPublicKey?.toBase58() ?? null : null);
   const { isMobile, isTablet, isDesktop } = useBreakpoint();
-  const isDark = themeReady && theme === "dark";
+  // Purple is a dark variant, so "dark styling" applies to both.
+  const isDark = themeReady && theme !== "light";
 
   useEffect(() => {
     setThemeReady(true);
@@ -139,7 +144,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   };
 
   const NAV_LINKS = [
-    { label: "DISCOVER", href: "/", disabled: false },
+    { label: "EXPLORE", href: "/explore", disabled: false },
     { label: "IMAGES", href: "/images", disabled: false },
     { label: "VIDEOS", href: "/showcase", disabled: true, tooltip: "Video prompts will be implemented soon" },
   ];
@@ -148,15 +153,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     ? NAV_LINKS.filter((link) => !link.disabled)
     : NAV_LINKS;
 
-  const activeSection =
-    NAV_LINKS.find((link) => link.href === pathname) ?? NAV_LINKS[0];
-
   return (
     <>
       <header style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         width: "100%",
-        background: isDark ? "rgba(10, 10, 12, 0.98)" : "rgba(255, 255, 255, 0.98)",
+        background: "var(--header-bg)",
         backdropFilter: "blur(64px) saturate(200%)",
         WebkitBackdropFilter: "blur(64px) saturate(200%)",
         fontFamily: "var(--font-sans)",
@@ -165,73 +167,29 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           
 
           <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-            <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
-              Enki Art
-            </span>
-            <span style={{ color: "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+            {/* Transparent-background logo (no font, no bg). Drop the asset at
+                public/enki-art-logo.png. Falls back to the wordmark if missing. */}
+            {!logoError ? (
+              <img
+                src="/enki-art-logo.png"
+                alt="Enki Art"
+                onError={() => setLogoError(true)}
+                style={{ height: isMobile ? 30 : 42, width: "auto", display: "block", objectFit: "contain" }}
+              />
+            ) : (
+              <>
+                <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
+                  Enki Art
+                </span>
+                <span style={{ color: "rgb(var(--ember-rgb))", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+              </>
+            )}
           </div>
-
-          {isMobile && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  aria-label="Switch section"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    margin: "0 auto", padding: "0 12px", height: 36,
-                    background: isDark ? "rgba(255,255,255,0.05)" : "#f3efe7",
-                    border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#d8d2c5"}`,
-                    borderRadius: 100, cursor: "pointer",
-                    color: activeColor, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px",
-                    fontFamily: "var(--font-sans)", whiteSpace: "nowrap",
-                  }}
-                >
-                  {activeSection.label}
-                  <ChevronDown size={14} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="center"
-                className="w-44 rounded-[12px] overflow-hidden border shadow-2xl"
-                style={{
-                  background: isDark ? "#131c22" : "#faf8f4",
-                  color: isDark ? "#e8e0cc" : "#1a1715",
-                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "#d8d2c5",
-                }}
-              >
-                {NAV_LINKS.map(({ label, href, disabled, tooltip }) => {
-                  const isActive = href === activeSection.href;
-                  return (
-                    <DropdownMenuItem
-                      key={label}
-                      disabled={disabled}
-                      onClick={() => { if (!disabled) router.push(href); }}
-                      title={disabled ? tooltip : undefined}
-                      className="focus:bg-[#c96838]/10 focus:text-[#c96838]"
-                      style={{
-                        padding: "10px 16px", fontSize: 13, fontWeight: isActive ? 600 : 400,
-                        letterSpacing: "0.4px", cursor: disabled ? "not-allowed" : "pointer",
-                        opacity: disabled ? 0.5 : 1, outline: "none", color: "inherit",
-                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                      }}
-                    >
-                      <span>{label}</span>
-                      {disabled ? (
-                        <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.5px", opacity: 0.7 }}>SOON</span>
-                      ) : isActive ? (
-                        <Check size={14} />
-                      ) : null}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
 
           {!isMobile && (
             <nav style={{ display: "flex", alignItems: "center", gap: isTablet ? 0 : 4, margin: "0 auto" }}>
               {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
-                const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/images");
+                const isActive = (label === "EXPLORE" && pathname === "/explore") || (label === "IMAGES" && pathname === "/images");
                 return (
                   <button
                     key={label}
@@ -312,28 +270,13 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               </div>
             )}
 
-            <button
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
-              style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "none", border: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: iconColor, transition: "background 0.2s ease, color 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-            >
-              {isDark ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-
             {isDesktop && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 4, marginRight: 6 }}>
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Trophy size={18} />
                 </button>
-                <button onClick={() => router.push("/referrals")} title="Referrals" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Users size={18} />
+                <button onClick={() => router.push("/referrals")} title="Referrals — get paid when you invite others" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <BadgeDollarSign size={18} />
                 </button>
                 <button onClick={() => router.push("/feedback")} title="Feedbacks" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <MessageSquareHeart size={18} />
@@ -344,16 +287,16 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <button onClick={() => router.push("/editor")} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 20px", height: 36,
-                  background: isDark ? "linear-gradient(135deg, #c96838 0%, #ea580c 100%)" : "#111",
-                  color: "#fff",
+                  background: isDark ? "var(--cta-bg)" : "#111",
+                  color: isDark ? "var(--cta-ink)" : "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
                   fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)" : "0 2px 10px rgba(0,0,0,0.1)",
+                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(var(--ember-rgb), 0.3)" : "0 2px 10px rgba(0,0,0,0.1)",
                   transition: "transform 0.2s ease, box-shadow 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "scale(1.02)";
-                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(201, 104, 56, 0.4)";
+                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(var(--ember-rgb), 0.45)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "scale(1)";
@@ -387,7 +330,27 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
             {evmAuthenticated && <ChainSwitcher />}
 
-
+            {/* Balance — sits right next to the profile avatar. Tap to top up. */}
+            <button
+              onClick={() => router.push("/settings?tab=billing")}
+              title="Your balance — tap to add funds"
+              aria-label="Holdings"
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                height: 32, padding: "0 12px", marginLeft: 4,
+                borderRadius: 100, cursor: "pointer",
+                background: isDark ? "rgba(255,255,255,0.06)" : "#f3efe7",
+                border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#e2ded6"}`,
+                color: isDark ? "#f1ede6" : "#1c1a18",
+                fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)",
+                whiteSpace: "nowrap", transition: "background 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
+            >
+              <Wallet size={14} color="rgb(var(--ember-rgb))" />
+              ${holdingsReady ? holdings.toFixed(2) : "0.00"}
+            </button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -420,7 +383,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 align="end" 
                 className="w-72 p-0 rounded-[12px] overflow-hidden border shadow-2xl"
                 style={{
-                  background: isDark ? "#131c22" : "#faf8f4",
+                  background: isDark ? "var(--surface-1)" : "#faf8f4",
                   color: isDark ? "#e8e0cc" : "#1a1715",
                   borderColor: isDark ? "rgba(255,255,255,0.1)" : "#d8d2c5"
                 }}
@@ -522,6 +485,47 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                       <Wallet size={14} /> Connect Wallet
                     </DropdownMenuItem>
                   )}
+                </div>
+
+                {/* Color setup — pick between the three themes (stays open so
+                    you can preview each). */}
+                <DropdownMenuSeparator style={{ margin: 0, height: 1, background: isDark ? "rgba(255,255,255,0.07)" : "#ebe5d8" }} />
+                <div style={{ padding: "12px 20px 16px" }}>
+                  <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "#7d8a8c" : "#8a8174", marginBottom: 10, fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                    Color setup
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {([
+                      { id: "light", label: "Bright", sw: "linear-gradient(135deg, #faf8f4 0%, #ebe5d8 100%)", accent: "#c96838" },
+                      { id: "dark", label: "Dark", sw: "linear-gradient(135deg, #0f2230 0%, #16303f 100%)", accent: "#cba24a" },
+                      { id: "purple", label: "Purple", sw: "linear-gradient(135deg, #1a1228 0%, #6d28d9 100%)", accent: "#a855f7" },
+                    ] as const).map((opt) => {
+                      const active = theme === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setTheme(opt.id); }}
+                          style={{
+                            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
+                            padding: "10px 4px", borderRadius: 10, cursor: "pointer",
+                            background: active ? (isDark ? "rgba(255,255,255,0.06)" : "#f3efe7") : "transparent",
+                            border: `1px solid ${active ? opt.accent : (isDark ? "rgba(255,255,255,0.08)" : "#e2ded6")}`,
+                            color: "inherit", transition: "border-color 0.15s ease, background 0.15s ease",
+                          }}
+                        >
+                          <span style={{
+                            width: 30, height: 30, borderRadius: "50%",
+                            background: opt.sw,
+                            border: `2px solid ${active ? opt.accent : (isDark ? "rgba(255,255,255,0.18)" : "#d8d2c5")}`,
+                            boxShadow: active ? `0 0 0 3px ${opt.accent}33` : "none",
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: 11, fontWeight: active ? 600 : 400 }}>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>

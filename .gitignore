@@ -38,3 +38,9 @@ service-account*.json
 # Local environment files
 .env.local
 .env*.local
+
+# Standardized on npm; ignore stray pnpm lockfiles
+pnpm-lock.yaml
+
+# Vercel CLI project linking (do not commit)
+.vercel
