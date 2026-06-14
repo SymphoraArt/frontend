@@ -117,15 +117,6 @@ export default function EnkiFeedPage() {
   return (
     <>
       <main className="enki">
-        <header className="enki-page-title" style={{ paddingTop: 28 }}>
-          <div className="enki-page-eyebrow">Explore · Premium AI Visual Marketplace</div>
-          <h1 className="enki-page-h1">
-            AI art, <em style={{ fontStyle: "italic" }}>expert-crafted</em>.
-          </h1>
-          <p className="enki-page-lede">
-            Buy expert AI styles, adjust the variables, and generate stunning visuals in seconds.
-          </p>
-        </header>
         {visible.length > 0 ? (
           <section className="enki-masonry">
             {visible.map((prompt) => (

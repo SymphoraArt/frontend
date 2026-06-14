@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, SlidersHorizontal, Check } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 
 /**
  * Canonical category list — shared between the feed filter bar and the
@@ -19,6 +19,8 @@ export const ENKI_CATEGORIES = [
   "Editorial",
 ] as const;
 
+const CATEGORIES = ENKI_CATEGORIES.map((label) => ({ label }));
+
 type EnkiFiltersProps = {
   active: string[];
   toggle: (tag: string) => void;
@@ -26,73 +28,8 @@ type EnkiFiltersProps = {
   exclusive?: boolean;
 };
 
-/** Self-contained dropdown (button + popover) styled to match the Enki feed. */
-function FilterDropdown({
-  label,
-  value,
-  options,
-  onSelect,
-}: {
-  label: string;
-  value: string | null;
-  options: { value: string | null; label: string }[];
-  onSelect: (value: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
-  const current = options.find((o) => o.value === value) ?? options[0];
-
-  return (
-    <div className="enki-filter-dd" ref={ref}>
-      <button
-        type="button"
-        className={`enki-filter-dd-trigger${value ? " active" : ""}`}
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="enki-filter-dd-label">{label}</span>
-        <span className="enki-filter-dd-value">{current?.label}</span>
-        <ChevronDown size={14} className="enki-filter-dd-caret" />
-      </button>
-      {open && (
-        <div className="enki-filter-dd-panel" role="listbox">
-          {options.map((o) => {
-            const isActive = o.value === value;
-            return (
-              <button
-                key={o.value ?? "__all__"}
-                type="button"
-                role="option"
-                aria-selected={isActive}
-                className={`enki-filter-dd-opt${isActive ? " active" : ""}`}
-                onClick={() => {
-                  onSelect(o.value);
-                  setOpen(false);
-                }}
-              >
-                <span>{o.label}</span>
-                {isActive && <Check size={14} />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
+  const allActive = active.length === 0;
   const [visible, setVisible] = useState(true);
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
@@ -115,36 +52,38 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // The feed keeps a single active category (toggle sets [tag] or []).
-  const activeCategory = active[0] ?? null;
-
-  const categoryOptions: { value: string | null; label: string }[] = [
-    { value: null, label: "All categories" },
-    ...ENKI_CATEGORIES.map((label) => ({ value: label.toLowerCase(), label })),
-  ];
-
-  const selectCategory = (next: string | null) => {
-    if (next === null) {
-      // Clear: toggle the active tag back off.
-      if (activeCategory) toggle(activeCategory);
-      return;
-    }
-    // Selecting a different category replaces the current one (toggle([x])).
-    if (next !== activeCategory) toggle(next);
-  };
-
   return (
-    <div className={`enki-filterbar${visible ? "" : " enki-filterbar--hidden"}`}>
-      <span className="enki-filterbar-lead">
-        <SlidersHorizontal size={14} />
-        Filters
-      </span>
-      <FilterDropdown
-        label="Category"
-        value={activeCategory}
-        options={categoryOptions}
-        onSelect={selectCategory}
-      />
+    <div className={`enki-catbar${visible ? "" : " enki-catbar--hidden"}`}>
+      {/* All button */}
+      <button
+        className={`enki-catbar-all${allActive ? " active" : ""}`}
+        onClick={() => active.forEach((tag) => toggle(tag))}
+        type="button"
+        aria-label="All categories"
+      >
+        <LayoutGrid size={14} />
+        All
+      </button>
+
+      <div className="enki-catbar-divider" />
+
+      {/* All categories, inline in a single row */}
+      <div className="enki-catbar-scroll">
+        {CATEGORIES.map((cat) => {
+          const key = cat.label.toLowerCase();
+          const isActive = active.includes(key);
+          return (
+            <button
+              key={key}
+              className={`enki-catbar-chip${isActive ? " active" : ""}`}
+              onClick={() => toggle(key)}
+              type="button"
+            >
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

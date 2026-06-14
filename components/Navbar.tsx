@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
+import { useHoldings } from "@/hooks/useHoldings";
 import { useTheme } from "../providers/ThemeProvider";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 
@@ -92,6 +93,10 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
   const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress, logout: solanaSessionLogout } = useSolanaAuth();
   const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
+  // Same key as the billing recipient so the navbar shows the balance that
+  // top-ups credit (see BillingPanel / useHoldings).
+  const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
+  const { balance: holdings, ready: holdingsReady } = useHoldings(holdingsAddress);
   const { theme, toggleTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
@@ -326,7 +331,27 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
 
             {evmAuthenticated && <ChainSwitcher />}
 
-
+            {/* Balance — sits right next to the profile avatar. Tap to top up. */}
+            <button
+              onClick={() => router.push("/settings?tab=billing")}
+              title="Your balance — tap to add funds"
+              aria-label="Holdings"
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                height: 32, padding: "0 12px", marginLeft: 4,
+                borderRadius: 100, cursor: "pointer",
+                background: isDark ? "rgba(255,255,255,0.06)" : "#f3efe7",
+                border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#e2ded6"}`,
+                color: isDark ? "#f1ede6" : "#1c1a18",
+                fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)",
+                whiteSpace: "nowrap", transition: "background 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
+            >
+              <Wallet size={14} color={isDark ? "#a855f7" : "#c96838"} />
+              ${holdingsReady ? holdings.toFixed(2) : "0.00"}
+            </button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
