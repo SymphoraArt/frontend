@@ -51,12 +51,13 @@ function getInitialTheme(): Theme {
   // Fallback: check localStorage in case classList was not set yet
   try {
     const stored = localStorage.getItem("theme");
-    if (stored === "dark" || stored === "purple") return stored;
+    if (stored === "dark" || stored === "purple" || stored === "light") return stored;
   } catch {
     // localStorage might throw in private browsing
   }
 
-  return "light";
+  // Teal (dark) is the standard default for first-time visitors.
+  return "dark";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

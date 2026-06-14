@@ -126,7 +126,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `(function(){
               // Theme initialization
-              try{var t=localStorage.getItem('theme');var d=document.documentElement;d.classList.toggle('dark',t==='dark'||t==='purple');d.classList.toggle('theme-purple',t==='purple');}catch(e){}
+              try{var t=localStorage.getItem('theme')||'dark';var d=document.documentElement;d.classList.toggle('dark',t==='dark'||t==='purple');d.classList.toggle('theme-purple',t==='purple');}catch(e){}
               
               // Clear old Privy wallet state to prevent "Wallet with id privy not found" errors
               try{
