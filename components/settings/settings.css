@@ -611,6 +611,32 @@
   }
 }
 
+/* ── Settings dark-mode overrides (ported from pr45) ── */
+.dark .set-section { background: var(--enki-paper-2); }
+
+.dark .set-item-icon {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink-2);
+}
+
+/* Primary "dark" button: --enki-ink flips to near-white in dark mode, so a
+   white label became invisible. Use --enki-paper for the label so it's a
+   light button with dark text (the correct inverted look). */
+.dark .set-btn-dark { color: var(--enki-paper); }
+
+.dark .set-btn-outline { border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-btn-outline:hover { background: var(--enki-paper-3); }
+.dark .set-btn-secondary {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink);
+  border-color: var(--enki-rule);
+}
+
+.dark .set-toggle { background: var(--enki-rule); }
+.dark .set-toggle-thumb { background: var(--enki-ink); }
+
+.dark .set-table th { background: var(--enki-paper-2); }
+
 /* ── Billing dark-mode overrides ── */
 .dark .set-amount-wrap { background: var(--enki-paper-3); border-color: var(--enki-rule); }
 .dark .set-amount-wrap:focus-within {
