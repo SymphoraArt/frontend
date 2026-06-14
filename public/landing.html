@@ -48,6 +48,11 @@
     --lp-accent2-rgb: 45, 212, 191;
     --lp-base-rgb: 14, 128, 116;
     --lp-deep-rgb: 4, 20, 28;
+    /* headline gradient — same colour family as the hero banner, with enough
+       lightness contrast to stay readable (teal here). */
+    --lp-head-1: #e6fffa;
+    --lp-head-2: #5eead4;
+    --lp-head-3: #14b8a6;
 
     /* aliases used throughout the markup */
     --bg-deep: var(--lp-bg0);
@@ -90,36 +95,45 @@
     --lp-accent2-rgb: 139, 92, 246;
     --lp-base-rgb: 105, 56, 190;
     --lp-deep-rgb: 0, 10, 50;
+    --lp-head-1: #f3ecff;
+    --lp-head-2: #C084FC;
+    --lp-head-3: #A855F7;
   }
 
   /* ── LIGHT (Bright) scheme — light backgrounds, dark text ── */
   html.lp-light {
-    --lp-bg0: #eef2f7;
-    --lp-bg1: #dfe9f0;
-    --lp-bg2: #cbe3dd;
-    --lp-base: #7fe0d0;
-    --lp-deep: #2dd4bf;
-    --lp-deep2: #14b8a6;
-    --lp-deep3: #0d9488;
-    --lp-glow: #14b8a6;
-    --lp-accent: #0d9488;
-    --lp-bright: #14b8a6;
-    --lp-light1: #5eead4;
-    --lp-accent2: #14b8a6;
-    --lp-ind: #d8e0e8;
-    --lp-accent-rgb: 13, 148, 136;
-    --lp-glow-rgb: 20, 184, 166;
-    --lp-bright-rgb: 45, 212, 191;
-    --lp-accent2-rgb: 20, 184, 166;
-    --lp-base-rgb: 127, 224, 208;
-    --lp-deep-rgb: 230, 238, 245;
-    /* invert the text tokens so copy stays readable on light */
-    --white: #18222e;
-    --white-60: rgba(24,34,46,0.72);
-    --white-30: rgba(24,34,46,0.38);
-    --white-10: rgba(24,34,46,0.08);
-    --white-5: rgba(24,34,46,0.04);
-    --lp-text-rgb: 24, 34, 46;
+    /* Creamy peach (Bright) — matches the original light color setup:
+       a warm cream background with ember/peach accents. */
+    --lp-bg0: #fdf6ec;
+    --lp-bg1: #fae9d6;
+    --lp-bg2: #f5d8bf;
+    --lp-base: #f0c39c;
+    --lp-deep: #c96838;
+    --lp-deep2: #b35a30;
+    --lp-deep3: #a8482a;
+    --lp-glow: #e08a52;
+    --lp-accent: #d97a4f;
+    --lp-bright: #f0a878;
+    --lp-light1: #f6cba6;
+    --lp-accent2: #d97a4f;
+    --lp-ind: #ecdcc9;
+    --lp-accent-rgb: 217, 122, 79;
+    --lp-glow-rgb: 224, 138, 82;
+    --lp-bright-rgb: 240, 168, 120;
+    --lp-accent2-rgb: 217, 122, 79;
+    --lp-base-rgb: 240, 195, 156;
+    --lp-deep-rgb: 253, 246, 236;
+    /* warm dark text on cream */
+    --white: #3a2a1e;
+    --white-60: rgba(58,42,30,0.74);
+    --white-30: rgba(58,42,30,0.42);
+    --white-10: rgba(58,42,30,0.08);
+    --white-5: rgba(58,42,30,0.04);
+    --lp-text-rgb: 58, 42, 30;
+    /* headline in the warm/peach family, dark enough to read on cream */
+    --lp-head-1: #8a3d1c;
+    --lp-head-2: #c96838;
+    --lp-head-3: #e08a52;
     color-scheme: light;
   }
 
@@ -511,7 +525,7 @@
     font-size: clamp(2.8rem, 7vw, 6rem); font-weight: 600; line-height: 1.05;
     letter-spacing: -0.03em; margin-bottom: 24px;
     animation: fadeUp 0.8s ease 0.1s both;
-    background: linear-gradient(135deg, #ffffff 0%, #E0CFFF 50%, var(--lp-bright) 100%);
+    background: linear-gradient(135deg, var(--lp-head-1) 0%, var(--lp-head-2) 50%, var(--lp-head-3) 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
   }
