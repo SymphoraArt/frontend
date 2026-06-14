@@ -26,6 +26,10 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
         onError={(error) => {
           const msg = (error.message ?? "").toLowerCase();
           if (msg.includes("rejected") || msg.includes("closed") || msg.includes("user reject")) return;
+          // SIWS (signIn) isn't supported by every wallet (e.g. Zerion). The wallet
+          // picker already falls back to signMessage, so this adapter-emitted
+          // "signIn: Not Implemented" event is expected — don't surface it as an error.
+          if (error.name === "WalletSignInError" || msg.includes("not implemented")) return;
           console.error("[Solana Wallet]", error);
         }}
       >
