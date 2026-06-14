@@ -288,16 +288,16 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <button onClick={() => router.push("/editor")} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 20px", height: 36,
-                  background: isDark ? "linear-gradient(135deg, #c96838 0%, #ea580c 100%)" : "#111",
-                  color: "#fff",
+                  background: isDark ? "linear-gradient(135deg, #cba24a 0%, #b8862f 100%)" : "#111",
+                  color: isDark ? "#0a1825" : "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
                   fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(201, 104, 56, 0.25)" : "0 2px 10px rgba(0,0,0,0.1)",
+                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(203, 162, 74, 0.3)" : "0 2px 10px rgba(0,0,0,0.1)",
                   transition: "transform 0.2s ease, box-shadow 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "scale(1.02)";
-                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(201, 104, 56, 0.4)";
+                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(203, 162, 74, 0.45)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "scale(1)";

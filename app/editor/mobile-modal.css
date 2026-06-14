@@ -2011,3 +2011,135 @@
   border-color: #C2410C;
   color: #FFFFFF;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Dark mode (navy/teal + gold) — the modal was authored light-only.
+   ════════════════════════════════════════════════════════════════ */
+.dark .mobile-modal-sheet {
+  background: #0f2230;
+  color: #e4edf1;
+  border-color: #1e3849;
+}
+/* tighten every inner hairline to the navy rule */
+.dark .mobile-modal-sheet * { border-color: #1e3849; }
+
+/* Raised/active white surfaces → lighter navy card */
+.dark .mobile-modal-tab.active,
+.dark .mobile-modal-editor-btn,
+.dark .mobile-modal-close,
+.dark .mobile-modal-variables,
+.dark .mobile-modal-release-navbtn.active,
+.dark .mobile-modal-varimg-gen,
+.dark .mobile-modal-model-card.active,
+.dark .mobile-modal-segment-btn.active,
+.dark .mobile-modal-multiselect-panel,
+.dark .mobile-modal-multiselect-opt,
+.dark .mobile-modal-mode-card.active,
+.dark .mobile-modal-minisel-panel,
+.dark .mobile-modal-add-var-btn,
+.dark .mobile-modal-var-manager-card,
+.dark .mobile-modal-var-type.active {
+  background: #16303f;
+  color: #e4edf1;
+}
+
+/* Cream secondary surfaces → deep navy */
+.dark .mobile-modal-tabs,
+.dark .mobile-modal-editor-btn:hover,
+.dark .mobile-modal-prompt-box,
+.dark .mobile-modal-hl-backdrop,
+.dark .mobile-modal-pill,
+.dark .mobile-modal-pay-row,
+.dark .mobile-modal-release-nav,
+.dark .mobile-modal-varcount,
+.dark .mobile-modal-verify-status,
+.dark .mobile-modal-verify-slot,
+.dark .mobile-modal-yesno-btn,
+.dark .mobile-modal-varimg-card,
+.dark .mobile-modal-varimg-vars,
+.dark .mobile-modal-model-card,
+.dark .mobile-modal-ratio-pill,
+.dark .mobile-modal-segment,
+.dark .mobile-modal-checkbox,
+.dark .mobile-modal-mode-card,
+.dark .mobile-modal-tag-wrap,
+.dark .mobile-modal-price-input-wrap,
+.dark .mobile-modal-gen-varscol .mobile-modal-var-row,
+.dark .mobile-modal-var-remove,
+.dark .mobile-modal-minisel-opt:hover,
+.dark .mobile-modal-minisel-opt.active,
+.dark .mobile-modal-autofill-btn,
+.dark .mobile-modal-autofill-btn:hover:not(:disabled),
+.dark .mobile-modal-price-badge,
+.dark .mobile-modal-var-type,
+.dark .mobile-modal-ref-add,
+.dark .mobile-modal-tag-input,
+.dark .mobile-modal-var-input,
+.dark .mobile-modal-var-manager-input,
+.dark .mobile-modal-price-input,
+.dark .mobile-modal-price-input-wrap {
+  background: #0b1c29;
+  color: #dbe7ed;
+}
+
+/* Base chrome surfaces */
+.dark .mobile-modal-footer,
+.dark .mobile-modal-bottomnav {
+  background: #0c1e2b;
+}
+
+/* Dividers / drag handle */
+.dark .mobile-modal-handle,
+.dark .mobile-modal-divider {
+  background: #1e3849;
+}
+
+/* Dark-on-light text → light on navy */
+.dark .mobile-modal-tab.active,
+.dark .mobile-modal-editor-btn,
+.dark .mobile-modal-close,
+.dark .mobile-modal-add-var-btn,
+.dark .mobile-modal-autofill-btn:hover:not(:disabled),
+.dark .mobile-modal-bottomnav-btn.active,
+.dark .mobile-modal-confirm-btn,
+.dark .mobile-modal-confirm-title,
+.dark .mobile-modal-dashed-name,
+.dark .mobile-modal-minisel-opt,
+.dark .mobile-modal-mode-title,
+.dark .mobile-modal-model-card,
+.dark .mobile-modal-multiselect-opt,
+.dark .mobile-modal-pay-inline-network,
+.dark .mobile-modal-pay-inline-price,
+.dark .mobile-modal-pay-network,
+.dark .mobile-modal-pay-price,
+.dark .mobile-modal-price-input,
+.dark .mobile-modal-price-input-prefix,
+.dark .mobile-modal-price-value,
+.dark .mobile-modal-release-navbtn.active,
+.dark .mobile-modal-segment-btn.active,
+.dark .mobile-modal-tag-input,
+.dark .mobile-modal-var-input,
+.dark .mobile-modal-var-manager-input,
+.dark .mobile-modal-var-type.active,
+.dark .mobile-modal-varcount strong,
+.dark .mobile-modal-varimg-gen,
+.dark .mobile-modal-varimg-title,
+.dark .mobile-modal-varimg-var .v {
+  color: #e4edf1;
+}
+
+/* Select control: navy bg + light dropdown arrow */
+.dark .mobile-modal-select {
+  background: #0b1c29 url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23e4edf1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: #e4edf1;
+}
+
+/* Primary CTA: orange → gold with dark text */
+.dark .mobile-modal-generate-btn {
+  background: #cba24a;
+  border-color: #cba24a;
+  color: #0a1825;
+}
+.dark .mobile-modal-generate-btn:hover:not(:disabled) {
+  background: #d8b362;
+}
