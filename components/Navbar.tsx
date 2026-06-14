@@ -99,6 +99,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Falls back to the text wordmark if the logo asset is missing/broken.
+  const [logoError, setLogoError] = useState(false);
   const evmAuthenticated = !!account && walletInfo.isConnected;
   // Solana는 서명까지 끝나야(=session active) 인증으로 본다. 단순 connect 상태로는
   // 인증된 것처럼 표시하지 않는다 (premature-login 버그 방지).
@@ -164,14 +166,24 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
           
 
-          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
+          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
             {/* Transparent-background logo (no font, no bg). Drop the asset at
-                public/enki-art-logo.png. */}
-            <img
-              src="/enki-art-logo.png"
-              alt="Enki Art"
-              style={{ height: isMobile ? 30 : 42, width: "auto", display: "block", objectFit: "contain" }}
-            />
+                public/enki-art-logo.png. Falls back to the wordmark if missing. */}
+            {!logoError ? (
+              <img
+                src="/enki-art-logo.png"
+                alt="Enki Art"
+                onError={() => setLogoError(true)}
+                style={{ height: isMobile ? 30 : 42, width: "auto", display: "block", objectFit: "contain" }}
+              />
+            ) : (
+              <>
+                <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
+                  Enki Art
+                </span>
+                <span style={{ color: "rgb(var(--ember-rgb))", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+              </>
+            )}
           </div>
 
           {!isMobile && (
