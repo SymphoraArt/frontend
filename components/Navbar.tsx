@@ -169,7 +169,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
               Enki Art
             </span>
-            <span style={{ color: "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+            <span style={{ color: isDark ? "#cba24a" : "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
           </div>
 
           {!isMobile && (
@@ -349,7 +349,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
               onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
             >
-              <Wallet size={14} color={isDark ? "#a855f7" : "#c96838"} />
+              <Wallet size={14} color={isDark ? "#cba24a" : "#c96838"} />
               ${holdingsReady ? holdings.toFixed(2) : "0.00"}
             </button>
 
@@ -384,7 +384,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 align="end" 
                 className="w-72 p-0 rounded-[12px] overflow-hidden border shadow-2xl"
                 style={{
-                  background: isDark ? "#131c22" : "#faf8f4",
+                  background: isDark ? "#102433" : "#faf8f4",
                   color: isDark ? "#e8e0cc" : "#1a1715",
                   borderColor: isDark ? "rgba(255,255,255,0.1)" : "#d8d2c5"
                 }}

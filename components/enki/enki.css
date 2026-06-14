@@ -17,15 +17,16 @@
 }
 
 .dark .enki {
-  --enki-paper: #0a0a0a;
-  --enki-paper-2: #17171a;
-  --enki-paper-3: #1a1a1f;
-  --enki-ink: #f1f1f3;
-  --enki-ink-2: #a3a3a3;
-  --enki-ink-3: #737373;
-  --enki-rule: #27272b;
-  --enki-rule-2: #3f3f46;
-  --enki-ember: #c96838;
+  /* Portion.io-inspired: midnight navy/teal base + gold accent. */
+  --enki-paper: #0a1825;
+  --enki-paper-2: #102433;
+  --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1;
+  --enki-ink-2: #97aebb;
+  --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849;
+  --enki-rule-2: #2a4658;
+  --enki-ember: #cba24a;
 }
 
 .enki .serif {
@@ -99,7 +100,7 @@
 }
 
 .dark .enki-catbar {
-  background: rgba(10, 10, 12, 0.98);
+  background: rgba(10, 24, 37, 0.98);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -159,7 +160,7 @@
 
 .dark .enki-catbar-all.active {
   color: rgba(255,255,255,0.9);
-  border-bottom-color: rgba(201, 104, 56, 0.8);
+  border-bottom-color: rgba(var(--ember-rgb), 0.8);
   background: none;
 }
 
@@ -245,7 +246,7 @@
 
 .dark .enki-catbar-chip.active {
   color: rgba(255,255,255,0.9);
-  border-bottom-color: rgba(201, 104, 56, 0.8);
+  border-bottom-color: rgba(var(--ember-rgb), 0.8);
   background: none;
   font-weight: 600;
 }
@@ -802,8 +803,8 @@
 .enki-tag-pill {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(201, 104, 56, 0.3);
-  background: rgba(201, 104, 56, 0.1);
+  border: 1px solid rgba(var(--ember-rgb), 0.3);
+  background: rgba(var(--ember-rgb), 0.1);
   border-radius: 999px;
   color: #c96838;
   font-family: var(--font-jetbrains-mono), monospace;
@@ -813,10 +814,10 @@
 }
 
 .dark .enki-tag-pill {
-  background: rgba(201, 104, 56, 0.15);
-  color: #ddb7ff;
-  border: 1px solid rgba(201, 104, 56, 0.4);
-  box-shadow: 0 0 10px rgba(201, 104, 56, 0.1);
+  background: rgba(var(--ember-rgb), 0.15);
+  color: #cba24a;
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 0 10px rgba(var(--ember-rgb), 0.1);
 }
 
 .enki-rule {
@@ -1579,7 +1580,7 @@
 
 .dark .enki-qc-bar {
   background: rgba(19, 19, 24, 0.98);
-  border: 1px solid rgba(201, 104, 56, 0.4);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
   color: #fff;
 }
@@ -1592,8 +1593,8 @@
 
 .dark .enki-qc-bar:hover {
   background: rgba(19, 19, 24, 0.85);
-  box-shadow: 0 16px 48px rgba(201, 104, 56, 0.25), inset 0 0 20px rgba(201, 104, 56, 0.1);
-  border-color: rgba(201, 104, 56, 0.4);
+  box-shadow: 0 16px 48px rgba(var(--ember-rgb), 0.25), inset 0 0 20px rgba(var(--ember-rgb), 0.1);
+  border-color: rgba(var(--ember-rgb), 0.4);
 }
 
 .enki-qc-bar-bolt {
@@ -1606,7 +1607,7 @@
   background: linear-gradient(135deg, #c96838 0%, #ea580c 100%);
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 0 16px rgba(201, 104, 56, 0.4);
+  box-shadow: 0 0 16px rgba(var(--ember-rgb), 0.4);
   margin-left: -12px;
   position: relative;
 }
@@ -1636,8 +1637,8 @@
 
 .dark .enki-qc-panel {
   background: rgba(19, 19, 24, 0.98);
-  border: 1px solid rgba(201, 104, 56, 0.4);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(201, 104, 56, 0.05);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(var(--ember-rgb), 0.05);
 }
 
 @keyframes qc-panel-in {
@@ -1676,7 +1677,7 @@
 
 .dark .enki-qc-editor-btn:hover {
   background: rgba(255,255,255,0.1);
-  border-color: rgba(201, 104, 56, 0.4);
+  border-color: rgba(var(--ember-rgb), 0.4);
   color: #c96838;
 }
 
@@ -1753,8 +1754,8 @@
 .dark .enki-qc-textarea:focus,
 .dark .enki-qc-var-input:focus,
 .dark .enki-qc-select:focus {
-  border-color: rgba(201, 104, 56, 0.5);
-  box-shadow: 0 0 0 1px rgba(201, 104, 56, 0.5), inset 0 2px 4px rgba(0,0,0,0.2);
+  border-color: rgba(var(--ember-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--ember-rgb), 0.5), inset 0 2px 4px rgba(0,0,0,0.2);
   outline: none;
 }
 
