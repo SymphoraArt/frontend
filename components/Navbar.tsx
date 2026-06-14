@@ -164,11 +164,14 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
           
 
-          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
-            <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
-              Enki Art
-            </span>
-            <span style={{ color: "rgb(var(--ember-rgb))", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
+            {/* Transparent-background logo (no font, no bg). Drop the asset at
+                public/enki-art-logo.png. */}
+            <img
+              src="/enki-art-logo.png"
+              alt="Enki Art"
+              style={{ height: isMobile ? 30 : 42, width: "auto", display: "block", objectFit: "contain" }}
+            />
           </div>
 
           {!isMobile && (
