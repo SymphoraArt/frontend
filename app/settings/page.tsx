@@ -11,13 +11,14 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
 import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
+import BillingPanel from "@/components/settings/BillingPanel";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
   { id: "profile", label: "Profile" },
   { id: "wallets", label: "Wallets" },
   { id: "recovery", label: "Recovery & 2FA" },
-  { id: "billing", label: "Billing", disabled: true, tooltip: "More payment rails coming soon. For now, they should manage funds via 'Wallets'" },
+  { id: "billing", label: "Billing" },
 ];
 
 export default function SettingsPage() {
@@ -64,6 +65,14 @@ export default function SettingsPage() {
     setHasChanges(isDifferent);
   }, [settings, initialSettings]);
 
+  // Deep-link support: /settings?tab=billing opens that tab directly (e.g. from
+  // an "Add funds" entry point).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab);
+  }, []);
+
   const updateSetting = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
@@ -90,14 +99,16 @@ export default function SettingsPage() {
     profile: "Profile.",
     wallets: "Wallets.",
     earnings: "Earnings.",
-    recovery: <>Recovery<br/><span>&</span> 2FA.</>
+    recovery: <>Recovery<br/><span>&</span> 2FA.</>,
+    billing: "Billing.",
   };
 
   const descMap: Record<string, string> = {
     profile: "Manage your connected social accounts and visibility settings.",
     wallets: "Manage your connected Turnkey networks and external wallets.",
     earnings: "Track your earnings from owned prompts and hunted affiliates.",
-    recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen."
+    recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen.",
+    billing: "Top up your balance with the familiar Stripe or PayPal flow.",
   };
 
   // Mock admin check — replace with real wallet role lookup
@@ -530,6 +541,9 @@ export default function SettingsPage() {
 
             </>
           )}
+
+          {/* === BILLING TAB === */}
+          {activeTab === "billing" && <BillingPanel />}
 
         </SettingsLayout>
         
