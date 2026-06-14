@@ -380,11 +380,14 @@ export default function AlgencyMobileGenerateModal({
   const sheetElRef = useRef<HTMLDivElement>(null);
   const [sheetHeight, setSheetHeight] = useState<number | null>(null);
   const resizeStateRef = useRef<{ startY: number; startH: number } | null>(null);
+  // Distinguishes a tap on the handle (→ minimise/close) from a real drag (→ resize).
+  const handleMovedRef = useRef(false);
 
   const onResizeMove = useCallback((e: PointerEvent) => {
     const st = resizeStateRef.current;
     if (!st) return;
     const delta = st.startY - e.clientY; // drag up → taller
+    if (Math.abs(delta) > 6) handleMovedRef.current = true;
     const max = window.innerHeight * 0.88;
     setSheetHeight(Math.min(Math.max(st.startH + delta, 260), max));
   }, []);
@@ -394,11 +397,14 @@ export default function AlgencyMobileGenerateModal({
     document.body.style.userSelect = "";
     window.removeEventListener("pointermove", onResizeMove);
     window.removeEventListener("pointerup", onResizeEnd);
-  }, [onResizeMove]);
+    // A tap on the handle (no real drag) minimises the sheet again.
+    if (!handleMovedRef.current) onClose();
+  }, [onResizeMove, onClose]);
 
   const onHandlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const h = sheetElRef.current?.getBoundingClientRect().height ?? sheetHeight ?? 0;
+      handleMovedRef.current = false;
       resizeStateRef.current = { startY: e.clientY, startH: h };
       document.body.style.userSelect = "none";
       window.addEventListener("pointermove", onResizeMove);

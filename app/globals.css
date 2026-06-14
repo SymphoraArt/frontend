@@ -245,8 +245,8 @@ textarea {
   --cta-ink: #0a1825;
   --cta-hover: #d8b362;
   --header-bg: rgba(10, 24, 37, 0.98);
-  --qc-bg: #2bb9a8;   /* brighter teal launcher in dark */
-  --qc-ink: #052a25;
+  --qc-bg: #f0a868;   /* peach launcher in dark */
+  --qc-ink: #3a2410;
   --background: 205 52% 8%; /* #0a1825 midnight navy */
   --foreground: 200 27% 92%; /* #e4edf1 */
 
