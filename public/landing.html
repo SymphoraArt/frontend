@@ -51,6 +51,7 @@
     --lp-accent2-rgb: 240, 168, 104;
     --lp-base-rgb: 14, 128, 116;
     --lp-deep-rgb: 4, 20, 28;
+    --lp-shade-rgb: 4, 16, 22; /* dark scrim for image-card captions (all themes) */
     /* headline gradient — same colour family as the hero banner, with enough
        lightness contrast to stay readable (teal here). */
     /* Headline in warm peach & gold — complementary to the teal banner. */
@@ -75,7 +76,7 @@
     --white-10: rgba(var(--lp-text-rgb),0.08);
     --white-5: rgba(var(--lp-text-rgb),0.04);
     --card-border: rgba(var(--lp-accent-rgb),0.25);
-    --card-bg: rgba(var(--lp-deep-rgb),0.6);
+    --card-bg: rgba(var(--lp-shade-rgb),0.6);
     --lp-text-rgb: 255, 255, 255;
     color-scheme: dark;
     transition: none;
@@ -102,6 +103,7 @@
     --lp-accent2-rgb: 139, 92, 246;
     --lp-base-rgb: 105, 56, 190;
     --lp-deep-rgb: 0, 10, 50;
+    --lp-shade-rgb: 8, 4, 24;
     --lp-head-1: #f3ecff;
     --lp-head-2: #C084FC;
     --lp-head-3: #A855F7;
@@ -133,6 +135,7 @@
     --lp-accent2-rgb: 217, 122, 79;
     --lp-base-rgb: 240, 195, 156;
     --lp-deep-rgb: 253, 246, 236;
+    --lp-shade-rgb: 38, 26, 18; /* dark warm scrim so captions read on bright */
     /* warm dark text on cream */
     --white: #3a2a1e;
     --white-60: rgba(58,42,30,0.74);
@@ -218,7 +221,7 @@
     display: flex; flex-direction: row; align-items: center;
     justify-content: space-between; flex-wrap: nowrap;
     padding: 0 40px; gap: 24px;
-    background: rgba(var(--lp-deep-rgb),0.55);
+    background: rgba(var(--lp-shade-rgb),0.55);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid rgba(var(--lp-text-rgb),0.07);
     transition: background 0.3s;
@@ -378,7 +381,7 @@
   }
   .exp-hero::after {
     content: ''; position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(to bottom, rgba(var(--lp-deep-rgb),0.7) 0%, var(--bg-deep) 100%);
+    background: linear-gradient(to bottom, rgba(var(--lp-shade-rgb),0.7) 0%, var(--bg-deep) 100%);
   }
   .exp-hero-content {
     position: relative; z-index: 1; max-width: 680px; margin: 0 auto; text-align: center; width: 100%;
@@ -2427,7 +2430,7 @@
                alt="Source Scene"/>
           <div style="
             position:absolute; inset:0;
-            background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.75) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+            background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.75) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
           "></div>
           <div style="
             position:absolute;top:14px;left:14px;
@@ -2461,7 +2464,7 @@
                    loading="lazy" alt="Floral Veil"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Floral Veil</div>
@@ -2475,14 +2478,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#01</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
             <div style="
               position:relative; border-radius:12px; overflow:hidden;
@@ -2497,7 +2492,7 @@
                    loading="lazy" alt="Cartoon Villain"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Cartoon Villain</div>
@@ -2511,14 +2506,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#02</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
             <div style="
               position:relative; border-radius:12px; overflow:hidden;
@@ -2533,7 +2520,7 @@
                    loading="lazy" alt="Pixel Farmer"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Pixel Farmer</div>
@@ -2547,14 +2534,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#03</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
             <div style="
               position:relative; border-radius:12px; overflow:hidden;
@@ -2569,7 +2548,7 @@
                    loading="lazy" alt="Portrait Girl"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Portrait Girl</div>
@@ -2583,14 +2562,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#04</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
             <div style="
               position:relative; border-radius:12px; overflow:hidden;
@@ -2605,7 +2576,7 @@
                    loading="lazy" alt="Floral Penguin"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Floral Penguin</div>
@@ -2619,14 +2590,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#05</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
             <div style="
               position:relative; border-radius:12px; overflow:hidden;
@@ -2641,7 +2604,7 @@
                    loading="lazy" alt="Rocket Launch"/>
               <div style="
                 position:absolute; inset:0;
-                background:linear-gradient(to top, rgba(var(--lp-deep-rgb),0.85) 0%, rgba(var(--lp-deep-rgb),0.05) 50%, transparent 100%);
+                background:linear-gradient(to top, rgba(var(--lp-shade-rgb),0.85) 0%, rgba(var(--lp-shade-rgb),0.05) 50%, transparent 100%);
               "></div>
               <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
                 <div style="font-size:0.75rem;font-weight:700;color:#fff;line-height:1.2;">Rocket Launch</div>
@@ -2655,14 +2618,6 @@
                 font-size:0.58rem;font-weight:700;letter-spacing:0.08em;
                 color:rgba(var(--lp-bright-rgb),0.9);text-transform:uppercase;
               ">#06</div>
-              <div style="
-                position:absolute;top:8px;left:8px;
-                background:rgba(var(--lp-glow-rgb),0.25); backdrop-filter:blur(6px);
-                border:1px solid rgba(var(--lp-accent-rgb),0.3);
-                border-radius:100px; padding:2px 8px;
-                font-size:0.58rem;font-weight:700;
-                color:rgba(var(--lp-bright-rgb),0.9);
-              ">Generated</div>
             </div>
         </div>
 
@@ -2672,12 +2627,12 @@
       <div style="display:flex;align-items:center;justify-content:center;gap:28px;margin-top:40px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:7px;height:7px;border-radius:50%;background:var(--lp-accent);box-shadow:0 0 6px rgba(var(--lp-accent-rgb),0.7);"></div>
-          <span style="font-size:0.82rem;color:rgba(var(--lp-text-rgb),0.5);">Same lighting, environment &amp; composition</span>
+          <span style="font-size:0.82rem;color:rgba(var(--lp-text-rgb),0.5);">Create masterpieces without studying prompts</span>
         </div>
         <div style="width:1px;height:14px;background:rgba(var(--lp-text-rgb),0.1);"></div>
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:7px;height:7px;border-radius:50%;background:var(--lp-bright);box-shadow:0 0 6px rgba(var(--lp-bright-rgb),0.7);"></div>
-          <span style="font-size:0.82rem;color:rgba(var(--lp-text-rgb),0.5);">Only the subject changes — in seconds</span>
+          <span style="font-size:0.82rem;color:rgba(var(--lp-text-rgb),0.5);">Generate personalized art in seconds</span>
         </div>
       </div>
 
@@ -3005,7 +2960,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap;">
           <div style="font-size:0.875rem;color:rgba(var(--lp-text-rgb),0.55);" id="expCount">Showing 12 styles</div>
           <div style="display:flex;align-items:center;gap:8px;">
-            <select style="background:rgba(var(--lp-deep-rgb),0.8);border:1px solid rgba(var(--lp-text-rgb),0.15);color:white;padding:8px 14px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;" id="expSort" onchange="filterExpGallery()">
+            <select style="background:rgba(var(--lp-shade-rgb),0.8);border:1px solid rgba(var(--lp-text-rgb),0.15);color:white;padding:8px 14px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:0.82rem;outline:none;" id="expSort" onchange="filterExpGallery()">
               <option>Most Popular</option>
               <option>Newest</option>
               <option>Highest Rated</option>
@@ -3596,7 +3551,7 @@
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  background: rgba(var(--lp-deep-rgb),0.5);
+  background: rgba(var(--lp-shade-rgb),0.5);
   border: 1px solid rgba(var(--lp-accent-rgb),0.12);
   transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -3619,7 +3574,7 @@
 .exp-item-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(var(--lp-deep-rgb),0.88) 0%, rgba(var(--lp-deep-rgb),0.2) 50%, transparent 100%);
+  background: linear-gradient(to top, rgba(var(--lp-shade-rgb),0.88) 0%, rgba(var(--lp-shade-rgb),0.2) 50%, transparent 100%);
   opacity: 0;
   transition: opacity 0.2s;
   display: flex;
