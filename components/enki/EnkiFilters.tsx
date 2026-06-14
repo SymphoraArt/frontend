@@ -3,16 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import { LayoutGrid, MoreHorizontal } from "lucide-react";
 
-const CATEGORIES = [
-  { label: "Portrait" },
-  { label: "Character" },
-  { label: "Cinematic" },
-  { label: "Architecture" },
-  { label: "Abstract" },
-  { label: "Product" },
-  { label: "Minimal" },
-  { label: "Editorial" },
-];
+/**
+ * Canonical category list — shared between the feed filter bar and the
+ * prompt editor's category dropdown so both always offer the same set.
+ * Add/rename categories here only.
+ */
+export const ENKI_CATEGORIES = [
+  "Portrait",
+  "Character",
+  "Cinematic",
+  "Architecture",
+  "Abstract",
+  "Product",
+  "Minimal",
+  "Editorial",
+] as const;
+
+const CATEGORIES = ENKI_CATEGORIES.map((label) => ({ label }));
 
 type EnkiFiltersProps = {
   active: string[];

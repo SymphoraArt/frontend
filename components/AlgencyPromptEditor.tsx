@@ -35,6 +35,10 @@ import {
   DollarSign,
   Trash2,
   X,
+  Check,
+  Undo2,
+  Redo2,
+  Eraser,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -47,6 +51,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ENKI_CATEGORIES } from "@/components/enki/EnkiFilters";
+import {
+  loadEditorVersions,
+  saveEditorVersions,
+  clearEditorVersions,
+  type PersistedVersionCard,
+} from "@/lib/editorVersions";
 import nlp from "compromise";
 import { getVariableColors, pickVariableColorIndex } from "@/lib/variableColors";
 
@@ -414,8 +425,14 @@ interface VersionCard {
   id: number;
   variableSnapshot: Record<string, string>;
   imageUrl: string | null;
+  /** Durable source URL (a hosted https URL or a base64 `data:` URL).
+      `imageUrl` may become an ephemeral `blob:` URL for display, so this
+      preserves something we can persist + restore across reloads. */
+  sourceUrl?: string | null;
   status: "idle" | "queued" | "generating" | "complete" | "failed";
   queuePosition?: number; // assigned when batch-queued
+  /** Per-card reference images (data URLs) fed to this card's render. */
+  referenceImages?: string[];
 }
 
 /* ─── Color map for known variables ─── */
@@ -490,6 +507,12 @@ export default function AlgencyPromptEditor() {
   const pendingVarScrollRef = useRef<string | null>(null);
   const variableLabelRegistryRef = useRef<Set<string>>(new Set());
   const [promptPrice, setPromptPrice] = useState(0);
+  /* Raw text backing the price <input>. A number-only state can't hold
+     intermediate values like "0" or "0." (both coerce to 0, which the
+     controlled input renders as ""), so the user could never type a
+     decimal that starts with a zero. We keep the raw string here and
+     derive `promptPrice` from it. */
+  const [priceText, setPriceText] = useState("");
   /* Direction of the most recent stepper-button press on the price
      input. Drives a brief slide-in animation on the number text so
      a tap on ▲/▼ is reflected visually (a "roll" up or down) even
@@ -504,6 +527,19 @@ export default function AlgencyPromptEditor() {
      by the timeout that ends the animation. */
   const prevPriceRollSnapshotRef = useRef<number>(0);
   const priceRollKeyRef = useRef(0);
+
+  /* Keep the price text field in sync when the price changes from OUTSIDE
+     the input (stepper buttons, draft restore, model min-price). We avoid
+     clobbering while the user is mid-typing an equivalent value — e.g.
+     "0." parses to 0, which already equals the stored price — so the
+     leading-zero decimal stays typeable. */
+  useEffect(() => {
+    const typed = parseFloat(priceText);
+    if (!Number.isFinite(typed) || typed !== promptPrice) {
+      setPriceText(promptPrice ? String(promptPrice) : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptPrice]);
 
   /* Same pair of refs for the integer Max-User-Images stepper so it
      gets identical "only the changing digit moves" behaviour. */
@@ -595,6 +631,50 @@ export default function AlgencyPromptEditor() {
   }>({ open: false, query: "", startPos: -1, highlighted: 0 });
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const draftReadyRef = useRef(false);
+  /* Gates the verify-card autosave until the IndexedDB restore has run,
+     so the initial empty `versions` array can't clobber saved cards. */
+  const versionsReadyRef = useRef(false);
+  /* Variable-sync (new variable → existing verify cards) bookkeeping.
+     `syncedVarIds` holds the variable ids the parked verify cards already
+     account for; a variable whose id isn't in here is genuinely NEW and
+     triggers the "apply everywhere?" prompt. `primed` guards the very first
+     run after restore so existing variables aren't all treated as new.
+     `confirming` distinguishes a confirm-close from a cancel-close. */
+  const syncedVarIdsRef = useRef<Set<string>>(new Set());
+  const varSyncPrimedRef = useRef(false);
+  const varSyncConfirmingRef = useRef(false);
+  /* The freshly-added variable id(s) the prompt is currently asking about,
+     so that "No" can undo the insertion entirely. */
+  const pendingNewVarIdsRef = useRef<string[]>([]);
+
+  /* ─── Undo / Redo history ─────────────────────────────────────────
+     A debounced snapshot stack of the editor's structural state:
+     prompt title/body/type/tags, variables, selected models, selected
+     ratio and reference images — everything Ctrl+Z should roll back.
+     UI-only state (selected card, dialogs) is excluded. Stacks live in
+     refs (O(1) pushes, no re-render); `historyVersion` bumps to refresh
+     the toolbar buttons. Tracking starts only after the draft hydrates. */
+  type FocusContext =
+    | { type: "textarea"; cursorPos: number }
+    | { type: "varName"; varId: string; cursorPos: number }
+    | { type: "varDesc"; varId: string; cursorPos: number }
+    | null;
+  type EditorSnapshot = {
+    promptData: { title: string; body: string; type: PromptType; tags: string[] };
+    variables: PromptVariable[];
+    modelsSelected: string[];
+    ratiosSelected: string;
+    referenceImages: string[];
+    focus?: FocusContext;
+  };
+  const HISTORY_LIMIT = 100;
+  const historyPastRef = useRef<EditorSnapshot[]>([]);
+  const historyFutureRef = useRef<EditorSnapshot[]>([]);
+  const historySnapshotRef = useRef<EditorSnapshot | null>(null);
+  const historyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isApplyingHistoryRef = useRef(false);
+  const gestureFocusRef = useRef<FocusContext | undefined>(undefined);
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   const [versions, setVersions] = useState<VersionCard[]>([]);
 
@@ -636,8 +716,20 @@ export default function AlgencyPromptEditor() {
        confirmation dialog is open. The dialog's "Yes" button reads
        this id, performs the overwrite, and clears the field. */
     editOverwriteConfirmCardId: null as number | null,
+    /* Pending variable type switch awaiting confirmation. Non-null when
+       the user tries to change a variable's type while verify images
+       already exist (changing it resets those images). */
+    pendingTypeChange: null as { varId: string; newType: VariableType } | null,
+    /* Drives the "Start a new prompt?" confirmation for the New button. */
+    confirmNewOpen: false,
+    /* Drives the "Apply new variable to existing verify renders?" dialog —
+       shown when a newly-added variable needs to be folded into verify
+       cards that already have generated images. */
+    pendingVarSync: false,
   });
 
+  /* Controls the single-select Category dropdown so it closes on pick. */
+  const [catOpen, setCatOpen] = useState(false);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   /* Drives the slide-down/fade-out animation on the ownership notice.
      Stays `true` only between the X click and the unmount (~280ms),
@@ -724,7 +816,7 @@ export default function AlgencyPromptEditor() {
       try {
         const draft: EditorDraft = {
           promptData,
-          variables: variables.map(normalizeVariable),
+          variables: variables.map((v) => normalizeVariable(v)),
           modelsSelected: models.selected,
           ratioSelected: ratios.selected,
           maxImages: ui.maxImages,
@@ -741,6 +833,470 @@ export default function AlgencyPromptEditor() {
     }, 400);
     return () => clearTimeout(timeoutId);
   }, [promptData, variables, models.selected, ratios.selected, ui.maxImages, ui.settingsCollapsed, referenceImages, promptPrice]);
+
+  /* ─── Restore parked verify cards (images + variable values + per-card
+     reference images) from IndexedDB so the session survives a reload ─── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await loadEditorVersions();
+        if (cancelled) return;
+        if (saved.length) {
+          const restored: VersionCard[] = saved.map((v) => {
+            // Anything mid-flight (queued/generating) or failed comes back
+            // as idle so the user can simply re-generate it.
+            const baseStatus = v.status === "complete" ? "complete" : "idle";
+            // `blob:` URLs die on reload — fall back to the durable source.
+            const durable =
+              v.imageUrl && !v.imageUrl.startsWith("blob:")
+                ? v.imageUrl
+                : v.sourceUrl ?? null;
+            const status: VersionCard["status"] =
+              baseStatus === "complete" && !durable ? "idle" : baseStatus;
+            return {
+              id: v.id,
+              variableSnapshot: v.variableSnapshot || {},
+              imageUrl: status === "complete" ? durable : null,
+              sourceUrl: durable,
+              status,
+              referenceImages: v.referenceImages,
+            };
+          });
+          setVersions(restored);
+        }
+      } catch {
+        /* ignore — start with an empty verify column */
+      } finally {
+        versionsReadyRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ─── Autosave verify cards to IndexedDB ─── */
+  useEffect(() => {
+    if (!versionsReadyRef.current) return;
+    const timeoutId = setTimeout(() => {
+      const payload: PersistedVersionCard[] = versions.map((v) => {
+        const baseStatus =
+          v.status === "complete" || v.status === "failed" ? v.status : "idle";
+        const durable =
+          v.sourceUrl && !v.sourceUrl.startsWith("blob:")
+            ? v.sourceUrl
+            : v.imageUrl && !v.imageUrl.startsWith("blob:")
+            ? v.imageUrl
+            : null;
+        const status: PersistedVersionCard["status"] =
+          baseStatus === "complete" && !durable ? "idle" : baseStatus;
+        return {
+          id: v.id,
+          variableSnapshot: v.variableSnapshot,
+          imageUrl: status === "complete" ? durable : null,
+          sourceUrl: durable,
+          status,
+          referenceImages: v.referenceImages,
+        };
+      });
+      void saveEditorVersions(payload);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [versions]);
+
+  /* Fold every currently-named variable into each verify card's frozen
+     snapshot (so a newly-added variable also applies to existing renders).
+     When `reset` is true, parked images are cleared back to idle so they
+     re-generate with the new variable set. */
+  const applyVarSyncToVersions = useCallback(
+    (reset: boolean) => {
+      const named = variables.filter((v) => v.name.trim());
+      const snapValue = (v: PromptVariable): string => {
+        if (v.type === "checkbox") return v.defaultValue ? v.description || "on" : "off";
+        if (v.type === "image") return v.description || "";
+        return (v.defaultValue as string) || v.name;
+      };
+      setVersions((prev) => {
+        let touched = false;
+        const next = prev.map((card) => {
+          const snapshot = { ...card.variableSnapshot };
+          let changed = false;
+          named.forEach((v) => {
+            if (snapshot[v.name] === undefined) {
+              snapshot[v.name] = snapValue(v);
+              changed = true;
+            }
+          });
+          if (reset) {
+            // Confirmed regeneration → clear every card's image regardless
+            // of whether a named value was folded in (the new variable may
+            // still be unnamed at this point).
+            touched = true;
+            return {
+              ...card,
+              variableSnapshot: snapshot,
+              imageUrl: null,
+              status: "idle" as const,
+              queuePosition: undefined,
+            };
+          }
+          if (!changed) return card;
+          touched = true;
+          return { ...card, variableSnapshot: snapshot };
+        });
+        // Returning the same reference when nothing changed avoids an
+        // effect ↔ setVersions feedback loop (a lingering unnamed variable
+        // keeps `missing` true, but must not keep re-rendering).
+        return touched ? next : prev;
+      });
+    },
+    [variables]
+  );
+
+  /* Detect when a brand-new variable (added via the + button, by typing a
+     new `[token]`, or by converting a selection) isn't yet reflected in the
+     parked verify cards. New is determined by variable id, so a variable
+     that already existed when the cards were generated never counts — only
+     genuinely added ones do. If the cards have no images yet the variable is
+     folded in silently; if they already have generated images we ask first,
+     because applying it means regenerating (which clears them). */
+  useEffect(() => {
+    if (!versionsReadyRef.current) return;
+    if (ui.editingNameVarId) return; // don't fire mid-typing of a name
+    const currentIds = variables.map((v) => v.id);
+    // Prime on the first run after restore so pre-existing variables aren't
+    // mistaken for new additions.
+    if (!varSyncPrimedRef.current) {
+      varSyncPrimedRef.current = true;
+      syncedVarIdsRef.current = new Set(currentIds);
+      return;
+    }
+    if (versions.length === 0) {
+      syncedVarIdsRef.current = new Set(currentIds);
+      return;
+    }
+    const hasNew = currentIds.some((id) => !syncedVarIdsRef.current.has(id));
+    if (!hasNew) {
+      syncedVarIdsRef.current = new Set(currentIds); // prune removed ids
+      return;
+    }
+    const hasImages = versions.some((v) => v.imageUrl || v.status === "complete");
+    if (!hasImages) {
+      applyVarSyncToVersions(false);
+      syncedVarIdsRef.current = new Set(currentIds);
+      return;
+    }
+    // Remember exactly which variables are new so "No" can undo them.
+    pendingNewVarIdsRef.current = currentIds.filter(
+      (id) => !syncedVarIdsRef.current.has(id)
+    );
+    setUi((p) => (p.pendingVarSync ? p : { ...p, pendingVarSync: true }));
+  }, [variables, versions, ui.editingNameVarId, applyVarSyncToVersions]);
+
+  /* Undo a just-added variable when the user answers "No" to the
+     "recreate the images?" prompt: drop the variable(s) and turn their
+     `[token]` back into plain text so nothing the user typed is lost. */
+  const revertNewVariables = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    const removed = variables.filter((v) => idSet.has(v.id));
+    if (removed.length === 0) return;
+    setPromptData((prev) => {
+      let body = prev.body;
+      removed.forEach((v) => {
+        const inner = v.fullToken.replace(/^\[/, "").replace(/\]$/, "");
+        body = body.split(v.fullToken).join(inner);
+      });
+      return { ...prev, body };
+    });
+    setVariables((prev) => prev.filter((v) => !idSet.has(v.id)));
+  }, [variables]);
+
+  /* ─── Undo / Redo implementation ─── */
+  const applySnapshot = useCallback((snap: EditorSnapshot) => {
+    isApplyingHistoryRef.current = true;
+    setPromptData(snap.promptData);
+    setVariables(snap.variables);
+    setModels((prev) => ({ ...prev, selected: snap.modelsSelected }));
+    setRatios((prev) => ({ ...prev, selected: snap.ratiosSelected }));
+    setReferenceImages(snap.referenceImages);
+  }, []);
+
+  /* Capture the user's current focus (prompt textarea or a variable's
+     name/description input) so undo/redo can restore where they were. */
+  const captureFocusContext = useCallback((): FocusContext => {
+    if (typeof document === "undefined") return null;
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return null;
+    if (el === textareaRef.current) {
+      const ta = el as HTMLTextAreaElement;
+      return { type: "textarea", cursorPos: ta.selectionStart ?? 0 };
+    }
+    const isName = el.classList.contains("alg-var-card__name-input");
+    const isDesc = el.classList.contains("alg-var-card__desc-input");
+    if (!isName && !isDesc) return null;
+    for (const [varId, card] of Object.entries(variableCardRefs.current)) {
+      if (card && card.contains(el)) {
+        const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
+        return { type: isName ? "varName" : "varDesc", varId, cursorPos: inputEl.selectionStart ?? 0 };
+      }
+    }
+    return null;
+  }, []);
+
+  const restoreFocusContext = useCallback((ctx: FocusContext) => {
+    if (!ctx) return;
+    if (ctx.type === "textarea") {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus();
+      const safe = Math.min(ctx.cursorPos, ta.value.length);
+      try {
+        ta.setSelectionRange(safe, safe);
+      } catch {
+        /* ignored */
+      }
+      return;
+    }
+    const card = variableCardRefs.current[ctx.varId];
+    if (!card) return;
+    const selector =
+      ctx.type === "varName" ? ".alg-var-card__name-input" : ".alg-var-card__desc-input";
+    const input = card.querySelector(selector) as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null;
+    if (!input) return;
+    input.focus();
+    const safe = Math.min(ctx.cursorPos, input.value.length);
+    try {
+      input.setSelectionRange(safe, safe);
+    } catch {
+      /* ignored */
+    }
+  }, []);
+
+  const captureSnapshot = useCallback(
+    (): EditorSnapshot => ({
+      promptData,
+      variables,
+      modelsSelected: models.selected,
+      ratiosSelected: ratios.selected,
+      referenceImages,
+    }),
+    [promptData, variables, models.selected, ratios.selected, referenceImages]
+  );
+
+  const snapshotsEqual = useCallback(
+    (a: EditorSnapshot, b: EditorSnapshot): boolean => {
+      if (a === b) return true;
+      const stripFocus = ({ focus: _focus, ...rest }: EditorSnapshot) => rest;
+      return JSON.stringify(stripFocus(a)) === JSON.stringify(stripFocus(b));
+    },
+    []
+  );
+
+  /* A snapshot is "coherent" iff every `[token]` in the body has a
+     matching variable and vice-versa (counts match). We refuse to
+     record incoherent states that appear transiently between the body
+     edit and the 400 ms variable-sync effect, so undo never lands on a
+     half-built editor. */
+  const isSnapshotCoherent = useCallback((snap: EditorSnapshot): boolean => {
+    const bodyTokenCounts = new Map<string, number>();
+    const tokenRe = /\[[^\]]*\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(snap.promptData.body)) !== null) {
+      bodyTokenCounts.set(m[0], (bodyTokenCounts.get(m[0]) ?? 0) + 1);
+    }
+    const varTokenCounts = new Map<string, number>();
+    for (const v of snap.variables) {
+      varTokenCounts.set(v.fullToken, (varTokenCounts.get(v.fullToken) ?? 0) + 1);
+    }
+    if (bodyTokenCounts.size !== varTokenCounts.size) return false;
+    for (const [token, count] of bodyTokenCounts) {
+      if (varTokenCounts.get(token) !== count) return false;
+    }
+    return true;
+  }, []);
+
+  /* Force-commit any pending debounced snapshot now (used before
+     undo/redo so a half-typed change becomes its own step). */
+  const flushPendingSnapshot = useCallback(() => {
+    if (!historyDebounceRef.current) return;
+    clearTimeout(historyDebounceRef.current);
+    historyDebounceRef.current = null;
+    const baseline = historySnapshotRef.current;
+    if (!baseline) return;
+    const current = captureSnapshot();
+    if (snapshotsEqual(baseline, current)) return;
+    if (!isSnapshotCoherent(current)) return;
+    const baselineWithFocus: EditorSnapshot = {
+      ...baseline,
+      focus: gestureFocusRef.current ?? null,
+    };
+    historyPastRef.current.push(baselineWithFocus);
+    if (historyPastRef.current.length > HISTORY_LIMIT) {
+      historyPastRef.current.shift();
+    }
+    historyFutureRef.current = [];
+    historySnapshotRef.current = current;
+    gestureFocusRef.current = undefined;
+  }, [captureSnapshot, snapshotsEqual, isSnapshotCoherent]);
+
+  /* Push a snapshot onto the past stack (debounced 350 ms) whenever the
+     tracked state changes — coalescing a burst of edits into one step. */
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    if (isApplyingHistoryRef.current) {
+      isApplyingHistoryRef.current = false;
+      historySnapshotRef.current = captureSnapshot();
+      return;
+    }
+    if (historySnapshotRef.current === null) {
+      historySnapshotRef.current = captureSnapshot();
+      return;
+    }
+    if (gestureFocusRef.current === undefined) {
+      gestureFocusRef.current = captureFocusContext();
+    }
+    if (historyDebounceRef.current) clearTimeout(historyDebounceRef.current);
+    historyDebounceRef.current = setTimeout(() => {
+      historyDebounceRef.current = null;
+      const baseline = historySnapshotRef.current;
+      if (!baseline) {
+        historySnapshotRef.current = captureSnapshot();
+        return;
+      }
+      const next = captureSnapshot();
+      if (snapshotsEqual(baseline, next)) return;
+      if (!isSnapshotCoherent(next)) return;
+      const baselineWithFocus: EditorSnapshot = {
+        ...baseline,
+        focus: gestureFocusRef.current ?? null,
+      };
+      historyPastRef.current.push(baselineWithFocus);
+      if (historyPastRef.current.length > HISTORY_LIMIT) {
+        historyPastRef.current.shift();
+      }
+      historyFutureRef.current = [];
+      historySnapshotRef.current = next;
+      gestureFocusRef.current = undefined;
+      setHistoryVersion((v) => v + 1);
+    }, 350);
+  }, [
+    promptData,
+    variables,
+    models.selected,
+    ratios.selected,
+    referenceImages,
+    captureSnapshot,
+    captureFocusContext,
+    snapshotsEqual,
+    isSnapshotCoherent,
+  ]);
+
+  const restoreFocusForHistoryStep = useCallback(
+    (snap: EditorSnapshot) => {
+      requestAnimationFrame(() => {
+        restoreFocusContext(snap.focus ?? null);
+      });
+    },
+    [restoreFocusContext]
+  );
+
+  const handleUndo = useCallback(() => {
+    flushPendingSnapshot();
+    if (historyPastRef.current.length === 0) return;
+    const target = historyPastRef.current.pop()!;
+    const currentForFuture: EditorSnapshot = {
+      ...(historySnapshotRef.current ?? captureSnapshot()),
+      focus: target.focus ?? null,
+    };
+    historyFutureRef.current.push(currentForFuture);
+    applySnapshot(target);
+    historySnapshotRef.current = target;
+    setHistoryVersion((v) => v + 1);
+    restoreFocusForHistoryStep(target);
+  }, [applySnapshot, captureSnapshot, flushPendingSnapshot, restoreFocusForHistoryStep]);
+
+  const handleRedo = useCallback(() => {
+    flushPendingSnapshot();
+    if (historyFutureRef.current.length === 0) return;
+    const target = historyFutureRef.current.pop()!;
+    const currentForPast: EditorSnapshot = {
+      ...(historySnapshotRef.current ?? captureSnapshot()),
+      focus: target.focus ?? null,
+    };
+    historyPastRef.current.push(currentForPast);
+    applySnapshot(target);
+    historySnapshotRef.current = target;
+    setHistoryVersion((v) => v + 1);
+    restoreFocusForHistoryStep(target);
+  }, [applySnapshot, captureSnapshot, flushPendingSnapshot, restoreFocusForHistoryStep]);
+
+  /* Keyboard shortcuts: Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo
+     (Cmd-equivalents on Mac). We intercept even inside the textarea so
+     native textarea undo can't desync from our snapshot stack. */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  const canUndo = historyVersion >= 0 && historyPastRef.current.length > 0;
+  const canRedo = historyVersion >= 0 && historyFutureRef.current.length > 0;
+
+  /* ─── New prompt — wipe everything and start from a clean slate ───
+     Resets all editor content + settings, clears the persisted draft
+     (localStorage) and verify cards (IndexedDB), and empties the
+     undo/redo history so there's nothing to roll back into. */
+  const handleNewPrompt = useCallback(() => {
+    setPromptData({ title: "", body: "", type: "free-prompt", tags: [] });
+    setVariables([]);
+    setReferenceImages([]);
+    setVersions([]);
+    setModels((prev) => ({ ...prev, selected: [] }));
+    setRatios((prev) => ({ ...prev, selected: "Any ratio" }));
+    setPromptPrice(0);
+    setPriceText("");
+    setUi((p) => ({
+      ...p,
+      selectedCards: [],
+      tagInput: "",
+      pricePerRenderReviewed: false,
+      selectedVariableId: null,
+      editingNameVarId: null,
+      variableNameConflict: null,
+      pendingTypeChange: null,
+      confirmNewOpen: false,
+    }));
+    try {
+      localStorage.removeItem(EDITOR_DRAFT_KEY);
+    } catch {
+      /* ignore storage errors */
+    }
+    void clearEditorVersions();
+    syncedVarIdsRef.current = new Set();
+    varSyncPrimedRef.current = false;
+    historyPastRef.current = [];
+    historyFutureRef.current = [];
+    historySnapshotRef.current = null;
+    gestureFocusRef.current = undefined;
+    setHistoryVersion((v) => v + 1);
+    toast({ title: "New prompt", description: "Cleared the editor — starting fresh." });
+  }, [toast]);
 
   const addReferenceImage = (file: File) => {
     if (referenceImages.length >= ui.maxImages) {
@@ -1032,7 +1588,9 @@ export default function AlgencyPromptEditor() {
       setRatios(prev => ({
         ...prev,
         available: allowedArray,
-        selected: allowedArray.includes(prev.selected) ? prev.selected : allowedArray[0] || "Any ratio"
+        // Default to "Any ratio" whenever the current pick isn't valid,
+        // instead of falling back to the model's first allowed ratio.
+        selected: allowedArray.includes(prev.selected) ? prev.selected : "Any ratio"
       }));
     }
   }, [models.selected, models.available]);
@@ -1661,6 +2219,76 @@ export default function AlgencyPromptEditor() {
     }
   };
 
+  /* Apply a variable TYPE change with the correct, type-specific payload.
+     Routing both type buttons through here keeps the text↔checkbox
+     conversion in one place and prevents the "value becomes true" bug:
+     when switching to checkbox we read the OLD text from
+     defaultValue/description/label — never from a boolean. */
+  const applyVariableTypeChange = useCallback(
+    (varId: string, newType: VariableType, resetVerify: boolean) => {
+      const variable = variables.find((v) => v.id === varId);
+      if (!variable || variable.type === newType) return;
+      if (newType === "checkbox") {
+        updateVariable(varId, {
+          type: "checkbox",
+          description: String(
+            variable.defaultValue || variable.description || variable.label
+          ),
+          defaultValue: true,
+        });
+      } else {
+        updateVariable(varId, {
+          type: "text",
+          defaultValue:
+            variable.description ||
+            (typeof variable.defaultValue === "string" ? variable.defaultValue : "") ||
+            variable.label,
+        });
+      }
+      /* Changing a variable's type invalidates already-rendered verify
+         images — reset them to idle so they re-generate with the new
+         shape. (Only done once the user confirms.) */
+      if (resetVerify) {
+        setVersions((prev) =>
+          prev.map((v) => ({
+            ...v,
+            imageUrl: null,
+            status: "idle" as const,
+            queuePosition: undefined,
+          }))
+        );
+        setUi((p) => ({ ...p, selectedCards: [] }));
+      }
+    },
+    // updateVariable intentionally omitted (stable closure over current state)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [variables]
+  );
+
+  /* Entry point for the two type-toggle buttons. Guards against
+     re-selecting the active type (a no-op that previously corrupted the
+     value), and — if any verify card already has a generated/in-flight
+     image — asks for confirmation first because those images get reset. */
+  const requestVariableTypeChange = useCallback(
+    (varId: string, newType: VariableType) => {
+      const variable = variables.find((v) => v.id === varId);
+      if (!variable || variable.type === newType) return;
+      const hasVerifyWork = versions.some(
+        (v) =>
+          v.imageUrl ||
+          v.status === "complete" ||
+          v.status === "generating" ||
+          v.status === "queued"
+      );
+      if (hasVerifyWork) {
+        setUi((p) => ({ ...p, pendingTypeChange: { varId, newType } }));
+        return;
+      }
+      applyVariableTypeChange(varId, newType, false);
+    },
+    [variables, versions, applyVariableTypeChange]
+  );
+
   const handleVariableNameFocus = (varId: string) => {
     setUi((prev) => ({ ...prev, editingNameVarId: varId }));
   };
@@ -1780,6 +2408,7 @@ export default function AlgencyPromptEditor() {
     const card = versions.find(v => v.id === versionId) ??
       { variableSnapshot: {} as Record<string, string> };
     const snapshot = card.variableSnapshot;
+    const cardRefs = (card as VersionCard).referenceImages ?? [];
 
     /* Body for the AI provider:
        1. Expand `@ImageN` mentions → "Reference image N"  (must run
@@ -1824,6 +2453,7 @@ export default function AlgencyPromptEditor() {
             prompt: previewText,
             resolution: "2K",
             aspectRatio: ratios.selected,
+            referenceImages: cardRefs.length ? cardRefs : undefined,
           }),
         });
         if (!res.ok) {
@@ -1860,7 +2490,7 @@ export default function AlgencyPromptEditor() {
           displayUrl = data.imageUrl;
         }
       }
-      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: displayUrl } : v));
+      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, status: "complete", imageUrl: displayUrl, sourceUrl: data.imageUrl } : v));
       const userKey = getUserKeyFromAccount(account);
       if (userKey && data?.imageUrl) {
         try {
@@ -1980,6 +2610,56 @@ export default function AlgencyPromptEditor() {
     variables.forEach(v => { snapshot[v.name] = (v.defaultValue as string) || v.name; });
     const newId = versions.length > 0 ? Math.max(...versions.map(v => v.id)) + 1 : 1;
     setVersions(prev => [...prev, { id: newId, variableSnapshot: snapshot, imageUrl: null, status: "idle" }]);
+  };
+
+  /* ─── Per-verify-card reference images ─── */
+  const MAX_VERIFY_REFS = 4;
+
+  const addVerifyCardRef = (slotId: number, dataUrl: string) => {
+    if (!dataUrl) return;
+    setVersions((prev) =>
+      prev.map((v) => {
+        if (v.id !== slotId) return v;
+        const existing = v.referenceImages ?? [];
+        if (existing.length >= MAX_VERIFY_REFS) return v;
+        return { ...v, referenceImages: [...existing, dataUrl] };
+      })
+    );
+  };
+
+  const pickVerifyCardRefs = (slotId: number) => {
+    const current = versions.find((v) => v.id === slotId)?.referenceImages ?? [];
+    if (current.length >= MAX_VERIFY_REFS) {
+      toast({
+        title: "Limit reached",
+        description: `Up to ${MAX_VERIFY_REFS} reference images per render.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = true;
+    input.onchange = (ev) => {
+      const files = Array.from((ev.target as HTMLInputElement).files || []);
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => addVerifyCardRef(slotId, String(e.target?.result || ""));
+        reader.readAsDataURL(file);
+      });
+    };
+    input.click();
+  };
+
+  const removeVerifyCardRef = (slotId: number, idx: number) => {
+    setVersions((prev) =>
+      prev.map((v) =>
+        v.id === slotId
+          ? { ...v, referenceImages: (v.referenceImages ?? []).filter((_, i) => i !== idx) }
+          : v
+      )
+    );
   };
 
   /* ─── Pricing helpers ─── */
@@ -2111,11 +2791,6 @@ export default function AlgencyPromptEditor() {
   };
 
   /* ─── Tags ─── */
-  const addTag = (raw: string) => {
-    const tag = raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
-    if (!tag || promptData.tags.includes(tag)) return;
-    setPromptData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
-  };
   const removeTag = (tag: string) => {
     setPromptData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
   };
@@ -2443,6 +3118,99 @@ export default function AlgencyPromptEditor() {
       </AlertDialog>
 
       <AlertDialog
+        open={ui.confirmNewOpen}
+        onOpenChange={(open) => {
+          if (!open) setUi((p) => ({ ...p, confirmNewOpen: false }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start a new prompt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This clears the prompt, variables, settings, reference images and
+              all verify cards, and forgets the saved draft. This can&apos;t be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleNewPrompt}>
+              Yes, clear everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={ui.pendingVarSync}
+        onOpenChange={(open) => {
+          if (open) return;
+          // Closing without confirming ("No" / Esc) → undo the new
+          // variable entirely; nothing is added and the images stay.
+          if (!varSyncConfirmingRef.current) {
+            revertNewVariables(pendingNewVarIdsRef.current);
+          }
+          pendingNewVarIdsRef.current = [];
+          varSyncConfirmingRef.current = false;
+          setUi((p) => ({ ...p, pendingVarSync: false }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Changes to your variables mean the images have to be made again.
+              Are you sure you want to add this variable?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                varSyncConfirmingRef.current = true;
+                applyVarSyncToVersions(true);
+                syncedVarIdsRef.current = new Set(variables.map((v) => v.id));
+                pendingNewVarIdsRef.current = [];
+              }}
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={ui.pendingTypeChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setUi((p) => ({ ...p, pendingTypeChange: null }));
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Changes to your variables mean the images have to be made again.
+              Are you sure you want to change this variable&apos;s type?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const pending = ui.pendingTypeChange;
+                setUi((p) => ({ ...p, pendingTypeChange: null }));
+                if (pending) {
+                  applyVariableTypeChange(pending.varId, pending.newType, true);
+                }
+              }}
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
         open={ui.variableNameConflict !== null}
         onOpenChange={(open) => {
           if (!open) setUi((p) => ({ ...p, variableNameConflict: null }));
@@ -2636,19 +3404,46 @@ export default function AlgencyPromptEditor() {
                   </span>
                 ))}
               </div>
-              <input
-                className="alg-tag-input"
-                placeholder="category, that's derived from the main categories"
-                value={ui.tagInput}
-                onChange={(e) => setUi(prev => ({ ...prev, tagInput: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    addTag(ui.tagInput);
-                    setUi(prev => ({ ...prev, tagInput: '' }));
-                  }
-                }}
-              />
+              {/* Category is picked from the same set of categories shown as
+                  filters on the main feed page (ENKI_CATEGORIES). Single-select:
+                  picking a category replaces the current one; picking the active
+                  one clears it. */}
+              <Popover open={catOpen} onOpenChange={setCatOpen}>
+                <PopoverTrigger asChild>
+                  <button type="button" className="alg-category-select">
+                    <span className="alg-category-select__label">
+                      {promptData.tags.length ? "Change category" : "Select a category"}
+                    </span>
+                    <ChevronDown size={14} strokeWidth={2} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="bottom"
+                  className="alg-category-popover z-[120] w-[var(--radix-popover-trigger-width)] min-w-[180px] border-[var(--alg-border)] bg-[var(--alg-panel)] p-1 text-[var(--alg-text)] shadow-lg"
+                >
+                  {ENKI_CATEGORIES.map((label) => {
+                    const selected = promptData.tags.includes(label.toLowerCase());
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        className={`alg-category-option ${selected ? "alg-category-option--active" : ""}`}
+                        onClick={() => {
+                          setPromptData((prev) => ({
+                            ...prev,
+                            tags: selected ? [] : [label.toLowerCase()],
+                          }));
+                          setCatOpen(false);
+                        }}
+                      >
+                        <span>{label}</span>
+                        {selected && <Check size={14} strokeWidth={2.5} />}
+                      </button>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
             </div>
             </div>
 
@@ -2992,14 +3787,27 @@ export default function AlgencyPromptEditor() {
                     >
                       <div className="alg-num-input__field-wrap">
                         <input
-                          type="number"
-                          min={0.0001}
-                          step={0.0001}
+                          type="text"
+                          inputMode="decimal"
                           className="alg-input alg-num-input__field"
                           style={{ fontSize: 14 }}
-                          value={promptPrice || ""}
+                          value={priceText}
                           onChange={(e) => {
-                            setPromptPrice(parseFloat(e.target.value) || 0);
+                            // Allow only digits and a single decimal point so
+                            // "0", "0.", and "0.05" can all be typed freely.
+                            // Treat a typed comma as a decimal point.
+                            let raw = e.target.value
+                              .replace(/,/g, ".")
+                              .replace(/[^0-9.]/g, "");
+                            const firstDot = raw.indexOf(".");
+                            if (firstDot !== -1) {
+                              raw =
+                                raw.slice(0, firstDot + 1) +
+                                raw.slice(firstDot + 1).replace(/\./g, "");
+                            }
+                            setPriceText(raw);
+                            const n = parseFloat(raw);
+                            setPromptPrice(Number.isFinite(n) ? n : 0);
                             setUi((p) => ({ ...p, pricePerRenderReviewed: true }));
                           }}
                           onFocus={() =>
@@ -3087,9 +3895,42 @@ export default function AlgencyPromptEditor() {
               <span className="alg-panel__number">02</span>
               <span className="alg-panel__title">Prompt</span>
             </div>
-            <button className="alg-btn alg-btn--ghost alg-btn--sm" onClick={handleVariableButtonClick}>
-              <Plus size={14} /> Variable
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Clear — wipes everything and starts fresh. Sits left of Undo. */}
+              <button
+                type="button"
+                className="alg-prompt-new-btn"
+                onClick={() => setUi((p) => ({ ...p, confirmNewOpen: true }))}
+                title="Clear everything and start fresh"
+              >
+                <Eraser size={13} />
+                Clear
+              </button>
+              {/* Undo / Redo — icon-only, mirror Ctrl+Z / Ctrl+Y. */}
+              <button
+                type="button"
+                className="alg-prompt-history-btn"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                aria-label="Undo"
+                title={canUndo ? "Undo (Ctrl+Z)" : "Nothing to undo"}
+              >
+                <Undo2 size={13} />
+              </button>
+              <button
+                type="button"
+                className="alg-prompt-history-btn"
+                onClick={handleRedo}
+                disabled={!canRedo}
+                aria-label="Redo"
+                title={canRedo ? "Redo (Ctrl+Y)" : "Nothing to redo"}
+              >
+                <Redo2 size={13} />
+              </button>
+              <button className="alg-btn alg-btn--ghost alg-btn--sm" onClick={handleVariableButtonClick}>
+                <Plus size={14} /> Variable
+              </button>
+            </div>
           </div>
           <div className="alg-panel__body alg-panel__body--workspace">
             {/* Tooltip */}
@@ -3459,12 +4300,9 @@ export default function AlgencyPromptEditor() {
                   <div className="alg-type-toggle">
                     <button
                       className={`alg-type-toggle__btn ${variable.type === "text" ? "alg-type-toggle__btn--active" : ""}`}
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        updateVariable(variable.id, { 
-                          type: "text",
-                          defaultValue: variable.description || variable.defaultValue || variable.label
-                        }); 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestVariableTypeChange(variable.id, "text");
                       }}
                     >
                       Text input
@@ -3473,11 +4311,7 @@ export default function AlgencyPromptEditor() {
                       className={`alg-type-toggle__btn ${variable.type === "checkbox" ? "alg-type-toggle__btn--active" : ""}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateVariable(variable.id, {
-                          type: "checkbox",
-                          description: String(variable.defaultValue || variable.description || variable.label),
-                          defaultValue: true
-                        });
+                        requestVariableTypeChange(variable.id, "checkbox");
                       }}
                     >
                       Yes / No checkbox
@@ -3685,7 +4519,7 @@ export default function AlgencyPromptEditor() {
 
                       {/* Metadata panel */}
                       <div className="alg-version-card__info">
-                                                <div className="alg-verify-var-chips">
+                        <div className="alg-verify-var-chips">
                           {Object.entries(slot.variableSnapshot)
                             .filter(([key]) => key?.trim())
                             .map(([key, val]) => {
@@ -3693,43 +4527,82 @@ export default function AlgencyPromptEditor() {
                               const colors = variable
                                 ? getVariableColors(variable.colorIndex)
                                 : null;
-                              const popoverBody = formatVerifySnapshotValue(
+                              const chipValue = formatVerifySnapshotValue(
                                 String(val ?? ""),
                                 variable
                               );
                               return (
-                                <Popover key={`${slot.id}-${key}`}>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="alg-verify-var-chip"
-                                      style={
-                                        colors
-                                          ? ({
-                                              backgroundColor: colors.bg,
-                                              color: colors.text,
-                                              borderColor: colors.border,
-                                            } as React.CSSProperties)
-                                          : undefined
-                                      }
-                                      onClick={(e) => e.stopPropagation()}
-                                      onPointerDown={(e) => e.stopPropagation()}
-                                    >
-                                      {key}
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    className="alg-verify-var-popover z-[120] w-auto max-w-[min(280px,90vw)] border-[var(--alg-border)] bg-[var(--alg-panel)] p-3 text-[var(--alg-text)] shadow-lg"
-                                    side="top"
-                                    align="start"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <p className="alg-verify-var-popover__label">{key}</p>
-                                    <p className="alg-verify-var-popover__value">{popoverBody}</p>
-                                  </PopoverContent>
-                                </Popover>
+                                /* Display-only chip — clicking it bubbles up to
+                                   mark the card; the full value stays in the
+                                   native hover tooltip. */
+                                <span
+                                  key={`${slot.id}-${key}`}
+                                  className="alg-verify-var-chip"
+                                  title={chipValue ? `${key}: ${chipValue}` : key}
+                                  style={
+                                    colors
+                                      ? ({
+                                          backgroundColor: colors.bg,
+                                          color: colors.text,
+                                          borderColor: colors.border,
+                                        } as React.CSSProperties)
+                                      : undefined
+                                  }
+                                >
+                                  <span className="alg-verify-var-chip__name">{key}</span>
+                                  {chipValue && chipValue !== "—" && (
+                                    <span className="alg-verify-var-chip__value">{chipValue}</span>
+                                  )}
+                                </span>
                               );
                             })}
+                        </div>
+
+                        {/* Per-card reference images — an add button plus an
+                            overlapping stack. Only the buttons stop propagation;
+                            clicking the row still marks the card. */}
+                        <div className="alg-verify-refs">
+                          <span className="alg-verify-refs__label">refs</span>
+                          <div className="alg-verify-refs__row">
+                            {(slot.referenceImages?.length ?? 0) < MAX_VERIFY_REFS && (
+                              <button
+                                type="button"
+                                className="alg-verify-ref-add"
+                                aria-label="Add reference image"
+                                title="Add reference image"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pickVerifyCardRefs(slot.id);
+                                }}
+                              >
+                                <Plus size={14} strokeWidth={2} />
+                              </button>
+                            )}
+                            {(slot.referenceImages?.length ?? 0) > 0 && (
+                              <div className="alg-verify-ref-stack">
+                                {(slot.referenceImages ?? []).map((src, i) => (
+                                  <div
+                                    key={`${slot.id}-ref-${i}`}
+                                    className="alg-verify-ref-slot"
+                                    style={{ zIndex: i + 1 }}
+                                  >
+                                    <img src={src} alt={`Reference ${i + 1}`} />
+                                    <button
+                                      type="button"
+                                      className="alg-verify-ref-slot__remove"
+                                      aria-label={`Remove reference ${i + 1}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeVerifyCardRef(slot.id, i);
+                                      }}
+                                    >
+                                      <X size={9} strokeWidth={2.5} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Download link for complete cards */}

@@ -953,7 +953,7 @@ html.dark .alg-textarea-box {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.07s ease, box-shadow 0.07s ease;
   min-height: clamp(80px, 6vw + 30px, 140px);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
@@ -963,6 +963,8 @@ html.dark .alg-textarea-box {
 }
 .alg-version-card--selected {
   border-color: var(--alg-accent);
+  /* Fat, dominant selection ring (box-shadow avoids any layout shift). */
+  box-shadow: 0 0 0 3px var(--alg-accent), 0 3px 12px rgba(199,102,58,0.25);
 }
 /* — Thumbnail — */
 .alg-version-card__thumb {
@@ -1014,23 +1016,142 @@ html.dark .alg-textarea-box {
 }
 
 .alg-verify-var-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  max-width: 100%;
   border: 1px solid var(--alg-border);
-  border-radius: 3px;
-  padding: 0 5px;
-  line-height: 1.25;
+  border-radius: 4px;
+  padding: 2px 6px;
+  line-height: 1.2;
   font-family: var(--alg-font-mono);
   font-size: 9px;
   font-weight: 500;
   color: var(--alg-text);
   background: var(--alg-surface);
-  cursor: pointer;
+  text-align: left;
   transition: opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Variable name — bold top line of the chip. */
+.alg-verify-var-chip__name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Variable value — subtitle below the name, truncated to one line. */
+.alg-verify-var-chip__value {
+  font-weight: 500;
+  font-size: 8px;
+  opacity: 0.78;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alg-verify-var-chip:hover {
   opacity: 0.92;
   box-shadow: 0 0 0 1px var(--alg-border);
 }
+
+/* ─── Per-verify-card reference images ─── */
+.alg-verify-refs {
+  --alg-vref-tile: 30px;
+  --alg-vref-overlap: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+.alg-verify-refs__label {
+  font-family: var(--alg-font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--alg-hint);
+  user-select: none;
+}
+.alg-verify-refs__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.alg-verify-ref-add {
+  flex: 0 0 var(--alg-vref-tile);
+  width: var(--alg-vref-tile);
+  height: var(--alg-vref-tile);
+  border-radius: 5px;
+  border: 1.5px dashed var(--alg-border);
+  background: var(--alg-surface);
+  color: var(--alg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.alg-verify-ref-add:hover:not(:disabled) {
+  border-color: var(--alg-accent);
+  color: var(--alg-accent);
+}
+.alg-verify-ref-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.alg-verify-ref-stack {
+  display: flex;
+  align-items: center;
+  padding-left: var(--alg-vref-overlap);
+}
+.alg-verify-ref-slot {
+  flex: 0 0 var(--alg-vref-tile);
+  width: var(--alg-vref-tile);
+  height: var(--alg-vref-tile);
+  border-radius: 5px;
+  position: relative;
+  margin-left: calc(var(--alg-vref-overlap) * -1);
+  overflow: visible;
+  box-shadow: 0 0 0 1.5px var(--alg-surface);
+  transition: transform 0.12s ease, z-index 0s;
+}
+.alg-verify-ref-slot:hover,
+.alg-verify-ref-slot:focus-within {
+  z-index: 30 !important;
+  transform: translateY(-2px);
+}
+.alg-verify-ref-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+  display: block;
+}
+.alg-verify-ref-slot__remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--alg-dark);
+  color: var(--alg-white);
+  border: 1px solid var(--alg-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  padding: 0;
+}
+.alg-verify-ref-slot:hover .alg-verify-ref-slot__remove,
+.alg-verify-ref-slot:focus-within .alg-verify-ref-slot__remove { opacity: 1; }
+.alg-verify-ref-slot__remove:hover { transform: scale(1.12); }
 
 .alg-verify-var-popover__label {
   margin: 0 0 4px;
@@ -1380,6 +1501,104 @@ html.dark .alg-textarea-box {
   color: var(--alg-text);
 }
 .alg-tag-input::placeholder { color: var(--alg-hint); }
+
+/* ─── Category dropdown (single-select, mirrors feed categories) ─── */
+.alg-category-select {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 11px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  letter-spacing: 0.5px;
+  color: var(--alg-text);
+}
+.alg-category-select__label { color: var(--alg-hint); }
+.alg-category-select:hover .alg-category-select__label { color: var(--alg-text); }
+
+.alg-category-popover {
+  border-radius: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.alg-category-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  letter-spacing: 0.3px;
+  color: var(--alg-text);
+}
+.alg-category-option:hover { background: var(--alg-bg); }
+.alg-category-option--active {
+  color: #E07045;
+  font-weight: 600;
+}
+
+/* ─── Undo / Redo buttons (Prompt header) ─── */
+.alg-prompt-history-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--alg-border);
+  background: transparent;
+  color: var(--alg-hint);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.alg-prompt-history-btn:hover:not(:disabled) {
+  color: var(--alg-dark);
+  background: var(--alg-bg);
+}
+.alg-prompt-history-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.alg-prompt-history-btn svg { display: block; }
+
+/* "New" button — sits to the left of Undo in the Prompt header. */
+.alg-prompt-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 4px;
+  border: 1px solid var(--alg-border);
+  background: transparent;
+  color: var(--alg-hint);
+  cursor: pointer;
+  font-family: var(--alg-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.alg-prompt-new-btn:hover {
+  color: var(--alg-dark);
+  background: var(--alg-bg);
+}
+.alg-prompt-new-btn svg { display: block; }
 
 .alg-stack-btn__count {
   font-family: var(--font-jetbrains-mono), monospace;
@@ -2679,6 +2898,44 @@ html.dark .alg-textarea-box {
   [role="dialog"][data-state],
   [data-radix-dialog-overlay][data-state],
   [data-radix-alert-dialog-overlay][data-state] {
+    animation: none !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * FLEX-CENTERED POPUP ANIMATION (.alg-pop)
+ *
+ * The global `alg-popup-in` keyframe above bakes in
+ * `transform: translate(-50%, -50%)`, which is correct for panels that
+ * center themselves with that same translate. Panels marked `.alg-pop`
+ * instead center via a flex wrapper (no transform), so that translate
+ * would shove them toward the top-left during the animation, then snap
+ * them back to center when it ends — a visible corner-to-center flash.
+ *
+ * These rules opt `.alg-pop` panels into a transform-only (scale)
+ * entrance so their centering is never disturbed. The selectors include
+ * the `[role]` attribute so they out-specify the role-only global rule
+ * regardless of stylesheet order.
+ * ────────────────────────────────────────────────────────────────── */
+@keyframes alg-pop-scale-in {
+  0%   { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes alg-pop-scale-out {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+[role="alertdialog"].alg-pop[data-state="open"],
+[role="dialog"].alg-pop[data-state="open"] {
+  animation: alg-pop-scale-in 220ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+[role="alertdialog"].alg-pop[data-state="closed"],
+[role="dialog"].alg-pop[data-state="closed"] {
+  animation: alg-pop-scale-out 150ms cubic-bezier(0.4, 0, 1, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="alertdialog"].alg-pop[data-state],
+  [role="dialog"].alg-pop[data-state] {
     animation: none !important;
   }
 }
