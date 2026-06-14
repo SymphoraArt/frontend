@@ -7,7 +7,6 @@ import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useTheme } from "../providers/ThemeProvider";
 import { addCreation } from "@/lib/creations";
 import AlgencyMobileGenerateModal from "@/components/AlgencyMobileGenerateModal";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
@@ -44,8 +43,6 @@ type GenerateLauncherProps = {
 export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: GenerateLauncherProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
   const account = useActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
@@ -297,8 +294,8 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
             style={{
               width: "100%",
               maxWidth: 560,
-              background: isDark ? "#FFFFFF" : "#1a1715",
-              color: isDark ? "#1C1A18" : "#FFFFFF",
+              background: "var(--qc-bg)",
+              color: "var(--qc-ink)",
               padding: "16px 24px",
               borderRadius: 32,
               display: "flex",
@@ -311,12 +308,12 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Sparkles size={18} style={{ fill: isDark ? "#1C1A18" : "#FFFFFF" }} />
+              <Sparkles size={18} style={{ fill: "var(--qc-ink)" }} />
               <span style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif", fontSize: 16, fontWeight: 500 }}>
                 Generate
               </span>
             </div>
-            <span style={{ fontFamily: "var(--font-instrument-serif), 'Playfair Display', serif", fontStyle: "italic", fontSize: 15, color: "#9A938A" }}>
+            <span style={{ fontFamily: "var(--font-instrument-serif), 'Playfair Display', serif", fontStyle: "italic", fontSize: 15, color: "var(--qc-ink)", opacity: 0.7 }}>
               new image
             </span>
           </button>

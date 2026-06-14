@@ -156,7 +156,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
       <header style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         width: "100%",
-        background: isDark ? "var(--header-bg)" : "rgba(255, 255, 255, 0.98)",
+        background: "var(--header-bg)",
         backdropFilter: "blur(64px) saturate(200%)",
         WebkitBackdropFilter: "blur(64px) saturate(200%)",
         fontFamily: "var(--font-sans)",

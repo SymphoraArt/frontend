@@ -93,6 +93,11 @@ textarea {
   --elevate-2: rgba(0, 0, 0, 0.08);
   /* Brand accent as rgb components for rgba() glows. Orange in light. */
   --ember-rgb: 201, 104, 56;
+  /* Theme-driven chrome so the header/launcher paint the right color from the
+     first frame (resolved from the <html> class, no JS flash). */
+  --header-bg: rgba(255, 255, 255, 0.98);
+  --qc-bg: #1a1715;   /* generate launcher pill */
+  --qc-ink: #ffffff;
   --background: 45 45% 97%;
   --foreground: 190 30% 12%;
   --border: 182 16% 78%;
@@ -240,6 +245,8 @@ textarea {
   --cta-ink: #0a1825;
   --cta-hover: #d8b362;
   --header-bg: rgba(10, 24, 37, 0.98);
+  --qc-bg: #2bb9a8;   /* brighter teal launcher in dark */
+  --qc-ink: #052a25;
   --background: 205 52% 8%; /* #0a1825 midnight navy */
   --foreground: 200 27% 92%; /* #e4edf1 */
 
@@ -365,6 +372,8 @@ textarea {
   --cta-ink: #ffffff;
   --cta-hover: #9d6ef8;
   --header-bg: rgba(20, 14, 32, 0.98);
+  --qc-bg: #8b5cf6;   /* violet launcher in purple */
+  --qc-ink: #ffffff;
 
   --background: 263 45% 9%;   /* deep violet-black */
   --foreground: 260 28% 93%;
