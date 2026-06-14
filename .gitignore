@@ -41,3 +41,6 @@ service-account*.json
 
 # Standardized on npm; ignore stray pnpm lockfiles
 pnpm-lock.yaml
+
+# Vercel CLI project linking (do not commit)
+.vercel
