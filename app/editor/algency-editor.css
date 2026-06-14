@@ -45,32 +45,36 @@ html.dark .alg-model-card {
   background: var(--alg-surface);
 }
 
+/* Map the editor's dark tokens onto the shared theme vars so the editor
+   follows the active theme: navy + gold in dark, violet in purple. The
+   shared vars (--surface-*, --ember-rgb, --background, --muted-foreground)
+   are re-tinted by .theme-purple, so no separate purple block is needed. */
 html.dark {
-  --alg-bg: #0F0E0D;
-  --alg-panel: #161514;
-  --alg-border: #2C2A26;
-  --alg-accent: #D07B55;
-  --alg-accent-light: #4A3326;
+  --alg-bg: hsl(var(--background));
+  --alg-panel: var(--surface-1);
+  --alg-border: var(--surface-rule);
+  --alg-accent: rgb(var(--ember-rgb));
+  --alg-accent-light: rgba(var(--ember-rgb), 0.16);
   --alg-dark: #FFFFFF;
-  --alg-muted: #A39B92;
-  --alg-hint: #706B64;
+  --alg-muted: hsl(var(--muted-foreground));
+  --alg-hint: hsl(var(--muted-foreground) / 0.7);
   --alg-green: #22C55E;
-  --alg-text: #E8E5DF;
-  --alg-white: #1C1A18;
-  --alg-tag-subject: #D07B55;
-  --alg-tag-subject-bg: #4A3326;
+  --alg-text: var(--surface-text);
+  --alg-white: var(--surface-1);
+  --alg-tag-subject: rgb(var(--ember-rgb));
+  --alg-tag-subject-bg: rgba(var(--ember-rgb), 0.16);
   --alg-tag-mood: #4FB385;
-  --alg-tag-mood-bg: #1C3B2B;
+  --alg-tag-mood-bg: #16332a;
   --alg-tag-lighting: #6296ED;
-  --alg-tag-lighting-bg: #1D2E4A;
-  --alg-peach-bg: #2C1F18;
-  --alg-peach-border: #4A3326;
-  --alg-warm-white: #1C1A18;
-  --alg-disabled-bg: #2C2A26;
-  --alg-hover-bg: #252320;
-  --alg-input-border: #3A3631;
-  --alg-surface: #1C1A18;
-  --alg-surface-elevated: #22201d;
+  --alg-tag-lighting-bg: #16263f;
+  --alg-peach-bg: rgba(var(--ember-rgb), 0.10);
+  --alg-peach-border: rgba(var(--ember-rgb), 0.30);
+  --alg-warm-white: var(--surface-1);
+  --alg-disabled-bg: var(--surface-2);
+  --alg-hover-bg: var(--surface-2);
+  --alg-input-border: var(--surface-rule);
+  --alg-surface: var(--surface-1);
+  --alg-surface-elevated: var(--surface-2);
 }
 
 /* ─── Page ─── */
@@ -897,7 +901,7 @@ html.dark .alg-textarea-box {
   font-size: clamp(9px, 0.6vw + 6px, 12px); font-weight: 700; letter-spacing: 1.2px; color: #B0AAA2; text-transform: uppercase;
 }
 .alg-toggle-inserts-block {
-  border-left: 2.5px solid #E07045; padding-left: 10px; margin: 6px 0;
+  border-left: 2.5px solid rgb(var(--ember-rgb)); padding-left: 10px; margin: 6px 0;
   font-family: var(--font-serif), 'Playfair Display', serif;
   font-size: clamp(14px, 1vw + 6px, 18px); font-style: italic; color: #5A5550; line-height: 1.2;
 }
@@ -959,12 +963,12 @@ html.dark .alg-textarea-box {
 }
 .alg-version-card:hover {
   border-color: var(--alg-accent);
-  box-shadow: 0 3px 10px rgba(199,102,58,0.12);
+  box-shadow: 0 3px 10px rgba(var(--ember-rgb),0.12);
 }
 .alg-version-card--selected {
   border-color: var(--alg-accent);
   /* Fat, dominant selection ring (box-shadow avoids any layout shift). */
-  box-shadow: 0 0 0 3px var(--alg-accent), 0 3px 12px rgba(199,102,58,0.25);
+  box-shadow: 0 0 0 3px var(--alg-accent), 0 3px 12px rgba(var(--ember-rgb),0.25);
 }
 /* — Thumbnail — */
 .alg-version-card__thumb {
@@ -988,7 +992,7 @@ html.dark .alg-textarea-box {
 .alg-version-card__overlay-status {
   position: absolute; top: 4px; right: 4px;
   font-family: monospace; font-size: clamp(7px, 0.5vw + 4px, 10px);
-  color: #c0542a; letter-spacing: 0.03em;
+  color: rgb(var(--ember-rgb)); letter-spacing: 0.03em;
 }
 .alg-version-card__overlay-label {
   position: absolute; bottom: 4px;
@@ -1225,7 +1229,7 @@ html.dark .alg-textarea-box {
   width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.alg-version-card__checkbox--checked { background: #c0542a; }
+.alg-version-card__checkbox--checked { background: rgb(var(--ember-rgb)); }
 .alg-version-card__checkbox--unchecked { background: transparent; border: 1.5px solid #c8c0b4; }
 .alg-version-card__checkbox-label {
   font-family: monospace; font-size: clamp(8px, 0.5vw + 5px, 11px); color: #2c2822;
@@ -1494,7 +1498,7 @@ html.dark .alg-textarea-box {
   color: var(--alg-hint); font-size: 12px; line-height: 1;
   padding: 0; margin-left: 2px;
 }
-.alg-tag-chip__remove:hover { color: #E07045; }
+.alg-tag-chip__remove:hover { color: rgb(var(--ember-rgb)); }
 .alg-tag-input {
   flex: 1; min-width: 120px; border: none; outline: none; background: transparent;
   font-size: 11px; font-family: var(--font-jetbrains-mono), monospace;
@@ -1547,7 +1551,7 @@ html.dark .alg-textarea-box {
 }
 .alg-category-option:hover { background: var(--alg-bg); }
 .alg-category-option--active {
-  color: #E07045;
+  color: rgb(var(--ember-rgb));
   font-weight: 600;
 }
 
@@ -1642,7 +1646,7 @@ html.dark .alg-textarea-box {
   z-index: 20;
   border-radius: 4px 4px 0 0;
 }
-.alg-bridge-btn:hover:not(:disabled) { background: #E07045; }
+.alg-bridge-btn:hover:not(:disabled) { background: rgb(var(--ember-rgb)); }
 .alg-bridge-btn:disabled { background: #D5D1CB; cursor: not-allowed; opacity: 0.5; }
 .alg-bridge-btn__icon {
   font-size: 12px;
@@ -1662,7 +1666,7 @@ html.dark .alg-textarea-box {
   color: #6A6560; font-size: 11px; padding: 0; line-height: 1;
   flex-shrink: 0;
 }
-.alg-val-chip__remove:hover { color: #E07045; }
+.alg-val-chip__remove:hover { color: rgb(var(--ember-rgb)); }
 .alg-val-add-input {
   width: 100%; border: none; border-bottom: 1px dashed var(--alg-border);
   background: transparent; outline: none; padding: 4px 0;
@@ -1687,7 +1691,7 @@ html.dark .alg-textarea-box {
   transition: background 0.15s ease, transform 0.15s ease;
   border-radius: 6px;
 }
-.alg-pay-btn:hover:not(:disabled) { background: #b35a30; transform: translateY(-1px); }
+.alg-pay-btn:hover:not(:disabled) { background: rgb(var(--ember-rgb)); transform: translateY(-1px); }
 .alg-pay-btn:disabled { background: var(--alg-disabled-bg); cursor: not-allowed; }
 .alg-pay-btn--footer {
   width: auto; padding: 8px 18px;
@@ -1711,14 +1715,14 @@ html.dark .alg-textarea-box {
   font-family: var(--font-jetbrains-mono), monospace; font-size: 9px; cursor: pointer;
   letter-spacing: 0.5px;
 }
-.alg-refill-bar__delete:hover { color: #E07045; border-color: #E07045; }
+.alg-refill-bar__delete:hover { color: rgb(var(--ember-rgb)); border-color: rgb(var(--ember-rgb)); }
 .alg-refill-bar__refill {
   background: #1C1A18; color: #FFFFFF; border: none; cursor: pointer;
   padding: 6px 14px; display: flex; align-items: center; gap: 6px;
   font-family: var(--font-jetbrains-mono), monospace; font-size: 9px;
   font-weight: 600; letter-spacing: 0.5px; transition: background 0.15s;
 }
-.alg-refill-bar__refill:hover { background: #E07045; }
+.alg-refill-bar__refill:hover { background: rgb(var(--ember-rgb)); }
 .alg-refill-bar__cost {
   background: rgba(255,255,255,0.12); padding: 1px 6px; font-size: 9px;
   color: #E8B89A; border-radius: 2px;
@@ -1756,7 +1760,7 @@ html.dark .alg-textarea-box {
   z-index: 2;
 }
 .alg-bridge-track__dot:last-child {
-  border-color: #c7663a;
+  border-color: rgb(var(--ember-rgb));
 }
 /* Dashed circuit trace */
 .alg-bridge-track__line {
@@ -1782,22 +1786,22 @@ html.dark .alg-textarea-box {
 /* Back ("Edit — send selected back to Variables") button.
  *
  * Designed as the visual INVERSE of the forward Push button:
- *   - Forward / Push: deep rust fill (#c7663a) + WHITE arrow
- *   - Back  / Edit:   soft / faded rust fill          + RUST arrow (#c7663a)
+ *   - Forward / Push: deep rust fill (rgb(var(--ember-rgb))) + WHITE arrow
+ *   - Back  / Edit:   soft / faded rust fill          + RUST arrow (rgb(var(--ember-rgb)))
  *
  * Same hue family, opposite contrast role. Lets the user read at a
  * glance that the two arrows do opposite things, while keeping the
  * Edit button always feeling "warm" (orange family) instead of the
  * old neutral grey-outlined look. */
 .alg-arrow-btn--back {
-  background: rgba(199, 102, 58, 0.10);   /* soft orange wash */
-  border: 1px solid rgba(199, 102, 58, 0.35);
-  color: #c7663a;                          /* the orange arrow */
+  background: rgba(var(--ember-rgb), 0.10);   /* soft orange wash */
+  border: 1px solid rgba(var(--ember-rgb), 0.35);
+  color: rgb(var(--ember-rgb));                          /* the orange arrow */
 }
 .alg-arrow-btn--back:hover:not(:disabled) {
-  background: rgba(199, 102, 58, 0.18);
-  border-color: rgba(199, 102, 58, 0.55);
-  color: #c7663a;
+  background: rgba(var(--ember-rgb), 0.18);
+  border-color: rgba(var(--ember-rgb), 0.55);
+  color: rgb(var(--ember-rgb));
 }
 .alg-arrow-btn--back.alg-arrow-btn--active {
   /* Armed state (exactly one verify card selected) — the resting
@@ -1805,38 +1809,38 @@ html.dark .alg-textarea-box {
      contrast: the fill is a SOLID, clearly-visible soft peach so
      it reads as its own colour (not just a transparent wash of
      rust), while the arrow stroke and border stay in the deep
-     rust #c7663a used by the Push button.
+     rust rgb(var(--ember-rgb)) used by the Push button.
      Result: same hue family, opposite lightness, strong glyph
      contrast — the precise "conflicting colours" the design calls
      for and the exact inverse of Push (deep rust fill + white
      arrow). */
-  background: #fadbc4;       /* solid soft orange — the "big color" */
-  border-color: #c7663a;     /* deep rust outline */
-  color: #c7663a;            /* deep rust arrow stroke */
-  box-shadow: 0 0 0 2px rgba(199, 102, 58, 0.18);
+  background: rgba(var(--ember-rgb), 0.22);       /* solid soft orange — the "big color" */
+  border-color: rgb(var(--ember-rgb));     /* deep rust outline */
+  color: rgb(var(--ember-rgb));            /* deep rust arrow stroke */
+  box-shadow: 0 0 0 2px rgba(var(--ember-rgb), 0.18);
 }
 .alg-arrow-btn--back.alg-arrow-btn--active:hover:not(:disabled) {
   /* On hover, lift the soft-orange a notch and keep the rust
      accents — never collapse to a filled rust circle (that's the
      Push design and would defeat the inverse). */
-  background: #f6c8a6;
-  border-color: #a8482a;
-  color: #a8482a;
+  background: rgba(var(--ember-rgb), 0.18);
+  border-color: rgb(var(--ember-rgb));
+  color: rgb(var(--ember-rgb));
 }
 
 .alg-bridge-overlay--back-active .alg-bridge-track__dot:first-child {
-  border-color: #c7663a;
-  background: rgba(199, 102, 58, 0.18);
+  border-color: rgb(var(--ember-rgb));
+  background: rgba(var(--ember-rgb), 0.18);
 }
 
 /* Forward button — filled rust circle */
 .alg-arrow-btn--forward {
-  background: #c7663a;
+  background: rgb(var(--ember-rgb));
   color: #fff;
-  border: 1px solid #c7663a;
+  border: 1px solid rgb(var(--ember-rgb));
 }
 .alg-arrow-btn--forward:hover:not(:disabled) {
-  background: #a8482a; border-color: #a8482a;
+  background: rgb(var(--ember-rgb)); border-color: rgb(var(--ember-rgb));
 }
 
 /* ═══════════════════════════════════════════
@@ -2971,7 +2975,7 @@ html.dark .alg-textarea-box {
   transition: background 0.15s ease;
 }
 .alg-ref-zone--drop-active {
-  background: rgba(199, 102, 58, 0.06);
+  background: rgba(var(--ember-rgb), 0.06);
   outline: 1px dashed var(--alg-accent);
   outline-offset: 2px;
 }
@@ -3345,4 +3349,4 @@ body.alg-ref-preview-open > * > header:first-child {
   .alg-ref-preview__img--prev {
     animation: none;
   }
-}
+}
