@@ -52,6 +52,7 @@
     --lp-base-rgb: 14, 128, 116;
     --lp-deep-rgb: 4, 20, 28;
     --lp-shade-rgb: 4, 16, 22; /* dark scrim for image-card captions (all themes) */
+    --lp-ghost-fg: #f0e9dc; /* outline-button text (warm off-white on dark) */
     /* headline gradient — same colour family as the hero banner, with enough
        lightness contrast to stay readable (teal here). */
     /* Headline in warm peach & gold — complementary to the teal banner. */
@@ -104,6 +105,7 @@
     --lp-base-rgb: 105, 56, 190;
     --lp-deep-rgb: 0, 10, 50;
     --lp-shade-rgb: 8, 4, 24;
+    --lp-ghost-fg: #ece4f7;
     --lp-head-1: #f3ecff;
     --lp-head-2: #C084FC;
     --lp-head-3: #A855F7;
@@ -136,6 +138,10 @@
     --lp-base-rgb: 240, 195, 156;
     --lp-deep-rgb: 253, 246, 236;
     --lp-shade-rgb: 38, 26, 18; /* dark warm scrim so captions read on bright */
+    --lp-ghost-fg: #6b4a2c;       /* creamy brown outline-button text on cream */
+    --accent-bright: #a25c2c;     /* darker creamy-brown for accent text (cat tags, names) */
+    --gold: #b07d1c;              /* darker amber so ratings sit in the warm palette */
+    --card-bg: rgba(247, 234, 219, 0.72); /* a touch warmer + more defined cream card */
     /* warm dark text on cream */
     --white: #3a2a1e;
     --white-60: rgba(58,42,30,0.74);
@@ -585,7 +591,7 @@
   .btn-primary:hover::before { opacity: 1; }
 
   .btn-ghost {
-    background: transparent; color: white; border: 1.5px solid var(--white-30);
+    background: transparent; color: var(--lp-ghost-fg, white); border: 1.5px solid var(--white-30);
     border-radius: 14px; padding: 15px 36px; font-size: 1rem; font-weight: 600;
     font-family: 'DM Sans', sans-serif; cursor: none; letter-spacing: 0.01em;
     transition: all 0.25s; backdrop-filter: blur(8px);
