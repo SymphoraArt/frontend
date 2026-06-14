@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "../providers/ThemeProvider";
 import { addCreation } from "@/lib/creations";
 import AlgencyMobileGenerateModal from "@/components/AlgencyMobileGenerateModal";
+import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 
 // Per-render display price (USD). This build generates via the free Pollinations
 // endpoint, so the price is cosmetic — it mirrors the editor's $0.10 label.
@@ -28,8 +29,19 @@ const MAX_REFERENCE_IMAGES = 20;
  *
  * This build has no server-side billing, so generation runs through the free
  * Pollinations endpoint (/api/generate-free) — no balance, no on-chain payment.
+ *
+ * `seedPrompt` lets the explore feed open this same modal pre-filled with a
+ * clicked prompt: free prompts (visibility "full") expose the full editable
+ * body; paid prompts (visibility "vars-only") lock the body and surface only
+ * the creator's exposed variables. When `seedPrompt` is null the launcher
+ * behaves as the blank floating "Generate" entry point.
  */
-export default function GenerateLauncher() {
+type GenerateLauncherProps = {
+  seedPrompt?: EnkiPrompt | null;
+  onSeedClose?: () => void;
+};
+
+export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: GenerateLauncherProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { theme } = useTheme();
@@ -52,6 +64,51 @@ export default function GenerateLauncher() {
   const [nftImages, setNftImages] = useState<string[]>([]);
   const nftInputRef = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<string[]>([]);
+  // When opened from a clicked feed prompt: lock the body for paid prompts and
+  // carry the creator's exposed variables (which may be checkbox/image types
+  // that can't be inferred from the visible template via regex).
+  const [locked, setLocked] = useState(false);
+  type SeedVariable = { id: string; name: string; label: string; type: string; defaultValue: string; values: string[] };
+  const [seededVariables, setSeededVariables] = useState<SeedVariable[] | null>(null);
+
+  // Seed the modal from a clicked feed prompt.
+  useEffect(() => {
+    if (!seedPrompt) return;
+    const isPaid = seedPrompt.visibility === "vars-only";
+    const body = seedPrompt.promptTemplate || "";
+    const seededValues: Record<string, string> = {};
+    const mapped: SeedVariable[] = (seedPrompt.variables || []).map((v) => {
+      const token = `[${v.name}]`;
+      const val = typeof v.value === "boolean" ? "" : String(v.value ?? "");
+      seededValues[token] = val;
+      return {
+        id: token,
+        name: v.name,
+        label: v.label || v.name,
+        type: v.type === "checkbox" || v.type === "image" ? v.type : "text",
+        defaultValue: val,
+        values: [val],
+      };
+    });
+    setPrompt(body);
+    setValueByToken(seededValues);
+    setSeededVariables(mapped.length ? mapped : null);
+    setLocked(isPaid);
+    setReferenceImages([]);
+    setNftImages([]);
+    setResults([]);
+    setOpen(true);
+  }, [seedPrompt]);
+
+  const closeModal = () => {
+    setOpen(false);
+    setResults([]);
+    setLocked(false);
+    setSeededVariables(null);
+    setPrompt("");
+    setValueByToken({});
+    onSeedClose?.();
+  };
 
   // Detect [bracket] variables; preserve entered values keyed by token.
   const variables = useMemo(() => {
@@ -181,13 +238,13 @@ export default function GenerateLauncher() {
       />
       <AlgencyMobileGenerateModal
         isOpen={open}
-        onClose={() => {
-          setOpen(false);
-          setResults([]);
-        }}
+        onClose={closeModal}
         promptBody={prompt}
-        setPromptBody={setPrompt}
-        variables={variables}
+        // Paid (vars-only) prompts keep the body hidden/locked: no setter → read-only.
+        setPromptBody={locked ? undefined : setPrompt}
+        // Prefer the creator's exposed variables when a prompt was clicked;
+        // otherwise infer text variables from the typed body.
+        variables={seededVariables ?? variables}
         onVariableChange={(id, val) => setValueByToken((prev) => ({ ...prev, [id]: val }))}
         onAddVariable={() => {
           const n = variables.length + 1;

@@ -4,7 +4,6 @@ import { useMemo, useState, useRef, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import EnkiCard from "@/components/enki/EnkiCard";
-import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import EnkiFilters from "@/components/enki/EnkiFilters";
 import GenerateLauncher from "@/components/GenerateLauncher";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
@@ -118,6 +117,15 @@ export default function EnkiFeedPage() {
   return (
     <>
       <main className="enki">
+        <header className="enki-page-title" style={{ paddingTop: 28 }}>
+          <div className="enki-page-eyebrow">Explore · Premium AI Visual Marketplace</div>
+          <h1 className="enki-page-h1">
+            AI art, <em style={{ fontStyle: "italic" }}>expert-crafted</em>.
+          </h1>
+          <p className="enki-page-lede">
+            Buy expert AI styles, adjust the variables, and generate stunning visuals in seconds.
+          </p>
+        </header>
         {visible.length > 0 ? (
           <section className="enki-masonry">
             {visible.map((prompt) => (
@@ -157,15 +165,9 @@ export default function EnkiFeedPage() {
           </section>
         ) : null}
 
-        <GenerateLauncher />
-        {open && (
-          <EnkiDetailPanel
-            prompt={open}
-            onClose={() => setOpen(null)}
-            faved={Boolean(favs[open.id])}
-            toggleFav={toggleFav}
-          />
-        )}
+        {/* One launcher drives both the blank floating "Generate" button and the
+            seeded view opened by clicking a feed card. */}
+        <GenerateLauncher seedPrompt={open} onSeedClose={() => setOpen(null)} />
       </main>
 
       <EnkiFilters active={tags} toggle={toggleTag} />

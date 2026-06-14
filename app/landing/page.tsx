@@ -1,9 +1,9 @@
 "use client";
 
-// The marketing site is the landing page. It lives as a self-contained
-// document at /landing.html and is embedded below the app's global header.
-// The browse/feed experience now lives at /explore.
-export default function HomePage() {
+// The marketing site lives as a self-contained document at /landing.html.
+// We embed it below the app's global header (from the root layout) so it
+// uses the app header instead of its own nav.
+export default function LandingPage() {
   return (
     <div style={{ position: "fixed", top: 64, left: 0, right: 0, bottom: 0 }}>
       <iframe

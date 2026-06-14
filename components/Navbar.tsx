@@ -138,7 +138,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   };
 
   const NAV_LINKS = [
-    { label: "DISCOVER", href: "/", disabled: false },
+    { label: "EXPLORE", href: "/explore", disabled: false },
     { label: "IMAGES", href: "/images", disabled: false },
     { label: "VIDEOS", href: "/showcase", disabled: true, tooltip: "Video prompts will be implemented soon" },
   ];
@@ -170,7 +170,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           {!isMobile && (
             <nav style={{ display: "flex", alignItems: "center", gap: isTablet ? 0 : 4, margin: "0 auto" }}>
               {visibleNavLinks.map(({ label, href, disabled, tooltip }) => {
-                const isActive = (label === "DISCOVER" && pathname === "/") || (label === "IMAGES" && pathname === "/images");
+                const isActive = (label === "EXPLORE" && pathname === "/explore") || (label === "IMAGES" && pathname === "/images");
                 return (
                   <button
                     key={label}
