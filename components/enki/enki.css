@@ -29,6 +29,23 @@
   --enki-ember: #cba24a;
 }
 
+/* Purple variant of the feed palette (landing-page violet). */
+.dark.theme-purple .enki {
+  --enki-paper: #140e1f;
+  --enki-paper-2: #1c1330;
+  --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5;
+  --enki-ink-2: #a99fc0;
+  --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442;
+  --enki-rule-2: #3d3154;
+  --enki-ember: #a855f7;
+}
+
+.dark.theme-purple .enki-catbar {
+  background: rgba(20, 14, 32, 0.98);
+}
+
 .enki .serif {
   font-family: var(--font-serif), Georgia, serif;
 }

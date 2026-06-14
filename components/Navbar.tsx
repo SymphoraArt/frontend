@@ -13,8 +13,6 @@ import {
   MessageSquareHeart,
   PenLine,
   Menu,
-  Sun,
-  Moon,
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,7 +95,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   // top-ups credit (see BillingPanel / useHoldings).
   const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
   const { balance: holdings, ready: holdingsReady } = useHoldings(holdingsAddress);
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,7 +120,8 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   }, []);
   const walletAddress = walletInfo.address ?? solanaSessionAddress ?? turnkeyAddress ?? (solanaSessionActive ? solanaPublicKey?.toBase58() ?? null : null);
   const { isMobile, isTablet, isDesktop } = useBreakpoint();
-  const isDark = themeReady && theme === "dark";
+  // Purple is a dark variant, so "dark styling" applies to both.
+  const isDark = themeReady && theme !== "light";
 
   useEffect(() => {
     setThemeReady(true);
@@ -157,7 +156,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
       <header style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         width: "100%",
-        background: isDark ? "rgba(10, 10, 12, 0.98)" : "rgba(255, 255, 255, 0.98)",
+        background: isDark ? "var(--header-bg)" : "rgba(255, 255, 255, 0.98)",
         backdropFilter: "blur(64px) saturate(200%)",
         WebkitBackdropFilter: "blur(64px) saturate(200%)",
         fontFamily: "var(--font-sans)",
@@ -169,7 +168,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
             <span style={{ fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic", fontWeight: 400, fontSize: isMobile ? 22 : 28, color: isDark ? "#f1f1f3" : "#111", letterSpacing: "-0.02em" }}>
               Enki Art
             </span>
-            <span style={{ color: isDark ? "#cba24a" : "#c96838", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
+            <span style={{ color: "rgb(var(--ember-rgb))", fontSize: 24, lineHeight: 1, marginLeft: 1 }}>.</span>
           </div>
 
           {!isMobile && (
@@ -256,21 +255,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               </div>
             )}
 
-            <button
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
-              style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "none", border: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: iconColor, transition: "background 0.2s ease, color 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-            >
-              {isDark ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-
             {isDesktop && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 4, marginRight: 6 }}>
                 <button onClick={() => router.push("/leaderboard")} title="Leaderboard" style={{ background: "none", border: "none", cursor: "pointer", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -288,16 +272,16 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 <button onClick={() => router.push("/editor")} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "0 20px", height: 36,
-                  background: isDark ? "linear-gradient(135deg, #cba24a 0%, #b8862f 100%)" : "#111",
-                  color: isDark ? "#0a1825" : "#fff",
+                  background: isDark ? "var(--cta-bg)" : "#111",
+                  color: isDark ? "var(--cta-ink)" : "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
                   fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans), sans-serif", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap",
-                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(203, 162, 74, 0.3)" : "0 2px 10px rgba(0,0,0,0.1)",
+                  boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 14px rgba(var(--ember-rgb), 0.3)" : "0 2px 10px rgba(0,0,0,0.1)",
                   transition: "transform 0.2s ease, box-shadow 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "scale(1.02)";
-                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(203, 162, 74, 0.45)";
+                  if (isDark) e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 20px rgba(var(--ember-rgb), 0.45)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "scale(1)";
@@ -349,7 +333,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
               onMouseEnter={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.12)" : "#ebe5d8")}
               onMouseLeave={(e) => (e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.06)" : "#f3efe7")}
             >
-              <Wallet size={14} color={isDark ? "#cba24a" : "#c96838"} />
+              <Wallet size={14} color="rgb(var(--ember-rgb))" />
               ${holdingsReady ? holdings.toFixed(2) : "0.00"}
             </button>
 
@@ -384,7 +368,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                 align="end" 
                 className="w-72 p-0 rounded-[12px] overflow-hidden border shadow-2xl"
                 style={{
-                  background: isDark ? "#102433" : "#faf8f4",
+                  background: isDark ? "var(--surface-1)" : "#faf8f4",
                   color: isDark ? "#e8e0cc" : "#1a1715",
                   borderColor: isDark ? "rgba(255,255,255,0.1)" : "#d8d2c5"
                 }}
@@ -486,6 +470,47 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                       <Wallet size={14} /> Connect Wallet
                     </DropdownMenuItem>
                   )}
+                </div>
+
+                {/* Color setup — pick between the three themes (stays open so
+                    you can preview each). */}
+                <DropdownMenuSeparator style={{ margin: 0, height: 1, background: isDark ? "rgba(255,255,255,0.07)" : "#ebe5d8" }} />
+                <div style={{ padding: "12px 20px 16px" }}>
+                  <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: isDark ? "#7d8a8c" : "#8a8174", marginBottom: 10, fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                    Color setup
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {([
+                      { id: "light", label: "Bright", sw: "linear-gradient(135deg, #faf8f4 0%, #ebe5d8 100%)", accent: "#c96838" },
+                      { id: "dark", label: "Dark", sw: "linear-gradient(135deg, #0f2230 0%, #16303f 100%)", accent: "#cba24a" },
+                      { id: "purple", label: "Purple", sw: "linear-gradient(135deg, #1a1228 0%, #6d28d9 100%)", accent: "#a855f7" },
+                    ] as const).map((opt) => {
+                      const active = theme === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setTheme(opt.id); }}
+                          style={{
+                            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
+                            padding: "10px 4px", borderRadius: 10, cursor: "pointer",
+                            background: active ? (isDark ? "rgba(255,255,255,0.06)" : "#f3efe7") : "transparent",
+                            border: `1px solid ${active ? opt.accent : (isDark ? "rgba(255,255,255,0.08)" : "#e2ded6")}`,
+                            color: "inherit", transition: "border-color 0.15s ease, background 0.15s ease",
+                          }}
+                        >
+                          <span style={{
+                            width: 30, height: 30, borderRadius: "50%",
+                            background: opt.sw,
+                            border: `2px solid ${active ? opt.accent : (isDark ? "rgba(255,255,255,0.18)" : "#d8d2c5")}`,
+                            boxShadow: active ? `0 0 0 3px ${opt.accent}33` : "none",
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: 11, fontWeight: active ? 600 : 400 }}>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>

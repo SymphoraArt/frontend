@@ -21,7 +21,10 @@ import {
   type ReactNode,
 } from "react";
 
-type Theme = "light" | "dark";
+type Theme = "light" | "dark" | "purple";
+
+// Order used by toggleTheme() to cycle through the available themes.
+const THEME_CYCLE: Theme[] = ["light", "dark", "purple"];
 
 interface ThemeContextValue {
   theme: Theme;
@@ -34,18 +37,21 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 /**
  * Read the theme that was already applied by the inline script in <head>.
  * Falls back to localStorage, then to "light".
+ *
+ * "purple" is a dark variant: it sets BOTH `dark` and `theme-purple` classes,
+ * so all `.dark` surface styles still apply and `.theme-purple` re-tints them.
  */
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "light";
 
-  // The inline script already added .dark to <html> if needed,
-  // so reading the classList is the most reliable source of truth.
-  if (document.documentElement.classList.contains("dark")) return "dark";
+  const root = document.documentElement;
+  if (root.classList.contains("theme-purple")) return "purple";
+  if (root.classList.contains("dark")) return "dark";
 
   // Fallback: check localStorage in case classList was not set yet
   try {
     const stored = localStorage.getItem("theme");
-    if (stored === "dark") return "dark";
+    if (stored === "dark" || stored === "purple") return stored;
   } catch {
     // localStorage might throw in private browsing
   }
@@ -64,11 +70,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Smooth transition class
     root.classList.add("theme-transition");
 
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    // "purple" builds on the dark structure → both classes; "dark" → dark only;
+    // "light" → neither.
+    root.classList.toggle("dark", theme !== "light");
+    root.classList.toggle("theme-purple", theme === "purple");
 
     try {
       localStorage.setItem("theme", theme);
@@ -88,7 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), []);
   const toggleTheme = useCallback(
-    () => setThemeState((prev) => (prev === "dark" ? "light" : "dark")),
+    () => setThemeState((prev) => THEME_CYCLE[(THEME_CYCLE.indexOf(prev) + 1) % THEME_CYCLE.length]),
     []
   );
 

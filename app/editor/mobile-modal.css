@@ -2016,12 +2016,12 @@
    Dark mode (navy/teal + gold) — the modal was authored light-only.
    ════════════════════════════════════════════════════════════════ */
 .dark .mobile-modal-sheet {
-  background: #0f2230;
-  color: #e4edf1;
-  border-color: #1e3849;
+  background: var(--surface-1);
+  color: var(--surface-text);
+  border-color: var(--surface-rule);
 }
 /* tighten every inner hairline to the navy rule */
-.dark .mobile-modal-sheet * { border-color: #1e3849; }
+.dark .mobile-modal-sheet * { border-color: var(--surface-rule); }
 
 /* Raised/active white surfaces → lighter navy card */
 .dark .mobile-modal-tab.active,
@@ -2039,8 +2039,8 @@
 .dark .mobile-modal-add-var-btn,
 .dark .mobile-modal-var-manager-card,
 .dark .mobile-modal-var-type.active {
-  background: #16303f;
-  color: #e4edf1;
+  background: var(--surface-2);
+  color: var(--surface-text);
 }
 
 /* Cream secondary surfaces → deep navy */
@@ -2078,20 +2078,20 @@
 .dark .mobile-modal-var-manager-input,
 .dark .mobile-modal-price-input,
 .dark .mobile-modal-price-input-wrap {
-  background: #0b1c29;
-  color: #dbe7ed;
+  background: var(--surface-3);
+  color: var(--surface-text);
 }
 
 /* Base chrome surfaces */
 .dark .mobile-modal-footer,
 .dark .mobile-modal-bottomnav {
-  background: #0c1e2b;
+  background: var(--surface-chrome);
 }
 
 /* Dividers / drag handle */
 .dark .mobile-modal-handle,
 .dark .mobile-modal-divider {
-  background: #1e3849;
+  background: var(--surface-rule);
 }
 
 /* Dark-on-light text → light on navy */
@@ -2125,21 +2125,21 @@
 .dark .mobile-modal-varimg-gen,
 .dark .mobile-modal-varimg-title,
 .dark .mobile-modal-varimg-var .v {
-  color: #e4edf1;
+  color: var(--surface-text);
 }
 
 /* Select control: navy bg + light dropdown arrow */
 .dark .mobile-modal-select {
-  background: #0b1c29 url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23e4edf1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
-  color: #e4edf1;
+  background: var(--surface-3) url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23e4edf1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: var(--surface-text);
 }
 
 /* Primary CTA: orange → gold with dark text */
 .dark .mobile-modal-generate-btn {
-  background: #cba24a;
-  border-color: #cba24a;
-  color: #0a1825;
+  background: var(--cta-solid);
+  border-color: var(--cta-solid);
+  color: var(--cta-ink);
 }
 .dark .mobile-modal-generate-btn:hover:not(:disabled) {
-  background: #d8b362;
+  background: var(--cta-hover);
 }
