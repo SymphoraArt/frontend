@@ -6,13 +6,12 @@
  *
  * Architecture (from api_algo_improvements.md):
  *   Tier 1: Hardcore Regex Blocklist (zero latency, zero cost)
- *   Tier 2: NLP Context Analysis via `compromise` (catches grey-area abuse)
+ *   Tier 2: Context-aware adjacency analysis (catches grey-area abuse, zero deps)
  *   Tier 3: Provider-native safety filters (handled downstream by each provider)
  *
  * WHEN TO CHECK: Before payment verification, before any API call.
+ * ZERO EXTERNAL DEPENDENCIES: Pure regex + adjacency analysis for reliability.
  */
-
-import nlp from 'compromise';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -192,13 +191,34 @@ const GREY_AREA_TERMS: GreyAreaTerm[] = [
 ];
 
 /**
- * Tier 2 check: contextual NLP analysis for grey-area terms.
+ * Tier 2 check: context-aware adjacency analysis for grey-area terms.
+ * Uses pure regex + word adjacency checks (zero external dependencies).
  * Returns blocked=true only if the term appears in a genuinely harmful context.
+ *
+ * Strategy:
+ *   1. Check if any grey-area trigger word appears in the prompt.
+ *   2. If it does, check if known safe context words appear nearby.
+ *   3. If no safe context is found, check for explicitly harmful patterns:
+ *      a. Trigger word used with human-targeting terms ("kill the man")
+ *      b. Trigger word used with harmful modifiers ("graphic blood")
  */
 function checkTier2(prompt: string): { blocked: boolean; flaggedTerms: string[]; category: string | null } {
   const lowerPrompt = prompt.toLowerCase();
   const flaggedTerms: string[] = [];
   let matchedCategory: string | null = null;
+
+  // Human-targeting terms: if trigger + one of these appear together, it's harmful
+  const humanTargets = [
+    'person', 'people', 'man', 'woman', 'child', 'girl', 'boy',
+    'human', 'baby', 'someone', 'everybody', 'everyone', 'victim',
+    'him', 'her', 'them', 'myself', 'yourself', 'body', 'corpse',
+  ];
+
+  // Harmful modifiers: if trigger + one of these appear adjacent, it's harmful
+  const harmfulModifiers = [
+    'graphic', 'realistic', 'detailed', 'explicit', 'brutal',
+    'violent', 'gruesome', 'bloody', 'gory', 'horrific',
+  ];
 
   for (const term of GREY_AREA_TERMS) {
     // Quick check: does the trigger word even appear?
@@ -206,44 +226,56 @@ function checkTier2(prompt: string): { blocked: boolean; flaggedTerms: string[];
       continue;
     }
 
-    // Check if any safe context word appears near the trigger
-    const hasSafeContext = term.safeContexts.some((ctx) => lowerPrompt.includes(ctx));
+    // Check if any safe context word appears as a whole word in the prompt
+    // IMPORTANT: Use word boundary matching, not substring includes.
+    // Without this, 'explicit' would match safe context 'it' for trigger 'kill'.
+    const hasSafeContext = term.safeContexts.some((ctx) => {
+      const wordBoundaryRegex = new RegExp(`\\b${ctx}\\b`, 'i');
+      return wordBoundaryRegex.test(lowerPrompt);
+    });
     if (hasSafeContext) {
-      // The trigger is used in a known safe context; skip it
+      // The trigger is used in a known safe context; allow it
       continue;
     }
 
-    // Use compromise NLP for deeper analysis
-    const doc = nlp(prompt);
+    // No safe context found. Now check for harmful patterns.
+    let isHarmful = false;
 
-    // Check if the trigger word is used as a verb with a person/human as object
-    // (e.g., "kill the man" is harmful; "kill the beat" is safe)
-    const verbPhrases = doc.verbs().out('array') as string[];
-    const hasHarmfulVerb = verbPhrases.some((vp: string) => {
-      const vpLower = vp.toLowerCase();
-      if (!vpLower.includes(term.trigger)) return false;
+    // Check 1: Is the trigger word used near a human-targeting term?
+    // We check within a 5-word window around the trigger.
+    const words = lowerPrompt.split(/\s+/);
+    const triggerIndices = words.reduce<number[]>((acc, word, idx) => {
+      if (word.includes(term.trigger)) acc.push(idx);
+      return acc;
+    }, []);
 
-      // Check if the verb phrase includes human-related nouns
-      const humanTerms = ['person', 'people', 'man', 'woman', 'child', 'girl', 'boy', 'human', 'baby', 'someone', 'everybody', 'everyone', 'him', 'her', 'them'];
-      return humanTerms.some((ht) => vpLower.includes(ht));
-    });
+    for (const trigIdx of triggerIndices) {
+      // Check a 5-word window around the trigger
+      const windowStart = Math.max(0, trigIdx - 5);
+      const windowEnd = Math.min(words.length - 1, trigIdx + 5);
+      const window = words.slice(windowStart, windowEnd + 1).join(' ');
 
-    if (hasHarmfulVerb) {
-      flaggedTerms.push(term.trigger);
-      matchedCategory = term.category;
+      if (humanTargets.some((ht) => window.includes(ht))) {
+        isHarmful = true;
+        break;
+      }
     }
 
-    // Additional check: if the trigger appears with explicitly harmful modifiers
-    const harmfulModifiers = ['graphic', 'realistic', 'detailed', 'explicit', 'brutal', 'violent', 'gruesome'];
-    const hasHarmfulModifier = harmfulModifiers.some(
-      (mod) => lowerPrompt.includes(`${mod} ${term.trigger}`) || lowerPrompt.includes(`${term.trigger} ${mod}`)
-    );
-
-    if (hasHarmfulModifier && !hasSafeContext) {
-      if (!flaggedTerms.includes(term.trigger)) {
-        flaggedTerms.push(term.trigger);
-        matchedCategory = term.category;
+    // Check 2: Is the trigger word adjacent to a harmful modifier?
+    if (!isHarmful) {
+      const hasHarmfulModifier = harmfulModifiers.some(
+        (mod) =>
+          lowerPrompt.includes(`${mod} ${term.trigger}`) ||
+          lowerPrompt.includes(`${term.trigger} ${mod}`)
+      );
+      if (hasHarmfulModifier) {
+        isHarmful = true;
       }
+    }
+
+    if (isHarmful) {
+      flaggedTerms.push(term.trigger);
+      matchedCategory = term.category;
     }
   }
 
