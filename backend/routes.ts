@@ -144,16 +144,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/generate-image", async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, walletAddress, aspectRatio, numImages } = req.body;
+
+      // Input validation
       if (!prompt || typeof prompt !== 'string') {
         return res.status(400).json({ error: "Prompt is required" });
       }
 
-      const imageDataUrl = await generateImage(prompt);
-      res.json({ imageUrl: imageDataUrl });
+      // Enforce max prompt length to prevent abuse
+      if (prompt.length > 5000) {
+        return res.status(400).json({ error: "Prompt exceeds maximum length (5000 characters)" });
+      }
+
+      // Sanitize: reject prompts with control characters (potential injection)
+      // eslint-disable-next-line no-control-regex
+      if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(prompt)) {
+        return res.status(400).json({ error: "Prompt contains invalid characters" });
+      }
+
+      // Route through the generation router (handles moderation, failover, concurrency)
+      const { routeGeneration } = await import('./services/generation-router.js');
+      const result = await routeGeneration({
+        prompt: prompt.trim(),
+        walletAddress: walletAddress || undefined,
+        aspectRatio: aspectRatio || '1:1',
+        numImages: numImages || 1,
+      });
+
+      // Content blocked by moderation
+      if (!result.moderation.allowed) {
+        return res.status(400).json({
+          error: "Content blocked by community guidelines",
+          blocked: true,
+        });
+      }
+
+      // Wallet blacklisted
+      if (result.error?.includes('suspended')) {
+        return res.status(403).json({
+          error: "Account suspended due to policy violations",
+          blocked: true,
+        });
+      }
+
+      // Generation failed (all providers exhausted)
+      if (!result.success) {
+        console.error("Generation failed:", result.error);
+        // Return generic message to client - never leak internal error details
+        return res.status(503).json({
+          error: "Image generation temporarily unavailable. Please try again.",
+        });
+      }
+
+      // Success: return image buffers as base64 data URLs
+      const imageBuffers = result.imageBuffers || [];
+      if (imageBuffers.length === 0) {
+        return res.status(500).json({ error: "No images generated" });
+      }
+
+      // Convert first image buffer to data URL
+      const base64Image = imageBuffers[0].toString('base64');
+      const mimeType = 'image/png';
+      const imageDataUrl = `data:${mimeType};base64,${base64Image}`;
+
+      res.json({
+        imageUrl: imageDataUrl,
+        provider: result.provider,
+        generationTimeMs: result.totalTimeMs,
+      });
     } catch (error: any) {
       console.error("Image generation error:", error);
-      res.status(500).json({ error: error.message || "Failed to generate image" });
+      // Never expose internal error messages to client
+      res.status(500).json({ error: "Failed to generate image" });
     }
   });
 

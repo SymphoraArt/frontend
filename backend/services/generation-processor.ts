@@ -1,17 +1,22 @@
 /**
  * Generation Processor Service
  *
- * Processes AI image generation requests using the integrated Gemini service.
- * Handles the complete flow from variable-substituted prompts to generated images.
+ * Processes AI image generation requests using the Generation Router.
+ * The router handles provider selection, concurrency tracking, content
+ * moderation, and vertical failover internally.
+ *
+ * This processor orchestrates the DB workflow:
+ *   1. Fetch generation from DB
+ *   2. Verify payment
+ *   3. Decrypt prompt
+ *   4. Route through Generation Router
+ *   5. Store images
+ *   6. Update DB status
  */
 
 import { getSupabaseClient } from '../database/db.js';
 import { decryptPrompt } from '../encryption.js';
-import {
-  generateWithRetryAndCircuitBreaker,
-  RETRY_CONFIGS,
-  generateWithRateLimit
-} from './index.js';
+import { routeGeneration, initializeRouter } from './generation-router.js';
 import type { GenerationSettings } from './types.js';
 
 /**
@@ -114,10 +119,10 @@ export async function processGeneration(generationId: string): Promise<void> {
     // 4. Decrypt final prompt
     let finalPrompt: string;
     try {
-      finalPrompt = await decryptPrompt({
+      finalPrompt = decryptPrompt({
         encryptedContent: generation.final_prompt,
-        iv: '', // TODO: Store and retrieve from database
-        authTag: '' // TODO: Store and retrieve from database
+        iv: generation.iv || '',
+        authTag: generation.auth_tag || ''
       });
       console.log(`🔓 Decrypted prompt for generation ${generationId}`);
     } catch (decryptError: any) {
@@ -126,33 +131,66 @@ export async function processGeneration(generationId: string): Promise<void> {
       throw decryptError;
     }
 
-    // 5. Generate images with Gemini (with retry and circuit breaker)
-    console.log(`🎭 Generating ${generation.settings?.numImages || 1} image(s) with Gemini for ${generationId}`);
+    // 5. Route through the Generation Router (handles moderation, failover, concurrency)
+    const numImages = generation.settings?.numImages || 1;
+    console.log(`🎭 Routing generation for ${generationId} (${numImages} image(s))`);
     console.log(`📝 Prompt: "${finalPrompt.substring(0, 100)}${finalPrompt.length > 100 ? '...' : ''}"`);
 
-    const result = await generateWithRetryAndCircuitBreaker(
-      generateWithRateLimit,
-      {
-        prompt: finalPrompt,
-        aspectRatio: generation.settings?.aspectRatio || '1:1',
-        numImages: generation.settings?.numImages || 1,
-        modelVersion: generation.settings?.modelVersion || 'gemini-2.5-flash-image'
-      },
-      RETRY_CONFIGS.production
-    );
+    const result = await routeGeneration({
+      prompt: finalPrompt,
+      walletAddress: generation.user_id,
+      aspectRatio: generation.settings?.aspectRatio || '1:1',
+      numImages,
+      modelVersion: generation.settings?.modelVersion,
+    });
 
+    // 6. Handle moderation blocks (do NOT retry these)
+    if (!result.moderation.allowed) {
+      console.warn(`🚫 Prompt blocked by moderation for ${generationId}: ${result.moderation.reason}`);
+      await updateGenerationError(
+        generationId,
+        `Content blocked: ${result.moderation.reason}`
+      );
+      // Set retry_count to max so the retry worker skips it
+      await supabase
+        .from('generations')
+        .update({ retry_count: 99 })
+        .eq('id', generationId);
+      return;
+    }
+
+    // 7. Handle provider safety blocks (Tier 3)
+    if (result.providerSafetyBlock) {
+      console.warn(`🚫 Provider safety block for ${generationId}`);
+      await updateGenerationError(
+        generationId,
+        `Provider safety block: ${result.error}`
+      );
+      await supabase
+        .from('generations')
+        .update({ retry_count: 99 })
+        .eq('id', generationId);
+      return;
+    }
+
+    // 8. Handle generation failure (retryable)
     if (!result.success) {
-      console.error(`❌ Gemini generation failed for ${generationId}:`, result.error);
+      console.error(`❌ Generation failed for ${generationId}: ${result.error}`);
       await updateGenerationError(generationId, result.error || 'Image generation failed');
+      // Increment retry count
+      await supabase
+        .from('generations')
+        .update({ retry_count: (generation.retry_count || 0) + 1 })
+        .eq('id', generationId);
       throw new Error(result.error || 'Image generation failed');
     }
 
-    console.log(`✅ Gemini generated ${result.imageBuffers?.length || 0} images in ${result.generationTime}ms`);
+    console.log(`✅ Generated via ${result.provider} (key: ${result.keyUsed}) in ${result.totalTimeMs}ms`);
 
-    // 6. Store images to permanent storage
+    // 9. Store images to permanent storage
     const imageBuffers = result.imageBuffers || [];
     if (imageBuffers.length === 0) {
-      throw new Error('No image buffers returned from Gemini');
+      throw new Error('No image buffers returned from provider');
     }
 
     console.log(`💾 Storing ${imageBuffers.length} images for ${generationId}`);
@@ -160,7 +198,7 @@ export async function processGeneration(generationId: string): Promise<void> {
     const imageUrls = await storeImagesToBlob(imageBuffers, generationId);
     console.log(`📦 Images stored: ${imageUrls.join(', ')}`);
 
-    // 7. Update generation as completed
+    // 10. Update generation as completed
     const { error: completeError } = await supabase
       .from('generations')
       .update({

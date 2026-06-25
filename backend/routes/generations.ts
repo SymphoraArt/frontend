@@ -41,6 +41,15 @@ router.post('/generations', async (req: Request, res: Response) => {
       });
     }
 
+    // 1b. Validate input types and lengths
+    if (typeof userId !== 'string' || typeof promptId !== 'string' || typeof encryptedPrompt !== 'string') {
+      return res.status(400).json({ error: 'Invalid field types' });
+    }
+
+    if (encryptedPrompt.length > 50000) {
+      return res.status(400).json({ error: 'Prompt data exceeds maximum size' });
+    }
+
     // 2. Substitute variables
     const substitution = await substituteVariables(
       encryptedPrompt,
@@ -81,8 +90,7 @@ router.post('/generations', async (req: Request, res: Response) => {
     if (error) {
       console.error('Database error:', error);
       return res.status(500).json({
-        error: 'Failed to create generation',
-        details: error.message
+        error: 'Failed to create generation'
       });
     }
 
@@ -97,8 +105,7 @@ router.post('/generations', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error creating generation:', error);
     res.status(500).json({
-      error: 'Failed to create generation',
-      details: error.message
+      error: 'Failed to create generation'
     });
   }
 });
@@ -153,8 +160,8 @@ router.get('/generations/:id', async (req: Request, res: Response) => {
       try {
         const decryptedPrompt = decryptPrompt({
           encryptedContent: data.final_prompt,
-          iv: '', // TODO: Store and retrieve from database
-          authTag: '' // TODO: Store and retrieve from database
+          iv: data.iv || '',
+          authTag: data.auth_tag || ''
         });
         response.finalPrompt = decryptedPrompt;
       } catch (error: any) {
