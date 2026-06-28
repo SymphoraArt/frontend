@@ -41,7 +41,7 @@ const TEST_CASES: Array<{ name: string; request: ImageGenerationRequest }> = [
   {
     name: 'text-rendering',
     request: {
-      prompt: 'A neon sign that says "AIGENCY" in cyberpunk style with glowing pink and blue letters',
+      prompt: 'A neon sign that says "ENKI" in cyberpunk style with glowing pink and blue letters',
       aspectRatio: '1:1',
       numImages: 1
     }

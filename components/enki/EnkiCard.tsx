@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Play, Image as ImageIcon, Film } from "lucide-react";
+import { Heart, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import "./enki.css";
@@ -10,9 +10,10 @@ type EnkiCardProps = {
   onOpen?: (prompt: EnkiPrompt) => void;
   faved: boolean;
   toggleFav: (id: string) => void;
+  onEdit?: (prompt: EnkiPrompt) => void;
 };
 
-export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardProps) {
+export default function EnkiCard({ prompt, onOpen, faved, toggleFav, onEdit }: EnkiCardProps) {
   const router = useRouter();
   return (
     <article className="enki-card" onClick={() => onOpen?.(prompt)}>
@@ -42,6 +43,17 @@ export default function EnkiCard({ prompt, onOpen, faved, toggleFav }: EnkiCardP
         >
           <Heart size={14} fill={faved ? "currentColor" : "none"} />
         </button>
+        {onEdit && (
+          <button
+            className="enki-edit"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); onEdit(prompt); }}
+            type="button"
+            aria-label="Edit this prompt in the node editor"
+            title="Edit in Create Prompt 2"
+          >
+            <PencilLine size={14} />
+          </button>
+        )}
         {prompt.isVideo && (
           <div className="enki-video-icon" aria-hidden="true">
             <Play size={14} fill="currentColor" />

@@ -1,9 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
-
-// The browse/feed experience (formerly at "/") now lives at /explore so the
-// marketing landing can own the root route.
+// Explore now lives at /home (inside the left-side-menu shell).
 export default function ExplorePage() {
-  return <EnkiFeedPage />;
+  redirect("/home");
 }

@@ -1,0 +1,192 @@
+/* ════════════════ Node Creator (Create Prompt 2) ════════════════ */
+.nc{position:fixed;inset:0 0 0 78px;z-index:118;background:var(--enki-paper);display:flex;flex-direction:column;overflow:hidden;transition:left .26s;}
+.nc-canvas{position:absolute;inset:0;overflow:hidden;cursor:grab;background:
+  radial-gradient(circle at 1px 1px, color-mix(in oklab,var(--enki-ink) 13%,transparent) 1px, transparent 0);
+  background-size:26px 26px;}
+.nc-canvas.panning{cursor:grabbing;}
+.nc-world{position:absolute;left:0;top:0;transform-origin:0 0;}
+.nc-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;}
+.nc-edge{fill:none;stroke-width:2.4;opacity:.85;}
+.nc-edge-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer;}
+
+/* ── settings ribbon (top-left, compact, auto-width) ── */
+.nc-ribbon{position:absolute;top:0;left:0;z-index:30;display:flex;align-items:center;gap:0 12px;flex-wrap:nowrap;max-width:100%;padding:8px 11px;border-radius:0 0 14px 0;
+  background:color-mix(in oklab,var(--enki-paper) 92%,transparent);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+  border:1px solid var(--enki-rule);border-top:none;border-left:none;box-shadow:0 8px 28px rgba(0,0,0,.1);}
+.nc-rb-tools{display:flex;align-items:center;gap:3px;flex-shrink:0;}
+.nc-rb-div{width:1px;height:26px;background:var(--enki-rule);flex-shrink:0;}
+.nc-rb-cell{display:flex;flex-direction:column;gap:1px;flex-shrink:0;}
+.nc-rb-lab{font-family:var(--font-mono);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--enki-ink-3);padding-left:2px;line-height:1.3;}
+.nc-rb-input{border:none;background:transparent;color:var(--enki-ink);font-family:var(--font-serif);font-size:16px;line-height:1.1;outline:none;width:130px;padding:1px 2px;border-bottom:1px solid transparent;}
+.nc-rb-input:hover{border-bottom-color:var(--enki-rule);}
+.nc-rb-input:focus{border-bottom-color:var(--enki-ember);}
+.nc-rb-sel{border:none;background:transparent;color:var(--enki-ink);font-size:13px;font-weight:500;font-family:var(--font-sans);outline:none;cursor:pointer;height:24px;padding:0 2px;max-width:160px;}
+.nc-iconbtn{width:30px;height:30px;border-radius:7px;border:1px solid var(--enki-rule);background:var(--enki-paper-2);color:var(--enki-ink-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .14s;font-size:16px;}
+.nc-iconbtn:hover{color:var(--enki-ink);border-color:var(--enki-ink-3);}
+.nc-iconbtn:disabled{opacity:.4;cursor:default;}
+.nc-ribbon .ce-seg{transform:scale(.92);transform-origin:left center;}
+.nc-zoomval{font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--enki-ink-2);min-width:38px;text-align:center;cursor:pointer;user-select:none;}
+.nc-zoomval:hover{color:var(--enki-ember);}
+
+/* ── generic node ── */
+.nc-node{position:absolute;border-radius:14px;background:var(--enki-paper);border:1px solid var(--enki-rule);box-shadow:0 6px 22px rgba(0,0,0,.1);user-select:none;transition:box-shadow .15s,border-color .15s;}
+.dark .nc-node{box-shadow:0 8px 30px rgba(0,0,0,.5);}
+.nc-node.sel{border-color:var(--enki-ember);box-shadow:0 0 0 2px rgba(var(--ember-rgb),.3),0 10px 30px rgba(0,0,0,.16);}
+.nc-node.stale{border-color:#e0a93a;box-shadow:0 0 0 2px rgba(224,169,58,.35);}
+.nc-nhead{display:flex;align-items:center;gap:8px;height:38px;padding:0 10px 0 12px;border-bottom:1px solid var(--enki-rule-2);cursor:grab;border-radius:14px 14px 0 0;}
+.nc-nhead:active{cursor:grabbing;}
+.nc-ndot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.nc-ntitle{font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:none;background:transparent;color:var(--enki-ink);outline:none;}
+.nc-ntitle:focus{border-bottom:1px solid var(--enki-ember);}
+.nc-nbody{padding:11px 12px;}
+.nc-ntrash{width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--enki-ink-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.nc-ntrash:hover{color:#e0584f;background:color-mix(in oklab,#e0584f 12%,transparent);}
+
+/* ── prompt node ── */
+.nc-prompt{width:480px;}
+.nc-prompt .nc-nhead{height:42px;}
+.nc-ribbon-title{border:none;background:transparent;font-family:var(--font-serif);font-size:18px;color:var(--enki-ink);outline:none;flex:1;min-width:0;}
+.nc-pbox{position:relative;border:1px solid var(--enki-rule);border-radius:10px;background:var(--enki-paper-2);overflow:hidden;}
+.nc-pbox:focus-within{border-color:var(--enki-ember);box-shadow:0 0 0 2px rgba(var(--ember-rgb),.1);}
+.nc-pov,.nc-pta{font-family:var(--font-serif);font-size:18px;line-height:1.6;letter-spacing:0;padding:14px 16px;}
+.nc-pov{position:absolute;inset:0;color:var(--enki-ink);pointer-events:none;white-space:pre-wrap;word-wrap:break-word;overflow:hidden;}
+.nc-pta{position:relative;width:100%;min-height:230px;background:transparent;border:none;outline:none;resize:vertical;color:transparent;caret-color:var(--enki-ember);display:block;}
+.nc-tok{border-radius:5px;padding:0 3px;font-weight:500;}
+.nc-tok.armed{outline:2px solid #e0584f;outline-offset:1px;}
+.nc-addrow{display:flex;gap:8px;margin-top:10px;}
+.nc-addbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:9px;border:1px dashed;background:transparent;font-size:12.5px;font-weight:600;transition:background .14s;}
+.nc-addbtn:hover{filter:brightness(.97);}
+.nc-pnote{font-size:11px;color:var(--enki-ink-3);margin-top:9px;line-height:1.4;text-align:center;}
+
+/* ── ports ── */
+.nc-port{position:absolute;width:15px;height:15px;border-radius:50%;border:2.5px solid var(--enki-paper);box-shadow:0 0 0 1px var(--enki-rule);z-index:3;}
+.nc-port-lab{position:absolute;font-family:var(--font-mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--enki-ink-3);white-space:nowrap;}
+
+/* ── reference image node ── */
+.nc-ref{width:172px;}
+.nc-ref-img{width:100%;height:120px;object-fit:cover;border-radius:9px;background:var(--enki-paper-3);}
+.nc-ref-num{position:absolute;top:46px;left:8px;z-index:4;min-width:22px;height:22px;padding:0 6px;border-radius:7px;background:#1f8a5b;color:#fff;font-family:var(--font-mono);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.nc-chk{display:flex;align-items:center;gap:8px;margin-top:9px;cursor:pointer;font-size:12px;color:var(--enki-ink-2);}
+.nc-chk-box{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--enki-rule);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;transition:all .14s;}
+.nc-chk-box.on{background:var(--enki-ember);border-color:var(--enki-ember);}
+
+/* ── text input node ── */
+.nc-text{width:260px;}
+.nc-vin{width:100%;border:1px solid var(--enki-rule);border-radius:7px;background:var(--enki-paper-2);color:var(--enki-ink);font-size:13px;padding:8px 10px;outline:none;}
+.nc-vin:focus{border-color:var(--enki-ember);}
+.nc-varea{min-height:84px;resize:vertical;font-family:var(--font-sans);line-height:1.45;display:block;}
+.nc-vtoggle{display:inline-flex;border:1px solid var(--enki-rule);border-radius:7px;overflow:hidden;margin-bottom:9px;width:100%;}
+.nc-vtoggle button{flex:1;height:28px;border:none;background:transparent;color:var(--enki-ink-3);font-size:11px;font-weight:600;}
+.nc-vtoggle button.active{background:var(--enki-ember);color:#fff;}
+
+/* ── output image node ── */
+.nc-out{width:208px;}
+.nc-out-img{width:100%;height:150px;object-fit:cover;border-radius:9px;background:var(--enki-paper-3);}
+.nc-out-vars{display:flex;flex-direction:column;gap:4px;margin-top:9px;}
+.nc-out-var{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:6px;min-width:0;}
+.nc-out-var-k{font-family:var(--font-mono);font-size:9.5px;font-weight:700;flex-shrink:0;text-transform:lowercase;}
+
+/* ── constellation row frames ── */
+.nc-cframe{position:absolute;border:1.5px dashed;border-radius:18px;opacity:.9;pointer-events:none;}
+.nc-cframe.current{border-style:solid;opacity:1;box-shadow:0 0 0 1px rgba(0,0,0,.03);}
+.nc-clabel{position:absolute;top:-13px;left:16px;display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 12px;border-radius:999px;font-size:11.5px;font-weight:700;font-family:var(--font-sans);pointer-events:auto;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,.1);}
+.nc-clabel:active{cursor:grabbing;}
+.nc-clabel-dot{width:8px;height:8px;border-radius:50%;}
+
+/* prompt header Generate button (top-right) */
+.nc-prompt-genbtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 13px;border:none;border-radius:8px;background:var(--cta-bg);color:var(--cta-ink);font-size:12.5px;font-weight:700;flex-shrink:0;box-shadow:0 3px 10px rgba(var(--ember-rgb),.35);transition:transform .14s,filter .14s;}
+.nc-prompt-genbtn:hover{transform:translateY(-1px);filter:brightness(1.06);}
+.nc-prompt-genbtn.disabled{background:var(--enki-paper-3);color:var(--enki-ink-3);box-shadow:none;cursor:default;}
+.nc-prompt-genbtn.disabled:hover{transform:none;filter:none;}
+
+/* pulsing arrow pointing at a freshly generated output */
+.nc-pulse{position:absolute;left:-30px;top:50%;transform:translateY(-50%);z-index:6;animation:nc-pulse-x 1s ease-in-out infinite;}
+@keyframes nc-pulse-x{0%,100%{transform:translateY(-50%) translateX(0);opacity:1;}50%{transform:translateY(-50%) translateX(7px);opacity:.55;}}
+
+/* collapsed variable-values toggle on output */
+.nc-out-toggle{display:flex;align-items:center;gap:6px;width:100%;height:30px;margin-top:9px;border:1px solid var(--enki-rule);border-radius:8px;background:var(--enki-paper-2);color:var(--enki-ink-2);font-size:11.5px;font-weight:600;padding:0 9px;}
+.nc-out-toggle:hover{border-color:var(--enki-ink-3);color:var(--enki-ink);}
+
+.nc-out-var-row-legacy{display:none;}
+.nc-out-var-k2{font-family:var(--font-mono);font-size:9.5px;font-weight:700;flex-shrink:0;text-transform:lowercase;}
+.nc-out-var-v{font-size:11px;color:var(--enki-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+button.nc-out-var{border:none;cursor:pointer;text-align:left;width:100%;transition:filter .14s;}
+button.nc-out-var:hover{filter:brightness(.96);}
+.nc-out-var--edit{flex-direction:column;align-items:stretch;gap:6px;}
+.nc-out-var-input{width:100%;border:1px solid var(--enki-rule);border-radius:6px;background:var(--enki-paper);color:var(--enki-ink);font-size:12px;line-height:1.4;padding:6px 8px;outline:none;resize:vertical;font-family:var(--font-sans);}
+.nc-out-var-input:focus{border-color:var(--enki-ember);}
+.nc-out-var-done{align-self:flex-end;width:24px;height:22px;border:none;border-radius:6px;background:var(--enki-ember);color:#fff;display:flex;align-items:center;justify-content:center;}
+/* generate arrow above output node */
+.nc-out-genbtn{position:absolute;top:-17px;left:50%;transform:translateX(-50%);width:30px;height:30px;border-radius:50%;border:2px solid var(--enki-paper);background:var(--cta-bg);color:var(--cta-ink);display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 4px 12px rgba(var(--ember-rgb),.4);transition:transform .14s,filter .14s;}
+.nc-out-genbtn:hover{transform:translateX(-50%) scale(1.12);filter:brightness(1.06);}
+.nc-out-genbtn.disabled{background:var(--enki-paper-3);color:var(--enki-ink-3);box-shadow:none;cursor:default;}
+.nc-out-genbtn.disabled:hover{transform:translateX(-50%) scale(1);filter:none;}
+/* push-left arrow in output header */
+.nc-out-pushbtn{width:24px;height:24px;border-radius:6px;border:1px solid var(--enki-rule);background:var(--enki-paper-2);color:var(--enki-ember);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.nc-out-pushbtn:hover{background:color-mix(in oklab,var(--enki-ember) 14%,transparent);border-color:var(--enki-ember);}
+/* ▶ generate-output button on the prompt node's images port */
+.nc-prompt-out{position:absolute;right:-17px;top:100px;width:34px;height:34px;border-radius:50%;border:2px solid var(--enki-paper);background:var(--cta-bg);color:var(--cta-ink);display:flex;align-items:center;justify-content:center;z-index:6;box-shadow:0 4px 14px rgba(var(--ember-rgb),.45);transition:transform .14s,filter .14s;}
+.nc-prompt-out:hover{transform:scale(1.12);filter:brightness(1.06);}
+.nc-prompt-out.disabled{background:var(--enki-paper-3);color:var(--enki-ink-3);box-shadow:none;cursor:default;}
+.nc-prompt-out.disabled:hover{transform:none;filter:none;}
+/* ★ select-for-publish toggle on output header */
+.nc-out-pick{width:24px;height:24px;border-radius:6px;border:1px solid var(--enki-rule);background:var(--enki-paper-2);color:var(--enki-ink-3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.nc-out-pick:hover{color:#e0a93a;border-color:#e0a93a;}
+.nc-out-pick.on{color:#e0a93a;border-color:#e0a93a;background:rgba(224,169,58,.14);}
+.nc-out.picked{border-color:#e0a93a;box-shadow:0 0 0 2px rgba(224,169,58,.4),0 8px 30px rgba(0,0,0,.16);}
+.dark .nc-out.picked{box-shadow:0 0 0 2px rgba(224,169,58,.5),0 8px 30px rgba(0,0,0,.5);}
+/* confirm popup */
+.nc-confirm{position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:20;width:230px;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.3);padding:13px;}
+.nc-confirm-t{font-size:12.5px;line-height:1.45;color:var(--enki-ink);margin-bottom:11px;}
+.nc-confirm-actions{display:flex;gap:8px;}
+.nc-confirm-no{flex:1;height:34px;border:1px solid var(--enki-rule);border-radius:8px;background:var(--enki-paper-2);color:var(--enki-ink-2);font-size:12.5px;font-weight:600;}
+.nc-confirm-no:hover{border-color:var(--enki-ink-3);color:var(--enki-ink);}
+.nc-confirm-yes{flex:1;height:34px;border:none;border-radius:8px;background:var(--cta-bg);color:var(--cta-ink);font-size:12.5px;font-weight:600;}
+.nc-confirm-yes:hover{filter:brightness(1.06);}
+.ce-vex-knob{width:24px;height:14px;border-radius:999px;position:relative;flex-shrink:0;transition:background .15s;border:none;cursor:pointer;}
+.ce-vex-knob::after{content:"";position:absolute;top:1px;left:1px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .15s;}
+.ce-vex-knob.on::after{transform:translateX(10px);}
+.nc-out-empty{width:100%;height:150px;border-radius:9px;border:1px dashed var(--enki-rule);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--enki-ink-3);font-size:11px;background:var(--enki-paper-2);}
+.nc-out-badge{position:absolute;top:46px;right:8px;z-index:4;display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;backdrop-filter:blur(4px);}
+.nc-out-badge.ready{background:rgba(31,138,91,.92);color:#fff;}
+.nc-out-badge.stale{background:rgba(224,169,58,.95);color:#3a2a08;}
+.nc-out-badge.loading{background:rgba(0,0,0,.6);color:#fff;}
+
+/* ── context menu ── */
+.nc-ctx{position:fixed;z-index:60;min-width:190px;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:11px;box-shadow:0 18px 50px rgba(0,0,0,.26);padding:6px;animation:ek-dd-in .14s ease;}
+.nc-ctx-item{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 11px;border:none;background:none;border-radius:8px;color:var(--enki-ink);font-size:13px;font-weight:500;text-align:left;font-family:var(--font-sans);}
+.nc-ctx-item:hover{background:color-mix(in oklab,var(--enki-ink) 7%,transparent);}
+.nc-ctx-ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;}
+
+/* ── generate dock (draggable, slim) ── */
+.nc-dock{position:absolute;z-index:40;width:208px;border-radius:13px;background:var(--enki-paper);border:1px solid var(--enki-rule);box-shadow:0 14px 40px rgba(0,0,0,.2);overflow:hidden;}
+.dark .nc-dock{box-shadow:0 16px 48px rgba(0,0,0,.6);}
+.nc-dock-grip{display:flex;align-items:center;gap:7px;height:32px;padding:0 7px 0 10px;border-bottom:1px solid var(--enki-rule);cursor:grab;background:var(--enki-paper-2);}
+.nc-dock-grip:active{cursor:grabbing;}
+.nc-dock-grip-t{font-size:12px;font-weight:600;flex:1;}
+.nc-dock-body{padding:10px;}
+.nc-dock-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.nc-dock-lab{font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--enki-ink-3);}
+.nc-step{display:flex;align-items:center;gap:0;border:1px solid var(--enki-rule);border-radius:8px;overflow:hidden;}
+.nc-step button{width:26px;height:26px;border:none;background:var(--enki-paper-2);color:var(--enki-ink);font-size:15px;display:flex;align-items:center;justify-content:center;}
+.nc-step button:hover{background:color-mix(in oklab,var(--enki-ink) 7%,transparent);}
+.nc-step span{width:30px;text-align:center;font-family:var(--font-mono);font-size:13px;font-weight:600;}
+.nc-cost{display:flex;align-items:baseline;justify-content:space-between;padding:8px 10px;border-radius:9px;background:var(--enki-paper-2);margin-bottom:9px;}
+.nc-cost-v{font-family:var(--font-mono);font-size:16px;font-weight:700;}
+.nc-cost-net{font-family:var(--font-mono);font-size:9px;color:var(--enki-ink-3);}
+.nc-dock-actions{display:flex;flex-direction:column;gap:6px;}
+.nc-dock .ek-btn{min-height:32px;font-size:12px;border-radius:9px;}
+.nc-dock .ek-btn svg{width:13px;height:13px;}
+.nc-reqnote{font-size:9.5px;color:var(--enki-ink-3);text-align:center;margin-top:8px;line-height:1.4;}
+.nc-reqnote b{color:var(--enki-ink-2);}
+
+/* ── stale banner ── */
+.nc-stalebar{position:absolute;left:50%;top:78px;transform:translateX(-50%);z-index:35;display:flex;align-items:center;gap:10px;padding:9px 15px;border-radius:999px;
+  background:#e0a93a;color:#3a2a08;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(224,169,58,.4);animation:ek-toast-in .3s ease;}
+.nc-stalebar button{border:none;background:rgba(58,42,8,.16);color:#3a2a08;height:28px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;}
+.nc-stalebar button:hover{background:rgba(58,42,8,.28);}
+
+/* ── hint chip bottom-left ── */
+.nc-help{position:absolute;left:16px;bottom:16px;z-index:25;max-width:260px;font-size:11px;color:var(--enki-ink-3);line-height:1.5;background:color-mix(in oklab,var(--enki-paper) 80%,transparent);backdrop-filter:blur(8px);border:1px solid var(--enki-rule);border-radius:10px;padding:9px 12px;}
+.nc-help b{color:var(--enki-ink-2);}
+.nc-dropglow{position:absolute;inset:0;border-radius:14px;border:2px dashed var(--enki-ember);background:rgba(var(--ember-rgb),.08);pointer-events:none;z-index:5;}

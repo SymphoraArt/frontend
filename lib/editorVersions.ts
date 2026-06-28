@@ -20,7 +20,7 @@ export interface PersistedVersionCard {
   referenceImages?: string[];
 }
 
-const DB_NAME = "aigency-editor";
+const DB_NAME = "enki-editor";
 const DB_VERSION = 1;
 const STORE = "verify-versions";
 // The editor draft is a single global session (not per-user), so a fixed

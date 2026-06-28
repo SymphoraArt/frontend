@@ -1,7 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
-
+// /images was folded into /home. Images (and later videos) will return as
+// sub-views of the home feed.
 export default function ImagesPage() {
-  return <EnkiFeedPage />;
+  redirect("/home");
 }

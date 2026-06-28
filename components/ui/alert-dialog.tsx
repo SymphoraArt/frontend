@@ -32,10 +32,10 @@ const AlertDialogContent = React.forwardRef<
   <AlertDialogPortal>
     <AlertDialogOverlay />
     {/* Centering is done by this flex wrapper (which is NOT animated), so
-        the panel's position never depends on `transform`. The `alg-pop`
+        the panel's position never depends on `transform`. The `enk-pop`
         class on Content opts it into a transform-only (scale + opacity)
-        entrance animation defined in algency-editor.css, with a selector
-        specific enough to override the app-wide `alg-popup-in` keyframe —
+        entrance animation defined in enki-editor.css, with a selector
+        specific enough to override the app-wide `enk-popup-in` keyframe —
         that global keyframe forces `translate(-50%, -50%)` and would
         otherwise shove this flex-centered panel toward the top-left for the
         length of the animation (the "spawn in corner, jump to middle"
@@ -44,7 +44,7 @@ const AlertDialogContent = React.forwardRef<
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
-          "alg-pop relative grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg pointer-events-auto sm:rounded-lg",
+          "enk-pop relative grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg pointer-events-auto sm:rounded-lg",
           className
         )}
         {...props}

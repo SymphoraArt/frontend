@@ -5,8 +5,8 @@ export type StoredCreation = {
   createdAt: string;
 };
 
-const STORAGE_PREFIX = "aigency:creations:";
-const UPDATE_EVENT = "aigency:creations_updated";
+const STORAGE_PREFIX = "enki:creations:";
+const UPDATE_EVENT = "enki:creations_updated";
 
 function getStorageKey(userKey: string) {
   return `${STORAGE_PREFIX}${userKey}`;

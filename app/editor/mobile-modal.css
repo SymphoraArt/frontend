@@ -37,6 +37,22 @@
   to { transform: translateY(0); }
 }
 
+/* Closing: collapse straight down, then unmount. */
+.mobile-modal-sheet--closing {
+  animation: modalSlideDown 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+@keyframes modalSlideDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(110%); }
+}
+.mobile-modal-overlay--closing {
+  animation: modalFadeOut 0.24s ease forwards;
+}
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* ─── Drag Handle ─── */
 .mobile-modal-handle {
   width: 32px;

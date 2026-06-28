@@ -11,6 +11,7 @@ import {
   mapMarketplacePromptToEnkiPrompt
 } from "@/lib/enkiPromptAdapter";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
+import { requestPromptEdit } from "@/components/enki-shell/editorBridge";
 import { listCreations, subscribeCreations, type StoredCreation } from "@/lib/creations";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, MessageSquare, UserPlus, Sparkles, ImageOff } from "lucide-react";
@@ -274,6 +275,7 @@ export default function ProfilePage() {
                 onOpen={setOpen}
                 faved={Boolean(favs[prompt.id])}
                 toggleFav={toggleFav}
+                onEdit={requestPromptEdit}
               />
             ))}
           </div>

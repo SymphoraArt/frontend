@@ -12,11 +12,13 @@ import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
 import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
 import BillingPanel from "@/components/settings/BillingPanel";
+import { listReferrals, type Referral } from "@/lib/referrals";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
   { id: "profile", label: "Profile" },
   { id: "wallets", label: "Wallets" },
+  { id: "referrals", label: "Referrals" },
   { id: "recovery", label: "Recovery & 2FA" },
   { id: "billing", label: "Billing" },
 ];
@@ -26,6 +28,8 @@ export default function SettingsPage() {
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState("profile");
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  useEffect(() => { setReferrals(listReferrals(account?.address ?? null)); }, [account?.address, activeTab]);
   const [loading, setLoading] = useState(false); // keeping it fast since we mock mostly
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -312,6 +316,47 @@ export default function SettingsPage() {
                 </div>
               </SettingsSection>
             </>
+          )}
+
+          {/* === REFERRALS TAB === */}
+          {activeTab === "referrals" && (
+            <SettingsSection num="01" title="Referrals · 50/50 revenue split">
+              <div className="set-section-desc" style={{ paddingBottom: 16 }}>
+                Links you&apos;ve referred. We review each one; if we rebuild it into a prompt you&apos;re credited,
+                and you earn a <strong>50/50 split with the artist</strong> on every sale.
+              </div>
+              {referrals.length === 0 ? (
+                <div className="set-section-desc">No referrals yet — use <strong>Refer Prompt</strong> to suggest a social link.</div>
+              ) : (
+                <div className="set-table-wrapper">
+                  <table className="set-table">
+                    <thead>
+                      <tr><th>Link</th><th>Platform</th><th>Status</th><th>Your revenue</th><th>Creation</th></tr>
+                    </thead>
+                    <tbody>
+                      {referrals.map((r) => {
+                        const label = r.status === "earning" ? "Earning" : r.status === "accepted" ? "Accepted" : "Suggested";
+                        const badge = r.status === "earning"
+                          ? { bg: "rgba(31,138,91,.16)", c: "#1f8a5b" }
+                          : r.status === "accepted"
+                            ? { bg: "rgba(201,104,56,.16)", c: "var(--enki-ember)" }
+                            : { bg: "rgba(130,130,130,.16)", c: "var(--enki-ink-3)" };
+                        const href = r.url.startsWith("http") ? r.url : "https://" + r.url;
+                        return (
+                          <tr key={r.id}>
+                            <td><a href={href} target="_blank" rel="noreferrer" style={{ color: "var(--enki-ember)" }}>{r.url.replace(/^https?:\/\//, "").slice(0, 34)}</a></td>
+                            <td>{r.platform}</td>
+                            <td><span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.c }}>{label}</span></td>
+                            <td className="money">{r.revenue > 0 ? "$" + r.revenue.toFixed(2) : "—"}</td>
+                            <td>{r.creationId ? <a href={"/generator/" + r.creationId} style={{ color: "var(--enki-ember)" }}>View creation</a> : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SettingsSection>
           )}
 
           {/* === RECOVERY & 2FA TAB === */}
