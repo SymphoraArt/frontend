@@ -2175,6 +2175,18 @@
   }
   .auth-modal::-webkit-scrollbar { width: 8px; }
   .auth-modal::-webkit-scrollbar-thumb { background: rgba(var(--lp-accent2-rgb),0.4); border-radius: 8px; }
+  /* Close X — sticky so it stays in the top-right corner even when the modal scrolls. */
+  .auth-close {
+    position: sticky; top: 2px; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0; margin: -14px -22px 0 auto;
+    border: 1px solid rgba(var(--lp-text-rgb),0.16); border-radius: 50%;
+    background: rgba(18,18,24,0.94); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    color: rgba(var(--lp-text-rgb),0.72); font-size: 15px; line-height: 1; cursor: pointer;
+    transition: background .2s, color .2s, border-color .2s;
+  }
+  .auth-close:hover { background: rgba(var(--lp-accent-rgb),0.22); color: #fff; border-color: rgba(var(--lp-accent-rgb),0.55); }
+  @media (max-height: 760px), (max-width: 480px) { .auth-close { margin: -10px -12px 0 auto; } }
   @media (max-height: 760px), (max-width: 480px) {
     .auth-modal { padding: 22px 20px; border-radius: 16px; }
     .auth-backdrop { padding: 12px; }
@@ -4208,6 +4220,7 @@ function closeMobileMenu() {
 
 <div class="auth-backdrop" id="authBackdrop" onclick="closeAuth(event)">
   <div class="auth-modal" id="authModal">
+    <button type="button" class="auth-close" onclick="closeAuth()" aria-label="Close">✕</button>
     <div class="auth-logo"><img src="/enki-art-logo.png" alt="Enki Art" style="height:32px;width:auto;display:inline-block"/></div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Log in</button>
