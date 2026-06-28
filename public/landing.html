@@ -2633,6 +2633,37 @@
   </section>
 
   <!-- HOW IT WORKS -->
+<style>
+  /* ── intro / pricing / faq additions ── */
+  .price-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:26px; }
+  .price-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px; padding:24px 22px; }
+  .price-card-k { font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--accent-bright); }
+  .price-card-v { font-size:1.5rem; font-weight:800; margin:6px 0 12px; line-height:1.1; }
+  .price-card p { font-size:0.92rem; line-height:1.6; color:rgba(var(--lp-text-rgb),0.7); margin:0; }
+  .price-example { text-align:center; font-size:1.02rem; line-height:1.7; color:rgba(var(--lp-text-rgb),0.85); max-width:640px; margin:0 auto 48px; padding:16px 22px; border:1px dashed rgba(var(--lp-accent-rgb),0.3); border-radius:12px; }
+  .price-control { max-width:680px; margin:0 auto; text-align:center; }
+  .price-control p { font-size:1.02rem; line-height:1.75; color:rgba(var(--lp-text-rgb),0.82); margin:0 0 14px; }
+  .info-star { color:var(--accent-bright); font-weight:800; cursor:help; position:relative; outline:none; }
+  .info-star .info-tip { position:absolute; bottom:135%; left:50%; transform:translateX(-50%); width:240px; max-width:78vw; background:#12121a; color:rgba(var(--lp-text-rgb),0.9); border:1px solid rgba(var(--lp-accent-rgb),0.35); border-radius:10px; padding:10px 13px; font-size:0.8rem; line-height:1.5; font-weight:400; opacity:0; visibility:hidden; transition:opacity .2s; z-index:30; box-shadow:0 12px 32px rgba(0,0,0,0.55); }
+  .info-star:hover .info-tip, .info-star:focus .info-tip { opacity:1; visibility:visible; }
+  .faq-list { display:flex; flex-direction:column; gap:10px; }
+  .faq-item { background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; overflow:hidden; }
+  .faq-item summary { list-style:none; cursor:pointer; padding:16px 20px; font-size:1rem; font-weight:700; display:flex; justify-content:space-between; align-items:center; gap:14px; }
+  .faq-item summary::-webkit-details-marker { display:none; }
+  .faq-item summary::after { content:'+'; color:var(--accent-bright); font-size:1.35rem; font-weight:700; transition:transform .2s; flex-shrink:0; }
+  .faq-item[open] summary::after { transform:rotate(45deg); }
+  .faq-a { padding:0 20px 18px; font-size:0.95rem; line-height:1.65; color:rgba(var(--lp-text-rgb),0.72); }
+  @media (max-width:760px){ .price-grid { grid-template-columns:1fr; } }
+</style>
+
+  <!-- WHAT ENKI IS (intro) -->
+  <section id="about" style="padding:96px 0 60px; overflow:hidden;">
+    <div style="max-width:760px; margin:0 auto; padding:0 40px; text-align:center;">
+      <div class="section-tag" style="margin-bottom:18px;">What Enki is</div>
+      <h2 class="section-title" style="margin:0 auto 18px; max-width:680px;">A home built for prompt artists</h2>
+      <p class="section-sub" style="margin:0 auto; max-width:640px; font-size:1.1rem;">Enki is a marketplace and a social space made for the people who craft AI art. Right now those creators are spread across every feed online, sharing work they cannot really earn from. Enki turns a prompt into real property you own and sell. So you can find inspiration, create, and build a living from your prompts, while everyone else finally gets one place for top class visuals without ever learning to prompt.</p>
+    </div>
+  </section>
   <section id="how" style="padding:100px 0; overflow:hidden;">
     <div style="max-width:1200px; margin:0 auto; padding:0 40px;">
 
@@ -3153,6 +3184,72 @@
 
       </div><!-- /coll-grid -->
     </section>
+
+  <!-- PRICING -->
+  <section id="pricing" style="padding:100px 0; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.05), transparent);">
+    <div style="max-width:1000px; margin:0 auto; padding:0 40px;">
+      <div style="text-align:center; margin-bottom:50px;">
+        <div class="section-tag">Pricing</div>
+        <h2 class="section-title" style="margin:0 auto 16px; max-width:640px;">Pay as you go. Keep what you earn.</h2>
+        <p class="section-sub" style="margin:0 auto; max-width:600px;">No subscription. No confusing tokens. You pay only when you generate, and you always see exactly where the money goes.</p>
+      </div>
+
+      <div class="price-grid">
+        <div class="price-card">
+          <div class="price-card-k">Model cost</div>
+          <div class="price-card-v">the raw API price</div>
+          <p>The real cost of running the AI for your image. We pass it straight through, with nothing hidden.</p>
+        </div>
+        <div class="price-card">
+          <div class="price-card-k">Platform fee</div>
+          <div class="price-card-v">plus 10%</div>
+          <p>A flat ten percent on top of the model cost. That is how Enki keeps the lights on.</p>
+        </div>
+        <div class="price-card">
+          <div class="price-card-k">Artist price</div>
+          <div class="price-card-v">only if premium</div>
+          <p>Some prompts are premium. The artist who made it sets a price, and you pay it only when you use their prompt.</p>
+        </div>
+      </div>
+
+      <div class="price-example">For example: a model that costs about <strong>$0.04</strong> to run becomes <strong>$0.044</strong> after the ten percent fee. Choose a premium prompt and the artist price is simply added on top. That is the whole bill.</div>
+
+      <div class="price-control">
+        <h3 style="font-size:1.4rem; font-weight:800; margin:0 0 14px;">Your money stays yours</h3>
+        <p>You top up your balance once and cash out whenever you want. Enki never holds your funds. You do.</p>
+        <p>Here is how it works: when you load your account, we swap it into <strong>USDC</strong> (a steady digital dollar) and place it in your own wallet inside Enki. You can export that wallet at any time and walk away with everything in it. Recovery is built in<span class="info-star" tabindex="0" role="note">&#42;<span class="info-tip">Recovery runs through Turnkey, a secure key system. If you ever lose access, you can restore your wallet, so a hacked account never wipes out an artist&#39;s income.</span></span>, so a lost or stolen account never means a lost livelihood.</p>
+        <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" style="padding:100px 0;">
+    <div style="max-width:760px; margin:0 auto; padding:0 40px;">
+      <div style="text-align:center; margin-bottom:44px;">
+        <div class="section-tag">FAQ</div>
+        <h2 class="section-title">Questions, answered</h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item"><summary>Do I need to learn prompting?</summary><div class="faq-a">No. Browse the styles, pick one you like, and generate. The hard part is already done for you by the artist who built the prompt.</div></details>
+        <details class="faq-item"><summary>Do I need a subscription?</summary><div class="faq-a">No. You pay per generation and only for what you actually make. Nothing recurring, ever.</div></details>
+        <details class="faq-item"><summary>How can Enki make me money?</summary><div class="faq-a">List your prompt as premium. Every time someone generates an image with it, you earn. Your prompt stays secret the whole time, buyers only ever get the picture.</div></details>
+        <details class="faq-item"><summary>What is Solana, LUKSO and x402?</summary><div class="faq-a">They are the rails that move money safely and instantly. Solana and LUKSO are fast, low cost networks, and x402 is a payment standard that lets the app charge per use. You never have to touch or understand any of it to use Enki.</div></details>
+        <details class="faq-item"><summary>Is my prompt safe if I sell it?</summary><div class="faq-a">Yes. Buyers pay to generate an image and never see the prompt behind it. Your method stays yours.</div></details>
+        <details class="faq-item"><summary>Can I cash out my earnings?</summary><div class="faq-a">Anytime. Your balance lives in your own wallet that you can export, and Enki never locks it up.</div></details>
+        <details class="faq-item"><summary>What if my account gets hacked?</summary><div class="faq-a">Recovery is built in, so your wallet and your earnings can be restored. A bad day never costs you your income.</div></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta" style="padding:30px 0 110px; text-align:center;">
+    <div style="max-width:680px; margin:0 auto; padding:0 40px;">
+      <h2 style="font-size:clamp(1.5rem,3.2vw,2.3rem); font-weight:800; line-height:1.25; margin:0 0 28px;">Ready to earn from your prompts, or to create with the best ones?</h2>
+      <button class="btn-primary" onclick="openAuth('signup')">Request access</button>
+    </div>
+  </section>
+
 
     <style>
       .lp-footer {
