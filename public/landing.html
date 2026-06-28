@@ -4761,11 +4761,14 @@ function insertVar() {
           var group = groups[ci];
           if (!group.length) return;
           var copies = parseInt(col.getAttribute('data-copies'), 10) || 2;
+          var imgs = col.querySelectorAll('img');
+          for (var q = 0; q < imgs.length; q++) { if (!imgs[q].complete || !imgs[q].naturalHeight) return; } // wait for real heights
           var oneCopy = col.scrollHeight / copies;
-          if (!oneCopy) return;
+          if (!oneCopy || oneCopy < 40) return; // not measurable yet
           var needed = Math.ceil((2 * H) / oneCopy); // 2 halves must each cover H
           if (needed % 2 !== 0) needed++;
           if (needed < 2) needed = 2;
+          if (needed > 8) needed = 8; // safety cap: never let a mis-measure blow up the column
           if (needed !== copies) {
             col.setAttribute('data-copies', String(needed));
             col.innerHTML = tiles(group, needed);
@@ -4773,8 +4776,20 @@ function insertVar() {
         });
       }
 
-      if (document.readyState === 'complete') setTimeout(ensureFill, 60);
-      else window.addEventListener('load', function () { setTimeout(ensureFill, 60); }, { once: true });
+      // Run the fill ONLY after every header image has actually loaded — a
+      // 0-height measure would otherwise make the columns absurdly tall and the
+      // scroll far too fast.
+      (function waitImgs() {
+        var imgs = [];
+        cols.forEach(function (c) { imgs = imgs.concat([].slice.call(c.querySelectorAll('img'))); });
+        if (!imgs.length) { ensureFill(); return; }
+        var left = imgs.length;
+        function tick() { if (--left <= 0) ensureFill(); }
+        imgs.forEach(function (im) {
+          if (im.complete && im.naturalHeight) tick();
+          else { im.addEventListener('load', tick, { once: true }); im.addEventListener('error', tick, { once: true }); }
+        });
+      })();
       var rt;
       window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(ensureFill, 200); });
     })
