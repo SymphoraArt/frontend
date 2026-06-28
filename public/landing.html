@@ -23,11 +23,20 @@
 <title>Enki Art — Premium AI Visual Marketplace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/cinzel-decorative-700.woff2"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Cinzel+Decorative:wght@400;700;900&display=swap" rel="stylesheet"/>
+
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <link rel="icon" type="image/png" href="/favicon.png"/>
 <style>
+  /* Self-hosted + preloaded so the headline paints in Cinzel from the start — no font swap (FOUT). */
+  @font-face {
+    font-family: 'Cinzel Decorative';
+    font-style: normal;
+    font-weight: 700;
+    font-display: block;
+    src: url('/fonts/cinzel-decorative-700.woff2') format('woff2');
+  }
   :root {
     /* ── Landing palette — TEAL is the standard default. The whole landing
        reads these --lp-* tokens; switching the html class re-tints every
