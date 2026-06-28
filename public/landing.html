@@ -603,8 +603,12 @@
     display: block; width: 100%; margin-bottom: 16px; border-radius: 16px; overflow: hidden;
     background-size: contain; background-position: center; background-repeat: no-repeat;
     box-shadow: 0 10px 34px rgba(0,0,0,0.28);
+    /* hidden until its image has loaded, then it rises up + fades in (no filler flash) */
+    opacity: 0; transform: translateY(28px);
+    transition: opacity .6s ease, transform .7s cubic-bezier(.2,.7,.2,1);
   }
-  .hc-col span:not(:has(img)) { aspect-ratio: 3 / 4; background-size: cover; } /* gradient fallback keeps a shape */
+  .hc-col span.shown { opacity: 1; transform: translateY(0); }
+  .hc-col span:not(:has(img)) { aspect-ratio: 3 / 4; background-size: cover; opacity: 1; transform: none; } /* gradient fallback: keep a shape + stay visible */
   .hc-col span img { display: block; width: 100%; height: auto; }
   .hc-col span:nth-child(6n+1){ background: linear-gradient(150deg, var(--lp-deep), var(--lp-accent)); }
   .hc-col span:nth-child(6n+2){ background: linear-gradient(150deg, var(--lp-accent2), var(--lp-bright)); }
@@ -4807,19 +4811,29 @@ function insertVar() {
       // Run the fill ONLY after every header image has actually loaded — a
       // 0-height measure would otherwise make the columns absurdly tall and the
       // scroll far too fast.
+      // Reveal each tile: rise up + fade in. Staggered on first load, instant after.
+      function showHeroTiles() {
+        cols.forEach(function (col) {
+          [].slice.call(col.querySelectorAll('span')).forEach(function (sp, i) {
+            if (!showHeroTiles.done) sp.style.transitionDelay = Math.min(i * 0.025, 0.6) + 's';
+            sp.classList.add('shown');
+          });
+        });
+        showHeroTiles.done = true;
+      }
       (function waitImgs() {
         var imgs = [];
         cols.forEach(function (c) { imgs = imgs.concat([].slice.call(c.querySelectorAll('img'))); });
         if (!imgs.length) { ensureFill(); return; }
         var left = imgs.length;
-        function tick() { if (--left <= 0) { ensureFill(); enableBelowFold(); } }
+        function tick() { if (--left <= 0) { ensureFill(); enableBelowFold(); requestAnimationFrame(showHeroTiles); } }
         imgs.forEach(function (im) {
           if (im.complete && im.naturalHeight) tick();
           else { im.addEventListener('load', tick, { once: true }); im.addEventListener('error', tick, { once: true }); }
         });
       })();
       var rt;
-      window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(ensureFill, 200); });
+      window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { ensureFill(); showHeroTiles(); }, 200); });
     })
     .catch(function () { enableBelowFold(); });
 })();
