@@ -272,6 +272,7 @@
   }
   .powered-by-list { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: clamp(9px, 1.5vw, 15px); }
   .pb-logo { display: inline-flex; align-items: center; height: clamp(8px, 1vw, 11px); opacity: 0.82; transition: opacity .2s; }
+  .pb-logo.pb-x402 { height: clamp(6.2px, 0.77vw, 8.5px); }  /* x402 is wordmark-only -> shrink to match the others optical text height */
   .pb-logo:hover { opacity: 1; }
   .pb-logo a { display: inline-flex; align-items: center; height: 100%; }
   .pb-logo img { display: block; height: 100%; width: auto; object-fit: contain; }
@@ -303,6 +304,7 @@
     .powered-by { top: 12px; right: 14px; gap: 5px; }
     .powered-by-list { flex-direction: column; align-items: flex-start; gap: 7px; }
     .pb-logo { height: 11px; }
+    .pb-logo.pb-x402 { height: 8.5px; }
     .powered-by-label { font-size: 7.5px; letter-spacing: 0.16em; }
     /* mobile: badge stacks vertically instead of hiding */
     .lp-sw { width: 15px; height: 15px; }
@@ -2586,7 +2588,7 @@
   <ul class="powered-by-list">
     <li class="pb-logo pb-mono" title="Solana"><a href="https://solana.com" target="_blank" rel="noopener noreferrer" aria-label="Solana"><img src="/logos/solana.svg" alt="Solana" loading="lazy"/></a></li>
     <li class="pb-logo pb-mono" title="LUKSO"><a href="https://lukso.network" target="_blank" rel="noopener noreferrer" aria-label="LUKSO"><img src="/logos/lukso.png" alt="LUKSO" loading="lazy"/></a></li>
-    <li class="pb-logo pb-mono" title="x402"><a href="https://x402.org" target="_blank" rel="noopener noreferrer" aria-label="x402"><img src="/logos/x402.svg" alt="x402" loading="lazy"/></a></li>
+    <li class="pb-logo pb-mono pb-x402" title="x402"><a href="https://x402.org" target="_blank" rel="noopener noreferrer" aria-label="x402"><img src="/logos/x402.svg" alt="x402" loading="lazy"/></a></li>
   </ul>
 </div>
 
