@@ -260,6 +260,22 @@
     position: fixed; top: 20px; left: 40px; z-index: 1000;
     display: flex; align-items: center; gap: 16px;
   }
+  /* Top-right 'powered by' chain badge — brand lockups, centred.
+     Solana / LUKSO / x402 flattened to white; Base keeps its colour. */
+  .powered-by {
+    position: fixed; top: 20px; right: 40px; z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .powered-by-label {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(var(--lp-text-rgb), 0.5);
+  }
+  .powered-by-list { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 18px; }
+  .pb-logo { display: inline-flex; align-items: center; height: 15px; opacity: 0.82; transition: opacity .2s; }
+  .pb-logo:hover { opacity: 1; }
+  .pb-logo img { display: block; height: 100%; width: auto; object-fit: contain; }
+  .pb-mono img { filter: brightness(0) invert(1); opacity: 0.9; }
+  html.lp-light .pb-mono img { filter: brightness(0); opacity: 0.62; }
   .brand-mark {
     display: inline-flex; align-items: center; text-decoration: none;
   }
@@ -283,6 +299,11 @@
   @media (max-width: 768px) {
     .brand-bar { top: 14px; left: 18px; gap: 12px; }
     .brand-mark img { height: 32px; }
+    .powered-by { top: 14px; right: 16px; gap: 6px; }
+    .powered-by-list { gap: 12px; }
+    .pb-logo { height: 12px; }
+    .powered-by-label { font-size: 8px; letter-spacing: 0.18em; }
+    @media (max-width: 540px) { .powered-by { display: none; } }
     .lp-sw { width: 15px; height: 15px; }
   }
 
@@ -2557,6 +2578,16 @@
     <button class="lp-sw lp-sw-purple" data-theme="purple" onclick="pickTheme('purple')" aria-label="Purple theme"></button>
     <button class="lp-sw lp-sw-light" data-theme="light" onclick="pickTheme('light')" aria-label="Light theme"></button>
   </div>
+</div>
+
+<div class="powered-by" aria-label="Powered by Solana, LUKSO, Base, x402">
+  <span class="powered-by-label">Powered by</span>
+  <ul class="powered-by-list">
+    <li class="pb-logo pb-mono" title="Solana"><img src="/logos/solana.svg" alt="Solana" loading="lazy"/></li>
+    <li class="pb-logo pb-mono" title="LUKSO"><img src="/logos/lukso.png" alt="LUKSO" loading="lazy"/></li>
+    <li class="pb-logo" title="Base"><img src="/logos/base.webp" alt="Base" loading="lazy"/></li>
+    <li class="pb-logo pb-mono" title="x402"><img src="/logos/x402.svg" alt="x402" loading="lazy"/></li>
+  </ul>
 </div>
 
 <!-- ============ LANDING PAGE ============ -->
