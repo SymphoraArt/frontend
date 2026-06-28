@@ -3123,6 +3123,16 @@
       .terms-wrap { max-width: 760px; margin: 0 auto; padding: 116px 28px 100px; line-height: 1.7; color: rgba(var(--lp-text-rgb),0.85); }
       .terms-back { display: inline-block; margin-bottom: 26px; color: var(--accent-bright); text-decoration: none; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
       .terms-back:hover { text-decoration: underline; }
+      /* Terms opens as its own slide-up, scrollable overlay over the landing.
+         The landing stays put behind it, so closing returns you to the bottom. */
+      #page-terms {
+        position: fixed; inset: 0; z-index: 9000;
+        overflow-y: auto; -webkit-overflow-scrolling: touch;
+        background: linear-gradient(to bottom, var(--lp-bg0) 0%, var(--lp-bg0) 12%, var(--lp-bg1) 42%, var(--lp-bg2) 72%, var(--lp-base) 100%);
+        transform: translateY(100%); visibility: hidden;
+        transition: transform .4s cubic-bezier(.2,.7,.2,1);
+      }
+      #page-terms.open { transform: translateY(0); visibility: visible; }
       .terms-wrap h1 { font-size: 2rem; font-weight: 800; margin: 0 0 12px; line-height: 1.2; }
       .terms-beta { font-size: 0.68rem; vertical-align: middle; background: rgba(var(--lp-accent-rgb),0.18); color: var(--accent-bright); padding: 4px 11px; border-radius: 999px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-left: 6px; }
       .terms-meta { font-size: 0.85rem; color: rgba(var(--lp-text-rgb),0.55); margin: 0 0 24px; }
@@ -3140,7 +3150,7 @@
     <footer class="lp-footer">
       <span class="lp-footer-brand">ENKI ART</span>
       <span class="lp-footer-sep">·</span>
-      <a class="lp-footer-link" onclick="showPage('terms');return false;">Terms of Use</a>
+      <a class="lp-footer-link" onclick="openTerms();return false;">Terms of Use</a>
     </footer>
 
   </div><!-- /page-landing -->
@@ -3148,9 +3158,9 @@
   <!-- ═══════════════════════════════════════════
        TERMS OF USE PAGE
   ═══════════════════════════════════════════ -->
-  <div class="page" id="page-terms">
+  <div id="page-terms">
     <div class="terms-wrap">
-      <a class="terms-back" onclick="showPage('landing');return false;">← Back to home</a>
+      <a class="terms-back" onclick="closeTerms();return false;">← Back</a>
       <h1>ENKI ART — Terms of Use<span class="terms-beta">Closed Beta</span></h1>
       <p class="terms-meta"><strong>Version:</strong> Closed Beta 0.1 · <strong>Last updated:</strong> 27.06.2026</p>
 
@@ -4013,6 +4023,24 @@
 
 <script>
 /* ── PAGE ROUTING ── */
+// Terms of Use opens as a slide-up overlay (its own scrollable page) WITHOUT
+// moving the landing behind it, so closing it leaves you exactly where you were
+// (at the bottom / footer).
+function openTerms() {
+  var t = document.getElementById('page-terms');
+  if (!t) return;
+  t.scrollTop = 0;
+  t.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeTerms() {
+  var t = document.getElementById('page-terms');
+  if (t) t.classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { var t = document.getElementById('page-terms'); if (t && t.classList.contains('open')) closeTerms(); }
+});
 function showPage(name) {
   // Funnel product pages into the real app instead of the in-page mockups.
   // Embedded in an iframe, so break out to the top window.
