@@ -990,7 +990,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     else if (pt === "out") { if (pos) addOutput({ x: pos.x, y: pos.y - 30 }); else spawnOutput(); }
   };
   const startConnect = (pt: string, e: React.PointerEvent) => { const from = promptPortWorld(pt); setConnectLine({ from, to: from, color: portColor(pt) }); startDrag("connect", e, { portType: pt, from, color: portColor(pt), moved: false }); };
-  const portDbl = (pt: string, e: React.PointerEvent) => { e.stopPropagation(); spawnFromPortKind(pt); };
+  const portDbl = (pt: string, e: React.MouseEvent) => { e.stopPropagation(); spawnFromPortKind(pt); };
 
   /* ── image input (real files, no placeholders) ── */
   const setRefImg = (id: string, url: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, img: url } : n)) }));

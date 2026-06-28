@@ -689,6 +689,10 @@
     transition: all 0.25s; backdrop-filter: blur(8px);
   }
   .btn-ghost:hover { border-color: var(--accent-bright); color: var(--accent-bright); background: rgba(var(--lp-accent-rgb),0.08); transform: translateY(-2px); }
+  /* Hero "Log in" needs to read against the busy collage — give it a faint,
+     theme-aware fill + border instead of being fully transparent. */
+  .hero-actions .btn-ghost { background: rgba(var(--lp-text-rgb),0.09); border-color: rgba(var(--lp-text-rgb),0.30); }
+  .hero-actions .btn-ghost:hover { background: rgba(var(--lp-accent-rgb),0.12); border-color: var(--accent-bright); }
   .hero-whitelist {
     margin-top: 20px; font-size: 0.8rem; letter-spacing: 0.02em;
     color: rgba(var(--lp-text-rgb),0.5);
@@ -4525,7 +4529,13 @@ function closeLightbox(e) {
   function wireShow(el) {
     var idx = sIdx++;
     el.style.cursor = 'zoom-in';
-    el.addEventListener('click', function () { if (showcase[idx]) openLightboxGroup(showcase, idx); });
+    el.addEventListener('click', function () {
+      // Clicking any showcase image stops the auto-rotation so the set no longer
+      // switches underneath you (same as picking a tab).
+      kvUserPicked = true;
+      if (kvTimer) { clearInterval(kvTimer); kvTimer = null; }
+      if (showcase[idx]) openLightboxGroup(showcase, idx);
+    });
   }
   if (srcEl) wireShow(srcEl);
   [].slice.call(document.querySelectorAll('.kv-cards > div')).forEach(wireShow);
