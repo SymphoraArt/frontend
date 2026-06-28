@@ -571,7 +571,7 @@
   .hero-collage {
     position: absolute; inset: -8% -8%; z-index: 0; pointer-events: none;
     transform: rotate(-7deg); transform-origin: 50% 45%;
-    display: flex; gap: 16px; opacity: 0.5;
+    display: flex; gap: 16px; opacity: 0; transition: opacity .7s ease;
     /* DON'T stretch the columns to the container height — they must keep their
        full content height so translateY(-50%) lands exactly on the duplicate. */
     align-items: flex-start;
@@ -617,7 +617,8 @@
   .hc-col span:nth-child(6n+5){ background: linear-gradient(150deg, var(--lp-glow), var(--lp-deep)); }
   .hc-col span:nth-child(6n)  { background: linear-gradient(150deg, var(--lp-accent), var(--lp-accent2)); }
   @media (prefers-reduced-motion: reduce) { .hc-col { animation: none !important; } }
-  html.lp-light .hero-collage { opacity: 0.42; }
+  .hero-collage.ready { opacity: 0.5; }
+  html.lp-light .hero-collage.ready { opacity: 0.42; }
   .hero-orb {
     position: absolute; border-radius: 50%; pointer-events: none;
     animation: drift 8s ease-in-out infinite;
@@ -4484,6 +4485,8 @@ function enableBelowFold() {
 }
 // Safety net: if the hero never reports done, still reveal the rest.
 setTimeout(enableBelowFold, 12000);
+function revealCollage() { var hc = document.querySelector('.hero-collage'); if (hc) hc.classList.add('ready'); }
+setTimeout(revealCollage, 10000); // safety: never leave the hero permanently blank
 function kvPick(i, manual) {
   kvIdx = i;
   document.querySelectorAll('#kvTabs .kv-tab').forEach(function (tab, n) { tab.classList.toggle('active', n === i); });
@@ -4783,7 +4786,7 @@ function insertVar() {
   fetch('/api/header-images')
     .then(function (r) { return r.ok ? r.json() : []; })
     .then(function (list) {
-      if (!Array.isArray(list) || !list.length) { enableBelowFold(); return; } // empty folder → gradient fallback
+      if (!Array.isArray(list) || !list.length) { enableBelowFold(); revealCollage(); return; } // empty folder → gradient fallback
       // Shuffle so the arrangement is random on every load.
       for (var k = list.length - 1; k > 0; k--) {
         var j = Math.floor(Math.random() * (k + 1));
@@ -4848,6 +4851,7 @@ function insertVar() {
           });
         });
         showHeroTiles.done = true;
+        revealCollage();
       }
       (function waitImgs() {
         var imgs = [];
@@ -4863,7 +4867,7 @@ function insertVar() {
       var rt;
       window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { ensureFill(); showHeroTiles(); }, 200); });
     })
-    .catch(function () { enableBelowFold(); });
+    .catch(function () { enableBelowFold(); revealCollage(); });
 })();
 </script>
 
