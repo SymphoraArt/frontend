@@ -4662,9 +4662,10 @@ function closeLightbox(e) {
     var imgs = [].slice.call(c.querySelectorAll('img'));
     c.style.cursor = 'zoom-in';
     if (imgs.length) {
-      var items = imgs.map(function (im) { return { src: im.getAttribute('src') }; });
+      // images are lazy (data-src); the lightbox set is resolved at click time
       c.addEventListener('click', function (e) {
         if (e.target.closest('button')) return;
+        var items = imgs.map(function (im) { return { src: im.currentSrc || im.getAttribute('src') || im.getAttribute('data-src') }; });
         var i = imgs.indexOf(e.target);
         openLightboxGroup(items, i < 0 ? 0 : i);
       });
