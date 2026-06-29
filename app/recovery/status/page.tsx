@@ -138,6 +138,7 @@ export default function RecoveryStatusPage() {
     <>
       <Navbar />
       <main style={{ maxWidth: 720, margin: "100px auto 80px", padding: "0 20px", fontFamily: "var(--font-sans)" }}>
+      <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "8px 16px" }}>MOCK — this recovery flow is a UI prototype, not wired to Turnkey yet.</div>
         <header style={{ marginBottom: 28 }}>
           <p style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "0.2em", color: "rgba(0,0,0,0.5)", margin: 0 }}>
             ACCOUNT &nbsp;/&nbsp; RECOVERY

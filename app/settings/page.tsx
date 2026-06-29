@@ -23,6 +23,18 @@ const TABS: TabItem[] = [
   { id: "billing", label: "Billing" },
 ];
 
+// Visual markers for placeholder UI that isn't wired to live data yet.
+const MockTag = () => (
+  <span style={{ marginLeft: 8, padding: "2px 8px", background: "#fde68a", color: "#92400e", borderRadius: 20, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", verticalAlign: "middle" }}>
+    MOCK
+  </span>
+);
+const MockBanner = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: 8, padding: "12px 18px", marginBottom: 20, fontSize: 13, color: "#92400e", lineHeight: 1.55 }}>
+    <strong>Mock data.</strong> {children}
+  </div>
+);
+
 export default function SettingsPage() {
   const account = useActiveAccount();
   const { toast } = useToast();
@@ -218,10 +230,13 @@ export default function SettingsPage() {
               <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
                 Your assets managed securely via Turnkey infrastructure.
               </div>
+              <MockBanner>
+                These addresses and balances are placeholders. Live balance fetching and the Send flow are not wired yet.
+              </MockBanner>
               <div className="set-list-item">
                 <div className="set-item-icon"><Wallet size={14} /></div>
                 <div className="set-item-content">
-                  <div className="set-item-title">Ethereum (Base) <span className="set-badge-dark">ACTIVE</span></div>
+                  <div className="set-item-title">Ethereum (Base) <span className="set-badge-dark">ACTIVE</span><MockTag /></div>
                   <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>0x71C...9B3f</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -235,7 +250,7 @@ export default function SettingsPage() {
               <div className="set-list-item">
                 <div className="set-item-icon"><Wallet size={14} /></div>
                 <div className="set-item-content">
-                  <div className="set-item-title">Solana</div>
+                  <div className="set-item-title">Solana<MockTag /></div>
                   <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>HN7c...k8W2</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -362,6 +377,9 @@ export default function SettingsPage() {
           {/* === RECOVERY & 2FA TAB === */}
           {activeTab === "recovery" && (
             <>
+              <MockBanner>
+                This whole tab is a UI mockup. The recovery phrase status, guardians, approval threshold, ZK passcode and device list are placeholders — none of it is wired to Turnkey or stored yet.
+              </MockBanner>
               {showLivenessBanner && (
                 <div style={{ background: "#fef9eb", border: "1px solid #f5e6c0", borderLeft: "3px solid #f5c542", borderRadius: 8, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
