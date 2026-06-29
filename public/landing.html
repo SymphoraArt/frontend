@@ -4500,6 +4500,12 @@ function checkStrength(val) {
 const WHITELIST = ['kirikev4d@gmail.com'];
 function walletLogin() {
   // Wallet / Turnkey sign-in lives in the app shell — hand off to it.
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'enki-open-wallet' }, '*');
+      return;
+    }
+  } catch (e) {}
   (window.top || window).location.href = '/home?auth=wallet';
 }
 function submitAuth(e, type) {
