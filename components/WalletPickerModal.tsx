@@ -322,7 +322,17 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="sm:max-w-xs p-4">
         <DialogHeader>
-          <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { if (showEmail) { setShowEmail(false); resetTurnkey(); } else { handleClose(); } }}
+              aria-label="Back"
+              className="-ml-1 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          </div>
           <DialogDescription className="sr-only">
             Select a Solana or EVM wallet to connect to Symphora.
           </DialogDescription>
