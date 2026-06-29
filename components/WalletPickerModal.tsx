@@ -19,13 +19,8 @@ interface WalletPickerModalProps {
   onClose: () => void;
 }
 
-const EVM_WALLETS: Array<{ id: WalletId; name: string; icon: string }> = [
-  { id: "io.metamask",         name: "MetaMask",       icon: "https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" },
-  { id: "com.coinbase.wallet", name: "Coinbase Wallet", icon: "https://avatars.githubusercontent.com/u/1885080?s=200&v=4" },
-  { id: "walletConnect",       name: "WalletConnect",  icon: "https://avatars.githubusercontent.com/u/37784886?s=200&v=4" },
-  { id: "me.rainbow",          name: "Rainbow",        icon: "https://rainbow.me/favicon.ico" },
-  { id: "com.trustwallet.app", name: "Trust Wallet",   icon: "https://avatars.githubusercontent.com/u/32179889?s=200&v=4" },
-];
+// EIP-6963 announced provider info (name + icon + reverse-DNS id).
+type EIP6963Info = { uuid: string; name: string; icon: string; rdns: string };
 
 type SolanaPhase = "connecting" | "signing";
 
@@ -66,6 +61,25 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
+
+  // EVM wallets are auto-detected via EIP-6963 (no hardcoded list) — the same
+  // way Solana wallets come from Wallet Standard. Only installed extensions show.
+  const [evmProviders, setEvmProviders] = useState<EIP6963Info[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    const found = new Map<string, EIP6963Info>();
+    const onAnnounce = (event: Event) => {
+      const detail = (event as CustomEvent<{ info?: EIP6963Info }>).detail;
+      if (detail?.info?.rdns) {
+        found.set(detail.info.rdns, detail.info);
+        setEvmProviders(Array.from(found.values()));
+      }
+    };
+    window.addEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+    // Ask installed wallets to announce themselves (EIP-6963 handshake).
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    return () => window.removeEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+  }, [open]);
 
   const handleClose = useCallback(() => {
     solanaInFlight.current = false;
@@ -376,14 +390,14 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
             );
           })}
 
-          <div className="border-t my-2" />
+          {evmProviders.length > 0 && <div className="border-t my-2" />}
 
-          {/* EVM wallets */}
-          {EVM_WALLETS.map((w) => (
+          {/* EVM wallets — auto-detected via EIP-6963, no hardcoded list */}
+          {evmProviders.map((w) => (
             <button
-              key={w.id}
+              key={w.rdns}
               disabled={!!connecting}
-              onClick={() => handleEVM(w.id)}
+              onClick={() => handleEVM(w.rdns as WalletId)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted disabled:opacity-50 text-sm font-medium text-left transition-colors"
             >
               <img
@@ -394,7 +408,7 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
               />
               <span className="flex-1">{w.name}</span>
               <span className="text-xs text-muted-foreground">
-                {connecting === w.id ? "Connecting…" : "EVM"}
+                {connecting === w.rdns ? "Connecting…" : "EVM"}
               </span>
             </button>
           ))}
