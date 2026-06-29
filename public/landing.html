@@ -977,12 +977,8 @@
     font-size: 1rem; flex-shrink: 0; color: var(--accent-bright); transition: transform 0.3s, background 0.2s;
   }
   .faq-item.open .faq-q-icon { transform: rotate(45deg); background: rgba(var(--lp-accent-rgb),0.3); }
-  .faq-a {
-    max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.2s;
-    color: var(--white-60); font-size: 0.875rem; line-height: 1.75;
-    padding: 0 28px;
-  }
-  .faq-item.open .faq-a { max-height: 600px !important; padding: 0 28px 22px !important; }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(.4,0,.2,1); }
+  .faq-a-inner { padding: 0 28px 22px; color: var(--white-60); font-size: 0.875rem; line-height: 1.75; }
 
   /* CTA BANNER */
   .cta-banner {
@@ -3223,13 +3219,13 @@
         <h2 class="section-title">FAQ</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need to learn prompting?<span class="faq-q-icon">+</span></button><div class="faq-a">No.<br>Browse the styles, pick one you like, and generate.<br>The hard part is already done for you by the artist who built the prompt.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need a subscription?<span class="faq-q-icon">+</span></button><div class="faq-a">No.<br>You pay per generation and only for what you actually make.<br>Nothing recurring, ever.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">How can Enki make me money?<span class="faq-q-icon">+</span></button><div class="faq-a">List your prompt as premium.<br>Every time someone generates an image with it, you earn.<br>Your prompt stays secret the whole time, buyers only ever get the picture.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What is Solana, LUKSO and x402?<span class="faq-q-icon">+</span></button><div class="faq-a">They are the rails that move money safely and instantly.<br>Solana and LUKSO are fast, low cost networks, and x402 is a payment standard that lets the app charge per use.<br>You never have to touch or understand any of it to use Enki.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Is my prompt safe if I sell it?<span class="faq-q-icon">+</span></button><div class="faq-a">Yes.<br>Buyers pay to generate an image and never see the prompt behind it.<br>Your method stays yours.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Can I cash out my earnings?<span class="faq-q-icon">+</span></button><div class="faq-a">Anytime.<br>Your balance lives in your own wallet that you can export, and Enki never locks it up.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What if my account gets hacked?<span class="faq-q-icon">+</span></button><div class="faq-a">Recovery is built in, so your wallet and your earnings can be restored.<br>A bad day never costs you your income.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need to learn prompting?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">No.<br>Browse the styles, pick one you like, and generate.<br>The hard part is already done for you by the artist who built the prompt.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need a subscription?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">No.<br>You pay per generation and only for what you actually make.<br>Nothing recurring, ever.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">How can Enki make me money?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">List your prompt as premium.<br>Every time someone generates an image with it, you earn.<br>Your prompt stays secret the whole time, buyers only ever get the picture.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What is Solana, LUKSO and x402?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">They are the rails that move money safely and instantly.<br>Solana and LUKSO are fast, low cost networks, and x402 is a payment standard that lets the app charge per use.<br>You never have to touch or understand any of it to use Enki.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Is my prompt safe if I sell it?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">Yes.<br>Buyers pay to generate an image and never see the prompt behind it.<br>Your method stays yours.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Can I cash out my earnings?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">Anytime.<br>Your balance lives in your own wallet that you can export, and Enki never locks it up.</div></div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What if my account gets hacked?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">Recovery is built in, so your wallet and your earnings can be restored.<br>A bad day never costs you your income.</div></div></div>
       </div>
     </div>
   </section>
@@ -4165,9 +4161,24 @@ function toggleFaq(btn) {
   var item = btn.closest('.faq-item');
   var wasOpen = item.classList.contains('open');
   var open = document.querySelectorAll('.faq-item.open');
-  for (var i = 0; i < open.length; i++) open[i].classList.remove('open');
-  if (!wasOpen) { item.classList.add('open'); btn.focus({ preventScroll: true }); }
+  for (var i = 0; i < open.length; i++) (function (it) {
+    var oa = it.querySelector('.faq-a');
+    oa.style.maxHeight = oa.scrollHeight + 'px';
+    void oa.offsetHeight;
+    it.classList.remove('open');
+    oa.style.maxHeight = '0px';
+  })(open[i]);
+  if (!wasOpen) {
+    var a = item.querySelector('.faq-a');
+    item.classList.add('open');
+    a.style.maxHeight = a.scrollHeight + 'px';
+    btn.focus({ preventScroll: true });
+  }
 }
+window.addEventListener('resize', function () {
+  var op = document.querySelectorAll('.faq-item.open .faq-a');
+  for (var i = 0; i < op.length; i++) op[i].style.maxHeight = op[i].scrollHeight + 'px';
+});
 function openTerms() {
   var t = document.getElementById('page-terms');
   if (!t) return;
