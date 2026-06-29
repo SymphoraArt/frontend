@@ -965,7 +965,7 @@
   }
   .faq-item.open { border-color: rgba(var(--lp-accent-rgb),0.5); }
   .faq-q {
-    width: 100%; text-align: left; background: none; border: none; color: white;
+    width: 100%; text-align: left; background: none; border: none; color: rgba(var(--lp-text-rgb),0.92);
     font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 600;
     padding: 22px 28px; display: flex; justify-content: space-between; align-items: center;
     cursor: none; gap: 16px;
@@ -974,7 +974,7 @@
     width: 24px; height: 24px; border-radius: 50%; background: rgba(var(--lp-accent-rgb),0.15);
     border: 1px solid rgba(var(--lp-accent-rgb),0.25);
     display: flex; align-items: center; justify-content: center;
-    font-size: 1rem; flex-shrink: 0; transition: transform 0.3s, background 0.2s;
+    font-size: 1rem; flex-shrink: 0; color: var(--accent-bright); transition: transform 0.3s, background 0.2s;
   }
   .faq-item.open .faq-q-icon { transform: rotate(45deg); background: rgba(var(--lp-accent-rgb),0.3); }
   .faq-a {
@@ -3220,17 +3220,16 @@
   <section id="faq" style="padding:100px 0;">
     <div style="max-width:760px; margin:0 auto; padding:0 40px;">
       <div style="text-align:center; margin-bottom:44px;">
-        <div class="section-tag">FAQ</div>
-        <h2 class="section-title">Questions, answered</h2>
+        <h2 class="section-title">FAQ</h2>
       </div>
       <div class="faq-list">
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need to learn prompting?<span class="faq-q-icon">+</span></button><div class="faq-a">No. Browse the styles, pick one you like, and generate. The hard part is already done for you by the artist who built the prompt.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need a subscription?<span class="faq-q-icon">+</span></button><div class="faq-a">No. You pay per generation and only for what you actually make. Nothing recurring, ever.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">How can Enki make me money?<span class="faq-q-icon">+</span></button><div class="faq-a">List your prompt as premium. Every time someone generates an image with it, you earn. Your prompt stays secret the whole time, buyers only ever get the picture.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What is Solana, LUKSO and x402?<span class="faq-q-icon">+</span></button><div class="faq-a">They are the rails that move money safely and instantly. Solana and LUKSO are fast, low cost networks, and x402 is a payment standard that lets the app charge per use. You never have to touch or understand any of it to use Enki.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Is my prompt safe if I sell it?<span class="faq-q-icon">+</span></button><div class="faq-a">Yes. Buyers pay to generate an image and never see the prompt behind it. Your method stays yours.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Can I cash out my earnings?<span class="faq-q-icon">+</span></button><div class="faq-a">Anytime. Your balance lives in your own wallet that you can export, and Enki never locks it up.</div></div>
-        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What if my account gets hacked?<span class="faq-q-icon">+</span></button><div class="faq-a">Recovery is built in, so your wallet and your earnings can be restored. A bad day never costs you your income.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need to learn prompting?<span class="faq-q-icon">+</span></button><div class="faq-a">No.<br>Browse the styles, pick one you like, and generate.<br>The hard part is already done for you by the artist who built the prompt.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need a subscription?<span class="faq-q-icon">+</span></button><div class="faq-a">No.<br>You pay per generation and only for what you actually make.<br>Nothing recurring, ever.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">How can Enki make me money?<span class="faq-q-icon">+</span></button><div class="faq-a">List your prompt as premium.<br>Every time someone generates an image with it, you earn.<br>Your prompt stays secret the whole time, buyers only ever get the picture.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What is Solana, LUKSO and x402?<span class="faq-q-icon">+</span></button><div class="faq-a">They are the rails that move money safely and instantly.<br>Solana and LUKSO are fast, low cost networks, and x402 is a payment standard that lets the app charge per use.<br>You never have to touch or understand any of it to use Enki.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Is my prompt safe if I sell it?<span class="faq-q-icon">+</span></button><div class="faq-a">Yes.<br>Buyers pay to generate an image and never see the prompt behind it.<br>Your method stays yours.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Can I cash out my earnings?<span class="faq-q-icon">+</span></button><div class="faq-a">Anytime.<br>Your balance lives in your own wallet that you can export, and Enki never locks it up.</div></div>
+        <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">What if my account gets hacked?<span class="faq-q-icon">+</span></button><div class="faq-a">Recovery is built in, so your wallet and your earnings can be restored.<br>A bad day never costs you your income.</div></div>
       </div>
     </div>
   </section>
@@ -4162,7 +4161,13 @@
 // Terms of Use opens as a slide-up overlay (its own scrollable page) WITHOUT
 // moving the landing behind it, so closing it leaves you exactly where you were
 // (at the bottom / footer).
-function toggleFaq(btn) { btn.closest('.faq-item').classList.toggle('open'); }
+function toggleFaq(btn) {
+  var item = btn.closest('.faq-item');
+  var wasOpen = item.classList.contains('open');
+  var open = document.querySelectorAll('.faq-item.open');
+  for (var i = 0; i < open.length; i++) open[i].classList.remove('open');
+  if (!wasOpen) { item.classList.add('open'); btn.focus({ preventScroll: true }); }
+}
 function openTerms() {
   var t = document.getElementById('page-terms');
   if (!t) return;
