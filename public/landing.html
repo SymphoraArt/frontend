@@ -2631,6 +2631,12 @@
   <!-- HOW IT WORKS -->
 <style>
   /* ── intro / pricing / faq additions ── */
+  .feature-row { display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center; }
+  .feature-figure { margin:0; border:1px solid var(--card-border); border-radius:18px; overflow:hidden; background:var(--card-bg); }
+  .feature-figure img { display:block; width:100%; height:auto; }
+  .lp-lines p { margin:0 0 12px; }
+  .lp-lines p:last-child { margin:0; }
+  @media (max-width:760px) { .feature-row { grid-template-columns:1fr; gap:28px; } }
   .price-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:26px; }
   .price-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px; padding:24px 22px; }
   .price-card-k { font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--accent-bright); }
@@ -2647,10 +2653,22 @@
 
   <!-- WHAT ENKI IS (intro) -->
   <section id="about" style="padding:96px 0 60px; overflow:hidden;">
-    <div style="max-width:760px; margin:0 auto; padding:0 40px; text-align:center;">
-      <div class="section-tag" style="margin-bottom:18px;">What Enki is</div>
-      <h2 class="section-title" style="margin:0 auto 18px; max-width:680px;">A home built for prompt artists</h2>
-      <p class="section-sub" style="margin:0 auto; max-width:640px; font-size:1.1rem;">Enki is a marketplace and a social space made for the people who craft AI art. Right now those creators are spread across every feed online, sharing work they cannot really earn from. Enki turns a prompt into real property you own and sell. So you can find inspiration, create, and build a living from your prompts, while everyone else finally gets one place for top class visuals without ever learning to prompt.</p>
+    <div class="feature-row" style="max-width:1100px; margin:0 auto; padding:0 40px;">
+      <div>
+        <div class="section-tag">What Enki is</div>
+        <h2 class="section-title" style="margin:0 0 22px; max-width:520px;">A home built for prompt artists</h2>
+        <div class="lp-lines section-sub" style="max-width:560px; font-size:1.08rem;">
+          <p>Enki is a marketplace and a social space made for the people who craft AI art.</p>
+          <p>Right now those creators are spread across every feed online, sharing work they cannot really earn from.</p>
+          <p>Enki turns a prompt into real property you own and sell.</p>
+          <p>So you can find inspiration, create, and build a living from your prompts.</p>
+          <p>And everyone else finally gets one place for top class visuals, without ever learning to prompt.</p>
+        </div>
+      </div>
+      <figure class="feature-figure">
+        <!-- Swap this for your own explainer image: replace the src below. -->
+        <img src="/header/01_marble-anime.webp" alt="Prompt art created on Enki" loading="lazy">
+      </figure>
     </div>
   </section>
   <section id="how" style="padding:100px 0; overflow:hidden;">
@@ -3177,37 +3195,58 @@
   <!-- PRICING -->
   <section id="pricing" style="padding:100px 0; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.05), transparent);">
     <div style="max-width:1000px; margin:0 auto; padding:0 40px;">
-      <div style="text-align:center; margin-bottom:50px;">
+      <div style="text-align:left; margin-bottom:50px;">
         <div class="section-tag">Pricing</div>
-        <h2 class="section-title" style="margin:0 auto 16px; max-width:640px;">Pay as you go. Keep what you earn.</h2>
-        <p class="section-sub" style="margin:0 auto; max-width:600px;">No subscription. No confusing tokens. You pay only when you generate, and you always see exactly where the money goes.</p>
+        <h2 class="section-title" style="margin:0 0 16px; max-width:640px;">Pay as you go. Keep what you earn.</h2>
+        <div class="lp-lines section-sub" style="margin:0; max-width:600px;">
+          <p>No subscription. No confusing tokens.</p>
+          <p>You pay only when you generate.</p>
+          <p>And you always see exactly where the money goes.</p>
+        </div>
       </div>
 
       <div class="price-grid">
         <div class="price-card">
           <div class="price-card-k">Model cost</div>
-          <div class="price-card-v">the raw API price</div>
+          <div class="price-card-v">The raw API price</div>
           <p>The real cost of running the AI for your image. We pass it straight through, with nothing hidden.</p>
         </div>
         <div class="price-card">
           <div class="price-card-k">Platform fee</div>
-          <div class="price-card-v">plus 10%</div>
+          <div class="price-card-v">Plus 10%</div>
           <p>A flat ten percent on top of the model cost. That is how Enki keeps the lights on.</p>
         </div>
         <div class="price-card">
           <div class="price-card-k">Artist price</div>
-          <div class="price-card-v">only if premium</div>
+          <div class="price-card-v">Only if premium</div>
           <p>Some prompts are premium. The artist who made it sets a price, and you pay it only when you use their prompt.</p>
         </div>
       </div>
 
-      <div class="price-example">For example: a model that costs about <strong>$0.04</strong> to run becomes <strong>$0.044</strong> after the ten percent fee. Choose a premium prompt and the artist price is simply added on top. That is the whole bill.</div>
+      <div class="price-example lp-lines" style="text-align:left; margin:0 0 12px;">
+        <p>For example:</p>
+        <p>A model that costs about <strong>$0.04</strong> to run becomes <strong>$0.044</strong> after the ten percent fee.</p>
+        <p>Choose a premium prompt and the artist price is simply added on top, without any extra costs.</p>
+      </div>
 
-      <div class="price-control">
-        <h3 style="font-size:1.4rem; font-weight:800; margin:0 0 14px;">Your money stays yours</h3>
-        <p>You top up your balance once and cash out whenever you want. Enki never holds your funds. You do.</p>
-        <p>Here is how it works: when you load your account, we swap it into <strong>USDC</strong> (a steady digital dollar) and place it in your own wallet inside Enki. You can export that wallet at any time and walk away with everything in it. Recovery is built in<span class="info-star" tabindex="0" role="note">&#42;<span class="info-tip">Recovery runs through Turnkey, a secure key system. If you ever lose access, you can restore your wallet, so a hacked account never wipes out an artist&#39;s income.</span></span>, so a lost or stolen account never means a lost livelihood.</p>
-        <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
+      <div class="feature-row" style="margin-top:64px;">
+        <div>
+          <div class="section-tag">Your money</div>
+          <h3 class="section-title" style="font-size:clamp(1.6rem,3vw,2.2rem); margin:0 0 22px;">Your money stays yours</h3>
+          <div class="lp-lines" style="color:rgba(var(--lp-text-rgb),0.82); font-size:1.02rem; line-height:1.75;">
+            <p>You top up your balance once and cash out whenever you want.</p>
+            <p>Enki never holds your funds.</p>
+            <p>You do.</p>
+            <p>When you load your account, we swap it into <strong>USDC</strong>, a steady digital dollar, and place it in your own wallet inside Enki.</p>
+            <p>You can export that wallet at any time and walk away with everything in it.</p>
+            <p>Recovery is built in<span class="info-star" tabindex="0" role="note">&#42;<span class="info-tip">Recovery runs through Turnkey, a secure key system. If you ever lose access, you can restore your wallet, so a hacked account never wipes out an artist&#39;s income.</span></span>, so a lost or stolen account never means a lost livelihood.</p>
+            <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
+          </div>
+        </div>
+        <figure class="feature-figure">
+          <!-- Swap this for your own explainer image: replace the src below. -->
+          <img src="/examples/example-paid-terrace.png" alt="Your balance and exportable wallet on Enki" loading="lazy">
+        </figure>
       </div>
     </div>
   </section>
