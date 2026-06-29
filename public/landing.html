@@ -2654,7 +2654,7 @@
   <!-- WHAT ENKI IS (intro) -->
   <section id="about" style="padding:96px 0 60px; overflow:hidden;">
     <div class="feature-row" style="max-width:1100px; margin:0 auto; padding:0 40px;">
-      <div>
+      <div class="reveal reveal-left">
         <div class="section-tag">What Enki is</div>
         <h2 class="section-title" style="margin:0 0 22px; max-width:520px;">A home built for prompt artists</h2>
         <div class="lp-lines section-sub" style="max-width:560px; font-size:1.08rem;">
@@ -2665,14 +2665,14 @@
           <p>And everyone else finally gets one place for top class visuals, without ever learning to prompt.</p>
         </div>
       </div>
-      <figure class="feature-figure">
+      <figure class="feature-figure reveal reveal-right">
         <!-- Swap this for your own explainer image: replace the src below. -->
         <img src="/header/01_marble-anime.webp" alt="Prompt art created on Enki" loading="lazy">
       </figure>
     </div>
   </section>
   <section id="how" style="padding:100px 0; overflow:hidden;">
-    <div style="max-width:1200px; margin:0 auto; padding:0 40px;">
+    <div class="reveal reveal-left" style="max-width:1200px; margin:0 auto; padding:0 40px;">
 
       <!-- HEADER -->
       <div style="text-align:left; margin-bottom:56px;">
@@ -2977,11 +2977,11 @@
   </section>
 
     <!-- DISCOVER COLLECTIONS -->
-  <section id="collections" style="padding:100px 0; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.06), transparent);">
+  <section id="collections" style="padding:100px 0; overflow:hidden; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.06), transparent);">
     <div style="max-width:1100px; margin:0 auto; padding:0 40px;">
 
       <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:48px; flex-wrap:wrap; gap:20px;">
-        <div>
+        <div class="reveal reveal-left">
           <div class="section-tag">Collections</div>
           <h2 class="section-title" style="margin-bottom:10px;">Discover styles<br>built for you</h2>
           <p style="font-size:1rem; color:rgba(var(--lp-text-rgb),0.65); line-height:1.65; max-width:440px;">From cinematic 3D to editorial photography — every style is crafted by a verified AI artist and ready to make yours.</p>
@@ -2999,7 +2999,7 @@
       </div>
 
       <!-- CARDS GRID -->
-      <div class="coll-grid" id="collGrid">
+      <div class="coll-grid reveal reveal-up" id="collGrid">
 
         <div class="coll-card" data-cat="illustration">
           <div class="coll-thumb">
@@ -3193,7 +3193,7 @@
     </section>
 
   <!-- PRICING -->
-  <section id="pricing" style="padding:100px 0; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.05), transparent);">
+  <section id="pricing" style="padding:100px 0; overflow:hidden; background: linear-gradient(180deg, transparent, rgba(var(--lp-base-rgb),0.05), transparent);">
     <div style="max-width:1000px; margin:0 auto; padding:0 40px;">
       <div style="text-align:left; margin-bottom:50px;">
         <div class="section-tag">Pricing</div>
@@ -3230,7 +3230,7 @@
       </div>
 
       <div class="feature-row" style="margin-top:64px;">
-        <div>
+        <div class="reveal reveal-left">
           <div class="section-tag">Your money</div>
           <h3 class="section-title" style="font-size:clamp(1.6rem,3vw,2.2rem); margin:0 0 22px;">Your money stays yours</h3>
           <div class="lp-lines" style="color:rgba(var(--lp-text-rgb),0.82); font-size:1.02rem; line-height:1.75;">
@@ -3243,7 +3243,7 @@
             <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
           </div>
         </div>
-        <figure class="feature-figure">
+        <figure class="feature-figure reveal reveal-right">
           <!-- Swap this for your own explainer image: replace the src below. -->
           <img src="/examples/example-paid-terrace.png" alt="Your balance and exportable wallet on Enki" loading="lazy">
         </figure>
@@ -3254,10 +3254,10 @@
   <!-- FAQ -->
   <section id="faq" style="padding:100px 0;">
     <div style="max-width:760px; margin:0 auto; padding:0 40px;">
-      <div style="text-align:center; margin-bottom:44px;">
+      <div class="reveal reveal-up" style="text-align:center; margin-bottom:44px;">
         <h2 class="section-title">FAQ</h2>
       </div>
-      <div class="faq-list">
+      <div class="faq-list reveal reveal-up">
         <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need to learn prompting?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">No.<br>Browse the styles, pick one you like, and generate.<br>The hard part is already done for you by the artist who built the prompt.</div></div></div>
         <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">Do I need a subscription?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">No.<br>You pay per generation and only for what you actually make.<br>Nothing recurring, ever.</div></div></div>
         <div class="faq-item"><button type="button" class="faq-q" onclick="toggleFaq(this)">How can Enki make me money?<span class="faq-q-icon">+</span></button><div class="faq-a"><div class="faq-a-inner">List your prompt as premium.<br>Every time someone generates an image with it, you earn.<br>Your prompt stays secret the whole time, buyers only ever get the picture.</div></div></div>
@@ -3268,6 +3268,9 @@
       </div>
     </div>
   </section>
+  <div aria-hidden="true" style="max-width:480px; margin:6px auto 0; padding:0 40px;">
+    <img src="/ornament.png" alt="" style="display:block; width:100%; height:auto; transform:scaleX(-1);">
+  </div>
 
   <!-- CTA -->
   <section id="cta" style="padding:30px 0 110px; text-align:center;">
@@ -5065,5 +5068,26 @@ function insertVar() {
 })();
 </script>
 
+<style>
+.reveal { transition: opacity .6s ease, transform .7s cubic-bezier(.22,.7,.2,1); }
+.reveal-ready .reveal { opacity: 0; }
+.reveal-ready .reveal-left { transform: translateX(-44px); }
+.reveal-ready .reveal-right { transform: translateX(44px); }
+.reveal-ready .reveal-up { transform: translateY(46px); }
+.reveal-ready .reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .reveal-ready .reveal { opacity: 1 !important; transform: none !important; } }
+</style>
+<script>
+(function () {
+  var root = document.documentElement;
+  root.classList.add("reveal-ready");
+  var els = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)) { for (var i = 0; i < els.length; i++) els[i].classList.add("in"); return; }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } });
+  }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+  for (var j = 0; j < els.length; j++) io.observe(els[j]);
+})();
+</script>
 </body>
 </html>
