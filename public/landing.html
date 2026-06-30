@@ -5089,5 +5089,36 @@ function insertVar() {
   for (var j = 0; j < els.length; j++) io.observe(els[j]);
 })();
 </script>
+<style>
+  .lp-login-float {
+    position: fixed; top: 14px; right: clamp(14px, 3vw, 40px); z-index: 1001;
+    padding: 8px 18px; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-weight: 700; font-size: 0.85rem; letter-spacing: 0.01em;
+    background: rgba(var(--lp-text-rgb), 0.07); border: 1.5px solid rgba(var(--lp-accent-rgb), 0.45);
+    color: rgba(var(--lp-text-rgb), 0.95); backdrop-filter: blur(10px); cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(-10px); pointer-events: none;
+    transition: opacity .3s ease, transform .3s ease, background .2s ease;
+  }
+  .lp-login-float:hover { background: rgba(var(--lp-accent-rgb), 0.18); }
+  .lp-login-float.show { opacity: 1; transform: none; pointer-events: auto; }
+  .powered-by { transition: opacity .3s ease; }
+  body.scrolled-past-hero .powered-by { opacity: 0; pointer-events: none; }
+</style>
+<button class="lp-login-float" type="button" onclick="openAuth('login')">Login</button>
+<script>
+(function () {
+  var btn = document.querySelector('.lp-login-float');
+  var hero = document.querySelector('.hero');
+  if (!btn || !hero) return;
+  function onScroll() {
+    var past = window.scrollY > hero.offsetHeight * 0.6;
+    btn.classList.toggle('show', past);
+    document.body.classList.toggle('scrolled-past-hero', past);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
 </body>
 </html>
