@@ -2636,6 +2636,16 @@
   .lp-lines p { margin:0 0 12px; }
   .lp-lines p:last-child { margin:0; }
   @media (max-width:760px) { .feature-row { grid-template-columns:1fr; gap:28px; } }
+  .feature-row.money-row { align-items: start; row-gap: 16px; }
+  .feature-row.money-row .mr-headline { grid-column: 1; grid-row: 1; }
+  .feature-row.money-row .mr-body { grid-column: 1; grid-row: 2; }
+  .feature-row.money-row .mr-figure { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  @media (max-width:760px) {
+    .feature-row.money-row { row-gap: 24px; }
+    .feature-row.money-row .mr-headline { grid-column: 1; grid-row: 1; }
+    .feature-row.money-row .mr-figure { grid-column: 1; grid-row: 2; }
+    .feature-row.money-row .mr-body { grid-column: 1; grid-row: 3; }
+  }
   .price-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:26px; }
   .price-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px; padding:24px 22px; }
   .price-card-k { font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--accent-bright); }
@@ -3228,24 +3238,23 @@
         <p>Choose a premium prompt and the artist price is simply added on top, without any extra costs.</p>
       </div>
 
-      <div class="feature-row" style="margin-top:64px;">
-        <div class="reveal reveal-left">
+      <div class="feature-row money-row" style="margin-top:64px;">
+        <div class="mr-headline reveal reveal-left">
           <div class="section-tag">Your money</div>
-          <h3 class="section-title" style="font-size:clamp(1.6rem,3vw,2.2rem); margin:0 0 22px;">Your money stays yours</h3>
-          <div class="lp-lines" style="color:rgba(var(--lp-text-rgb),0.82); font-size:1.02rem; line-height:1.75;">
-            <p>You add money to your account once, and you can take it out whenever you want.</p>
-            <p>Enki never holds onto your money.</p>
-            <p>You stay in control of every cent.</p>
-            <p>Your balance sits in an account that only you can touch.</p>
-            <p>Take all of it out at any time and walk away with everything.</p>
-            <p>And if you ever lose access, you can get your account back, so a stolen login never costs you what you earned.</p>
-            <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
-          </div>
+          <h3 class="section-title" style="font-size:clamp(1.6rem,3vw,2.2rem); margin:0;">Your money stays yours</h3>
         </div>
-        <figure class="feature-figure reveal reveal-right">
-          <!-- Swap this for your own explainer image: replace the src below. -->
+        <figure class="feature-figure mr-figure reveal reveal-right">
           <img src="/examples/your-money.webp" alt="Your money stays yours: add anytime, only your key opens it, yours even if banned" loading="lazy">
         </figure>
+        <div class="mr-body lp-lines reveal reveal-left" style="color:rgba(var(--lp-text-rgb),0.82); font-size:1.02rem; line-height:1.75;">
+          <p>You add money to your account once, and you can take it out whenever you want.</p>
+          <p>Enki never holds onto your money.</p>
+          <p>You stay in control of every cent.</p>
+          <p>Your balance sits in an account that only you can touch.</p>
+          <p>Take all of it out at any time and walk away with everything.</p>
+          <p>And if you ever lose access, you can get your account back, so a stolen login never costs you what you earned.</p>
+          <p style="color:rgba(var(--lp-text-rgb),0.6);">The result: artists earn a real living from their prompts, and users get top class visuals without studying prompting at all.</p>
+        </div>
       </div>
     </div>
   </section>
