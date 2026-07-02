@@ -1505,9 +1505,17 @@
 
 
 /* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 3px; }
+/* Page scrollbar: clearly visible, thumb in the active theme's accent
+   (best contrast on teal / purple / bright); track keeps the page colour.
+   Inner panes (editor, auth modal) re-declare their own thinner bars. */
+::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--lp-accent-rgb), 0.55);
+  border-radius: 8px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--lp-accent-rgb), 0.85); }
 
 /* ══ TOPBAR ══ */
 .topbar {
