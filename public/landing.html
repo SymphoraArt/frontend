@@ -5147,7 +5147,13 @@ function insertVar() {
      near-black body colour. Also theme the scrollbar for Firefox. */
   html {
     background: linear-gradient(to bottom, var(--lp-bg0) 0%, var(--lp-bg0) 16%, var(--lp-bg1) 42%, var(--lp-bg2) 72%, var(--lp-base) 100%) fixed;
-    scrollbar-width: thin; scrollbar-color: rgba(var(--lp-accent-rgb),0.45) transparent;
+  }
+  /* Scrollbar: WebKit keeps the minimal 3px bar (track shows the page).
+     scrollbar-color would DISABLE those styles in Chrome and paint a wide
+     dark track — so it is scoped to browsers without ::-webkit-scrollbar
+     (Firefox), with the track in the active theme colour. */
+  @supports not selector(::-webkit-scrollbar) {
+    html { scrollbar-width: thin; scrollbar-color: rgba(var(--lp-accent-rgb),0.55) var(--lp-bg1); }
   }
 
   /* "Keep the scene" cards: copy (scrims, captions, badges) only on hover. */
