@@ -16,6 +16,22 @@ export default function LandingPage() {
     iframeRef.current?.contentWindow?.postMessage({ type: "enki-theme", theme }, "*");
   }, [theme]);
 
+  // The landing iframe owns all scrolling. Without this, the app shell's
+  // `scrollbar-gutter: stable` (globals.css) reserves a permanent dark
+  // gutter next to the iframe's own scrollbar — a dead dark column on the
+  // right edge. Neutralise both while the landing is mounted.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevOverflow = html.style.overflow;
+    const prevGutter = html.style.scrollbarGutter;
+    html.style.overflow = "hidden";
+    html.style.scrollbarGutter = "auto";
+    return () => {
+      html.style.overflow = prevOverflow;
+      html.style.scrollbarGutter = prevGutter;
+    };
+  }, []);
+
   // The landing (inside the iframe) hands off "Connect wallet" to the app
   // shell's Turnkey wallet UI instead of navigating away, so the user stays put.
   useEffect(() => {
