@@ -2700,7 +2700,7 @@
           background:rgba(var(--lp-accent-rgb),0.1); border:1px solid rgba(var(--lp-accent-rgb),0.3);
           border-radius:100px; padding:9px 22px;
         ">
-          <span style="font-size:0.68rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:rgba(var(--lp-bright-rgb),0.9);">Reinvent your image in seconds.</span>
+          <span class="kv-scene-label" style="font-size:0.68rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:rgba(var(--lp-bright-rgb),0.9);">Reinvent your image in seconds.</span>
         </div>
         <div style="height:1px; flex:1; background:linear-gradient(to left, transparent, rgba(var(--lp-accent-rgb),0.35));"></div>
       </div>
@@ -2970,7 +2970,7 @@
       </div>
 
       <!-- BOTTOM CAPTION -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:28px;margin-top:40px;flex-wrap:wrap;">
+      <div class="kv-usps" style="display:flex;align-items:center;justify-content:center;gap:28px;margin-top:40px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:7px;height:7px;border-radius:50%;background:var(--lp-accent);box-shadow:0 0 6px rgba(var(--lp-accent-rgb),0.7);"></div>
           <span style="font-size:0.82rem;color:rgba(var(--lp-text-rgb),0.5);">Create masterpieces without studying prompts</span>
@@ -5120,5 +5120,31 @@ function insertVar() {
   onScroll();
 })();
 </script>
+<style>
+  /* Root fallback: paint the same theme gradient on the root canvas so the
+     scrollbar gutter / any strip the fixed .cosmic-bg misses is never the
+     near-black body colour. Also theme the scrollbar for Firefox. */
+  html {
+    background: linear-gradient(to bottom, var(--lp-bg0) 0%, var(--lp-bg0) 16%, var(--lp-bg1) 42%, var(--lp-bg2) 72%, var(--lp-base) 100%) fixed;
+    scrollbar-width: thin; scrollbar-color: rgba(var(--lp-accent-rgb),0.45) transparent;
+  }
+
+  /* "Keep the scene" cards: copy (scrims, captions, badges) only on hover. */
+  .kv-source > div, .kv-cards > div > div { opacity: 0; transition: opacity .25s ease; }
+  .kv-source:hover > div, .kv-cards > div:hover > div { opacity: 1; }
+
+  /* USP bullets: stack them cleanly under each other on small screens
+     (centred flex-wrap made the wrapped line look shifted). */
+  @media (max-width: 700px) {
+    .kv-usps { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; width: max-content; max-width: 100%; margin-left: auto; margin-right: auto; }
+    .kv-usps > div[style*="width:1px"] { display: none; }
+    .kv-usps > div { align-items: flex-start !important; }
+    .kv-usps > div > div:first-child { margin-top: 5px; }
+  }
+
+  /* Bright mode: the scene pill label was too light — use the deep accent
+     tone the pill gradient already uses. */
+  .lp-light .kv-scene-label { color: var(--lp-deep) !important; }
+</style>
 </body>
 </html>
