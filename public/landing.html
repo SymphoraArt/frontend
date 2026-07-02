@@ -735,14 +735,21 @@
     margin-top: 20px; font-size: 0.8rem; letter-spacing: 0.02em;
     color: rgba(var(--lp-text-rgb),0.5);
   }
-  /* "Keep the scene" showcase: on phones the fixed 600px height squeezed the
-     cells tall-and-narrow, so object-fit:cover cropped them into stretched
-     strips. Drop the fixed height and give each tile a true portrait ratio. */
+  /* "Keep the scene" showcase, squeezed windows + mobile: the desktop layout
+     is two columns locked to 600px, which squeezes the source image into a
+     narrow strip and leaves a dead gap under it. Below 1000px we stack:
+     tabs full width, source big (4:3, phones 4:5), variations as a tidy
+     grid (3x2 on tablets, 2x3 on phones). No fixed heights, no dead space. */
+  @media (max-width: 999px) {
+    .kv-tabs { width: 100%; }
+    .kv-showcase { display: flex !important; flex-direction: column !important; height: auto !important; gap: 10px !important; }
+    .kv-source { height: auto !important; max-height: none !important; width: 100%; aspect-ratio: 4 / 3 !important; }
+    .kv-cards { height: auto !important; max-height: none !important; grid-template-columns: repeat(3, 1fr) !important; grid-template-rows: auto !important; gap: 10px !important; }
+    .kv-cards > div { aspect-ratio: 3 / 4; }
+  }
   @media (max-width: 640px) {
-    .kv-showcase { height: auto !important; align-items: start !important; gap: 8px !important; }
-    .kv-source  { height: auto !important; max-height: none !important; aspect-ratio: 3 / 4 !important; }
-    .kv-cards   { height: auto !important; max-height: none !important; grid-template-rows: auto !important; gap: 8px !important; }
-    .kv-cards > div { aspect-ratio: 3 / 4 !important; }
+    .kv-source { aspect-ratio: 4 / 5 !important; }
+    .kv-cards { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
   }
   /* 3 rotating preview tabs sitting above the source image (left column width) */
   .kv-tabs { display: flex; gap: 8px; width: calc(50% - 5px); margin-bottom: 10px; }
@@ -765,7 +772,7 @@
   }
   /* the source image glides between crops as the active square rotates */
   .kv-source img { transition: object-position 0.9s cubic-bezier(.4,0,.2,1); }
-  @media (max-width: 640px) { .kv-tabs { width: 100%; } }
+
   /* Fullscreen lightbox for showcase images */
   .kv-lightbox {
     position: fixed; inset: 0; z-index: 3000; display: none;
