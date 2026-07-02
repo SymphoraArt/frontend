@@ -4508,21 +4508,42 @@ function submitAuth(e, type) {
   const btn = document.getElementById(type === 'login' ? 'submitLogin' : 'submitSignup');
   btn.classList.add('loading');
   btn.disabled = true;
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    if (type === 'login') { showAuthSuccess('login'); return; }
-    // Application: whitelisted emails get in now; everyone else is queued for review.
-    const email = (document.getElementById('signupEmail').value || '').trim().toLowerCase();
-    if (WHITELIST.includes(email)) {
-      switchAuthTab('login');
-      const le = document.getElementById('loginEmail'); if (le) le.value = email;
-      showInlineNote('login', "✓ You're whitelisted — log in to enter Enki Art.");
-      const lp = document.getElementById('loginPass'); if (lp) lp.focus();
-    } else {
-      showAuthSuccess('review');
-    }
-  }, 1400);
+  if (type === 'login') {
+    setTimeout(() => { btn.classList.remove('loading'); btn.disabled = false; showAuthSuccess('login'); }, 1400);
+    return;
+  }
+  // Application: stored server-side (access_requests); whitelisted emails get in now,
+  // everyone else is queued for review.
+  const email = (document.getElementById('signupEmail').value || '').trim().toLowerCase();
+  const about = (document.getElementById('appAbout').value || '').trim();
+  const socials = (document.getElementById('appSocials') ? document.getElementById('appSocials').value : '').trim();
+  fetch('/api/access-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, about: about, socials: socials }),
+  })
+    .then((res) => res.json().catch(() => ({})).then((data) => ({ ok: res.ok, data: data })))
+    .then(({ ok, data }) => {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+      if (!ok) {
+        showInlineNote('signup', (data && data.error) || 'Something went wrong. Please try again.');
+        return;
+      }
+      if (WHITELIST.includes(email)) {
+        switchAuthTab('login');
+        const le = document.getElementById('loginEmail'); if (le) le.value = email;
+        showInlineNote('login', "✓ You're whitelisted — log in to enter Enki Art.");
+        const lp = document.getElementById('loginPass'); if (lp) lp.focus();
+      } else {
+        showAuthSuccess('review');
+      }
+    })
+    .catch(() => {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+      showInlineNote('signup', 'Network error. Please try again.');
+    });
 }
 function showInlineNote(form, msg) {
   const f = document.getElementById(form === 'login' ? 'formLogin' : 'formSignup');

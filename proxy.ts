@@ -14,6 +14,8 @@ function isPublic(pathname: string): boolean {
   if (pathname === "/" || pathname === "/landing.html") return true;
   if (pathname === "/gate") return true;
   if (pathname === "/api/gate") return true;
+  // Anonymous visitors must be able to apply from the public landing
+  if (pathname === "/api/access-request") return true;
   // The landing mosaic feed must stay reachable for the public landing
   if (pathname === "/api/header-images") return true;
   // Framework internals + asset folders
