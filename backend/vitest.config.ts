@@ -1,11 +1,15 @@
 import { defineConfig } from 'vitest/config';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    setupFiles: ['./__tests__/setup.ts'],
-    include: ['**/__tests__/**/*.test.ts'],
+    setupFiles: [resolve(__dirname, './__tests__/setup.ts')],
+    include: ['backend/**/__tests__/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
     coverage: {
       reporter: ['text', 'json', 'html'],
@@ -22,7 +26,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': new URL('./', import.meta.url).pathname
+      '@': __dirname
     }
   }
 });
