@@ -2851,8 +2851,22 @@ export default function AlgencyPromptEditor() {
       // Best-effort: try to mark published in DB. Don't fail the whole publish
       // action if the column/route is missing — the prompt is already saved
       // and shows on /showcase regardless.
+      // The PATCH route now requires a session (it used to accept anonymous
+      // edits), so forward the Turnkey session token.
       try {
-        await apiRequest("PATCH", `/api/prompts/${id}`, { published: true });
+        const sessionToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem("turnkey_session_token")
+            : null;
+        await fetch(`/api/prompts/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(sessionToken ? { "X-Session-Token": sessionToken } : {}),
+          },
+          credentials: "include",
+          body: JSON.stringify({ published: true }),
+        });
       } catch (e) {
         console.warn("Publish PATCH failed (non-fatal):", e);
       }
