@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { encryptPrompt } from "@/backend/encryption";
 
@@ -203,7 +203,26 @@ async function seedOne(
   return { title: prompt.title, id: promptId, seeded: true };
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  // This route writes example prompts straight into the marketplace. It's a
+  // dev/setup tool, not a user endpoint — gate it so it can't be hit anonymously
+  // in production. Requires SEED_SECRET to be set and matched via the
+  // `x-seed-secret` header (or `?secret=` query param).
+  const configured = process.env.SEED_SECRET;
+  if (!configured) {
+    return NextResponse.json(
+      { error: "Seeding is disabled (SEED_SECRET not configured)" },
+      { status: 403 },
+    );
+  }
+  const provided =
+    req.headers.get("x-seed-secret") ??
+    req.nextUrl.searchParams.get("secret") ??
+    "";
+  if (provided !== configured) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const supabase = getSupabaseServerClient();
 

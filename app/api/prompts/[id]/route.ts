@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { decryptPrompt, isEncryptionConfigured } from "@/backend/encryption";
+import { requireAuth } from "@/lib/auth";
 
 type PatchBody = {
   title?: string;
@@ -8,8 +9,6 @@ type PatchBody = {
   category?: string;
   tags?: string[];
   aiSettings?: { aspectRatio?: string; includeText?: boolean };
-  pricing?: { pricePerGeneration?: number };
-  isFeatured?: boolean;
   published?: boolean;
 };
 
@@ -102,13 +101,24 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  // Require a valid session. This route used to accept anonymous edits — including
+  // the prompt's price, which server-built payments (#2) read straight from the DB.
+  // Price and "featured" are deliberately NOT mutable here anymore: price changes
+  // must go through the authenticated, ownership-checked /api/prompts/[id]/list
+  // endpoint so the payment path can trust the stored price.
+  try {
+    await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   try {
@@ -130,12 +140,6 @@ export async function PATCH(
         includeText: body.aiSettings.includeText,
       };
     }
-
-    if (body.pricing) {
-      update.price = body.pricing.pricePerGeneration;
-    }
-
-    if (typeof body.isFeatured === "boolean") update.is_featured = body.isFeatured;
 
     if (body.published === true) {
       update.published_at = new Date().toISOString();
