@@ -161,7 +161,8 @@ export default function GatePage() {
             }}
           />
 
-          {err ? <div style={{ color: "#f87171", fontSize: "0.8rem", marginTop: 10, textAlign: "left" }}>{err}</div> : null}
+          {/* Always rendered with reserved height so the centered card never shifts when the error appears */}
+          <div style={{ color: "#f87171", fontSize: "0.8rem", marginTop: 10, textAlign: "left", minHeight: "1.2em", visibility: err ? "visible" : "hidden" }}>{err || " "}</div>
 
           <button
             type="submit"
