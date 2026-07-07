@@ -24,9 +24,9 @@ intent consumption (quoted->building), claim payouts, refunds.
 ## 3. Replay hardening
 Layered on top of #2: one-time nonce issued when the claim/withdraw page
 loads (single use, dies after the request) + 2FA confirmation before the
-payout fires. Reuse the existing email-OTP primitive
-(`/api/auth/turnkey/delete-token` pattern); passkeys via TurnkeySetup as
-the stronger optional factor. No SMS 2FA (SIM-swap risk, cost, extra PII).
+payout fires. 2FA = EMAIL OTP ONLY (reuse the existing
+`/api/auth/turnkey/delete-token` pattern). No SMS (SIM-swap risk, cost,
+extra PII). No passkeys/biometrics (Kev decision: privacy).
 
 ## 4. Identity before money (claims)
 Claim payouts require social proof of the referenced account:
