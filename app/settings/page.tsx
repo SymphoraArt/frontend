@@ -12,20 +12,36 @@ import SettingsToggle from "@/components/settings/SettingsToggle";
 import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
 import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
 import BillingPanel from "@/components/settings/BillingPanel";
+import { listReferrals, type Referral } from "@/lib/referrals";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
   { id: "profile", label: "Profile" },
   { id: "wallets", label: "Wallets" },
+  { id: "referrals", label: "Referrals" },
   { id: "recovery", label: "Recovery & 2FA" },
   { id: "billing", label: "Billing" },
 ];
+
+// Visual markers for placeholder UI that isn't wired to live data yet.
+const MockTag = () => (
+  <span style={{ marginLeft: 8, padding: "2px 8px", background: "#fde68a", color: "#92400e", borderRadius: 20, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", verticalAlign: "middle" }}>
+    MOCK
+  </span>
+);
+const MockBanner = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: 8, padding: "12px 18px", marginBottom: 20, fontSize: 13, color: "#92400e", lineHeight: 1.55 }}>
+    <strong>Mock data.</strong> {children}
+  </div>
+);
 
 export default function SettingsPage() {
   const account = useActiveAccount();
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState("profile");
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  useEffect(() => { setReferrals(listReferrals(account?.address ?? null)); }, [account?.address, activeTab]);
   const [loading, setLoading] = useState(false); // keeping it fast since we mock mostly
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -214,10 +230,13 @@ export default function SettingsPage() {
               <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
                 Your assets managed securely via Turnkey infrastructure.
               </div>
+              <MockBanner>
+                These addresses and balances are placeholders. Live balance fetching and the Send flow are not wired yet.
+              </MockBanner>
               <div className="set-list-item">
                 <div className="set-item-icon"><Wallet size={14} /></div>
                 <div className="set-item-content">
-                  <div className="set-item-title">Ethereum (Base) <span className="set-badge-dark">ACTIVE</span></div>
+                  <div className="set-item-title">Ethereum (Base) <span className="set-badge-dark">ACTIVE</span><MockTag /></div>
                   <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>0x71C...9B3f</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -231,7 +250,7 @@ export default function SettingsPage() {
               <div className="set-list-item">
                 <div className="set-item-icon"><Wallet size={14} /></div>
                 <div className="set-item-content">
-                  <div className="set-item-title">Solana</div>
+                  <div className="set-item-title">Solana<MockTag /></div>
                   <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>HN7c...k8W2</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -314,9 +333,53 @@ export default function SettingsPage() {
             </>
           )}
 
+          {/* === REFERRALS TAB === */}
+          {activeTab === "referrals" && (
+            <SettingsSection num="01" title="Referrals · 50/50 revenue split">
+              <div className="set-section-desc" style={{ paddingBottom: 16 }}>
+                Links you&apos;ve referred. We review each one; if we rebuild it into a prompt you&apos;re credited,
+                and you earn a <strong>50/50 split with the artist</strong> on every sale.
+              </div>
+              {referrals.length === 0 ? (
+                <div className="set-section-desc">No referrals yet — use <strong>Refer Prompt</strong> to suggest a social link.</div>
+              ) : (
+                <div className="set-table-wrapper">
+                  <table className="set-table">
+                    <thead>
+                      <tr><th>Link</th><th>Platform</th><th>Status</th><th>Your revenue</th><th>Creation</th></tr>
+                    </thead>
+                    <tbody>
+                      {referrals.map((r) => {
+                        const label = r.status === "earning" ? "Earning" : r.status === "accepted" ? "Accepted" : "Suggested";
+                        const badge = r.status === "earning"
+                          ? { bg: "rgba(31,138,91,.16)", c: "#1f8a5b" }
+                          : r.status === "accepted"
+                            ? { bg: "rgba(201,104,56,.16)", c: "var(--enki-ember)" }
+                            : { bg: "rgba(130,130,130,.16)", c: "var(--enki-ink-3)" };
+                        const href = r.url.startsWith("http") ? r.url : "https://" + r.url;
+                        return (
+                          <tr key={r.id}>
+                            <td><a href={href} target="_blank" rel="noreferrer" style={{ color: "var(--enki-ember)" }}>{r.url.replace(/^https?:\/\//, "").slice(0, 34)}</a></td>
+                            <td>{r.platform}</td>
+                            <td><span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.c }}>{label}</span></td>
+                            <td className="money">{r.revenue > 0 ? "$" + r.revenue.toFixed(2) : "—"}</td>
+                            <td>{r.creationId ? <a href={"/generator/" + r.creationId} style={{ color: "var(--enki-ember)" }}>View creation</a> : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SettingsSection>
+          )}
+
           {/* === RECOVERY & 2FA TAB === */}
           {activeTab === "recovery" && (
             <>
+              <MockBanner>
+                This whole tab is a UI mockup. The recovery phrase status, guardians, approval threshold, ZK passcode and device list are placeholders — none of it is wired to Turnkey or stored yet.
+              </MockBanner>
               {showLivenessBanner && (
                 <div style={{ background: "#fef9eb", border: "1px solid #f5e6c0", borderLeft: "3px solid #f5c542", borderRadius: 8, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>

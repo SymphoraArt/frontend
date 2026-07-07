@@ -427,6 +427,26 @@
   transition: background 0.15s, color 0.15s;
 }
 
+.enki-edit {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--enki-ink-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s, color 0.15s;
+}
+.enki-edit:hover { color: var(--enki-ember); background: #fff; }
+
 .enki-heart.active {
   color: var(--enki-ember);
   background: rgba(255, 255, 255, 0.9);

@@ -1,0 +1,286 @@
+/* ════════════════════════════════════════════════════════════════
+   Enki left-side-menu shell — ported from the Enki V3 design bundle
+   (Enki Left-Menu.html + enki/views.css/settings.css). Scoped to .ek-app
+   so the design tokens here never leak into the rest of the app, and the
+   ek-/nc- classes resolve against the same Enki tokens the design used.
+   ════════════════════════════════════════════════════════════════ */
+
+.ek-app {
+  --enki-paper: #faf8f4; --enki-paper-2: #f3efe7; --enki-paper-3: #e8e2d6;
+  --enki-ink: #1a1715; --enki-ink-2: #3d3a36; --enki-ink-3: #6b665e;
+  --enki-rule: #d8d2c5; --enki-rule-2: #ebe5d8; --enki-ember: #c96838;
+  --ember-rgb: 201, 104, 56;
+  --enki-turq: #0d9488; --turq-rgb: 13, 148, 136;
+  --header-bg: rgba(255, 255, 255, 0.92);
+  --qc-bg: #1a1715; --qc-ink: #ffffff;
+  --cta-bg: #1a1715; --cta-ink: #ffffff;
+  /* sidebar width, flipped by .ek-root--rail */
+  --ek-sw: 256px;
+  min-height: 100vh;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.dark .ek-app {
+  --enki-paper: #0a1825; --enki-paper-2: #102433; --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1; --enki-ink-2: #97aebb; --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849; --enki-rule-2: #2a4658; --enki-ember: #cba24a;
+  --ember-rgb: 203, 162, 74;
+  --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --header-bg: rgba(10, 24, 37, 0.92);
+  --qc-bg: #f0a868; --qc-ink: #3a2410;
+  --cta-bg: linear-gradient(135deg, #cba24a 0%, #b8862f 100%); --cta-ink: #0a1825;
+}
+.dark.theme-purple .ek-app {
+  --enki-paper: #140e1f; --enki-paper-2: #1c1330; --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5; --enki-ink-2: #a99fc0; --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442; --enki-rule-2: #3d3154; --enki-ember: #a855f7;
+  --ember-rgb: 168, 85, 247;
+  --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --header-bg: rgba(20, 14, 32, 0.92);
+  --qc-bg: #8b5cf6; --qc-ink: #ffffff;
+  --cta-bg: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); --cta-ink: #ffffff;
+}
+.ek-app.ek-root--rail { --ek-sw: 78px; }
+
+.ek-app .serif { font-family: var(--font-serif), Georgia, serif; }
+.ek-app .mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+/* ════════════════ Layout ════════════════ */
+.ek-shell { display: flex; min-height: 100vh; }
+.ek-sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 120;
+  width: 256px;
+  display: flex; flex-direction: column;
+  padding: 18px 14px 22px;
+  background: var(--enki-paper);
+  border-right: 1px solid var(--enki-rule);
+  transition: width 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ek-root--rail .ek-sidebar { width: 78px; align-items: center; padding-left: 0; padding-right: 0; }
+.ek-main { flex: 1; min-width: 0; margin-left: 256px; transition: margin-left 0.26s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+.ek-root--rail .ek-main { margin-left: 78px; }
+
+/* ── Sidebar logo ── */
+.ek-logo {
+  display: flex; align-items: center; gap: 7px; height: 48px; padding: 0 10px; margin-bottom: 10px;
+  cursor: pointer; flex-shrink: 0; text-decoration: none;
+}
+.ek-root--rail .ek-logo { justify-content: center; padding: 0; }
+.ek-logo-img { height: 34px; width: auto; display: block; object-fit: contain; }
+.theme-purple .ek-logo-img { filter: hue-rotate(8deg); }
+.ek-logo-mark {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+}
+.ek-logo-mark-img { width: 40px; height: 40px; object-fit: contain; display: block; }
+.ek-logo-word { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-size: 27px; letter-spacing: -0.01em; color: var(--enki-ink); white-space: nowrap; }
+.ek-logo-dot { color: var(--enki-ember); font-size: 22px; }
+
+/* ── Collapse toggle ── */
+.ek-collapse-btn {
+  position: absolute; top: 74px; right: -13px; z-index: 130;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--enki-paper); border: 1px solid var(--enki-rule); color: var(--enki-ink-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); transition: all 0.16s ease; opacity: 0.9; cursor: pointer;
+}
+.ek-sidebar:hover .ek-collapse-btn { opacity: 1; }
+.ek-collapse-btn:hover { color: var(--enki-ember); border-color: var(--enki-ember); transform: scale(1.08); }
+
+/* ── Nav items ── */
+.ek-nav { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.ek-nav-item {
+  position: relative; display: flex; align-items: center; gap: 16px;
+  height: 50px; padding: 0 14px; border: none; border-radius: 999px; background: none;
+  color: var(--enki-ink); font-size: 18px; font-weight: 400; width: 100%; text-align: left;
+  transition: background 0.16s ease, color 0.16s ease; white-space: nowrap;
+}
+.ek-root--rail .ek-nav-item { width: 50px; height: 50px; padding: 0; justify-content: center; gap: 0; border-radius: 50%; margin: 0 auto; }
+.ek-nav-item:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-nav-item.active { font-weight: 600; }
+.ek-nav-item.active .ek-nav-ico { color: var(--enki-ember); }
+.ek-nav-ico { display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--enki-ink); }
+.ek-nav-label { flex: 1; }
+.ek-root--rail .ek-nav-label { display: none; }
+.ek-nav-badge {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--enki-ember); color: #fff; font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono), monospace;
+}
+.ek-root--rail .ek-nav-badge { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; font-size: 9px; padding: 0 4px; }
+
+/* tooltip when railed */
+.ek-nav-tip {
+  position: absolute; left: 64px; top: 50%; transform: translateY(-50%) scale(0.92);
+  background: var(--enki-ink); color: var(--enki-paper);
+  padding: 6px 11px; border-radius: 7px; font-size: 13px; font-weight: 500; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease; z-index: 200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.ek-nav-tip::before { content: ''; position: absolute; left: -4px; top: 50%; transform: translateY(-50%) rotate(45deg); width: 8px; height: 8px; background: var(--enki-ink); }
+.ek-root--rail .ek-nav-item:hover .ek-nav-tip { opacity: 1; transform: translateY(-50%) scale(1); }
+
+/* ── Create Prompt CTA ── */
+.ek-create {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 9px;
+  height: 54px; margin: 16px 4px 0; border: none; border-radius: 999px;
+  background: var(--cta-bg); color: var(--cta-ink);
+  font-size: 16px; font-weight: 600; letter-spacing: 0.01em; width: calc(100% - 8px);
+  box-shadow: 0 6px 18px rgba(var(--ember-rgb), 0.32);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.ek-create:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(var(--ember-rgb), 0.42); filter: brightness(1.04); }
+.ek-create:active { transform: translateY(0) scale(0.98); }
+.ek-create-label { white-space: nowrap; }
+.ek-root--rail .ek-create:hover .ek-nav-tip { opacity: 1; transform: translateY(-50%) scale(1); }
+.ek-root--rail .ek-create { width: 54px; height: 54px; padding: 0; margin: 16px auto 0; }
+.ek-root--rail .ek-create .ek-create-label { display: none; }
+.ek-create2 { height: 46px; margin-top: 9px; background: transparent; color: var(--enki-ink); border: 1px solid var(--enki-rule); box-shadow: none; font-size: 14.5px; }
+.ek-create2:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); border-color: var(--enki-ink-3); box-shadow: none; filter: none; }
+.ek-create2 .ek-create-label { font-weight: 600; }
+/* node-editor open → highlight the Node Creator button as the selected menu */
+.ek-create2.active { background: var(--enki-ember); color: var(--cta-ink); border-color: var(--enki-ember); box-shadow: 0 8px 22px rgba(var(--ember-rgb), 0.4); }
+.ek-create2.active:hover { background: var(--enki-ember); border-color: var(--enki-ember); filter: brightness(1.04); }
+.ek-root--rail .ek-create2 { width: 54px; height: 48px; padding: 0; margin: 9px auto 0; }
+.ek-root--rail .ek-create2 .ek-create-label { display: none; }
+.ek-root--rail .ek-create2:hover .ek-nav-tip { opacity: 1; transform: translateY(-50%) scale(1); }
+
+.ek-side-spacer { flex: 1; }
+
+/* ── Sidebar footer (account) ── */
+.ek-account {
+  display: flex; align-items: center; gap: 11px; margin-top: 14px; padding: 8px 10px; border-radius: 999px;
+  transition: background 0.16s ease; cursor: pointer;
+}
+.ek-account:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-root--rail .ek-account { justify-content: center; padding: 6px 0; }
+.ek-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  background: var(--cta-bg); color: var(--cta-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600;
+}
+.ek-account-info { min-width: 0; flex: 1; }
+.ek-account-nrow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ek-account-nametext { font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ek-root--rail .ek-account-info, .ek-root--rail .ek-account-more { display: none; }
+.ek-account-handle { font-size: 12px; color: var(--enki-ink-3); font-family: var(--font-mono), monospace; }
+.ek-account-more { margin-left: auto; color: var(--enki-ink-3); }
+
+/* ── balance pill (in account row) ── */
+.ek-balance {
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-ember) 16%, transparent); border: 1px solid rgba(var(--ember-rgb), 0.35);
+  color: var(--enki-ember); font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600;
+  flex-shrink: 0; cursor: pointer; transition: background 0.15s;
+}
+.ek-balance:hover { background: color-mix(in oklab, var(--enki-ember) 26%, transparent); }
+.ek-root--rail .ek-balance { display: none; }
+
+/* ── color setup dropdown ── */
+.ek-color-dd { position: absolute; z-index: 140; width: 158px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28); padding: 6px; animation: ek-dd-in 0.16s ease; }
+.ek-color-dd-h { font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--enki-ink-3); padding: 5px 9px 7px; }
+.ek-color-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px; border: none; background: none; border-radius: 9px; color: var(--enki-ink); font-size: 14px; font-weight: 500; text-align: left; transition: background 0.14s; }
+.ek-color-opt:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-color-sw { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.1); }
+.ek-color-opt.active { font-weight: 600; }
+.ek-color-opt.active .ek-color-check { margin-left: auto; color: var(--enki-ember); }
+
+/* ════════════════ Feed harmonization ════════════════
+   The reused EnkiFeedPage (`.enki` + `.enki-catbar`) was laid out for the old
+   64px top navbar. In the shell there is no top navbar and the left rail owns
+   the left edge, so we slide the fixed catbar over by the sidebar width and
+   trim the feed's top padding. */
+.ek-main > .enki { padding-top: 112px; }
+.ek-main .enki-catbar { top: 56px; left: var(--ek-sw); right: 0; width: auto; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease; }
+
+/* ── shell top bar (search) ── */
+.ek-topbar {
+  position: fixed; top: 0; left: var(--ek-sw); right: 0; z-index: 95; height: 56px;
+  display: flex; align-items: center; gap: 14px; padding: 0 26px;
+  background: var(--header-bg);
+  backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-bottom: 1px solid var(--enki-rule);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ek-search {
+  display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 120px; max-width: 460px;
+  height: 40px; padding: 0 14px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2);
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+.ek-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.14); }
+.ek-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: 14px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-search input::placeholder { color: var(--enki-ink-3); }
+.ek-kbd { font-family: var(--font-mono), monospace; font-size: 10px; color: var(--enki-ink-3); border: 1px solid var(--enki-rule); border-radius: 4px; padding: 2px 5px; flex-shrink: 0; }
+
+/* ════════════════ Modals (refer / top-up) ════════════════ */
+.ek-modal-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 24px; animation: ek-fade 0.2s ease; }
+.ek-modal { width: 100%; max-width: 480px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 18px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4); overflow: hidden; animation: ek-pop 0.26s cubic-bezier(0.16, 1, 0.3, 1); }
+.ek-modal-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--enki-rule); }
+.ek-modal-title { font-family: var(--font-serif), Georgia, serif; font-size: 22px; }
+.ek-modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); display: flex; align-items: center; justify-content: center; }
+.ek-modal-x:hover { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+.ek-modal-body { padding: 22px; }
+.ek-sheet-bolt { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--cta-bg); color: var(--cta-ink); box-shadow: 0 4px 12px rgba(var(--ember-rgb), 0.3); }
+.ek-ed-lab { font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--enki-ink-3); margin: 0 0 6px; display: block; }
+
+/* primary / secondary buttons (shared with node creator) */
+.ek-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; border: 1px solid var(--enki-ink); border-radius: 999px; background: var(--cta-bg); color: var(--cta-ink); font-size: 14px; font-weight: 600; transition: transform 0.16s ease, filter 0.16s ease; }
+.ek-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.ek-btn:disabled { opacity: 0.55; cursor: default; transform: none; filter: none; }
+.ek-btn-2 { border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink); }
+.ek-btn-2:hover { border-color: var(--enki-ink-3); }
+
+/* ── refer modal ── */
+.ek-refer-input { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); transition: border-color 0.15s, box-shadow 0.15s; }
+.ek-refer-input:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.ek-refer-input.err { border-color: #e0584f; }
+.ek-refer-input input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 14px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-refer-input input::placeholder { color: var(--enki-ink-3); }
+.ek-refer-detected { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.12); border: 1px solid rgba(var(--ember-rgb), 0.35); border-radius: 999px; padding: 3px 9px; }
+.ek-refer-hint { font-size: 11.5px; color: #e0584f; margin-top: 7px; }
+.ek-refer-note { width: 100%; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); color: var(--enki-ink); font-size: 13.5px; line-height: 1.5; padding: 11px 13px; outline: none; resize: vertical; font-family: var(--font-sans), sans-serif; }
+.ek-refer-note:focus { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.ek-refer-note::placeholder { color: var(--enki-ink-3); }
+.ek-refer-steps { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 4px; padding: 14px 16px; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); position: relative; }
+.ek-refer-step { display: flex; align-items: center; gap: 11px; font-size: 12.5px; color: var(--enki-ink-2); padding: 5px 0; }
+.ek-refer-step-n { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: var(--cta-bg); color: var(--cta-ink); font-family: var(--font-mono), monospace; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* toast */
+.ek-toast { position: fixed; bottom: 26px; left: calc(50% + var(--ek-sw) / 2); transform: translateX(-50%); z-index: 320; background: var(--enki-ink); color: var(--enki-paper); padding: 12px 20px; border-radius: 12px; font-size: 14px; font-weight: 500; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3); display: flex; align-items: center; gap: 9px; animation: ek-toast-in 0.3s ease; }
+
+/* keyframes */
+@keyframes ek-dd-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ek-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ek-pop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes ek-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* ════════════════ Right-side menu panel ════════════════
+   Appears over the main area (left menu stays usable); fades in, no slide. */
+.ek-panel-scrim { position: fixed; top: 0; bottom: 0; right: 0; left: var(--ek-sw); z-index: 160; background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; justify-content: flex-end; animation: ek-fade 0.16s ease; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
+.ek-panel { width: min(480px, 100%); height: 100%; background: var(--enki-paper); border-left: 1px solid var(--enki-rule); box-shadow: -24px 0 70px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; animation: ek-fade 0.18s ease; }
+/* full view (e.g. Profile): fills the whole main area, no dim/slide */
+.ek-panel-scrim--full { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ek-panel--full { width: 100%; max-width: none; border-left: none; box-shadow: none; animation: none; }
+.ek-panel-head { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 16px 0 22px; border-bottom: 1px solid var(--enki-rule); flex-shrink: 0; background: var(--header-bg); }
+.ek-panel-title { font-family: var(--font-serif), Georgia, serif; font-size: 21px; color: var(--enki-ink); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-panel-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ek-panel-x:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.ek-panel-body { flex: 1; overflow-y: auto; }
+.ek-panel-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--enki-ink-3); text-align: center; padding: 40px; }
+/* tame full-page layouts reused inside the panel */
+.ek-panel-body .set-page { min-height: auto; }
+.ek-panel-body .set-save-floater { position: sticky; bottom: 12px; }
+
+@media (max-width: 700px) {
+  .ek-topbar { padding: 0 14px; height: 52px; }
+  .ek-main > .enki { padding-top: 104px; }
+  .ek-main .enki-catbar { top: 52px; }
+}
+
+/* Hide the floating "Generate · new image" quick-create pill while the node
+   editor (Create Prompt 2) is open — it has its own Generate dock. */
+.ek-app.ek-node-open .ek-generate-launcher { display: none !important; }

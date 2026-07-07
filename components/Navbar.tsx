@@ -129,6 +129,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     setThemeReady(true);
   }, []);
 
+  // The landing page ("/") has its own marketing nav, /home renders the
+  // left-side-menu shell, and /gate is the standalone access wall — none of
+  // them use the top navbar.
+  if (pathname === "/" || pathname === "/home" || pathname?.startsWith("/home/") || pathname === "/gate") return null;
+
   const iconColor = isDark ? "#f7f2eb" : "#555";
   const activeColor = isDark ? "#fff" : "#111";
   const inactiveColor = isDark ? "#c8c1b8" : "#555";

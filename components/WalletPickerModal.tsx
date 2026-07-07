@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConnect } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
@@ -19,13 +19,18 @@ interface WalletPickerModalProps {
   onClose: () => void;
 }
 
-const EVM_WALLETS: Array<{ id: WalletId; name: string; icon: string }> = [
-  { id: "io.metamask",         name: "MetaMask",       icon: "https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" },
-  { id: "com.coinbase.wallet", name: "Coinbase Wallet", icon: "https://avatars.githubusercontent.com/u/1885080?s=200&v=4" },
-  { id: "walletConnect",       name: "WalletConnect",  icon: "https://avatars.githubusercontent.com/u/37784886?s=200&v=4" },
-  { id: "me.rainbow",          name: "Rainbow",        icon: "https://rainbow.me/favicon.ico" },
-  { id: "com.trustwallet.app", name: "Trust Wallet",   icon: "https://avatars.githubusercontent.com/u/32179889?s=200&v=4" },
-];
+// EIP-6963 announced provider info (name + icon + reverse-DNS id).
+type EIP6963Info = { uuid: string; name: string; icon: string; rdns: string };
+
+// One row per wallet, carrying whichever chains that wallet supports, so a
+// multi-chain wallet (Phantom, Brave, Zerion…) is shown once instead of twice.
+type MergedWallet = {
+  key: string;
+  name: string;
+  icon: string;
+  solana?: { name: string };
+  evm?: { rdns: string };
+};
 
 type SolanaPhase = "connecting" | "signing";
 
@@ -66,6 +71,46 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
+
+  // EVM wallets are auto-detected via EIP-6963 (no hardcoded list) — the same
+  // way Solana wallets come from Wallet Standard. Only installed extensions show.
+  const [evmProviders, setEvmProviders] = useState<EIP6963Info[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    const found = new Map<string, EIP6963Info>();
+    const onAnnounce = (event: Event) => {
+      const detail = (event as CustomEvent<{ info?: EIP6963Info }>).detail;
+      if (detail?.info?.rdns) {
+        found.set(detail.info.rdns, detail.info);
+        setEvmProviders(Array.from(found.values()));
+      }
+    };
+    window.addEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+    // Ask installed wallets to announce themselves (EIP-6963 handshake).
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    return () => window.removeEventListener("eip6963:announceProvider", onAnnounce as EventListener);
+  }, [open]);
+
+  // Merge Solana (Wallet Standard) and EVM (EIP-6963) lists by wallet name, so a
+  // wallet that does both shows once with both chains grouped onto one row.
+  const mergedWallets = useMemo<MergedWallet[]>(() => {
+    const map = new Map<string, MergedWallet>();
+    for (const w of solanaWallets) {
+      const key = w.adapter.name.trim().toLowerCase();
+      const entry = map.get(key) ?? { key, name: w.adapter.name, icon: w.adapter.icon ?? "" };
+      entry.solana = { name: w.adapter.name };
+      if (!entry.icon) entry.icon = w.adapter.icon ?? "";
+      map.set(key, entry);
+    }
+    for (const p of evmProviders) {
+      const key = p.name.trim().toLowerCase();
+      const entry = map.get(key) ?? { key, name: p.name, icon: p.icon ?? "" };
+      entry.evm = { rdns: p.rdns };
+      if (!entry.icon) entry.icon = p.icon ?? "";
+      map.set(key, entry);
+    }
+    return Array.from(map.values());
+  }, [solanaWallets, evmProviders]);
 
   const handleClose = useCallback(() => {
     solanaInFlight.current = false;
@@ -277,7 +322,17 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="sm:max-w-xs p-4">
         <DialogHeader>
-          <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { if (showEmail) { setShowEmail(false); resetTurnkey(); } else { handleClose(); } }}
+              aria-label="Back"
+              className="-ml-1 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <DialogTitle className="text-base">Connect Wallet</DialogTitle>
+          </div>
           <DialogDescription className="sr-only">
             Select a Solana or EVM wallet to connect to Symphora.
           </DialogDescription>
@@ -349,55 +404,50 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
             <p className="px-3 py-1.5 text-xs text-red-500">{solanaError}</p>
           )}
 
-          {solanaWallets.map((w) => {
-            const notInstalled =
-              w.readyState === WalletReadyState.NotDetected ||
-              w.readyState === WalletReadyState.Unsupported;
-            const isConnectingThis = connecting === w.adapter.name;
+          {/* One row per wallet; each supported chain is a button. Solana comes
+              from Wallet Standard, EVM from EIP-6963 — both auto-detected. */}
+          {mergedWallets.map((w) => {
+            const solConnecting = !!w.solana && connecting === w.solana.name;
+            const evmConnecting = !!w.evm && connecting === w.evm.rdns;
             return (
-              <button
-                key={w.adapter.name}
-                disabled={!!connecting && !isConnectingThis}
-                onClick={() => handleSolana(w.adapter.name)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted disabled:opacity-50 text-sm font-medium text-left transition-colors"
+              <div
+                key={w.key}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted text-sm font-medium transition-colors"
               >
-                {w.adapter.icon ? (
-                  <img src={w.adapter.icon} alt={w.adapter.name} className="h-6 w-6 rounded flex-shrink-0" />
+                {w.icon ? (
+                  <img
+                    src={w.icon}
+                    alt={w.name}
+                    className="h-6 w-6 rounded flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
                 ) : (
                   <span className="h-6 w-6 rounded bg-gradient-to-br from-purple-500 to-green-400 flex-shrink-0" />
                 )}
-                <span className="flex-1">{w.adapter.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {isConnectingThis
-                    ? solanaPhase === "signing" ? "Sign in wallet…" : "Connecting…"
-                    : notInstalled ? "Install" : "Solana"}
-                </span>
-              </button>
+                <span className="flex-1 truncate">{w.name}</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {w.solana && (
+                    <button
+                      disabled={!!connecting}
+                      onClick={() => handleSolana(w.solana!.name)}
+                      className="rounded-md border border-input px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-foreground hover:text-background disabled:opacity-50 transition-colors"
+                    >
+                      {solConnecting ? (solanaPhase === "signing" ? "Sign in…" : "Connecting…") : "Solana"}
+                    </button>
+                  )}
+                  {w.evm && (
+                    <button
+                      disabled={!!connecting}
+                      onClick={() => handleEVM(w.evm!.rdns as WalletId)}
+                      className="rounded-md border border-input px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-foreground hover:text-background disabled:opacity-50 transition-colors"
+                    >
+                      {evmConnecting ? "Connecting…" : "EVM"}
+                    </button>
+                  )}
+                </div>
+              </div>
             );
           })}
-
-          <div className="border-t my-2" />
-
-          {/* EVM wallets */}
-          {EVM_WALLETS.map((w) => (
-            <button
-              key={w.id}
-              disabled={!!connecting}
-              onClick={() => handleEVM(w.id)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted disabled:opacity-50 text-sm font-medium text-left transition-colors"
-            >
-              <img
-                src={w.icon}
-                alt={w.name}
-                className="h-6 w-6 rounded flex-shrink-0"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-              <span className="flex-1">{w.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {connecting === w.id ? "Connecting…" : "EVM"}
-              </span>
-            </button>
-          ))}
           {!showEmail && (
             <>
               <div className="border-t my-2" />

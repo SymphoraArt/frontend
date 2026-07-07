@@ -4,7 +4,7 @@ log_path = "/Users/srthck/.gemini/antigravity/brain/aee7e63e-8bd6-46ea-b0ce-c66a
 with open(log_path, 'r') as f:
     content = f.read()
 
-blocks = content.split("File Path: `file:///Users/srthck/Desktop/frontend/app/editor/algency-editor.css`")
+blocks = content.split("File Path: `file:///Users/srthck/Desktop/frontend/app/editor/enki-editor.css`")
 
 if len(blocks) > 1:
     print(blocks[1][:1000])

@@ -38,14 +38,14 @@ export default function LeaderboardPage() {
   const rows = tab === "generations" ? MOCK_GENERATIONS : MOCK_EARNINGS;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f3ee", fontFamily: "var(--font-outfit),'Outfit',sans-serif", paddingTop: 56 }}>
+    <div style={{ minHeight: "100%", background: "transparent", fontFamily: "var(--font-outfit),'Outfit',sans-serif", paddingTop: 8 }}>
       {/* Hero */}
       <div style={{ padding: "48px 48px 0", maxWidth: 900, margin: "0 auto" }}>
-        <p style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "2px", color: "#a09788", margin: "0 0 10px" }}>COMMUNITY</p>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 52, fontWeight: 900, color: "#111", margin: "0 0 6px", lineHeight: 1.1 }}>
+        <p style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "2px", color: "var(--enki-ink-3)", margin: "0 0 10px" }}>COMMUNITY</p>
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 52, fontWeight: 900, color: "var(--enki-ink)", margin: "0 0 6px", lineHeight: 1.1 }}>
           Leaderboard.
         </h1>
-        <p style={{ fontSize: 15, color: "#888", marginBottom: 36 }}>Top creators and earners on Enki Art.</p>
+        <p style={{ fontSize: 15, color: "var(--enki-ink-3)", marginBottom: 36 }}>Top creators and earners on Enki Art.</p>
 
         {/* Tab + Period row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -54,8 +54,8 @@ export default function LeaderboardPage() {
               <button key={t} onClick={() => setTab(t)} style={{
                 padding: "8px 24px", border: "none", cursor: "pointer", fontSize: 12,
                 fontFamily: "monospace", letterSpacing: "0.5px", textTransform: "uppercase",
-                background: tab === t ? "#111" : "#fff",
-                color: tab === t ? "#fff" : "#888",
+                background: tab === t ? "var(--enki-ink)" : "var(--enki-paper-2)",
+                color: tab === t ? "var(--enki-paper-2)" : "var(--enki-ink-3)",
                 borderRight: t === "generations" ? "1px solid #e0ddd5" : "none",
                 transition: "all 0.15s",
               }}>
@@ -68,9 +68,9 @@ export default function LeaderboardPage() {
             {PERIODS.map(p => (
               <button key={p} onClick={() => setPeriod(p)} style={{
                 padding: "6px 14px", fontSize: 12, borderRadius: 20,
-                border: "1px solid " + (period === p ? "#111" : "#e0ddd5"),
-                background: period === p ? "#111" : "#fff",
-                color: period === p ? "#fff" : "#666",
+                border: "1px solid " + (period === p ? "var(--enki-ink)" : "var(--enki-rule)"),
+                background: period === p ? "var(--enki-ink)" : "var(--enki-paper-2)",
+                color: period === p ? "var(--enki-paper-2)" : "#666",
                 cursor: "pointer", transition: "all 0.15s",
               }}>
                 {p}
@@ -87,13 +87,13 @@ export default function LeaderboardPage() {
             return (
               <div key={row.rank} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                 {/* Avatar */}
-                <div style={{ width: isFirst ? 60 : 48, height: isFirst ? 60 : 48, borderRadius: "50%", background: isFirst ? "#111" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isFirst ? 18 : 14, fontWeight: 700, color: isFirst ? "#fff" : "#374151", fontFamily: "monospace", boxShadow: isFirst ? "0 4px 20px rgba(0,0,0,0.2)" : "none" }}>
+                <div style={{ width: isFirst ? 60 : 48, height: isFirst ? 60 : 48, borderRadius: "50%", background: isFirst ? "var(--enki-ink)" : "var(--enki-rule)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isFirst ? 18 : 14, fontWeight: 700, color: isFirst ? "var(--enki-paper-2)" : "var(--enki-ink-2)", fontFamily: "monospace", boxShadow: isFirst ? "0 4px 20px rgba(0,0,0,0.2)" : "none" }}>
                   {row.avatar}
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#111" }}>{row.handle}</span>
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>{tab === "generations" ? `${(row as typeof MOCK_GENERATIONS[0]).gens.toLocaleString()} gen` : (row as typeof MOCK_EARNINGS[0]).earned}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--enki-ink)" }}>{row.handle}</span>
+                <span style={{ fontSize: 11, color: "var(--enki-ink-3)" }}>{tab === "generations" ? `${(row as typeof MOCK_GENERATIONS[0]).gens.toLocaleString()} gen` : (row as typeof MOCK_EARNINGS[0]).earned}</span>
                 {/* Podium bar */}
-                <div style={{ width: "100%", height: heights[i], background: isFirst ? "#111" : "#e5e7eb", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10 }}>
+                <div style={{ width: "100%", height: heights[i], background: isFirst ? "var(--enki-ink)" : "var(--enki-rule)", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10 }}>
                   <span style={{ fontSize: isFirst ? 22 : 18 }}>{row.badge || `#${row.rank}`}</span>
                 </div>
               </div>
@@ -102,12 +102,12 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Full table */}
-        <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 60 }}>
+        <div style={{ background: "var(--enki-paper-2)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 60 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr style={{ borderBottom: "1px solid var(--enki-rule)" }}>
                 {["RANK", "CREATOR", tab === "generations" ? "GENERATIONS" : "EARNED", tab === "earnings" ? "PROMPTS" : null, "CHANGE"].filter(Boolean).map(h => (
-                  <th key={h!} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontFamily: "monospace", letterSpacing: "0.8px", color: "#9ca3af", fontWeight: 600 }}>{h}</th>
+                  <th key={h!} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontFamily: "monospace", letterSpacing: "0.8px", color: "var(--enki-ink-3)", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -116,38 +116,38 @@ export default function LeaderboardPage() {
                 const isTop3 = row.rank <= 3;
                 const change = row.change;
                 return (
-                  <tr key={row.rank} style={{ borderBottom: "1px solid #f9fafb", background: isTop3 ? "#fafaf8" : "#fff", transition: "background 0.1s" }}>
-                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontWeight: 700, fontSize: 15, color: isTop3 ? "#111" : "#9ca3af" }}>
+                  <tr key={row.rank} style={{ borderBottom: "1px solid #f9fafb", background: isTop3 ? "var(--enki-paper-2)" : "var(--enki-paper-2)", transition: "background 0.1s" }}>
+                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontWeight: 700, fontSize: 15, color: isTop3 ? "var(--enki-ink)" : "var(--enki-ink-3)" }}>
                       {row.badge || `#${row.rank}`}
                     </td>
                     <td style={{ padding: "14px 20px" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <a href={`/profile/${row.handle.replace('@', '')}`} style={{ fontSize: 14, fontWeight: isTop3 ? 700 : 500, color: "#111", textDecoration: "none", width: "fit-content" }} onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}>
+                        <a href={`/profile/${row.handle.replace('@', '')}`} style={{ fontSize: 14, fontWeight: isTop3 ? 700 : 500, color: "var(--enki-ink)", textDecoration: "none", width: "fit-content" }} onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}>
                           {row.handle}
                         </a>
                         {isTop3 && (row as any).bestPrompt && (
-                          <div style={{ marginTop: 6, padding: "10px 12px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb", maxWidth: 320 }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Best Prompt</div>
-                            <div style={{ fontSize: 12, color: "#374151", marginBottom: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
+                          <div style={{ marginTop: 6, padding: "10px 12px", background: "var(--enki-paper-2)", borderRadius: 8, border: "1px solid #e5e7eb", maxWidth: 320 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--enki-ink-3)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Best Prompt</div>
+                            <div style={{ fontSize: 12, color: "var(--enki-ink-2)", marginBottom: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
                               {(row as any).bestPrompt}
                             </div>
-                            <a href={`/editor?prompt=${encodeURIComponent((row as any).bestPrompt)}`} style={{ display: "inline-flex", background: "#111", border: "none", padding: "4px 10px", fontSize: 11, color: "#fff", fontWeight: 600, borderRadius: 6, cursor: "pointer", textDecoration: "none" }}>
+                            <a href={`/editor?prompt=${encodeURIComponent((row as any).bestPrompt)}`} style={{ display: "inline-flex", background: "var(--enki-ink)", border: "none", padding: "4px 10px", fontSize: 11, color: "var(--enki-paper-2)", fontWeight: 600, borderRadius: 6, cursor: "pointer", textDecoration: "none" }}>
                               Use this prompt →
                             </a>
                           </div>
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontSize: 14, fontWeight: 600, color: "#111" }}>
+                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontSize: 14, fontWeight: 600, color: "var(--enki-ink)" }}>
                       {tab === "generations" ? (row as typeof MOCK_GENERATIONS[0]).gens.toLocaleString() : (row as typeof MOCK_EARNINGS[0]).earned}
                     </td>
                     {tab === "earnings" && (
-                      <td style={{ padding: "14px 20px", fontSize: 13, color: "#6b7280" }}>
+                      <td style={{ padding: "14px 20px", fontSize: 13, color: "var(--enki-ink-3)" }}>
                         {(row as typeof MOCK_EARNINGS[0]).prompts} prompts
                       </td>
                     )}
                     <td style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 12, fontFamily: "monospace", color: change > 0 ? "#16a34a" : change < 0 ? "#dc2626" : "#9ca3af" }}>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: change > 0 ? "#16a34a" : change < 0 ? "#dc2626" : "var(--enki-ink-3)" }}>
                         {change > 0 ? `↑ +${change}` : change < 0 ? `↓ ${change}` : "—"}
                       </span>
                     </td>
@@ -156,8 +156,8 @@ export default function LeaderboardPage() {
               })}
             </tbody>
           </table>
-          <div style={{ padding: 16, textAlign: "center", background: "#fafaf8", borderTop: "1px solid #f3f4f6" }}>
-            <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>Leaderboard is togglable per-user in Settings → Profile → Show leaderboard</p>
+          <div style={{ padding: 16, textAlign: "center", background: "var(--enki-paper-2)", borderTop: "1px solid var(--enki-rule)" }}>
+            <p style={{ fontSize: 12, color: "var(--enki-ink-3)", margin: 0 }}>Leaderboard is togglable per-user in Settings → Profile → Show leaderboard</p>
           </div>
         </div>
       </div>

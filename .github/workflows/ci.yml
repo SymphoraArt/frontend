@@ -1,0 +1,47 @@
+# Enki CI — the quality gate. Green + Kev's merge click = done.
+# Maintenance rules (agreed):
+#  - Only the passing suites run (legacy @jest/globals tests are excluded by
+#    NOT being listed — rewrite ticket belongs to the backend/API team).
+#  - A test that fails then passes with no code change is flaky: skip it via
+#    .skip + open a fix ticket. Never "just rerun" as a routine.
+#  - Tests must not hit real network/time — mock everything.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: TypeScript check
+        run: npx tsc --noEmit --skipLibCheck
+
+  tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - name: Unit tests (passing suites only)
+        run: >
+          npx vitest run
+          services/__tests__/content-moderation.test.ts
+          services/__tests__/concurrency-tracker.test.ts
+          services/__tests__/generation-router.test.ts
+          --passWithNoTests

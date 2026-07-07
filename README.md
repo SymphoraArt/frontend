@@ -1,6 +1,6 @@
-# AIgency — The Premium Prompt Marketplace
+# Enki Art — The Premium Prompt Marketplace
 
-AIgency is a high-fidelity creative marketplace and AI generation platform designed for modern art direction. It enables artists to discover, refine, and generate stunning AI-generated visuals using a variable-based prompt system.
+Enki Art is a high-fidelity creative marketplace and AI generation platform designed for modern art direction. It enables artists to discover, refine, and generate stunning AI-generated visuals using a variable-based prompt system.
 
 <div align="center">
   <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js">
@@ -17,7 +17,7 @@ AIgency is a high-fidelity creative marketplace and AI generation platform desig
 A curated, high-density editorial grid of AI-generated images and videos. The feed focuses on "prompts worth keeping," featuring a minimalist, high-contrast design inspired by modern design journals.
 
 ### ⚡ Variable-Based Prompting
-Unlike standard marketplaces, AIgency uses a "bracket system" (e.g., `[subject]`, `[mood]`) allowing users to customize prompt templates before generation.
+Unlike standard marketplaces, Enki Art uses a "bracket system" (e.g., `[subject]`, `[mood]`) allowing users to customize prompt templates before generation.
 
 ### 🛡️ Social Recovery Stack
 A three-tiered security system for account management:
@@ -87,5 +87,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   <br />
-  Built with ❤️ by the AIgency Team
+  Built with ❤️ by the Enki Art Team
 </div>

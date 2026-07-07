@@ -64,6 +64,7 @@ export default function SetupZkpPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, fontFamily: FONT }}>
+      <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "8px 16px" }}>MOCK — this recovery flow is a UI prototype, not wired to Turnkey yet.</div>
       {/* Header */}
       <header style={{ padding: "18px 40px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(245,243,238,0.95)", backdropFilter: "blur(8px)", position: "sticky", top: 0, zIndex: 10 }}>
         <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>

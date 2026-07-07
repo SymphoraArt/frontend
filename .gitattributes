@@ -1,0 +1,21 @@
+# One line-ending truth for mixed Linux/Windows teams: repo stores LF,
+# git converts on checkout/commit automatically. Nobody configures anything.
+* text=auto eol=lf
+
+# Windows scripts that genuinely need CRLF
+*.bat eol=crlf
+*.cmd eol=crlf
+
+# Binaries — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.webm binary

@@ -8,7 +8,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
-import AlgencyMobileGenerateModal from "@/components/AlgencyMobileGenerateModal";
+import EnkiMobileGenerateModal from "@/components/EnkiMobileGenerateModal";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 
 // Per-render display price (USD). This build generates via the free Pollinations
@@ -23,7 +23,7 @@ const MAX_REFERENCE_IMAGES = 20;
 /**
  * GenerateLauncher — the unified "Generate" entry point (ported from pr45) that
  * replaces the old EnkiQuickCreate pill/panel. The launch pill opens the shared
- * AlgencyMobileGenerateModal (Generate-only) on all viewports, with
+ * EnkiMobileGenerateModal (Generate-only) on all viewports, with
  * reference-image upload + NFT support.
  *
  * This build has no server-side billing, so generation runs through the free
@@ -233,7 +233,7 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
           e.target.value = "";
         }}
       />
-      <AlgencyMobileGenerateModal
+      <EnkiMobileGenerateModal
         isOpen={open}
         onClose={closeModal}
         promptBody={prompt}
@@ -277,6 +277,7 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
       {/* "stern Generate" floating button — matches the /editor launcher */}
       {!open && (
         <div
+          className="ek-generate-launcher"
           style={{
             position: "fixed",
             bottom: 24,
