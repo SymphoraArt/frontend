@@ -34,11 +34,15 @@ X -> OAuth login with that account. Instagram -> one-time code posted in
 bio/story, verified before payout. Rate-limit verification attempts
 (code-check endpoint) per profile and IP.
 
-## 5. Bounded blast radius
-Auto-payout only below the review threshold (default $50, configurable);
-above it: admin queue behind 2FA, visible "in review" status, 48h SLA.
-This gates ONLY Enki's own promotional signing-bonus money — user wallet
-withdrawals are never review-gated (non-custodial by design).
+## 5. No withholding — ever (Kev decision, 2026-07-08)
+Payouts are NEVER held back or queued for review. Once verification (#3,
+#4) passes, the payout fires instantly and in full, at any amount. User
+wallet withdrawals are never gated either (non-custodial by design).
+Non-blocking safeguards only: an anomaly notification to the admin for
+unusually large payouts (informational, fires AFTER the payout), and a
+modest fee-payer/treasury hot-wallet float with auto-refill so a
+compromise of everything else is bounded by the float, not by delaying
+anyone's money.
 
 ## 6. Fee-payer discipline
 The fee-payer key signs exclusively server-built transactions. Before
