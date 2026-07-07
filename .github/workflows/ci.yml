@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: TypeScript check
         run: npx tsc --noEmit --skipLibCheck
 
@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: Unit tests (passing suites only)
         run: >
           npx vitest run
