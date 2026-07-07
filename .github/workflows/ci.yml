@@ -27,17 +27,20 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm install --no-audit --no-fund
       - name: Unit tests (passing suites only)
         run: >
           npx vitest run
-          backend/services/__tests__/content-moderation.test.ts
-          backend/services/__tests__/concurrency-tracker.test.ts
-          backend/services/__tests__/generation-router.test.ts
-          --config backend/vitest.config.ts
+          services/__tests__/content-moderation.test.ts
+          services/__tests__/concurrency-tracker.test.ts
+          services/__tests__/generation-router.test.ts
