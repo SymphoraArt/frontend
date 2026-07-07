@@ -44,3 +44,4 @@ jobs:
           services/__tests__/content-moderation.test.ts
           services/__tests__/concurrency-tracker.test.ts
           services/__tests__/generation-router.test.ts
+          --passWithNoTests
