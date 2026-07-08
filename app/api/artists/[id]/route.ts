@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/backend/storage";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * GET /api/artists/[id]
@@ -37,9 +38,18 @@ export async function GET(
  * Updates an artist
  */
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Require a valid session. NOTE: the Artist record has no owner/wallet field
+  // (shared/schema.ts), so this cannot yet scope to the owning user — it only
+  // stops anonymous edits. Tying an artist to a wallet (owner column) is a
+  // follow-up data-model change needed for real per-owner authorization.
+  try {
+    await requireAuth(request);
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
   try {
     const { id } = await params;
     const body = await request.json();
@@ -68,9 +78,16 @@ export async function PATCH(
  * Deletes an artist
  */
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Require auth (stops anonymous deletion). Per-owner scoping is not possible
+  // until Artist gains an owner field — see PATCH note.
+  try {
+    await requireAuth(request);
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
   try {
     const { id } = await params;
     const deleted = await storage.deleteArtist(id);
