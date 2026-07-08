@@ -1,7 +1,10 @@
 # Enki CI — the quality gate. Green + Kev's merge click = done.
 # Maintenance rules (agreed):
-#  - Only the passing suites run (legacy @jest/globals tests are excluded by
-#    NOT being listed — rewrite ticket belongs to the backend/API team).
+#  - The gate is REAL: vitest runs the lib/** suites (money math). No
+#    --passWithNoTests — deleting tests turns the gate red.
+#  - Backend suites (backend/vitest.config.ts) join as a second step when
+#    PR #54 lands them; the broken @jest/globals legacy files stay excluded
+#    until the backend team rewrites them.
 #  - A test that fails then passes with no code change is flaky: skip it via
 #    .skip + open a fix ticket. Never "just rerun" as a routine.
 #  - Tests must not hit real network/time — mock everything.
@@ -27,21 +30,12 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: backend/package-lock.json
       - run: npm install --no-audit --no-fund
-      - name: Unit tests (passing suites only)
-        run: >
-          npx vitest run
-          services/__tests__/content-moderation.test.ts
-          services/__tests__/concurrency-tracker.test.ts
-          services/__tests__/generation-router.test.ts
-          --passWithNoTests
+      - name: Unit tests (lib money math)
+        run: npx vitest run
