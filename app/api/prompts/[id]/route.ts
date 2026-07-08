@@ -89,6 +89,13 @@ export async function GET(
         ...prompt,
         _id: prompt.id,
         publicPromptText,
+        // Same mapping the marketplace route does: the buyer-facing generator
+        // (PromptGeneratorView) reads camelCase showcaseImages, while the DB
+        // row only carries snake_case uploaded_photos — without this the
+        // /generator/[id] gallery is always empty.
+        showcaseImages: (Array.isArray(prompt.uploaded_photos) ? prompt.uploaded_photos : []).map(
+          (url: string) => ({ url }),
+        ),
         promptData: {
           variables: mappedVariables,
         },
