@@ -174,6 +174,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Non-custodial passkey wallets (created via /api/auth/turnkey/passkey) have
+  // no email and their sub-org's sole root is the user's passkey — Enki's
+  // parent key CANNOT sign for them, so this server-signing path would build a
+  // tx that can never be signed and would strand the intent. Reject until the
+  // client-side-signing cutover ships. Email-OTP (custodial) wallets always
+  // carry an email and stay server-signable until then.
+  const { data: tkAccount } = await supabase
+    .from("turnkey_users")
+    .select("email")
+    .ilike("wallet_address", session.wallet_address)
+    .maybeSingle();
+  if (tkAccount && !tkAccount.email) {
+    return NextResponse.json(
+      { error: "This wallet signs client-side; server-built payment is not available for it yet." },
+      { status: 409 },
+    );
+  }
+
   if (!checkRateLimit(session.wallet_address, "payments:pay", 60, 60_000)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
