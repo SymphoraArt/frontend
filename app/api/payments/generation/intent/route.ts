@@ -1,0 +1,121 @@
+/**
+ * POST /api/payments/generation/intent
+ *
+ * Server-built payments (backlog #2), step 2: persist the intent. The client
+ * sends ONLY identifiers — never a price, amount, or destination:
+ *
+ *   Body: { promptId: string, modelFamily: string, resolution?: "2K" | "4K" }
+ *
+ * The server recomputes the full split from its own DB and pricing (it never
+ * trusts an earlier quote response), stores it as a payment intent with
+ * status "quoted" and a TTL, and returns the intent id with the breakdown:
+ *
+ *   { intent: { id, promptId, modelFamily, resolution, buyerWallet,
+ *               artistWallet, expiresAt, breakdown } }
+ *
+ * The companion pay endpoint (next step) consumes the intent with an atomic
+ * quoted→building transition (single conditional UPDATE — see
+ * docs/PAYMENT-SECURITY-PATTERNS.md #2), builds the atomic multi-transfer
+ * Solana tx server-side, signs it via Turnkey, and broadcasts.
+ *
+ * Requires migrations/generation_payment_intents.sql to be applied.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth, checkRateLimit } from "@/lib/auth";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { PRICING_POLICY, splitToBreakdown } from "@/lib/payments/generation-pricing";
+import { computeQuote } from "@/lib/payments/generation-quote";
+
+const intentSchema = z.object({
+  promptId: z.string().min(1).max(128),
+  modelFamily: z.string().min(1).max(64),
+  resolution: z.enum(["2K", "4K"]).optional(),
+});
+
+export async function POST(req: NextRequest) {
+  // 60 payments/min per user (Kev, 2026-07-08 — dApp-friendly). The IP cap
+  // sits above it so one NAT/office IP with several users is never throttled
+  // below the per-user limit.
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "payments:intent:ip"), 120, 60_000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
+  let authUser;
+  try {
+    authUser = await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  if (!checkRateLimit(authUser.userId, "payments:intent", 60, 60_000)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const parsed = intentSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+  const { promptId, modelFamily, resolution } = parsed.data;
+
+  const supabase = getSupabaseServerClient();
+  const quote = await computeQuote(supabase, parsed.data);
+  if (!quote.ok) {
+    return NextResponse.json({ error: quote.error }, { status: quote.status });
+  }
+  const { artistWallet, split } = quote;
+
+  const expiresAt = new Date(
+    Date.now() + PRICING_POLICY.quoteTtlSeconds * 1000,
+  ).toISOString();
+
+  // buyer_wallet comes from the session, never from the client. NOTE for the
+  // pay step: session wallets are stored lowercased (auth_sessions), which is
+  // lossy for base58 — resolve the case-exact address via turnkey_users
+  // before building the on-chain transfer.
+  const { data: intent, error: insertError } = await supabase
+    .from("generation_payment_intents")
+    .insert({
+      buyer_wallet: authUser.walletAddress,
+      prompt_id: promptId,
+      model_family: modelFamily,
+      resolution: resolution ?? "2K",
+      artist_wallet: artistWallet,
+      artist_amount_micro: split.artistAmountMicro,
+      model_cost_micro: split.modelCostMicro,
+      enki_fee_micro: split.enkiFeeMicro,
+      total_micro: split.totalMicro,
+      fee_bps: PRICING_POLICY.enkiFeeBps,
+      fee_base: PRICING_POLICY.feeBase,
+      fee_mode: PRICING_POLICY.feeMode,
+      expires_at: expiresAt,
+    })
+    .select("id")
+    .single();
+  if (insertError || !intent) {
+    console.error("[payments/intent] insert failed:", insertError?.message);
+    return NextResponse.json({ error: "Failed to create payment intent" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    intent: {
+      id: intent.id,
+      promptId,
+      modelFamily,
+      resolution: resolution ?? "2K",
+      buyerWallet: authUser.walletAddress,
+      artistWallet,
+      expiresAt,
+      breakdown: splitToBreakdown(split),
+    },
+  });
+}

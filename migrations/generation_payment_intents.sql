@@ -32,3 +32,21 @@ CREATE INDEX IF NOT EXISTS generation_payment_intents_buyer_idx
   ON generation_payment_intents (buyer_wallet, created_at DESC);
 CREATE INDEX IF NOT EXISTS generation_payment_intents_status_idx
   ON generation_payment_intents (status, expires_at);
+
+-- Row Level Security: written exclusively by the backend via the service
+-- role — the anon key must never read or write intents.
+ALTER TABLE generation_payment_intents ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename   = 'generation_payment_intents'
+      AND policyname  = 'Service role can manage payment intents'
+  ) THEN
+    CREATE POLICY "Service role can manage payment intents"
+      ON generation_payment_intents FOR ALL TO service_role
+      USING (true) WITH CHECK (true);
+  END IF;
+END $$;
