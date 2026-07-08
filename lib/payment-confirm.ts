@@ -6,10 +6,13 @@
  * step. We add an in-app confirmation modal that the payment hook awaits
  * before actually triggering the signing API call.
  *
- * Pattern: one active request at a time. The hook calls `requestPaymentConfirm`
- * which returns a promise. The mounted modal subscribes and renders the
- * dialog. User action (confirm / cancel / dismiss) calls `resolvePaymentConfirm`
- * which fulfils the promise.
+ * Pattern: FIFO queue, one request presented at a time. The hook calls
+ * `requestPaymentConfirm` which returns a promise. The mounted modal
+ * subscribes and renders the front of the queue. User action (confirm /
+ * cancel / dismiss) calls `resolvePaymentConfirm`, which fulfils that
+ * request's promise and presents the next one — concurrent flows (batch
+ * generation fires one payment per card) each get their own genuine
+ * approve/cancel instead of being force-cancelled by the newest request.
  */
 
 export interface PaymentConfirmRequest {
@@ -17,7 +20,8 @@ export interface PaymentConfirmRequest {
   amount: string;
   /** Asset name shown next to the amount, e.g. "USDC". */
   asset: string;
-  /** Recipient (full base58 address, modal will truncate). */
+  /** Recipient: full base58 address (modal truncates) or a human-readable
+   *  label containing spaces (rendered as-is). */
   to: string;
   /** Optional purpose label, e.g. "Generate 2K image". */
   description?: string;
@@ -29,6 +33,7 @@ interface ActiveRequest extends PaymentConfirmRequest {
   resolve: (ok: boolean) => void;
 }
 
+const queue: ActiveRequest[] = [];
 let activeRequest: ActiveRequest | null = null;
 let cachedSnapshot: PaymentConfirmRequest | null = null;
 let cachedSource: ActiveRequest | null = null;
@@ -61,21 +66,19 @@ function emit() {
 }
 
 export function requestPaymentConfirm(req: PaymentConfirmRequest): Promise<boolean> {
-  // If something is already pending, reject the previous one — newer payment wins.
-  if (activeRequest) {
-    activeRequest.resolve(false);
-    activeRequest = null;
-  }
   return new Promise<boolean>((resolve) => {
-    activeRequest = { ...req, resolve };
-    emit();
+    queue.push({ ...req, resolve });
+    if (queue.length === 1) {
+      activeRequest = queue[0];
+      emit();
+    }
   });
 }
 
 export function resolvePaymentConfirm(ok: boolean): void {
-  if (!activeRequest) return;
-  const { resolve } = activeRequest;
-  activeRequest = null;
+  const current = queue.shift();
+  if (!current) return;
+  activeRequest = queue[0] ?? null;
   emit();
-  resolve(ok);
+  current.resolve(ok);
 }

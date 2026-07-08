@@ -17,7 +17,9 @@ import {
 } from "@/lib/payment-confirm";
 
 function shortAddr(addr: string): string {
-  if (addr.length <= 12) return addr;
+  // Base58 never contains spaces — labels like "Enki (artist + platform
+  // split)" render whole, real addresses still truncate.
+  if (addr.length <= 12 || addr.includes(" ")) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-6)}`;
 }
 
