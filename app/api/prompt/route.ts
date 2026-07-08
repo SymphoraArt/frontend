@@ -184,6 +184,36 @@ async function resolveCreatorId(
   return created.id;
 }
 
+// Ownership scope for updates: the session wallet plus the users.id mapped
+// via user_wallets — prompts.user_id has historically held either. Unlike
+// resolveCreatorId this never creates rows: an update on a prompt you don't
+// own must fail, not mint a user. null = no valid session.
+async function resolveOwnerIds(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  req: Request,
+): Promise<string[] | null> {
+  const token = req.headers.get("X-Session-Token");
+  if (!token) return null;
+
+  const { data: session } = await supabase
+    .from("auth_sessions")
+    .select("wallet_address")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!session) return null;
+
+  const ownerIds = [String(session.wallet_address)];
+  const { data: walletRow } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", session.wallet_address)
+    .is("removed_at", null)
+    .maybeSingle();
+  if (walletRow?.user_id) ownerIds.push(String(walletRow.user_id));
+  return ownerIds;
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as SaveBody;
@@ -240,13 +270,35 @@ export async function POST(req: Request) {
 
     if (body.id) {
       promptId = body.id;
-      const { error: updateError } = await supabase
+
+      // Ownership is part of the WHERE clause — the service-role client
+      // bypasses RLS, so an unscoped update would let any caller overwrite
+      // any prompt by uuid (same IDOR as the PATCH route, PR #59).
+      // NULL-owner (anonymous/legacy) prompts never match .in(), so they are
+      // deliberately immutable here: claiming them on update would hand every
+      // legacy prompt to whoever re-saves it first. count:"exact" makes the
+      // 0-rows branch real; "not found" covers both a missing prompt and
+      // someone else's prompt (no ownership oracle).
+      const ownerIds = await resolveOwnerIds(supabase, req);
+      if (!ownerIds) {
+        return NextResponse.json(
+          { error: "Authentication required" },
+          { status: 401 }
+        );
+      }
+
+      const { error: updateError, count } = await supabase
         .from("prompts")
-        .update(promptRow)
-        .eq("id", promptId);
+        .update(promptRow, { count: "exact" })
+        .eq("id", promptId)
+        .in("user_id", ownerIds);
 
       if (updateError) {
         throw updateError;
+      }
+
+      if (count === 0) {
+        return NextResponse.json({ error: "not found" }, { status: 404 });
       }
 
       const { error: deleteError } = await supabase
