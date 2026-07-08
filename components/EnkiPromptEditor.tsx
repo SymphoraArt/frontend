@@ -2865,6 +2865,17 @@ export default function EnkiPromptEditor() {
           };
         }),
         referenceImages,
+        // Ship the completed verify-card renders as the prompt's showcase
+        // images (the API stores these as uploaded_photos, which the buyer
+        // generator reads as showcaseImages). Only durable URLs — blob: object
+        // URLs die on reload; https (Vercel Blob) is preferred over heavy
+        // base64 data: URLs. Capped so a data:-URL deployment can't bloat the
+        // row. Without this the buyer gallery is always empty.
+        uploadedPhotos: versions
+          .filter((v) => v.status === "complete" && v.sourceUrl && !v.sourceUrl.startsWith("blob:"))
+          .map((v) => v.sourceUrl as string)
+          .sort((a, b) => (a.startsWith("data:") ? 1 : 0) - (b.startsWith("data:") ? 1 : 0))
+          .slice(0, 4),
         price: promptData.type === "premium-prompt" ? promptPrice : 0,
       };
       // Forward the Turnkey session so the server records the creator
