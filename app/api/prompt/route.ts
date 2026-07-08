@@ -130,6 +130,60 @@ function decryptString(
   return decrypted.toString("utf8");
 }
 
+// Resolve the prompt's creator from the session — NEVER from the client
+// (a client-supplied userId could claim any creator, and the payment quote
+// pays the artist share to that creator's wallet). Anonymous saves keep
+// user_id NULL; such prompts cannot be sold (the quote path rejects them).
+// First save from a wallet creates the users row, same idiom as
+// /api/auth/session — for Turnkey wallets with the case-exact base58 address
+// as the default payout wallet (sessions store it lowercased, lossy).
+async function resolveCreatorId(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  req: Request,
+): Promise<string | null> {
+  const token = req.headers.get("X-Session-Token");
+  if (!token) return null;
+
+  const { data: session } = await supabase
+    .from("auth_sessions")
+    .select("wallet_address, wallet_type")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!session) return null;
+
+  const { data: walletRow } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", session.wallet_address)
+    .is("removed_at", null)
+    .maybeSingle();
+  if (walletRow?.user_id) return walletRow.user_id;
+
+  const { data: tkUser } = await supabase
+    .from("turnkey_users")
+    .select("wallet_address")
+    .ilike("wallet_address", session.wallet_address)
+    .maybeSingle();
+  const { data: created, error: createError } = await supabase
+    .from("users")
+    .insert(tkUser?.wallet_address ? { wallet_address: tkUser.wallet_address } : {})
+    .select("id")
+    .single();
+  if (createError || !created?.id) {
+    console.error("[prompt] creator user insert failed:", createError?.message);
+    return null;
+  }
+  await supabase.from("user_wallets").insert({
+    user_id: created.id,
+    address: session.wallet_address,
+    chain_family: session.wallet_type === "evm" ? "evm" : "solana",
+    wallet_type: "external_eoa",
+    is_primary: true,
+  });
+  return created.id;
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as SaveBody;
@@ -160,12 +214,14 @@ export async function POST(req: Request) {
 
     const nowIso = new Date().toISOString();
 
+    // user_id deliberately absent here: updates never change the creator
+    // (re-saving used to null it), and inserts get the session-resolved
+    // creator below — body.userId is ignored entirely.
     const promptRow = {
       title: body.title,
       encrypted_content: encryptedContent,
       iv,
       auth_tag: authTag,
-      user_id: body.userId ?? null,
       category: body.category ?? "",
       tags,
       ai_model: body.aiModel ?? "gemini",
@@ -206,6 +262,7 @@ export async function POST(req: Request) {
         .from("prompts")
         .insert({
           ...promptRow,
+          user_id: await resolveCreatorId(supabase, req),
           created_at: nowIso,
           downloads: 0,
           rating: 0,
