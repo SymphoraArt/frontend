@@ -63,12 +63,15 @@ export async function authenticateUser(request: NextRequest): Promise<Authentica
     throw new Error('Invalid wallet signature');
   }
 
-  // Return authenticated user
-  const userId = walletAddress.toLowerCase();
+  // Return authenticated user. Solana base58 addresses are case-sensitive —
+  // only EVM (0x…) addresses are lowercase-normalized.
+  const normalized = walletAddress.startsWith('0x')
+    ? walletAddress.toLowerCase()
+    : walletAddress;
 
   return {
-    walletAddress: walletAddress.toLowerCase(),
-    userId
+    walletAddress: normalized,
+    userId: normalized
   };
 }
 
