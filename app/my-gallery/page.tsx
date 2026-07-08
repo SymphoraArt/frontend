@@ -1,4 +1,5 @@
 "use client";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo, useState } from "react";
@@ -140,7 +141,10 @@ export default function MyGalleryPage() {
   const handleRemove = async (id: string) => {
     if (!userKey) return;
     try {
-      await fetch(`/api/generations/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await fetch(`/api/generations/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: sessionAuthHeaders(),
+      });
     } catch {
       // ignore
     }

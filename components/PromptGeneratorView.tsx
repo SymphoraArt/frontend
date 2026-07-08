@@ -1,5 +1,6 @@
 "use client";
 
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
@@ -342,7 +343,7 @@ export default function PromptGeneratorView({
               /* PATCH image_urls + mark completed */
               await fetch(`/api/generations/${genId}`, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
                 body: JSON.stringify({
                   status: "completed",
                   imageUrls: [data.imageUrl],

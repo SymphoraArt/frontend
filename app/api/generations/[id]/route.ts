@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { requireAuth } from "@/lib/auth";
 import { decryptPrompt } from "@/backend/encryption";
 import {
   updateGenerationSchema,
@@ -81,13 +82,23 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
 
   if (!isValidUUID(id)) {
     return createErrorResponse('Invalid generation ID', 400);
+  }
+
+  // Ownership: generations.user_id is the wallet address (case-exact base58);
+  // the session resolves to a lowercased wallet, so scope with ilike. Without
+  // this any caller could tamper with any generation by UUID (IDOR).
+  let ownerId: string;
+  try {
+    ({ userId: ownerId } = await requireAuth(req));
+  } catch {
+    return createErrorResponse('Authentication required', 401);
   }
 
   try {
@@ -116,12 +127,18 @@ export async function PATCH(
       .from("generations")
       .update(updateData)
       .eq("id", id)
+      .ilike("user_id", ownerId)
       .select('id, status, updated_at, image_urls, error_message, completed_at')
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Database error:', error);
       return createErrorResponse('Failed to update generation', 500, error.message);
+    }
+
+    // No row updated → missing or owned by someone else (no ownership oracle).
+    if (!data) {
+      return createErrorResponse('Generation not found', 404);
     }
 
     return createSuccessResponse({
@@ -136,7 +153,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
@@ -144,10 +161,26 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid generation ID" }, { status: 400 });
   }
 
+  // Ownership scope — see PATCH. Without it anyone could delete any
+  // generation by UUID (IDOR).
+  let ownerId: string;
+  try {
+    ({ userId: ownerId } = await requireAuth(req));
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   try {
     const supabase = getSupabaseServerClient();
-    const { error } = await supabase.from("generations").delete().eq("id", id);
+    const { error, count } = await supabase
+      .from("generations")
+      .delete({ count: "exact" })
+      .eq("id", id)
+      .ilike("user_id", ownerId);
     if (error) throw error;
+    if (count === 0) {
+      return NextResponse.json({ error: "Generation not found" }, { status: 404 });
+    }
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
