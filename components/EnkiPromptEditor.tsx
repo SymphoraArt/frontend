@@ -12,6 +12,7 @@ import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
+import { useIntentPayment } from "@/hooks/useIntentPayment";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
@@ -238,7 +239,23 @@ interface EditorDraft {
   promptPrice: number;
   settingsCollapsed: boolean;
   savedAt: number;
+  // Saved-prompt id must survive reloads: without it a Turnkey user's saved
+  // prompt silently falls back to the SOL-requiring x402 flow after refresh.
+  currentPromptId?: string | null;
 }
+
+// Gemini's accepted aspect ratios; editor-only ratios map to their nearest
+// neighbour, "Any ratio" stays undefined so the server defaults to 1:1.
+const INTENT_API_RATIOS: Record<string, string | undefined> = {
+  "1:1": "1:1",
+  "16:9": "16:9",
+  "9:16": "9:16",
+  "4:3": "4:3",
+  "3:4": "3:4",
+  "4:5": "3:4",
+  "3:2": "4:3",
+  "21:9": "16:9",
+};
 
 function buildFullToken(inner: string): string {
   return `[${inner}]`;
@@ -463,6 +480,10 @@ export default function EnkiPromptEditor() {
   const solanaConnected = solanaAdapterConnected || !!turnkeyAddress;
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
+  // Server-built payments (intent → pay → generate) for Turnkey email users:
+  // no SOL needed, Enki pays the network fee. Kicks in once the prompt is
+  // saved (an intent needs the DB prompt row for pricing).
+  const { generateWithIntent, isPending: isIntentPaymentPending } = useIntentPayment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
   /* Human-readable name of the network the user is paying on right
@@ -738,7 +759,7 @@ export default function EnkiPromptEditor() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const walletConnected = Boolean(account?.address) || solanaConnected;
-  const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending;
+  const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending || isIntentPaymentPending;
 
   useEffect(() => {
     const handleResize = () => setIsMobileViewport(window.innerWidth <= 768);
@@ -763,6 +784,7 @@ export default function EnkiPromptEditor() {
           setUi((prev) => ({
             ...prev,
             maxImages: draft.maxImages ?? prev.maxImages,
+            currentPromptId: draft.currentPromptId ?? null,
           }));
           if (draft.modelsSelected?.length) {
             setModels((prev) => ({ ...prev, selected: draft.modelsSelected }));
@@ -824,6 +846,7 @@ export default function EnkiPromptEditor() {
           promptPrice,
           settingsCollapsed: ui.settingsCollapsed,
           savedAt: Date.now(),
+          currentPromptId: ui.currentPromptId,
         };
         localStorage.setItem(EDITOR_DRAFT_KEY, JSON.stringify(draft));
         setDraftSavedAt(draft.savedAt);
@@ -832,7 +855,7 @@ export default function EnkiPromptEditor() {
       }
     }, 400);
     return () => clearTimeout(timeoutId);
-  }, [promptData, variables, models.selected, ratios.selected, ui.maxImages, ui.settingsCollapsed, referenceImages, promptPrice]);
+  }, [promptData, variables, models.selected, ratios.selected, ui.maxImages, ui.settingsCollapsed, referenceImages, promptPrice, ui.currentPromptId]);
 
   /* ─── Restore parked verify cards (images + variable values + per-card
      reference images) from IndexedDB so the session survives a reload ─── */
@@ -1281,6 +1304,9 @@ export default function EnkiPromptEditor() {
       variableNameConflict: null,
       pendingTypeChange: null,
       confirmNewOpen: false,
+      // A new draft is unsaved — a stale id would route it through the
+      // intent flow priced from the OLD prompt's DB row.
+      currentPromptId: null,
     }));
     try {
       localStorage.removeItem(EDITOR_DRAFT_KEY);
@@ -2462,7 +2488,25 @@ export default function EnkiPromptEditor() {
         }
         data = await res.json() as { imageUrl: string; provider?: string; usedGemini?: boolean };
       } else {
-        data = solanaConnected
+        // Turnkey-only users with a saved prompt take the server-built path
+        // (intent → pay → generate): no SOL needed, Enki pays the network
+        // fee. A connected external adapter keeps precedence (the user
+        // chose that wallet to pay with); unsaved drafts and external
+        // wallets keep the x402 flows.
+        data = turnkeyAddress && !solanaAdapterConnected && ui.currentPromptId
+          ? await generateWithIntent({
+              promptId: ui.currentPromptId,
+              modelFamily: models.selected[0] || "nano-banana-pro",
+              resolution: "2K",
+              prompt: previewText,
+              // Gemini accepts a fixed ratio set; map the editor's extra
+              // ratios to their nearest neighbour ("Any ratio" → server
+              // default 1:1).
+              aspectRatio: INTENT_API_RATIOS[ratios.selected],
+              // Per-card resume slot: batch pays one intent per card, concurrently.
+              slotId: versionId,
+            }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
+          : solanaConnected
           ? await generateImageWithSolana({
               prompt: previewText,
               resolution: "2K",
@@ -2810,7 +2854,6 @@ export default function EnkiPromptEditor() {
            leaves the editor (DB, marketplace, AI providers) it
            should always read as "Reference image N". */
         content: expandReferenceImageMentions(promptData.body),
-        userId: null,
         promptType: promptData.type,
         aiModel: models.selected[0],
         tags: promptData.tags,
@@ -2824,7 +2867,20 @@ export default function EnkiPromptEditor() {
         referenceImages,
         price: promptData.type === "premium-prompt" ? promptPrice : 0,
       };
-      const response = await apiRequest("POST", "/api/prompt", payload);
+      // Forward the Turnkey session so the server records the creator
+      // (user_id) — the intent payment flow can only price prompts whose
+      // creator is known. Same header the publish PATCH already sends.
+      const sessionToken =
+        typeof window !== "undefined" ? localStorage.getItem("turnkey_session_token") : null;
+      const response = await fetch("/api/prompt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionToken ? { "X-Session-Token": sessionToken } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
       const savedPrompt: unknown = await response.json();
       if (!response.ok) throw new Error("Failed to save prompt");
       if (typeof savedPrompt === "object" && savedPrompt !== null && "id" in savedPrompt) {
