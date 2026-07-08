@@ -4452,6 +4452,8 @@ function closeMobileMenu() {
       </button>
       <div class="auth-switch">Already have access? <a href="#" onclick="switchAuthTab('login');return false;">Log in</a></div>
     </form>
+    <!-- Success state renders here so the tabs/forms above survive it. -->
+    <div class="auth-success" id="authSuccess" style="display:none"></div>
   </div>
 </div>
 
@@ -4459,6 +4461,10 @@ function closeMobileMenu() {
 // ── AUTH MODAL ──
 function openAuth(tab) {
   document.getElementById('authBackdrop').classList.add('open');
+  const success = document.getElementById('authSuccess');
+  if (success) success.style.display = 'none';
+  const tabs = document.querySelector('#authModal .auth-tabs');
+  if (tabs) tabs.style.display = '';
   switchAuthTab(tab || 'login');
   document.body.style.overflow = 'hidden';
   setTimeout(() => {
@@ -4520,13 +4526,15 @@ function walletLogin() {
 }
 function submitAuth(e, type) {
   e.preventDefault();
-  const btn = document.getElementById(type === 'login' ? 'submitLogin' : 'submitSignup');
-  btn.classList.add('loading');
-  btn.disabled = true;
   if (type === 'login') {
-    setTimeout(() => { btn.classList.remove('loading'); btn.disabled = false; showAuthSuccess('login'); }, 1400);
+    // Honest: there is no password backend yet — never fake a successful
+    // login. Real sign-in is the wallet / email-code flow in the app shell.
+    showInlineNote('login', 'Password sign-in isn\'t live during the whitelist stage yet — use "Continue with Wallet" below (it includes an email-code option).');
     return;
   }
+  const btn = document.getElementById('submitSignup');
+  btn.classList.add('loading');
+  btn.disabled = true;
   // Application: stored server-side (access_requests); whitelisted emails get in now,
   // everyone else is queued for review.
   const email = (document.getElementById('signupEmail').value || '').trim().toLowerCase();
@@ -4548,10 +4556,9 @@ function submitAuth(e, type) {
       if (WHITELIST.includes(email)) {
         switchAuthTab('login');
         const le = document.getElementById('loginEmail'); if (le) le.value = email;
-        showInlineNote('login', "✓ You're whitelisted — log in to enter Enki Art.");
-        const lp = document.getElementById('loginPass'); if (lp) lp.focus();
+        showInlineNote('login', "✓ You're whitelisted — continue with your wallet below to enter Enki Art.");
       } else {
-        showAuthSuccess('review');
+        showAuthSuccess();
       }
     })
     .catch(() => {
@@ -4567,22 +4574,20 @@ function showInlineNote(form, msg) {
   if (!n) { n = document.createElement('div'); n.className = 'auth-note auth-inline-note'; f.insertBefore(n, f.firstChild); }
   n.textContent = msg;
 }
-function showAuthSuccess(type) {
-  const modal = document.getElementById('authModal');
-  const review = type === 'review';
-  modal.innerHTML = `
-    <div class="auth-success">
-      <div class="auth-success-icon">${review ? '✦' : '✓'}</div>
-      <div class="auth-success-title">${review ? 'Application received' : 'Welcome back!'}</div>
-      <div class="auth-success-sub">${review
-        ? "Thanks for applying. We review every request during the whitelist stage and will email you the moment you're accepted."
-        : 'Logged in successfully. Taking you in…'}</div>
-      <button class="auth-success-btn" onclick="${review ? 'closeAuthHard()' : 'enterApp()'}">${review ? 'Done' : 'Continue →'}</button>
-    </div>`;
-  if (!review) setTimeout(enterApp, 1800);
-}
-function enterApp() {
-  (window.top || window).location.href = '/home';
+function showAuthSuccess() {
+  // Render into the dedicated child — replacing #authModal's innerHTML wiped
+  // the tabs/forms, leaving the modal permanently broken once reopened.
+  const tabs = document.querySelector('#authModal .auth-tabs');
+  if (tabs) tabs.style.display = 'none';
+  document.getElementById('formLogin').style.display = 'none';
+  document.getElementById('formSignup').style.display = 'none';
+  const success = document.getElementById('authSuccess');
+  success.innerHTML = `
+      <div class="auth-success-icon">✦</div>
+      <div class="auth-success-title">Application received</div>
+      <div class="auth-success-sub">Thanks for applying. We review every request during the whitelist stage and will email you the moment you're accepted.</div>
+      <button class="auth-success-btn" onclick="closeAuthHard()">Done</button>`;
+  success.style.display = '';
 }
 function closeAuthHard() {
   document.getElementById('authBackdrop').classList.remove('open');
