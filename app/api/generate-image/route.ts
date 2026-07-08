@@ -10,7 +10,20 @@ import {
 } from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
-import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
+import { getSupabaseServerClient, getSupabaseServerClientSafe } from "@/lib/supabaseServer";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireAuth, checkRateLimit } from "@/lib/auth";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import {
+  fulfillGenerationIntent,
+  redeemGenerationIntent,
+  releaseGenerationIntent,
+} from "@/lib/payments/generation-redemption";
+
+// Above the 90s provider timeout: the in-process timeout (and the intent
+// release it triggers) must fire BEFORE the platform kills the function,
+// otherwise a paid, consumed intent is stranded with no release.
+export const maxDuration = 120;
 
 const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
 
@@ -21,7 +34,12 @@ type GenerateImageBody = {
   useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
   modelIds?: string[];
   ratio?: string;
+  // Server-built payments: id of a confirmed generation_payment_intents row.
+  // When present, the x402 header flow is skipped entirely.
+  intentId?: string;
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Enhance prompt using Gemini API and track token usage
@@ -127,6 +145,18 @@ export async function POST(request: NextRequest) {
   const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
 
+  // Set after a successful intent redemption (client captured then, so this
+  // helper can never throw); every generation-failure path — including the
+  // catch-all below — must release it so the buyer retries without paying
+  // again.
+  let consumedIntent: { supabase: SupabaseClient; id: string } | null = null;
+  const releaseIfConsumed = async () => {
+    if (consumedIntent) {
+      await releaseGenerationIntent(consumedIntent.supabase, consumedIntent.id);
+      consumedIntent = null;
+    }
+  };
+
   try {
     const body = (await request.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -173,38 +203,53 @@ export async function POST(request: NextRequest) {
     // max 10 generations per user per minute
     // --- END SECURITY GUARDS ---
 
-    const serverWalletAddress = process.env.SERVER_WALLET_ADDRESS;
-    if (!serverWalletAddress) {
-      return NextResponse.json(
-        { error: 'SERVER_WALLET_ADDRESS is not configured' },
-        { status: 500 }
-      );
+    // Server-built payments (backlog #2, step 4): a confirmed intent replaces
+    // the whole x402 header flow, so the x402 env/URL plumbing below is only
+    // required on the legacy paths.
+    const intentId = typeof body.intentId === "string" ? body.intentId.trim() : "";
+    if (intentId && !UUID_RE.test(intentId)) {
+      return NextResponse.json({ error: "intentId must be a UUID" }, { status: 400 });
     }
+    // The paid resolution from the intent row overrides the request body.
+    let paidResolution: string | null = null;
 
-    // Construct full URL for X402 payment (requires absolute URL)
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    
-    if (!baseUrl) {
-      const protocol = requestUrl.protocol || 'http:';
-      const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
-      baseUrl = `${protocol}//${host}`;
-    }
-    
-    baseUrl = baseUrl.replace(/\/$/, '');
-    const resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
-    
-    // Validate URL format
-    try {
-      const testUrl = new URL(resourceUrl);
-      if (!testUrl.protocol || !testUrl.host) {
-        throw new Error('Invalid URL: missing protocol or host');
+    let serverWalletAddress = "";
+    let resourceUrl = "";
+    if (!intentId) {
+      const configuredWallet = process.env.SERVER_WALLET_ADDRESS;
+      if (!configuredWallet) {
+        return NextResponse.json(
+          { error: 'SERVER_WALLET_ADDRESS is not configured' },
+          { status: 500 }
+        );
       }
-    } catch (urlError) {
-      console.error('❌ Invalid resourceUrl constructed:', resourceUrl);
-      return NextResponse.json(
-        { error: 'Failed to construct payment URL', details: urlError instanceof Error ? urlError.message : String(urlError) },
-        { status: 500 }
-      );
+      serverWalletAddress = configuredWallet;
+
+      // Construct full URL for X402 payment (requires absolute URL)
+      let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+      if (!baseUrl) {
+        const protocol = requestUrl.protocol || 'http:';
+        const host = requestUrl.host || requestUrl.hostname || 'localhost:3000';
+        baseUrl = `${protocol}//${host}`;
+      }
+
+      baseUrl = baseUrl.replace(/\/$/, '');
+      resourceUrl = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
+
+      // Validate URL format
+      try {
+        const testUrl = new URL(resourceUrl);
+        if (!testUrl.protocol || !testUrl.host) {
+          throw new Error('Invalid URL: missing protocol or host');
+        }
+      } catch (urlError) {
+        console.error('❌ Invalid resourceUrl constructed:', resourceUrl);
+        return NextResponse.json(
+          { error: 'Failed to construct payment URL', details: urlError instanceof Error ? urlError.message : String(urlError) },
+          { status: 500 }
+        );
+      }
     }
 
     // Determine if we should use upto payment scheme
@@ -233,22 +278,80 @@ export async function POST(request: NextRequest) {
 
     const isSolanaPayment = isSolanaChain(chain);
 
-    console.log('💳 X402 Payment Request:', {
-      resourceUrl,
-      method: 'POST',
-      chain,
-      scheme: isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
-      price: useUpto ? `${minPrice} - ${maxPrice}` : basePrice,
-      hasPaymentHeader: !!paymentHeader || !!request.headers.get("X-PAYMENT"),
-      serverWallet: serverWalletAddress?.slice(0, 10) + '...',
-    });
+    if (!intentId) {
+      console.log('💳 X402 Payment Request:', {
+        resourceUrl,
+        method: 'POST',
+        chain,
+        scheme: isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
+        price: useUpto ? `${minPrice} - ${maxPrice}` : basePrice,
+        hasPaymentHeader: !!paymentHeader || !!request.headers.get("X-PAYMENT"),
+        serverWallet: serverWalletAddress?.slice(0, 10) + '...',
+      });
+    }
 
     let paymentResult;
     let enhancedPrompt = prompt;
     let usedGemini = false;
     let geminiTokens = 0;
 
-    if (isSolanaPayment) {
+    if (intentId) {
+      // --- SERVER-BUILT PAYMENT: redeem a confirmed intent ---
+      // Identity comes from the session (the intent is bound to its buyer),
+      // the paid resolution comes from the intent row — neither is taken
+      // from the request. Redemption is a one-shot conditional UPDATE, so a
+      // replayed intentId can never buy a second generation.
+      const ipLimit = checkRequestRateLimit(rateLimitKey(request, "generate:intent:ip"), 120, 60_000);
+      if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
+      // Session token only — requireAuth's fallback (X-Wallet-Address
+      // signature headers, no server nonce) is replayable and deliberately
+      // not accepted on payment paths (same gate as payments/generation/pay).
+      if (!request.headers.get("X-Session-Token")) {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      let authUser;
+      try {
+        authUser = await requireAuth(request);
+      } catch {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      if (!checkRateLimit(authUser.userId, "generate:intent", 60, 60_000)) {
+        return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+      }
+      const supabase = getSupabaseServerClient();
+      const redemption = await redeemGenerationIntent(supabase, {
+        intentId,
+        buyerWallet: authUser.userId,
+      });
+      if (!redemption.ok) {
+        return NextResponse.json({ error: redemption.error }, { status: redemption.status });
+      }
+      consumedIntent = { supabase, id: intentId };
+      paidResolution = redemption.resolution;
+      paymentResult = {
+        success: true,
+        status: 200,
+        headers: {},
+        metadata: {
+          paymentIntentId: intentId,
+          modelFamily: redemption.modelFamily,
+          resolution: redemption.resolution,
+        },
+      };
+
+      try {
+        const geminiResult = await enhancePromptWithGemini(prompt);
+        if (geminiResult.enhancedPrompt !== prompt) {
+          enhancedPrompt = geminiResult.enhancedPrompt;
+          usedGemini = true;
+          geminiTokens = geminiResult.tokensUsed;
+        }
+      } catch {
+        enhancedPrompt = prompt;
+        usedGemini = false;
+      }
+    } else if (isSolanaPayment) {
       const solanaChain = chain as "solana" | "solana-devnet";
       const solanaPlatformWallet = process.env.SOLANA_PLATFORM_WALLET;
       if (!solanaPlatformWallet) {
@@ -424,14 +527,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('💳 X402 Payment Result:', {
-      success: paymentResult.success,
-      status: paymentResult.status,
-      scheme: useUpto ? 'upto' : 'exact',
-      hasMetadata: !!paymentResult.metadata,
-      txHash: paymentResult.metadata?.txHash,
-      actualPrice: paymentResult.metadata?.actualPrice,
-    });
+    if (!intentId) {
+      console.log('💳 X402 Payment Result:', {
+        success: paymentResult.success,
+        status: paymentResult.status,
+        scheme: useUpto ? 'upto' : 'exact',
+        hasMetadata: !!paymentResult.metadata,
+        txHash: paymentResult.metadata?.txHash,
+        actualPrice: paymentResult.metadata?.actualPrice,
+      });
+    }
 
     // If payment not successful, return payment response
     if (!paymentResult.success) {
@@ -443,6 +548,9 @@ export async function POST(request: NextRequest) {
 
     let geminiResult;
     const xaiKey = process.env.XAI_API_KEY;
+    // Intent payments are paid upfront like Solana x402 — bound the provider
+    // call so a hung generation can't strand an already-paid request.
+    const paidUpfront = isSolanaPayment || !!consumedIntent;
 
     if (xaiKey) {
       console.log('🎨 Generating image with Grok...');
@@ -459,7 +567,7 @@ export async function POST(request: NextRequest) {
           n: 1,
         }),
       });
-      const xaiResponse = isSolanaPayment
+      const xaiResponse = paidUpfront
         ? await withTimeout(
             xaiRequest,
             SOLANA_GENERATION_TIMEOUT_MS,
@@ -470,6 +578,7 @@ export async function POST(request: NextRequest) {
       if (!xaiResponse.ok) {
         const errTxt = await xaiResponse.text();
         console.error('❌ Grok image generation failed:', errTxt);
+        await releaseIfConsumed();
         return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
       }
 
@@ -477,12 +586,24 @@ export async function POST(request: NextRequest) {
       const grokUrl = xaiData.data?.[0]?.url;
 
       if (!grokUrl) {
+        await releaseIfConsumed();
         return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
       }
 
-      const imgRes = await fetch(grokUrl);
-      if (!imgRes.ok) throw new Error("Failed to download image from Grok");
-      const arrayBuffer = await imgRes.arrayBuffer();
+      // The download shares the paid-upfront bound — a stalled CDN read must
+      // reject into the catch-all (which releases the intent), not hang past
+      // the function budget.
+      const download = fetch(grokUrl).then(async (res) => {
+        if (!res.ok) throw new Error("Failed to download image from Grok");
+        return res.arrayBuffer();
+      });
+      const arrayBuffer = paidUpfront
+        ? await withTimeout(
+            download,
+            SOLANA_GENERATION_TIMEOUT_MS,
+            "Image download timed out after payment. Please try again."
+          )
+        : await download;
       const imageBuffer = Buffer.from(arrayBuffer);
 
       geminiResult = {
@@ -496,10 +617,11 @@ export async function POST(request: NextRequest) {
       const geminiRequest = generateImagesWithGemini({
         prompt: enhancedPrompt,
         aspectRatio: (body.aspectRatio || body.ratio || "1:1") as ImageGenerationRequest["aspectRatio"],
-        imageSize: (body.resolution || "2K") as ImageGenerationRequest["imageSize"],
+        // The paid resolution from the intent row wins over the request body.
+        imageSize: (paidResolution || body.resolution || "2K") as ImageGenerationRequest["imageSize"],
         numImages: 1,
       });
-      geminiResult = isSolanaPayment
+      geminiResult = paidUpfront
         ? await withTimeout(
             geminiRequest,
             SOLANA_GENERATION_TIMEOUT_MS,
@@ -508,6 +630,7 @@ export async function POST(request: NextRequest) {
         : await geminiRequest;
 
       if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
+        await releaseIfConsumed();
         return NextResponse.json(
           { error: geminiResult.error || 'Gemini image generation failed', retryable: geminiResult.retryable ?? true },
           { status: 500 }
@@ -517,6 +640,7 @@ export async function POST(request: NextRequest) {
 
     const generatedImageBuffer = geminiResult.imageBuffers?.[0];
     if (!generatedImageBuffer) {
+      await releaseIfConsumed();
       return NextResponse.json({ error: 'No generated image buffer returned', retryable: true }, { status: 500 });
     }
 
@@ -555,6 +679,12 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Using data URL fallback due to upload error');
     }
 
+    // The paid image is delivered — mark the intent fulfilled so the
+    // stale-claim rescue can never mistake it for a dead claim.
+    if (consumedIntent) {
+      await fulfillGenerationIntent(consumedIntent.supabase, consumedIntent.id);
+    }
+
     // Return image with payment metadata and headers
     return NextResponse.json(
       {
@@ -565,10 +695,12 @@ export async function POST(request: NextRequest) {
         usedGemini,
         geminiTokens: usedGemini ? geminiTokens : undefined,
         generationTime: geminiResult.generationTime,
-        paymentScheme: isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
+        paymentScheme: consumedIntent ? 'intent' : isSolanaPayment ? 'solana-exact' : useUpto ? 'upto' : 'exact',
         metadata: {
           ...paymentResult.metadata,
-          ...(useUpto && {
+          // x402 upto pricing fields would be misleading on intent-paid
+          // responses — the intent path reports its own metadata above.
+          ...(useUpto && !consumedIntent && {
             maxPrice,
             minPrice,
             actualPrice: paymentResult.metadata?.actualPrice,
@@ -584,6 +716,7 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Generate image error:", message);
+    await releaseIfConsumed();
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
