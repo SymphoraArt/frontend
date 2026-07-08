@@ -40,14 +40,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = getSupabaseServerClient();
-    // Re-applying updates the application; status (pending/approved/rejected)
-    // is intentionally not touched by the upsert.
-    const { error } = await supabase.from("access_requests").upsert(
-      { email, about, socials: socials || null, updated_at: new Date().toISOString() },
-      { onConflict: "email" }
-    );
-    if (error) {
-      console.error("[access-request] upsert failed:", error);
+    // Insert-only: emails are unverified, so re-submitting must never
+    // overwrite an existing application (anyone could vandalize any
+    // applicant's text by supplying their email). A duplicate returns the
+    // same success response as a first application — no oracle revealing
+    // whether an email has already applied.
+    const { error } = await supabase
+      .from("access_requests")
+      .insert({ email, about, socials: socials || null });
+    if (error && error.code !== "23505") {
+      console.error("[access-request] insert failed:", error);
       return NextResponse.json({ error: "Could not save your application. Please try again." }, { status: 500 });
     }
   } catch (err) {
