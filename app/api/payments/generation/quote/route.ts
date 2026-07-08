@@ -133,6 +133,15 @@ export async function POST(req: NextRequest) {
         { status: 422 },
       );
     }
+    // A base58 Solana address of wallet length always contains uppercase
+    // characters; an all-lowercase non-EVM value is a legacy lowercased row
+    // whose original case is lost — never quote it as a payout destination.
+    if (!artistWallet.startsWith("0x") && artistWallet === artistWallet.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Artist payout wallet is corrupted; the artist must re-link their wallet" },
+        { status: 422 },
+      );
+    }
   }
 
   const split = computeGenerationSplit(artistPriceMicro, modelCostMicro);
