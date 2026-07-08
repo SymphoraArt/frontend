@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS generation_payment_intents (
   -- this height without including the signature, the tx provably never lands
   -- (dropped-transaction detection in the pay endpoint).
   last_valid_block_height bigint,
+  -- One-shot redemption marker: a confirmed intent buys exactly one
+  -- generation; cleared when generation fails so the buyer retries free.
+  consumed_at         timestamptz,
+  -- Delivery marker: a fulfilled intent is never reusable; a stale consumed
+  -- claim without it (process died mid-generation) may be rescued atomically.
+  fulfilled_at        timestamptz,
   expires_at          timestamptz NOT NULL,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now()
