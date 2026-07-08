@@ -89,25 +89,32 @@ function getTurnkeyClient(organizationId: string) {
 }
 
 // The payment network is server-decided (env), never a request parameter.
+// Falls back to SOLANA_FUND_CHAIN (the treasury top-up flow's chain) so both
+// money flows settle on the same network without duplicate config.
 function getPaymentChain() {
-  const key = (process.env.SOLANA_PAYMENT_CHAIN ?? "solana-devnet") as ChainKey;
+  const key = (process.env.SOLANA_PAYMENT_CHAIN ??
+    process.env.SOLANA_FUND_CHAIN ??
+    "solana-devnet") as ChainKey;
   if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key)) {
     throw new Error(`SOLANA_PAYMENT_CHAIN is not a Solana chain key: ${key}`);
   }
   return PAYMENT_CHAINS[key] as { rpcUrl: string; usdc: string };
 }
 
-// solana-keygen id.json format (JSON array of 64 bytes). Signs ONLY
-// server-built payment transactions; holds a modest SOL float for tx fees
-// and fronted ATA rent.
+// Same formats as the treasury loader: base58 string OR solana-keygen JSON
+// array. A separate keypair from the treasury on purpose — it signs every
+// payment but holds only a modest SOL float for tx fees and fronted ATA rent,
+// never the USDC top-up float.
 function getFeePayer(): Keypair {
-  const raw = process.env.SOLANA_FEE_PAYER_SECRET_KEY;
+  const raw = process.env.SOLANA_FEE_PAYER_SECRET_KEY?.trim();
   if (!raw) throw new Error("SOLANA_FEE_PAYER_SECRET_KEY not configured");
-  const bytes: unknown = JSON.parse(raw);
-  if (!Array.isArray(bytes) || bytes.length !== 64 || !bytes.every((b) => Number.isInteger(b))) {
-    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY must be a 64-byte JSON array");
+  try {
+    return Keypair.fromSecretKey(
+      raw.startsWith("[") ? Uint8Array.from(JSON.parse(raw)) : bs58.decode(raw),
+    );
+  } catch {
+    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is malformed (expected base58 or JSON array)");
   }
-  return Keypair.fromSecretKey(Uint8Array.from(bytes as number[]));
 }
 
 type Supabase = ReturnType<typeof getSupabaseServerClient>;
@@ -200,7 +207,9 @@ export async function POST(req: NextRequest) {
     console.error("[payments/pay] configuration error:", error);
     return NextResponse.json({ error: "Payment processing not configured" }, { status: 500 });
   }
-  const connection = new Connection(chain.rpcUrl, "confirmed");
+  // SOLANA_RPC_URL overrides the chain's public endpoint (same convention as
+  // the treasury flow) — public RPCs rate-limit hard.
+  const connection = new Connection(process.env.SOLANA_RPC_URL || chain.rpcUrl, "confirmed");
 
   // 2. Load the intent scoped to the session's buyer — never by id alone.
   const { data: intent, error: intentError } = await supabase
