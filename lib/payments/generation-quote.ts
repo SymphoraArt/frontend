@@ -95,6 +95,20 @@ export async function computeQuote(
         error: "Artist payout wallet not configured for this prompt",
       };
     }
+    // A real base58 Solana pubkey always contains uppercase chars; a non-0x
+    // all-lowercase address is a corrupted legacy row (an earlier bug
+    // lowercased Solana wallets) that base58-decodes to the WRONG key. Refuse
+    // to build a payable intent against it rather than pay a wallet nobody
+    // controls. (This guard existed only on the read-only /quote route; the
+    // /intent route persists money and reaches computeQuote, so it belongs
+    // here.)
+    if (!artistWallet.startsWith("0x") && artistWallet === artistWallet.toLowerCase()) {
+      return {
+        ok: false,
+        status: 422,
+        error: "Artist payout wallet must be re-linked before this prompt can sell",
+      };
+    }
   }
 
   return {
