@@ -43,7 +43,9 @@ const quoteSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "payments:quote:ip"), 60, 60_000);
+  // 60 payments/min per user (Kev, 2026-07-08 — dApp-friendly); IP cap above
+  // it so one NAT/office IP with several users is never the binding limit.
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "payments:quote:ip"), 120, 60_000);
   if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
   let authUser;
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  if (!checkRateLimit(authUser.userId, "payments:quote", 30, 60_000)) {
+  if (!checkRateLimit(authUser.userId, "payments:quote", 60, 60_000)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
