@@ -30,9 +30,15 @@ export function PaymentConfirmModal() {
     () => null
   );
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    if (!open) resolvePaymentConfirm(false);
-  }, []);
+  // Every resolution carries the request id — a stale click (double-click
+  // racing the queue advancing) must never decide for the NEXT request.
+  const activeId = active?.id;
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && activeId !== undefined) resolvePaymentConfirm(false, activeId);
+    },
+    [activeId],
+  );
 
   if (!active) return null;
 
@@ -79,14 +85,14 @@ export function PaymentConfirmModal() {
         <div className="mt-4 flex gap-2">
           <button
             type="button"
-            onClick={() => resolvePaymentConfirm(false)}
+            onClick={() => resolvePaymentConfirm(false, active.id)}
             className="flex-1 rounded-lg border border-input py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={() => resolvePaymentConfirm(true)}
+            onClick={() => resolvePaymentConfirm(true, active.id)}
             className="flex-1 rounded-lg bg-foreground py-2 text-xs font-semibold text-background hover:opacity-90"
           >
             Confirm &amp; pay

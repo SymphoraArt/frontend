@@ -2503,6 +2503,8 @@ export default function EnkiPromptEditor() {
               // ratios to their nearest neighbour ("Any ratio" → server
               // default 1:1).
               aspectRatio: INTENT_API_RATIOS[ratios.selected],
+              // Per-card resume slot: batch pays one intent per card, concurrently.
+              slotId: versionId,
             }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
           : solanaConnected
           ? await generateImageWithSolana({

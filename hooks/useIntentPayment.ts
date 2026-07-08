@@ -28,6 +28,10 @@ export type IntentGenerationParams = {
   resolution?: "2K" | "4K";
   prompt: string;
   aspectRatio?: string;
+  // Distinguishes concurrent flows (batch generation runs one per card):
+  // without it, parallel flows with identical (prompt, model, resolution)
+  // would share one resume slot and clobber each other's paid intent ids.
+  slotId?: number | string;
 };
 
 export type IntentGenerationResult = {
@@ -48,7 +52,7 @@ const RETRY_IS_FREE = " Your payment is saved — retrying won't charge you agai
 type StoredIntent = { id: string; approved: boolean };
 
 function intentStorageKey(wallet: string, p: IntentGenerationParams): string {
-  return `enki:paid-intent:${wallet}:${p.promptId}|${p.modelFamily}|${p.resolution ?? "2K"}`;
+  return `enki:paid-intent:${wallet}:${p.promptId}|${p.modelFamily}|${p.resolution ?? "2K"}|${p.slotId ?? "single"}`;
 }
 
 function loadStoredIntent(key: string): StoredIntent | null {
