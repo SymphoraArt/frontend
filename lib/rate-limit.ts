@@ -8,9 +8,19 @@ type Bucket = {
 const buckets = new Map<string, Bucket>();
 
 function getClientIp(req: NextRequest): string {
+  // x-real-ip is set by the platform (Vercel overwrites client-sent values),
+  // so it cannot be spoofed. In x-forwarded-for only the RIGHT-most entry is
+  // appended by the trusted edge — the left-most is client-supplied, and
+  // keying on it let attackers rotate the header for a fresh bucket per
+  // request (rate-limit bypass).
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0]?.trim() || "unknown";
-  return req.headers.get("x-real-ip") || "unknown";
+  if (forwardedFor) {
+    const hops = forwardedFor.split(",");
+    return hops[hops.length - 1]?.trim() || "unknown";
+  }
+  return "unknown";
 }
 
 export function rateLimitKey(req: NextRequest, action: string, subject?: string): string {
