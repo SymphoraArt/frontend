@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS generation_payment_intents (
   status              text NOT NULL DEFAULT 'quoted'
                       CHECK (status IN ('quoted', 'building', 'submitted', 'confirmed', 'failed', 'expired')),
   tx_signature        text,
+  -- Blockhash validity horizon of the broadcast tx: once the chain passes
+  -- this height without including the signature, the tx provably never lands
+  -- (dropped-transaction detection in the pay endpoint).
+  last_valid_block_height bigint,
   expires_at          timestamptz NOT NULL,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now()
