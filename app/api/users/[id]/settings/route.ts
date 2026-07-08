@@ -8,6 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth } from "@/lib/auth";
 
+// Solana base58 addresses are case-sensitive — only EVM (0x…) addresses may be
+// lowercased. Lookups use ilike so rows lowercased by legacy code still match.
+const normalizeWallet = (addr: string) =>
+  addr.startsWith("0x") ? addr.toLowerCase() : addr;
+
 interface UserSettings {
   // Profile
   displayName?: string;
@@ -73,7 +78,7 @@ export async function GET(
       const { data: userByWallet, error: walletError } = await supabase
         .from("users")
         .select("id, display_name, preferences, wallet_address")
-        .eq("wallet_address", userId.toLowerCase())
+        .ilike("wallet_address", userId)
         .maybeSingle();
       
       if (userByWallet) {
@@ -188,7 +193,7 @@ export async function PUT(
       const { data: userByWallet } = await supabase
         .from("users")
         .select("id")
-        .eq("wallet_address", userId.toLowerCase())
+        .ilike("wallet_address", userId)
         .maybeSingle();
 
       if (userByWallet) {
@@ -196,7 +201,7 @@ export async function PUT(
         const result = await supabase
           .from("users")
           .update(updateData)
-          .eq("wallet_address", userId.toLowerCase())
+          .ilike("wallet_address", userId)
           .select("id, display_name, preferences")
           .single();
         data = result.data;
@@ -209,7 +214,7 @@ export async function PUT(
           .insert({
             username: `user_${userId.slice(2, 10)}`, // Generate username from address
             display_name: displayName || "",
-            wallet_address: userId.toLowerCase(),
+            wallet_address: normalizeWallet(userId),
             preferences: preferences as UserSettings,
             stats: {},
             created_at: new Date().toISOString(),
