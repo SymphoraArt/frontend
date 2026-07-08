@@ -115,8 +115,9 @@ export async function PATCH(
   // Price and "featured" are deliberately NOT mutable here anymore: price changes
   // must go through the authenticated, ownership-checked /api/prompts/[id]/list
   // endpoint so the payment path can trust the stored price.
+  let userId: string;
   try {
-    await requireAuth(req);
+    ({ userId } = await requireAuth(req));
   } catch {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
@@ -145,10 +146,25 @@ export async function PATCH(
       update.published_at = new Date().toISOString();
     }
 
+    // Ownership is part of the WHERE clause — the service-role client bypasses
+    // RLS, so without it any valid session could edit any prompt (IDOR).
+    // prompts.user_id historically holds either the normalized wallet or the
+    // users.id mapped via user_wallets, so both candidates are accepted.
+    // count:"exact" makes the 0-rows branch real; "not found" covers both a
+    // missing prompt and someone else's prompt (no ownership oracle).
+    const ownerIds = [userId];
+    const { data: walletRow } = await supabase
+      .from("user_wallets")
+      .select("user_id")
+      .eq("address", userId)
+      .maybeSingle();
+    if (walletRow?.user_id) ownerIds.push(String(walletRow.user_id));
+
     const { error, count } = await supabase
       .from("prompts")
-      .update(update)
-      .eq("id", id);
+      .update(update, { count: "exact" })
+      .eq("id", id)
+      .in("user_id", ownerIds);
 
     if (error) throw error;
 
@@ -158,7 +174,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[prompts/patch] update failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Failed to update prompt" }, { status: 500 });
   }
 }
