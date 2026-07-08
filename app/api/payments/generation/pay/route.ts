@@ -144,6 +144,34 @@ function paymentResponse(intentId: string, status: string, txSignature: string |
   return NextResponse.json({ payment: { intentId, status, txSignature } }, { status: httpStatus });
 }
 
+// An ATA whose rent the fee payer fronts in this payment's tx.
+type FrontedAta = { ata: string; recipient: string; mint: string };
+
+// Front-ledger write, exactly when the tx that created the ATAs confirms:
+// each recipient's ATA rent is fronted AT MOST ONCE, ever (a recipient can
+// close their ATA and pocket the rent — without the ledger, close-and-
+// recreate drains the fee payer's float). Idempotent; a lost write is only
+// logged — worst case one extra front, never a blocked payment.
+async function recordFrontedAtas(
+  supabase: Supabase,
+  intentId: string,
+  fronted: FrontedAta[] | null,
+): Promise<void> {
+  if (!fronted?.length) return;
+  const { error } = await supabase.from("fronted_recipient_atas").upsert(
+    fronted.map((f) => ({
+      ata_address: f.ata,
+      recipient_wallet: f.recipient,
+      mint: f.mint,
+      intent_id: intentId,
+    })),
+    { onConflict: "ata_address", ignoreDuplicates: true },
+  );
+  if (error) {
+    console.error("[payments/pay] front-ledger write failed:", intentId, error.message);
+  }
+}
+
 export async function POST(req: NextRequest) {
   // 60 payments/min per user (Kev, 2026-07-08); the IP cap sits above it so a
   // shared NAT is never throttled below the per-user limit.
@@ -215,7 +243,7 @@ export async function POST(req: NextRequest) {
   const { data: intent, error: intentError } = await supabase
     .from("generation_payment_intents")
     .select(
-      "id, status, tx_signature, last_valid_block_height, expires_at, artist_wallet, artist_amount_micro, model_cost_micro, enki_fee_micro, total_micro",
+      "id, status, tx_signature, last_valid_block_height, fronted_atas, expires_at, artist_wallet, artist_amount_micro, model_cost_micro, enki_fee_micro, total_micro",
     )
     .eq("id", intentId)
     .eq("buyer_wallet", session.wallet_address)
@@ -240,6 +268,7 @@ export async function POST(req: NextRequest) {
       intentId,
       intent.tx_signature,
       intent.last_valid_block_height,
+      (intent.fronted_atas as FrontedAta[] | null) ?? [],
     );
   }
   if (intent.status === "failed" || intent.status === "expired") {
@@ -282,6 +311,7 @@ export async function POST(req: NextRequest) {
 
   let txSignature: string;
   let tx: VersionedTransaction;
+  let frontedAtas: FrontedAta[] = [];
   try {
     // 5. Sessions store wallets lowercased (lossy for base58) — the on-chain
     //    buyer must be the case-exact address from turnkey_users.
@@ -347,11 +377,44 @@ export async function POST(req: NextRequest) {
     }
 
     // 9. Build the single atomic tx: fee payer = Enki, one transferChecked
-    //    per leg. Rent is fronted only for ATAs that are actually missing —
-    //    loudly, because repeated fronting for the same recipient (close-and-
-    //    recreate) drains the float until the setup-fee ledger (backlog)
-    //    bounds it per recipient.
+    //    per leg. Rent is fronted only for ATAs that are actually missing,
+    //    and — via the front-ledger — at most ONCE per ATA, ever: recipients
+    //    own their ATA and can close it pocketing the rent, so unbounded
+    //    re-fronting would drain the fee payer's float. Enki's own wallet is
+    //    exempt (only we can close our ATA).
     const ataInfos = await connection.getMultipleAccountsInfo(recipients.map((r) => r.ata));
+    const missing = recipients.filter((_, i) => !ataInfos[i]);
+    const frontable = missing.filter((r) => r.owner.toBase58() !== enkiWallet);
+    if (frontable.length > 0) {
+      const { data: alreadyFronted, error: ledgerError } = await supabase
+        .from("fronted_recipient_atas")
+        .select("ata_address")
+        .in("ata_address", frontable.map((r) => r.ata.toBase58()));
+      if (ledgerError) {
+        console.error("[payments/pay] front-ledger lookup failed:", ledgerError.message);
+        await transition(supabase, intentId, ["building"], "quoted");
+        return NextResponse.json({ error: "Payment failed" }, { status: 502 });
+      }
+      if (alreadyFronted && alreadyFronted.length > 0) {
+        // Rent for this ATA was already paid once and the account is gone —
+        // the owner closed it. Release the claim (buyer pays nothing) and
+        // refuse: the recipient must recreate their own token account.
+        console.error(
+          "[payments/pay] refusing to re-front closed ATA(s):",
+          alreadyFronted.map((a) => a.ata_address).join(", "),
+        );
+        await transition(supabase, intentId, ["building"], "quoted");
+        return NextResponse.json(
+          { error: "Recipient's payout account was closed and must be recreated by its owner" },
+          { status: 409 },
+        );
+      }
+      frontedAtas = frontable.map((r) => ({
+        ata: r.ata.toBase58(),
+        recipient: r.owner.toBase58(),
+        mint: chain.usdc,
+      }));
+    }
     const priorityFee = priorityFeeMicroLamports(
       await connection.getRecentPrioritizationFees({
         lockedWritableAccounts: [buyerAta, ...recipients.map((r) => r.ata)],
@@ -414,6 +477,7 @@ export async function POST(req: NextRequest) {
     const persisted = await transition(supabase, intentId, ["building"], "submitted", {
       tx_signature: txSignature,
       last_valid_block_height: lastValidBlockHeight,
+      fronted_atas: frontedAtas.length ? frontedAtas : null,
     });
     if (!persisted) {
       // Nothing is on the wire yet — failing here is safe.
@@ -441,6 +505,7 @@ export async function POST(req: NextRequest) {
         await transition(supabase, intentId, ["submitted"], "quoted", {
           tx_signature: null,
           last_valid_block_height: null,
+          fronted_atas: null,
         });
         return NextResponse.json(
           { error: "Insufficient USDC balance for this payment" },
@@ -454,7 +519,7 @@ export async function POST(req: NextRequest) {
     return paymentResponse(intentId, "submitted", txSignature, 202);
   }
 
-  return confirmSubmitted(supabase, connection, intentId, txSignature);
+  return confirmSubmitted(supabase, connection, intentId, txSignature, frontedAtas);
 }
 
 // Poll until the tx confirms or the deadline passes. Timeout and transient
@@ -465,6 +530,7 @@ async function confirmSubmitted(
   connection: Connection,
   intentId: string,
   txSignature: string,
+  frontedAtas: FrontedAta[],
 ) {
   const deadline = Date.now() + CONFIRM_DEADLINE_MS;
   while (Date.now() < deadline) {
@@ -483,7 +549,10 @@ async function confirmSubmitted(
       status?.confirmationStatus === "confirmed" ||
       status?.confirmationStatus === "finalized"
     ) {
-      await transition(supabase, intentId, ["submitted"], "confirmed");
+      // Gate on the transition: whichever request wins it writes the ledger.
+      if (await transition(supabase, intentId, ["submitted"], "confirmed")) {
+        await recordFrontedAtas(supabase, intentId, frontedAtas);
+      }
       return paymentResponse(intentId, "confirmed", txSignature, 200);
     }
     await new Promise((resolve) => setTimeout(resolve, CONFIRM_POLL_MS));
@@ -498,6 +567,7 @@ async function pollSubmitted(
   intentId: string,
   txSignature: string | null,
   lastValidBlockHeight: number | null,
+  frontedAtas: FrontedAta[],
 ) {
   if (!txSignature) {
     // Submitted without a signature should be impossible; leave it to the
@@ -541,7 +611,10 @@ async function pollSubmitted(
     status?.confirmationStatus === "confirmed" ||
     status?.confirmationStatus === "finalized"
   ) {
-    await transition(supabase, intentId, ["submitted"], "confirmed");
+    // Gate on the transition: whichever request wins it writes the ledger.
+    if (await transition(supabase, intentId, ["submitted"], "confirmed")) {
+      await recordFrontedAtas(supabase, intentId, frontedAtas);
+    }
     return paymentResponse(intentId, "confirmed", txSignature, 200);
   }
   return paymentResponse(intentId, "submitted", txSignature, 202);
