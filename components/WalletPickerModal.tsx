@@ -34,6 +34,17 @@ type MergedWallet = {
 
 type SolanaPhase = "connecting" | "signing";
 
+// "phantom.app" → "app.phantom": lets an EVM provider's rdns be checked
+// against the domain the Solana adapter itself points at.
+function reversedHost(url: string | undefined): string | null {
+  try {
+    const host = new URL(url ?? "").hostname.replace(/^www\./, "");
+    return host ? host.split(".").reverse().join(".") : null;
+  } catch {
+    return null;
+  }
+}
+
 function isUserRejection(e: unknown): boolean {
   const raw = ((e as Error)?.message ?? String(e ?? "")).toLowerCase();
   if (!raw) return false;
@@ -64,6 +75,10 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   const [solanaPhase, setSolanaPhase] = useState<SolanaPhase | null>(null);
   const [solanaError, setSolanaError] = useState<string | null>(null);
   const solanaInFlight = useRef(false);
+  // Bumped on close and on every new connect attempt: an async flow that
+  // awaited a wallet popup across a close/reopen is superseded and must not
+  // keep signing, writing state, or closing the new flow's modal.
+  const flowSeq = useRef(0);
 
   // Email / Turnkey state
   const { set: setTurnkeyAuth } = useTurnkeyEmailAuth();
@@ -79,11 +94,21 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     if (!open) return;
     const found = new Map<string, EIP6963Info>();
     const onAnnounce = (event: Event) => {
-      const detail = (event as CustomEvent<{ info?: EIP6963Info }>).detail;
-      if (detail?.info?.rdns) {
-        found.set(detail.info.rdns, detail.info);
-        setEvmProviders(Array.from(found.values()));
-      }
+      const info = (event as CustomEvent<{ info?: Partial<EIP6963Info> }>).detail?.info;
+      // Any script can dispatch this event with an arbitrary payload: a
+      // non-string name crashed the merge below, and EIP-6963 mandates a
+      // data:-URI icon — a remote URL would let a fake provider spoof another
+      // wallet's hosted icon (and phone home). Drop malformed announcements.
+      if (!info || typeof info.name !== "string" || !info.name.trim()) return;
+      if (typeof info.rdns !== "string" || !info.rdns) return;
+      const icon = typeof info.icon === "string" && info.icon.startsWith("data:image/") ? info.icon : "";
+      found.set(info.rdns, {
+        uuid: typeof info.uuid === "string" ? info.uuid : "",
+        name: info.name.trim(),
+        icon,
+        rdns: info.rdns,
+      });
+      setEvmProviders(Array.from(found.values()));
     };
     window.addEventListener("eip6963:announceProvider", onAnnounce as EventListener);
     // Ask installed wallets to announce themselves (EIP-6963 handshake).
@@ -91,28 +116,40 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     return () => window.removeEventListener("eip6963:announceProvider", onAnnounce as EventListener);
   }, [open]);
 
-  // Merge Solana (Wallet Standard) and EVM (EIP-6963) lists by wallet name, so a
-  // wallet that does both shows once with both chains grouped onto one row.
+  // Merge Solana (Wallet Standard) and EVM (EIP-6963) lists so a genuine
+  // multi-chain wallet (Phantom, Brave, Zerion…) shows once. The join must
+  // NOT be the display name: any extension can announce name "Phantom" and
+  // would have inherited the trusted row, its icon, and its EVM button. An
+  // EVM provider only joins a Solana row when its rdns lies inside the
+  // reversed domain of the Solana adapter's own url (phantom.app ↔
+  // app.phantom); everything else gets its own row keyed by rdns, showing
+  // only its own announced identity — icons are never shared across sources.
   const mergedWallets = useMemo<MergedWallet[]>(() => {
-    const map = new Map<string, MergedWallet>();
-    for (const w of solanaWallets) {
-      const key = w.adapter.name.trim().toLowerCase();
-      const entry = map.get(key) ?? { key, name: w.adapter.name, icon: w.adapter.icon ?? "" };
-      entry.solana = { name: w.adapter.name };
-      if (!entry.icon) entry.icon = w.adapter.icon ?? "";
-      map.set(key, entry);
-    }
+    const solRows = solanaWallets.map((w) => ({
+      domain: reversedHost(w.adapter.url),
+      row: {
+        key: `sol:${w.adapter.name.trim().toLowerCase()}`,
+        name: w.adapter.name,
+        icon: w.adapter.icon ?? "",
+        solana: { name: w.adapter.name },
+      } as MergedWallet,
+    }));
+    const rows = solRows.map((s) => s.row);
     for (const p of evmProviders) {
-      const key = p.name.trim().toLowerCase();
-      const entry = map.get(key) ?? { key, name: p.name, icon: p.icon ?? "" };
-      entry.evm = { rdns: p.rdns };
-      if (!entry.icon) entry.icon = p.icon ?? "";
-      map.set(key, entry);
+      const owner = solRows.find(
+        (s) => s.domain && (p.rdns === s.domain || p.rdns.startsWith(s.domain + ".")),
+      );
+      if (owner && !owner.row.evm) {
+        owner.row.evm = { rdns: p.rdns };
+      } else {
+        rows.push({ key: `evm:${p.rdns}`, name: p.name, icon: p.icon, evm: { rdns: p.rdns } });
+      }
     }
-    return Array.from(map.values());
+    return rows;
   }, [solanaWallets, evmProviders]);
 
   const handleClose = useCallback(() => {
+    flowSeq.current += 1;
     solanaInFlight.current = false;
     setSolanaPhase(null);
     setSolanaError(null);
@@ -158,6 +195,9 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     setSolanaError(null);
     setConnecting(name);
 
+    const flow = ++flowSeq.current;
+    const stale = () => flowSeq.current !== flow;
+
     const adapter = found.adapter;
 
     // Disconnect a previously-active different adapter so its standard:disconnect listener
@@ -178,6 +218,7 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
     }
 
     const failConnect = (e: unknown) => {
+      if (stale()) return;
       if (isUserRejection(e)) {
         setSolanaError(null);
         setSolanaPhase(null);
@@ -205,6 +246,13 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
       }
     } catch (e) {
       failConnect(e);
+      return;
+    }
+
+    // The user may have closed the modal (or started another wallet) while
+    // the extension popup was open — a superseded flow must not sign in.
+    if (stale()) {
+      try { await adapter.disconnect(); } catch { /* noop */ }
       return;
     }
 
@@ -266,11 +314,13 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
           throw new Error("Wallet does not support message signing");
         }
       }
+      if (stale()) return;
       setSolanaPhase(null);
       setConnecting(null);
       solanaInFlight.current = false;
       onClose();
     } catch (e) {
+      if (stale()) return;
       if (isUserRejection(e)) {
         setSolanaError(null);
         try { await adapter.disconnect(); } catch { /* noop */ }
@@ -291,6 +341,7 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
   };
 
   const handleEVM = async (walletId: WalletId) => {
+    const flow = ++flowSeq.current;
     setConnecting(walletId);
     try {
       await evmConnect(async () => {
@@ -298,13 +349,13 @@ export function WalletPickerModal({ open, onClose }: WalletPickerModalProps) {
         await wallet.connect({ client: thirdwebClient, chain: defaultChain });
         return wallet;
       });
-      onClose();
+      if (flowSeq.current === flow) onClose();
     } catch (e) {
       if (!isUserRejection(e)) {
         console.error("EVM connect error:", e);
       }
     } finally {
-      setConnecting(null);
+      if (flowSeq.current === flow) setConnecting(null);
     }
   };
 
