@@ -115,8 +115,9 @@ export async function PATCH(
   // Price and "featured" are deliberately NOT mutable here anymore: price changes
   // must go through the authenticated, ownership-checked /api/prompts/[id]/list
   // endpoint so the payment path can trust the stored price.
+  let authUser;
   try {
-    await requireAuth(req);
+    authUser = await requireAuth(req);
   } catch {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
@@ -124,6 +125,35 @@ export async function PATCH(
   try {
     const body = (await req.json()) as PatchBody;
     const supabase = getSupabaseServerClient();
+
+    // Ownership check: only the prompt's creator may edit it. The session
+    // wallet is stored lowercased, so compare case-insensitively. Prompts
+    // without a creator (legacy rows) are editable by nobody.
+    const { data: prompt, error: promptError } = await supabase
+      .from("prompts")
+      .select("user_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (promptError) throw promptError;
+    if (!prompt) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (!prompt.user_id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const { data: owner, error: ownerError } = await supabase
+      .from("users")
+      .select("wallet_address")
+      .eq("id", prompt.user_id)
+      .maybeSingle();
+    if (ownerError) throw ownerError;
+    const ownerWallet = owner?.wallet_address ?? "";
+    if (
+      !ownerWallet ||
+      ownerWallet.toLowerCase() !== authUser.walletAddress.toLowerCase()
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const update: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -145,20 +175,15 @@ export async function PATCH(
       update.published_at = new Date().toISOString();
     }
 
-    const { error, count } = await supabase
-      .from("prompts")
-      .update(update)
-      .eq("id", id);
-
+    // Existence and ownership are verified above, so no count check is
+    // needed here (update() without { count } returns count: null anyway —
+    // the old `count === 0` branch could never fire).
+    const { error } = await supabase.from("prompts").update(update).eq("id", id);
     if (error) throw error;
-
-    if (count === 0) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
-    }
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[prompts/patch] update failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Failed to update prompt" }, { status: 500 });
   }
 }
