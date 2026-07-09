@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
+import { getPromptById, updatePromptOwned } from "@/lib/prompts-db";
 import { requireAuth, verifyPromptOwnership, checkRateLimit } from "@/lib/auth";
 import { queueReconciliation } from "@/lib/reconciliation-queue";
 import { sendAlert } from "@/lib/alerting";
@@ -77,7 +77,7 @@ export async function POST(
     }
 
     // Verify prompt ownership
-    const ownsPrompt = await verifyPromptOwnership(promptId, authUser.userId, storage);
+    const ownsPrompt = await verifyPromptOwnership(promptId, authUser.userId);
     if (!ownsPrompt) {
       return NextResponse.json(
         { success: false, error: "You don't own this prompt or it doesn't exist" },
@@ -85,7 +85,9 @@ export async function POST(
       );
     }
 
-    const prompt = await storage.getPrompt(promptId);
+    const supabase = getSupabaseServerClient();
+
+    const prompt = await getPromptById(supabase, promptId);
     if (!prompt) {
       return NextResponse.json(
         { success: false, error: "Prompt not found" },
@@ -93,26 +95,28 @@ export async function POST(
       );
     }
 
-    // Update prompt with marketplace fields
-    // Free prompts are automatically categorized and don't require payment
-    // Note: Some marketplace-specific fields (licenseType, isListed, etc.) may need to be stored in Supabase separately
-    const updatedPrompt = await storage.updatePrompt(promptId, {
-      price: priceUsdCents, // Schema uses 'price' field
-      tags,
-      category,
-      // Additional fields that don't exist in schema would need to be stored elsewhere
-      // licenseType, isListed, listingStatus, etc. would be stored in Supabase marketplace_prompts table
-    });
+    // Update the prompt's marketplace-relevant columns on the Supabase `prompts`
+    // table, scoped to the owner. WRITES: price, tags, category, updated_at.
+    // License/listing metadata (licenseType, isListed, listingStatus) have no
+    // columns on this table and are intentionally not persisted here.
+    const updatedCount = await updatePromptOwned(
+      supabase,
+      promptId,
+      [authUser.userId],
+      {
+        price: priceUsdCents,
+        tags,
+        category,
+        updated_at: new Date().toISOString(),
+      }
+    );
 
-    if (!updatedPrompt) {
+    if (updatedCount === 0) {
       return NextResponse.json(
         { success: false, error: "Failed to update prompt" },
         { status: 500 }
       );
     }
-
-    // Update user earnings record (increment prompts listed count)
-    const supabase = getSupabaseServerClient();
 
     // Use SQL increment to avoid race conditions
     const { error: earningsError } = await supabase.rpc('increment_user_prompts_listed', {
@@ -158,9 +162,9 @@ export async function POST(
     return NextResponse.json({
       success: true,
       prompt: {
-        id: updatedPrompt.id,
-        title: updatedPrompt.title,
-        price: updatedPrompt.price || priceUsdCents,
+        id: prompt.id,
+        title: prompt.title,
+        price: priceUsdCents,
         // Note: licenseType and listing metadata would come from Supabase marketplace_prompts table
       },
       message: 'Prompt listed successfully'

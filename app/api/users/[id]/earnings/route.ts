@@ -97,14 +97,14 @@ export async function GET(
       console.warn('[API] Error fetching top prompts:', topPromptsError);
     }
 
-    // Enrich with prompt titles from MongoDB
+    // Enrich with prompt titles from Supabase
     const topPrompts = [];
     if (!topPromptsError && topPromptsData && topPromptsData.length > 0) {
-      const { storage } = await import('@/backend/storage');
+      const { getPromptById } = await import('@/lib/prompts-db');
 
       for (const promptData of topPromptsData) {
         try {
-          const prompt = await storage.getPrompt(promptData.prompt_id);
+          const prompt = await getPromptById(supabase, promptData.prompt_id);
           const conversionRate = promptData.total_views > 0
             ? (promptData.total_sales / promptData.total_views) * 100
             : 0;

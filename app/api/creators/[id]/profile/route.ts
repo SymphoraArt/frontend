@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
 
 export async function GET(
   request: NextRequest,
@@ -44,13 +43,29 @@ export async function GET(
       console.error('[API] Error fetching earnings:', earningsError);
     }
 
-    // Get creator's listed prompts from MongoDB
-    // Use storage to get prompts by creator
-    const allPrompts = await storage.getAllPrompts();
-    const listedPrompts = allPrompts.filter((p: any) => {
-      const matchesCreator = (p.userId === creatorId || p.artistId === creatorId);
-      return matchesCreator && p.isListed && p.listingStatus === 'active';
-    }).slice(0, 20);
+    // Get creator's prompts from Supabase (ownership is user_id only).
+    // There is no unlist mechanism in Supabase, so every row for this creator
+    // is treated as an active listing.
+    const { data: creatorPromptRows, error: creatorPromptsError } = await supabase
+      .from('prompts')
+      .select('id, title, price, uploaded_photos, created_at')
+      .eq('user_id', creatorId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (creatorPromptsError) {
+      console.error('[API] Error fetching creator prompts:', creatorPromptsError);
+    }
+
+    const listedPrompts = (creatorPromptRows || []).map((p) => ({
+      id: p.id as string,
+      title: p.title as string,
+      priceUsdCents: typeof p.price === 'number' ? p.price : 0,
+      previewImageUrl: Array.isArray(p.uploaded_photos)
+        ? (p.uploaded_photos[0] as string | undefined)
+        : undefined,
+      listedAt: p.created_at as string | undefined,
+    }));
 
     // Get recent sales
     const { data: recentSales, error: salesError } = await supabase
@@ -85,16 +100,11 @@ export async function GET(
     };
 
     // Enrich prompts with additional data
-    const featuredPrompts = (listedPrompts || []).slice(0, 6).map((prompt: any) => ({
-      id: prompt.id || prompt._id?.toString(),
+    const featuredPrompts = listedPrompts.slice(0, 6).map((prompt) => ({
+      id: prompt.id,
       title: prompt.title,
-      description: prompt.description,
       priceUsdCents: prompt.priceUsdCents,
-      licenseType: prompt.licenseType,
-      totalSales: prompt.totalSales || 0,
-      totalRevenue: prompt.totalRevenue || 0,
-      avgRating: prompt.avgRating || 0,
-      previewImageUrl: prompt.previewImageUrl || prompt.showcaseImages?.[0]?.url,
+      previewImageUrl: prompt.previewImageUrl,
       listedAt: prompt.listedAt,
     }));
 

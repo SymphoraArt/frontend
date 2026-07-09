@@ -1,10 +1,17 @@
 /**
  * Prompt Consistency Utilities
- * Handles consistency checks between MongoDB (prompts) and Supabase (purchases)
+ * Handles consistency checks between the prompts table and Supabase purchases.
+ *
+ * NOTE (de-mongo): the marketplace listing fields the old MongoDB docs carried
+ * (isListed / listingStatus / priceUsdCents / totalSales) do NOT exist as
+ * columns on the live Supabase `prompts` table. Post-consolidation a prompt is
+ * considered available for purchase iff its row exists; price comes from the
+ * real `prompts.price` column. See the de-mongo PR body for the flagged
+ * column dependencies the founder must confirm.
  */
 
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
-import { storage } from '@/backend/storage';
+import { getPromptById, type DbPrompt } from '@/lib/prompts-db';
 
 /**
  * Check if a prompt has any purchases
@@ -49,6 +56,16 @@ export async function getPromptPurchaseCount(promptId: string): Promise<number> 
 }
 
 /**
+ * A prompt enriched with the marketplace-derived fields the purchase flow reads.
+ * `priceUsdCents` is derived from the real `prompts.price` column.
+ */
+export type PurchasePrompt = DbPrompt & { priceUsdCents: number };
+
+function toPurchasePrompt(prompt: DbPrompt): PurchasePrompt {
+  return { ...prompt, priceUsdCents: prompt.price };
+}
+
+/**
  * Validate prompt exists and is available for purchase
  * Throws error if prompt is invalid
  */
@@ -56,30 +73,29 @@ export async function validatePromptForPurchase(
   promptId: string,
   userId: string
 ): Promise<{
-  prompt: any;
+  prompt: PurchasePrompt;
   alreadyPurchased: boolean;
   existingPurchaseId?: string;
 }> {
-  // Check 1: Prompt exists in MongoDB
-  const prompt = await storage.getPrompt(promptId);
-  if (!prompt) {
+  const supabase = getSupabaseServerClient();
+
+  // Check 1: Prompt exists
+  const dbPrompt = await getPromptById(supabase, promptId);
+  if (!dbPrompt) {
     throw new Error('Prompt not found or has been deleted');
   }
+  const prompt = toPurchasePrompt(dbPrompt);
 
-  // Check 2: Prompt is listed and active
-  const promptAny = prompt as any; // Type assertion for marketplace fields
-  if (!promptAny.isListed || promptAny.listingStatus !== 'active') {
-    throw new Error('Prompt is not available for purchase');
-  }
+  // Check 2: availability — a prompt row existing is treated as listed
+  // (Supabase has no unlist mechanism; see file header note).
 
-  // Check 3: Valid price
-  const priceUsdCents = promptAny.priceUsdCents || 0;
-  if (priceUsdCents <= 0) {
+  // Check 3: Valid price (free prompts take the priceUsdCents === 0 branch
+  // in the purchase route; a negative price is invalid).
+  if (prompt.priceUsdCents < 0) {
     throw new Error('Invalid prompt price');
   }
 
   // Check 4: User hasn't already purchased (idempotency)
-  const supabase = getSupabaseServerClient();
   const { data: existingPurchase } = await supabase
     .from('prompt_purchases')
     .select('id')
@@ -107,15 +123,12 @@ export async function validatePromptForPurchase(
  * Prevents race condition where prompt is deleted between check and purchase
  */
 export async function revalidatePromptBeforePurchase(promptId: string): Promise<void> {
-  const prompt = await storage.getPrompt(promptId);
+  const supabase = getSupabaseServerClient();
+  const prompt = await getPromptById(supabase, promptId);
   if (!prompt) {
     throw new Error('Prompt was deleted before purchase could be completed. Please refresh and try again.');
   }
-
-  const promptAny = prompt as any; // Type assertion for marketplace fields
-  if (!promptAny.isListed || promptAny.listingStatus !== 'active') {
-    throw new Error('Prompt is no longer available for purchase');
-  }
+  // Availability: an existing prompt row is considered available (see header).
 }
 
 /**
@@ -126,30 +139,23 @@ export async function revalidatePromptBeforePurchase(promptId: string): Promise<
 export async function validateListingStatusBeforePurchase(promptId: string): Promise<{
   isValid: boolean;
   error?: string;
-  prompt?: any;
+  prompt?: PurchasePrompt;
 }> {
   try {
-    const prompt = await storage.getPrompt(promptId);
-    
-    if (!prompt) {
+    const supabase = getSupabaseServerClient();
+    const dbPrompt = await getPromptById(supabase, promptId);
+
+    if (!dbPrompt) {
       return {
         isValid: false,
         error: 'Prompt was deleted before purchase could be completed',
       };
     }
 
-    const promptAny = prompt as any; // Type assertion for marketplace fields
-    if (!promptAny.isListed || promptAny.listingStatus !== 'active') {
-      return {
-        isValid: false,
-        error: 'Prompt was unlisted during purchase. The prompt is no longer available for purchase.',
-        prompt,
-      };
-    }
-
+    // Availability: an existing prompt row is considered available (see header).
     return {
       isValid: true,
-      prompt,
+      prompt: toPurchasePrompt(dbPrompt),
     };
   } catch (error) {
     console.error('Error validating listing status:', error);
@@ -207,7 +213,7 @@ export async function getPromptPurchases(promptId: string): Promise<any[]> {
 }
 
 /**
- * Check consistency between MongoDB prompt and Supabase purchases
+ * Check consistency between the prompts table and Supabase purchases
  * Returns inconsistencies found
  */
 export async function checkPromptConsistency(promptId: string): Promise<{
@@ -217,21 +223,15 @@ export async function checkPromptConsistency(promptId: string): Promise<{
 }> {
   const inconsistencies: string[] = [];
 
-  // Check MongoDB
-  const prompt = await storage.getPrompt(promptId);
+  const supabase = getSupabaseServerClient();
+  const prompt = await getPromptById(supabase, promptId);
   const promptExists = !!prompt;
 
-  // Check Supabase
   const purchaseCount = await getPromptPurchaseCount(promptId);
 
   // Identify inconsistencies
   if (!promptExists && purchaseCount > 0) {
     inconsistencies.push(`Prompt deleted but ${purchaseCount} purchase(s) still exist`);
-  }
-
-  const promptAny = prompt as any; // Type assertion for marketplace fields
-  if (promptExists && promptAny.isListed && purchaseCount === 0 && promptAny.totalSales && promptAny.totalSales > 0) {
-    inconsistencies.push('Prompt has sales count but no purchases in database');
   }
 
   return {

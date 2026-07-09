@@ -8,6 +8,7 @@ import { isAddress, verifyMessage } from 'viem';
 import { PublicKey } from '@solana/web3.js';
 import { ed25519 } from '@noble/curves/ed25519';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
+import { getPromptById } from '@/lib/prompts-db';
 import { APP_NAME } from '@/shared/app-config';
 
 export interface AuthenticatedUser {
@@ -217,15 +218,16 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
 }
 
 /**
- * Check if user owns a prompt (for listing/unlisting operations)
+ * Check if user owns a prompt (for listing/unlisting operations).
+ * Post-consolidation, ownership is `user_id` only.
  */
 export async function verifyPromptOwnership(
   promptId: string,
-  userId: string,
-  storage: any
+  userId: string
 ): Promise<boolean> {
-  const prompt = await storage.getPrompt(promptId);
-  return prompt && (prompt.userId === userId || prompt.artistId === userId);
+  const supabase = getSupabaseServerClient();
+  const prompt = await getPromptById(supabase, promptId);
+  return !!prompt && prompt.userId === userId;
 }
 
 /**
