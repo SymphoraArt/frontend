@@ -599,7 +599,7 @@ export default function PromptGeneratorView({
         <div className="pgv-sidebar-footer">
           <button className="pgv-generate-btn" onClick={generate} disabled={generating}>
             {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
-            Generate / ${(price ? price / 100 : 10.00).toFixed(2)}
+            Generate / ${price.toFixed(2)}
           </button>
         </div>
       </aside>
