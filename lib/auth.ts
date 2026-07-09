@@ -16,8 +16,12 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Extract and verify user authentication from request headers
- * Uses wallet signature verification for security
+ * @deprecated REPLAYABLE — do not use for authentication. The per-request
+ * X-Wallet-Signature/X-Auth-Message path accepts any signature over a
+ * client-chosen message (no server nonce, optional timestamp), so a captured
+ * signature can impersonate its wallet. No longer called by requireAuth /
+ * getAuthenticatedUser; authenticate via the nonce-bound /api/auth/session
+ * flow (X-Session-Token) instead. Kept only until callers are confirmed gone.
  */
 export async function authenticateUser(request: NextRequest): Promise<AuthenticatedUser> {
   // Extract authentication headers
@@ -189,32 +193,27 @@ async function resolveSessionToken(token: string): Promise<AuthenticatedUser | n
  * Middleware helper to require authentication
  */
 export async function requireAuth(request: NextRequest): Promise<AuthenticatedUser> {
+  // Session-token only. The legacy per-request X-Wallet-Signature path
+  // (authenticateUser) was replayable — the signed message carried no
+  // server-issued nonce and the timestamp was optional, so any signature a
+  // wallet ever produced could be replayed to impersonate it. All wallet
+  // types (EVM, Solana, Turnkey) now authenticate through the nonce-bound,
+  // single-use /api/auth/session flow and carry an X-Session-Token.
   const sessionToken = request.headers.get('X-Session-Token');
-  if (sessionToken) {
-    const user = await resolveSessionToken(sessionToken);
-    if (user) return user;
-    throw new Error('Authentication failed: Invalid or expired session token');
+  const user = sessionToken ? await resolveSessionToken(sessionToken) : null;
+  if (!user) {
+    throw new Error('Authentication failed: a valid session token is required');
   }
-
-  try {
-    return await authenticateUser(request);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(`Authentication failed: ${errorMessage}`);
-  }
+  return user;
 }
 
 /**
  * Optional authentication (doesn't throw if not authenticated)
  */
 export async function getAuthenticatedUser(request: NextRequest): Promise<AuthenticatedUser | null> {
-  try {
-    const sessionToken = request.headers.get('X-Session-Token');
-    if (sessionToken) return await resolveSessionToken(sessionToken);
-    return await authenticateUser(request);
-  } catch (error) {
-    return null;
-  }
+  // Session-token only (see requireAuth — the signature fallback was replayable).
+  const sessionToken = request.headers.get('X-Session-Token');
+  return sessionToken ? await resolveSessionToken(sessionToken) : null;
 }
 
 /**

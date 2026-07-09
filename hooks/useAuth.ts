@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { generateAuthMessage, createAuthHeaders } from '@/lib/auth';
+import { generateAuthMessage } from '@/lib/auth';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -30,14 +30,12 @@ export function useAuth() {
       try {
         const storedAuth = localStorage.getItem('symphora_auth');
         if (storedAuth) {
-          const { walletAddress, timestamp, signature } = JSON.parse(storedAuth);
-
-          // Check if signature is still valid (within 24 hours)
-          const authTime = new Date(timestamp).getTime();
-          const now = Date.now();
-          const expiryTime = 24 * 60 * 60 * 1000; // 24 hours
-
-          if (now - authTime < expiryTime && walletAddress && signature) {
+          const { walletAddress, sessionToken, expiresAt } = JSON.parse(storedAuth) as {
+            walletAddress?: string;
+            sessionToken?: string;
+            expiresAt?: string;
+          };
+          if (walletAddress && sessionToken && expiresAt && new Date(expiresAt).getTime() > Date.now()) {
             setAuthState({
               isAuthenticated: true,
               walletAddress,
@@ -45,10 +43,9 @@ export function useAuth() {
               error: null,
             });
             return;
-          } else {
-            // Clear expired auth
-            localStorage.removeItem('symphora_auth');
           }
+          // Missing/expired session (or a pre-migration signature blob) → clear.
+          localStorage.removeItem('symphora_auth');
         }
       } catch (error) {
         console.warn('Error checking existing auth:', error);
@@ -82,24 +79,47 @@ export function useAuth() {
     }));
 
     try {
-      // Generate authentication message
-      const { message, timestamp } = generateAuthMessage(account.address);
+      // Nonce-bound session flow (same as Solana/Turnkey): fetch a single-use
+      // server nonce, sign a message containing it, exchange it for a
+      // server-issued session token. Replaces the replayable per-request
+      // signature-header auth.
+      const nonceRes = await fetch('/api/auth/nonce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: account.address, walletType: 'evm' }),
+      });
+      if (!nonceRes.ok) throw new Error('Failed to get nonce');
+      const { nonce } = (await nonceRes.json()) as { nonce?: string };
+      if (!nonce) throw new Error('Invalid nonce from server');
 
-      // Sign the message
-      if (!account) {
-        throw new Error('No account connected');
-      }
+      const { message, timestamp } = generateAuthMessage(account.address, nonce);
       const signature = await account.signMessage({ message });
 
-      // Store authentication data
-      const authData = {
-        walletAddress: account.address,
-        signature,
-        message,
-        timestamp,
+      const sessionRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: account.address,
+          walletType: 'evm',
+          signature,
+          message,
+          timestamp,
+          nonce,
+        }),
+      });
+      if (!sessionRes.ok) {
+        const err = (await sessionRes.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || 'Session creation failed');
+      }
+      const { sessionToken, expiresAt } = (await sessionRes.json()) as {
+        sessionToken: string;
+        expiresAt: string;
       };
 
-      localStorage.setItem('symphora_auth', JSON.stringify(authData));
+      localStorage.setItem(
+        'symphora_auth',
+        JSON.stringify({ walletAddress: account.address, sessionToken, expiresAt }),
+      );
 
       setAuthState({
         isAuthenticated: true,
@@ -134,9 +154,8 @@ export function useAuth() {
     try {
       const storedAuth = localStorage.getItem('symphora_auth');
       if (!storedAuth) return null;
-
-      const { walletAddress, signature, message, timestamp } = JSON.parse(storedAuth);
-      return createAuthHeaders(walletAddress, signature, message, timestamp);
+      const { sessionToken } = JSON.parse(storedAuth) as { sessionToken?: string };
+      return sessionToken ? { 'X-Session-Token': sessionToken } : null;
     } catch (error) {
       console.warn('Error getting auth headers:', error);
       return null;

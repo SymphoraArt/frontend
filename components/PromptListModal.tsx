@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Store, AlertCircle, CheckCircle, X } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
-import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 
 interface Category {
@@ -35,7 +35,7 @@ export function PromptListModal({
   onSuccess,
 }: PromptListModalProps) {
   const account = useActiveAccount();
-  const { authHeaders, authenticate, isAuthenticated } = useWalletAuth();
+  const { getAuthHeaders, authenticate, isAuthenticated } = useAuth();
   const [priceCents, setPriceCents] = useState<string>("");
   const [licenseType, setLicenseType] = useState<'personal' | 'commercial' | 'exclusive'>('personal');
   const [description, setDescription] = useState("");
@@ -91,7 +91,7 @@ export function PromptListModal({
       return;
     }
 
-    if (!isAuthenticated || !authHeaders) {
+    if (!isAuthenticated || !getAuthHeaders()) {
       const authResult = await authenticate();
       if (!authResult) {
         setError("Authentication failed. Please try again.");
@@ -125,7 +125,7 @@ export function PromptListModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeaders!,
+          ...(getAuthHeaders() || {}),
         },
         body: JSON.stringify({
           priceUsdCents: priceCentsInt,
