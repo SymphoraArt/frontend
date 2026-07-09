@@ -41,7 +41,11 @@ const bodySchema = z.object({
     credentialId: z.string().min(1).max(4096),
     clientDataJson: z.string().min(1).max(8192),
     attestationObject: z.string().min(1).max(16384),
-    transports: z.array(z.string().max(64)).min(1).max(8),
+    // Empty is valid: browsers without AuthenticatorAttestationResponse.get
+    // Transports() (Firefox <119, some Linux+security-key combos) legitimately
+    // send []. Turnkey accepts attestation without transports; requiring >=1
+    // would lock those users out of the ONLY onboarding path.
+    transports: z.array(z.string().max(64)).max(8),
   }),
 });
 

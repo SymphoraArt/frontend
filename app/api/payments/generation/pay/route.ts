@@ -436,12 +436,18 @@ async function submitSigned(
   signatureHex: string,
   sessionWallet: string,
 ) {
-  // Resolve the case-exact buyer (same rescue as the build phase).
-  const { data: tkUser } = await supabase
+  // Resolve the case-exact buyer (same rescue as the build phase). A DB error
+  // is transient, NOT a terminal "wallet not found" — surface it as retryable
+  // 5xx so the client keeps the resume slot instead of discarding a paid intent.
+  const { data: tkUser, error: tkErr } = await supabase
     .from("turnkey_users")
     .select("wallet_address")
     .ilike("wallet_address", sessionWallet)
     .maybeSingle();
+  if (tkErr) {
+    console.error("[payments/pay] submit buyer lookup failed:", intentId, tkErr.message);
+    return NextResponse.json({ error: "Payment failed" }, { status: 502 });
+  }
   if (!tkUser?.wallet_address) {
     return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
   }
@@ -467,10 +473,19 @@ async function submitSigned(
     return NextResponse.json({ error: "Payment failed" }, { status: 502 });
   }
 
-  // Enter the broadcastable state atomically — a concurrent submit loses here.
+  // Enter the broadcastable state atomically, PINNED to the exact message this
+  // request signed: if the row was bounced back to quoted and rebuilt with a
+  // fresh message (M2) while a stale request still holds M1, matching on
+  // built_message makes the stale submit claim 0 rows → 409 → client rebuilds.
+  // Without this pin, a stale submit could broadcast superseded tx bytes.
   const txSignature = bs58.encode(tx.signatures[0]);
-  const entered = await transition(supabase, intentId, ["building"], "submitted");
-  if (!entered) {
+  const { count: enteredCount } = await supabase
+    .from("generation_payment_intents")
+    .update({ status: "submitted", updated_at: new Date().toISOString() }, { count: "exact" })
+    .eq("id", intentId)
+    .eq("status", "building")
+    .eq("built_message", intent.built_message);
+  if (enteredCount !== 1) {
     return NextResponse.json({ error: "Payment already in progress" }, { status: 409 });
   }
 

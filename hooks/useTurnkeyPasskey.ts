@@ -65,7 +65,11 @@ export function useTurnkeyPasskey() {
     setState({ ...IDLE, step: "working" });
     try {
       const passkeyClient = getPasskeyClient();
-      const userId = crypto.randomUUID();
+      // WebAuthn requires user.id to be a BufferSource (WebIDL BufferSource),
+      // NOT a string — @turnkey/http forwards this value verbatim to
+      // navigator.credentials.create, so a string throws a TypeError before the
+      // OS prompt ever shows. 32 random bytes is a valid credential user handle.
+      const userId = crypto.getRandomValues(new Uint8Array(32));
       const { encodedChallenge, attestation } = await passkeyClient.createUserPasskey({
         publicKey: {
           rp: { id: window.location.hostname, name: "Enki Art" },
