@@ -104,7 +104,11 @@ export async function POST(
       promptId,
       [authUser.userId],
       {
-        price: priceUsdCents,
+        // prompts.price is stored in USD *dollars* (the payment path reads it
+        // via usdToMicro, and the editor writes dollars). The client sends
+        // integer cents, so convert here — writing cents straight in would make
+        // the payment path charge 100x (e.g. $5.00 -> usdToMicro(500) = $500).
+        price: priceUsdCents / 100,
         tags,
         category,
         updated_at: new Date().toISOString(),
