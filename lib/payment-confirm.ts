@@ -1,10 +1,10 @@
 /**
  * Lightweight global subject for Turnkey payment confirmation.
  *
- * Turnkey email wallets sign server-side via /api/turnkey/sign-transaction —
- * there is no extension popup, so the user has no native "approve / reject"
- * step. We add an in-app confirmation modal that the payment hook awaits
- * before actually triggering the signing API call.
+ * Shows the amount in-app BEFORE the passkey sheet appears: the WebAuthn
+ * prompt (Face ID / fingerprint) is the cryptographic approval, but it does
+ * not display what is being paid — this modal is where the user sees the
+ * price. The payment hook awaits it before requesting the signature.
  *
  * Pattern: FIFO queue, one request presented at a time. The hook calls
  * `requestPaymentConfirm` which returns a promise. The mounted modal

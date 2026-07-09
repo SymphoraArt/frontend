@@ -475,8 +475,9 @@ export default function EnkiPromptEditor() {
   const activeWalletChain = useActiveWalletChain();
   const { connected: solanaAdapterConnected } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
-  // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
-  // signing through `/api/turnkey/sign-transaction` instead of the wallet adapter.
+  // Treat Turnkey passkey users as Solana-paying users — useSolanaX402Payment
+  // routes their signing through the browser passkey signer instead of the
+  // wallet adapter.
   const solanaConnected = solanaAdapterConnected || !!turnkeyAddress;
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();

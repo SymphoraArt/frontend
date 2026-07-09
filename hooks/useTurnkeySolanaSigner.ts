@@ -5,16 +5,17 @@
  *
  * Mirrors the wallet-adapter `{ publicKey, signTransaction }` shape so it can be
  * dropped into existing Solana flows (x402 payments, Anchor providers, etc.) when
- * the user logged in via the Turnkey email path instead of an external wallet.
+ * the user logged in via the Turnkey passkey path instead of an external wallet.
  *
- * Signing is delegated to `/api/turnkey/sign-transaction` which uses Turnkey's
- * `signRawPayload` against the user's sub-org wallet. The full transaction is
- * never exposed to Turnkey — only the message bytes (per VersionedTransaction.message).
+ * Signing happens IN THE BROWSER with the user's own passkey (Plan A) — the
+ * WebAuthn prompt is the approval. The retired /api/turnkey/sign-transaction
+ * server path (Enki's parent key signing on the user's behalf) is gone.
  */
 
 import { useCallback, useMemo } from "react";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { passkeySignPayloadHex } from "@/lib/turnkey-passkey-signer";
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
@@ -43,7 +44,7 @@ export interface TurnkeySolanaSigner {
 }
 
 export function useTurnkeySolanaSigner(): TurnkeySolanaSigner {
-  const { address, sessionToken, getAuthHeaders } = useTurnkeyEmailAuth();
+  const { address, subOrgId } = useTurnkeyEmailAuth();
 
   const publicKey = useMemo(() => {
     if (!address) return null;
@@ -52,27 +53,13 @@ export function useTurnkeySolanaSigner(): TurnkeySolanaSigner {
 
   const callSign = useCallback(
     async (payloadBytes: Uint8Array): Promise<Uint8Array> => {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const auth = getAuthHeaders();
-      if (auth) Object.assign(headers, auth);
-      else if (sessionToken) headers["X-Session-Token"] = sessionToken;
-      else throw new Error("Turnkey session not available");
-
-      const res = await fetch("/api/turnkey/sign-transaction", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ payloadHex: bytesToHex(payloadBytes) }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error || `Turnkey signing failed: ${res.status}`);
-      }
-      const { signatureHex } = await res.json() as { signatureHex: string };
+      if (!subOrgId || !address) throw new Error("Turnkey session not available");
+      const signatureHex = await passkeySignPayloadHex(subOrgId, address, bytesToHex(payloadBytes));
       const sig = hexToBytes(signatureHex);
       if (sig.length !== 64) throw new Error(`Unexpected signature length ${sig.length}`);
       return sig;
     },
-    [getAuthHeaders, sessionToken]
+    [subOrgId, address]
   );
 
   const signTransaction = useCallback(
@@ -100,7 +87,7 @@ export function useTurnkeySolanaSigner(): TurnkeySolanaSigner {
   );
 
   return {
-    isAvailable: !!publicKey && !!sessionToken,
+    isAvailable: !!publicKey && !!subOrgId,
     publicKey,
     walletAddress: address,
     signTransaction,

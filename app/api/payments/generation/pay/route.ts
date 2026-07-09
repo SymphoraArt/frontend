@@ -1,47 +1,46 @@
 /**
  * POST /api/payments/generation/pay
  *
- * Server-built payments (backlog #2), step 3: consume an intent and move the
- * money. The client sends ONLY the intent id — every amount, destination,
- * mint, and network is server-decided:
+ * Server-BUILT, client-SIGNED payments (Plan A): consume an intent and move
+ * the money. Every amount, destination, mint, and network is server-decided;
+ * the BUYER's signature comes from their own passkey in the browser — Enki's
+ * keys never sign for a user wallet.
  *
- *   Body: { intentId: string }
- *   Success/terminal: { payment: { intentId, status, txSignature } }
- *     200 "confirmed"          — transfer landed on-chain
- *     202 "submitted"          — broadcast (or in flight); POST the same
- *                                intentId again to keep polling (idempotent)
- *     410 "failed" | "expired" — terminal; create a new intent
- *   Errors: { error } (400 adds details):
- *     402 insufficient USDC    — the intent returns to "quoted" for a retry
- *     409 another request is paying this intent right now
- *     5xx configuration / build / on-chain failures
+ * Two phases against one endpoint:
+ *   Phase 1 — build:  { intentId }
+ *     → 200 { payment: { intentId, status: "awaiting_signature" }, messageHex }
+ *     The server builds the atomic tx (fee payer = Enki, buyer→artist and
+ *     buyer→Enki USDC legs), fee-payer-signs it, persists the message, and
+ *     returns the exact bytes the buyer must sign. Re-POSTing {intentId}
+ *     while awaiting replays the same messageHex (idempotent).
+ *   Phase 2 — submit: { intentId, signatureHex }
+ *     signatureHex = the buyer's 64-byte ed25519 signature over messageHex,
+ *     produced client-side via the user's passkey (Turnkey sub-org where the
+ *     passkey is the sole root — the parent key cannot sign; see
+ *     /api/auth/turnkey/passkey).
+ *     → 200 "confirmed" | 202 "submitted" (re-POST {intentId} to keep polling)
+ *     → 410 "failed"|"expired" terminal; 402 insufficient USDC (intent returns
+ *       to "quoted"); 400 invalid signature (still awaiting — re-sign);
+ *       409 concurrent request / expired signing window (retry from build).
  *
- * Flow (docs/PAYMENT-SECURITY-PATTERNS.md #1/#2/#6):
- *   1. Atomic, expiry-guarded quoted→building claim (single conditional
- *      UPDATE) — concurrent pays of the same intent can never double-spend.
- *   2. Transfer legs derive exclusively from the stored intent row
- *      (lib/payments/generation-pay), re-asserting the split invariant.
- *   3. One atomic Solana tx: buyer→artist and buyer→Enki USDC legs. The Enki
- *      fee payer signs and fronts ATA rent (buyers hold no SOL); priority fee
- *      is the capped p75 of live fees on the touched accounts, CU-bounded.
- *   4. The buyer's Turnkey wallet signs server-side (same trust model as
- *      /api/turnkey/sign-transaction, which this retires for payments).
- *      External (non-Turnkey) wallets get a build-then-client-sign variant in
- *      a follow-up — this endpoint rejects their sessions with 403.
- *   5. The tx signature (= fee payer's, known before broadcast) plus the
- *      blockhash's lastValidBlockHeight are persisted BEFORE the send: there
- *      is no window where a broadcastable tx exists without a re-pollable
- *      "submitted" row, and a dropped tx is provably failed once the chain
- *      passes that height without including it.
+ * Flow invariants (docs/PAYMENT-SECURITY-PATTERNS.md #1/#2/#6) unchanged:
+ *   1. Atomic, expiry-guarded quoted→building claim — no double-spend.
+ *   2. Legs derive exclusively from the stored intent row.
+ *   3. The tx signature (= fee payer's, deterministic for the stored message)
+ *      plus lastValidBlockHeight are persisted BEFORE anything broadcastable
+ *      exists; the buyer's signature only ever reaches a row already in the
+ *      state machine ("building" with built_message → "submitted").
+ *   4. Preflight (signature verification included) gates the broadcast: an
+ *      invalid buyer signature bounces back to awaiting, never strands the
+ *      intent.
  *
- * Requires migrations/generation_payment_intents.sql and the
- * SOLANA_FEE_PAYER_SECRET_KEY / SOLANA_PLATFORM_WALLET env vars.
+ * Requires migrations/generation_payment_intents.sql,
+ * migrations/2026-07-09-plan-a-client-signing.sql (built_message column) and
+ * the SOLANA_FEE_PAYER_SECRET_KEY / SOLANA_PLATFORM_WALLET env vars.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import bs58 from "bs58";
-import { ApiKeyStamper } from "@turnkey/api-key-stamper";
-import { TurnkeyServerClient } from "@turnkey/sdk-server";
 import {
   ComputeBudgetProgram,
   Connection,
@@ -49,6 +48,7 @@ import {
   PublicKey,
   SendTransactionError,
   TransactionMessage,
+  VersionedMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
 import {
@@ -72,21 +72,15 @@ const COMPUTE_UNIT_LIMIT = 120_000;
 const CONFIRM_DEADLINE_MS = 40_000;
 const CONFIRM_POLL_MS = 2_000;
 
-const TURNKEY_BASE_URL = "https://api.turnkey.com";
-
 const paySchema = z.object({
   intentId: z.string().uuid(),
+  // Buyer's ed25519 signature over the built message (64 bytes hex). Present
+  // only in the submit phase.
+  signatureHex: z
+    .string()
+    .regex(/^[0-9a-fA-F]{128}$/)
+    .optional(),
 });
-
-function getTurnkeyClient(organizationId: string) {
-  const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY;
-  const apiPrivateKey = process.env.TURNKEY_API_PRIVATE_KEY;
-  if (!apiPublicKey || !apiPrivateKey) {
-    throw new Error("Turnkey env vars not configured");
-  }
-  const stamper = new ApiKeyStamper({ apiPublicKey, apiPrivateKey });
-  return new TurnkeyServerClient({ stamper, apiBaseUrl: TURNKEY_BASE_URL, organizationId });
-}
 
 // The payment network is server-decided (env), never a request parameter.
 // Falls back to SOLANA_FUND_CHAIN (the treasury top-up flow's chain) so both
@@ -104,7 +98,8 @@ function getPaymentChain() {
 // Same formats as the treasury loader: base58 string OR solana-keygen JSON
 // array. A separate keypair from the treasury on purpose — it signs every
 // payment but holds only a modest SOL float for tx fees and fronted ATA rent,
-// never the USDC top-up float.
+// never the USDC top-up float. This is an ENKI-owned wallet: fee-payer signing
+// stays server-side by design (gasless UX), it moves no user funds.
 function getFeePayer(): Keypair {
   const raw = process.env.SOLANA_FEE_PAYER_SECRET_KEY?.trim();
   if (!raw) throw new Error("SOLANA_FEE_PAYER_SECRET_KEY not configured");
@@ -144,15 +139,23 @@ function paymentResponse(intentId: string, status: string, txSignature: string |
   return NextResponse.json({ payment: { intentId, status, txSignature } }, { status: httpStatus });
 }
 
+function awaitingResponse(intentId: string, builtMessageB64: string) {
+  return NextResponse.json(
+    {
+      payment: { intentId, status: "awaiting_signature", txSignature: null },
+      messageHex: Buffer.from(builtMessageB64, "base64").toString("hex"),
+    },
+    { status: 200 },
+  );
+}
+
 export async function POST(req: NextRequest) {
   // 60 payments/min per user (Kev, 2026-07-08); the IP cap sits above it so a
   // shared NAT is never throttled below the per-user limit.
   const ipLimit = checkRequestRateLimit(rateLimitKey(req, "payments:pay:ip"), 120, 60_000);
   if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
-  // 1. Resolve the session directly (like /api/turnkey/sign-transaction):
-  //    signing needs wallet_type, which requireAuth does not surface. Only
-  //    Turnkey email sessions may trigger server-side signing.
+  // 1. Resolve the session directly: the buyer wallet is the session wallet.
   const sessionToken = req.headers.get("X-Session-Token");
   if (!sessionToken) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -168,27 +171,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
   }
   if (session.wallet_type !== "turnkey") {
+    // External adapter wallets get the same build-then-client-sign flow in a
+    // follow-up; their signer plumbing differs (wallet adapter, not passkey).
     return NextResponse.json(
-      { error: "Server-built payments currently require a Turnkey email wallet" },
+      { error: "Payments currently require an Enki wallet session" },
       { status: 403 },
-    );
-  }
-
-  // Non-custodial passkey wallets (created via /api/auth/turnkey/passkey) have
-  // no email and their sub-org's sole root is the user's passkey — Enki's
-  // parent key CANNOT sign for them, so this server-signing path would build a
-  // tx that can never be signed and would strand the intent. Reject until the
-  // client-side-signing cutover ships. Email-OTP (custodial) wallets always
-  // carry an email and stay server-signable until then.
-  const { data: tkAccount } = await supabase
-    .from("turnkey_users")
-    .select("email")
-    .ilike("wallet_address", session.wallet_address)
-    .maybeSingle();
-  if (tkAccount && !tkAccount.email) {
-    return NextResponse.json(
-      { error: "This wallet signs client-side; server-built payment is not available for it yet." },
-      { status: 409 },
     );
   }
 
@@ -209,7 +196,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { intentId } = parsed.data;
+  const { intentId, signatureHex } = parsed.data;
 
   // Config problems are server bugs, never buyer errors — fail closed before
   // touching the intent.
@@ -233,7 +220,7 @@ export async function POST(req: NextRequest) {
   const { data: intent, error: intentError } = await supabase
     .from("generation_payment_intents")
     .select(
-      "id, status, tx_signature, last_valid_block_height, expires_at, artist_wallet, artist_amount_micro, model_cost_micro, enki_fee_micro, total_micro",
+      "id, status, tx_signature, last_valid_block_height, built_message, expires_at, artist_wallet, artist_amount_micro, model_cost_micro, enki_fee_micro, total_micro",
     )
     .eq("id", intentId)
     .eq("buyer_wallet", session.wallet_address)
@@ -264,9 +251,21 @@ export async function POST(req: NextRequest) {
     return paymentResponse(intentId, intent.status, intent.tx_signature, 410);
   }
   if (intent.status === "building") {
-    // A crashed build leaves this state behind; the cleanup worker (backlog)
-    // sweeps stale rows. Never rebuild concurrently.
+    if (intent.built_message && signatureHex) {
+      // Phase 2: the buyer signed the built message — attach and broadcast.
+      return submitSigned(supabase, connection, feePayer, intentId, intent, signatureHex, session.wallet_address);
+    }
+    if (intent.built_message) {
+      // Awaiting the signature — replay the same message (tab refresh, retry).
+      return awaitingResponse(intentId, intent.built_message);
+    }
+    // A concurrent request is mid-build (or a crashed build left this state;
+    // the cleanup worker sweeps stale rows — backlog). Never rebuild here.
     return NextResponse.json({ error: "Payment already in progress" }, { status: 409 });
+  }
+  if (signatureHex) {
+    // quoted + signature = nothing was built for this signature to match.
+    return NextResponse.json({ error: "No transaction awaiting signature" }, { status: 400 });
   }
 
   // 4. Atomic quoted→building claim, guarded by expiry inside the UPDATE
@@ -298,8 +297,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Payment failed" }, { status: 502 });
   };
 
-  let txSignature: string;
-  let tx: VersionedTransaction;
   try {
     // 5. Sessions store wallets lowercased (lossy for base58) — the on-chain
     //    buyer must be the case-exact address from turnkey_users.
@@ -308,7 +305,7 @@ export async function POST(req: NextRequest) {
       .select("sub_organization_id, wallet_address")
       .ilike("wallet_address", session.wallet_address)
       .maybeSingle();
-    if (tkError || !tkUser?.sub_organization_id || !tkUser.wallet_address) {
+    if (tkError || !tkUser?.wallet_address) {
       return await fail("turnkey user record not found", tkError?.message);
     }
     const buyer = new PublicKey(tkUser.wallet_address);
@@ -391,7 +388,7 @@ export async function POST(req: NextRequest) {
       );
     });
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-    tx = new VersionedTransaction(
+    const tx = new VersionedTransaction(
       new TransactionMessage({
         payerKey: feePayer.publicKey,
         recentBlockhash: blockhash,
@@ -400,51 +397,102 @@ export async function POST(req: NextRequest) {
     );
     tx.sign([feePayer]);
 
-    // 10. Buyer signature via Turnkey (ed25519 over the serialized message).
-    const client = getTurnkeyClient(tkUser.sub_organization_id);
-    const signed = await client.signRawPayload({
-      organizationId: tkUser.sub_organization_id,
-      signWith: tkUser.wallet_address,
-      payload: Buffer.from(tx.message.serialize()).toString("hex"),
-      encoding: "PAYLOAD_ENCODING_HEXADECIMAL",
-      // Solana / ed25519 cannot pre-hash per RFC 8032 — must be NOT_APPLICABLE.
-      hashFunction: "HASH_FUNCTION_NOT_APPLICABLE",
-    });
-    // r and s are 32-byte hex each; pad in case leading zeros were stripped,
-    // but never pad a missing or non-hex component into a fake signature.
-    // Don't log the raw response — a signature over an unbroadcast tx is
-    // secret until we choose to broadcast it.
-    const rHex = signed.r ?? "";
-    const sHex = signed.s ?? "";
-    if (!/^[0-9a-fA-F]{1,64}$/.test(rHex) || !/^[0-9a-fA-F]{1,64}$/.test(sHex)) {
-      return await fail(
-        "unexpected Turnkey signature shape",
-        `r:${rHex.length} s:${sHex.length} chars`,
-      );
-    }
-    tx.addSignature(buyer, Buffer.from(rHex.padStart(64, "0") + sHex.padStart(64, "0"), "hex"));
-
-    // 11. Persist the signature BEFORE broadcast — it is the fee payer's
-    //     (signature index 0), known since sign(). From here on the row is
-    //     re-pollable; there is no window where a broadcastable tx exists
-    //     without its signature in the DB.
-    txSignature = bs58.encode(tx.signatures[0]);
-    const persisted = await transition(supabase, intentId, ["building"], "submitted", {
-      tx_signature: txSignature,
+    // 10. Persist the built message + the fee payer's signature (= the tx
+    //     signature, index 0, deterministic for these bytes) BEFORE anything
+    //     leaves the server. The row stays "building" until the buyer's
+    //     passkey signature arrives — nothing is broadcastable yet (the
+    //     buyer's signature slot is empty), so there is no window where a
+    //     broadcastable tx exists outside the state machine.
+    const messageBytes = Buffer.from(tx.message.serialize());
+    const persisted = await transition(supabase, intentId, ["building"], "building", {
+      built_message: messageBytes.toString("base64"),
+      tx_signature: bs58.encode(tx.signatures[0]),
       last_valid_block_height: lastValidBlockHeight,
     });
     if (!persisted) {
-      // Nothing is on the wire yet — failing here is safe.
-      return await fail("could not persist tx signature before broadcast");
+      return await fail("could not persist built transaction");
     }
+
+    // Phase 1 done — the buyer signs these exact bytes with their passkey.
+    return awaitingResponse(intentId, messageBytes.toString("base64"));
   } catch (error) {
-    return await fail("payment build/sign error", error);
+    return await fail("payment build error", error);
+  }
+}
+
+// Phase 2: attach the buyer's passkey signature to the persisted message and
+// broadcast. The fee payer re-signs the identical bytes (ed25519 signing is
+// deterministic — same key, same message, same signature as persisted).
+async function submitSigned(
+  supabase: Supabase,
+  connection: Connection,
+  feePayer: Keypair,
+  intentId: string,
+  intent: {
+    built_message: string;
+    tx_signature: string | null;
+    last_valid_block_height: number | null;
+  },
+  signatureHex: string,
+  sessionWallet: string,
+) {
+  // Resolve the case-exact buyer (same rescue as the build phase). A DB error
+  // is transient, NOT a terminal "wallet not found" — surface it as retryable
+  // 5xx so the client keeps the resume slot instead of discarding a paid intent.
+  const { data: tkUser, error: tkErr } = await supabase
+    .from("turnkey_users")
+    .select("wallet_address")
+    .ilike("wallet_address", sessionWallet)
+    .maybeSingle();
+  if (tkErr) {
+    console.error("[payments/pay] submit buyer lookup failed:", intentId, tkErr.message);
+    return NextResponse.json({ error: "Payment failed" }, { status: 502 });
+  }
+  if (!tkUser?.wallet_address) {
+    return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
+  }
+  const buyer = new PublicKey(tkUser.wallet_address);
+
+  let tx: VersionedTransaction;
+  try {
+    tx = new VersionedTransaction(
+      VersionedMessage.deserialize(Buffer.from(intent.built_message, "base64")),
+    );
+    tx.sign([feePayer]);
+    // Sanity: the reconstructed fee-payer signature must match what the build
+    // phase persisted — a mismatch means env/key drift, never broadcast that.
+    if (intent.tx_signature && bs58.encode(tx.signatures[0]) !== intent.tx_signature) {
+      console.error("[payments/pay] fee payer signature drift:", intentId);
+      await transition(supabase, intentId, ["building"], "failed");
+      return NextResponse.json({ error: "Payment failed" }, { status: 502 });
+    }
+    tx.addSignature(buyer, Buffer.from(signatureHex, "hex"));
+  } catch (error) {
+    console.error("[payments/pay] submit reconstruction failed:", intentId, error);
+    await transition(supabase, intentId, ["building"], "failed");
+    return NextResponse.json({ error: "Payment failed" }, { status: 502 });
   }
 
-  // 12. Broadcast. Errors here are NOT build errors: a preflight rejection is
-  //     provably un-broadcast (safe to resolve the claim), while a transport
-  //     error is ambiguous — the node may already be relaying, so the row
-  //     stays "submitted" and pollSubmitted resolves the truth on re-POST.
+  // Enter the broadcastable state atomically, PINNED to the exact message this
+  // request signed: if the row was bounced back to quoted and rebuilt with a
+  // fresh message (M2) while a stale request still holds M1, matching on
+  // built_message makes the stale submit claim 0 rows → 409 → client rebuilds.
+  // Without this pin, a stale submit could broadcast superseded tx bytes.
+  const txSignature = bs58.encode(tx.signatures[0]);
+  const { count: enteredCount } = await supabase
+    .from("generation_payment_intents")
+    .update({ status: "submitted", updated_at: new Date().toISOString() }, { count: "exact" })
+    .eq("id", intentId)
+    .eq("status", "building")
+    .eq("built_message", intent.built_message);
+  if (enteredCount !== 1) {
+    return NextResponse.json({ error: "Payment already in progress" }, { status: 409 });
+  }
+
+  // Broadcast. Preflight verifies ALL signatures — an invalid buyer signature
+  // is caught here and bounces back to awaiting instead of stranding the
+  // intent. A transport error is ambiguous (node may be relaying) — the row
+  // stays "submitted" and pollSubmitted resolves the truth on re-POST.
   try {
     await connection.sendRawTransaction(tx.serialize(), {
       skipPreflight: false,
@@ -453,16 +501,36 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof SendTransactionError) {
+      const details = `${error.message} ${(error.logs ?? []).join(" ")}`;
       console.error("[payments/pay] preflight rejected:", intentId, error.message);
-      if (/insufficient funds/i.test(`${error.message} ${(error.logs ?? []).join(" ")}`)) {
+      if (/insufficient funds/i.test(details)) {
         // Balance raced away after the gate — back to quoted for a retry.
         await transition(supabase, intentId, ["submitted"], "quoted", {
           tx_signature: null,
           last_valid_block_height: null,
+          built_message: null,
         });
         return NextResponse.json(
           { error: "Insufficient USDC balance for this payment" },
           { status: 402 },
+        );
+      }
+      if (/signature verification/i.test(details)) {
+        // Bad buyer signature — back to awaiting with the same message; the
+        // client re-signs. Never terminal.
+        await transition(supabase, intentId, ["submitted"], "building");
+        return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+      }
+      if (/blockhash not found|block height exceeded/i.test(details)) {
+        // Signing window closed before the user confirmed — rebuild.
+        await transition(supabase, intentId, ["submitted"], "quoted", {
+          tx_signature: null,
+          last_valid_block_height: null,
+          built_message: null,
+        });
+        return NextResponse.json(
+          { error: "Payment window expired; retry" },
+          { status: 409 },
         );
       }
       await transition(supabase, intentId, ["submitted"], "failed");
