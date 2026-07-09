@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Star, Loader2, AlertCircle, X } from "lucide-react";
-import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { useActiveAccount } from "thirdweb/react";
 
 interface ReviewFormProps {
@@ -26,7 +26,7 @@ export function ReviewForm({
   onSuccess,
 }: ReviewFormProps) {
   const account = useActiveAccount();
-  const { authHeaders, authenticate, isAuthenticated } = useWalletAuth();
+  const { getAuthHeaders, authenticate, isAuthenticated } = useAuth();
   const [rating, setRating] = useState<number>(0);
   const [hoveredRating, setHoveredRating] = useState<number>(0);
   const [title, setTitle] = useState("");
@@ -68,7 +68,7 @@ export function ReviewForm({
       return;
     }
 
-    if (!isAuthenticated || !authHeaders) {
+    if (!isAuthenticated || !getAuthHeaders()) {
       const authResult = await authenticate();
       if (!authResult) {
         setError("Authentication failed. Please try again.");
@@ -94,7 +94,7 @@ export function ReviewForm({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeaders!,
+          ...(getAuthHeaders() || {}),
         },
         body: JSON.stringify({
           rating,
