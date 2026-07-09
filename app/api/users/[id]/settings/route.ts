@@ -16,6 +16,7 @@ const normalizeWallet = (addr: string) =>
 interface UserSettings {
   // Profile
   displayName?: string;
+  coverImageUrl?: string;
   showWalletInProfile?: boolean;
   showEarningsPublicly?: boolean;
   
@@ -69,7 +70,7 @@ export async function GET(
     // First try as UUID, then as wallet address if that fails
     let { data: user, error } = await supabase
       .from("users")
-      .select("id, display_name, preferences, wallet_address")
+      .select("id, display_name, cover_image_url, preferences, wallet_address")
       .eq("id", userId)
       .maybeSingle();
 
@@ -77,7 +78,7 @@ export async function GET(
     if (!user && !error) {
       const { data: userByWallet, error: walletError } = await supabase
         .from("users")
-        .select("id, display_name, preferences, wallet_address")
+        .select("id, display_name, cover_image_url, preferences, wallet_address")
         .ilike("wallet_address", userId)
         .maybeSingle();
       
@@ -110,6 +111,7 @@ export async function GET(
       ...getDefaultSettings(),
       ...preferences,
       displayName: user.display_name || preferences.displayName || "",
+      coverImageUrl: user.cover_image_url || preferences.coverImageUrl || "",
     };
 
     return NextResponse.json({ settings });
@@ -158,12 +160,13 @@ export async function PUT(
 
     const supabase = getSupabaseServerClient();
 
-    // Extract display_name separately as it's stored in the main users table
-    const { displayName, ...preferences } = body.settings;
+    // display_name and cover_image_url are real users columns; the rest of
+    // the profile settings live in the preferences JSONB.
+    const { displayName, coverImageUrl, ...preferences } = body.settings;
 
-    // Update both display_name and preferences
     const updateData: {
       display_name?: string;
+      cover_image_url?: string;
       preferences?: UserSettings;
       updated_at?: string;
       wallet_address?: string;
@@ -173,6 +176,10 @@ export async function PUT(
 
     if (displayName !== undefined) {
       updateData.display_name = displayName;
+    }
+
+    if (coverImageUrl !== undefined) {
+      updateData.cover_image_url = coverImageUrl;
     }
 
     if (Object.keys(preferences).length > 0) {

@@ -19,7 +19,7 @@ export async function GET(
     // Get creator user data
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, username, display_name, avatar_url, created_at')
+      .select('id, username, display_name, avatar_url, cover_image_url, created_at')
       .eq('id', creatorId)
       .single();
 
@@ -104,6 +104,7 @@ export async function GET(
         username: userData.username,
         displayName: userData.display_name || userData.username,
         avatarUrl: userData.avatar_url,
+        coverImageUrl: userData.cover_image_url,
         joinedAt: userData.created_at,
       },
       stats,
