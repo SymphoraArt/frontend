@@ -7,6 +7,17 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// The prompt-save API resolves the creator/owner from the session, never
+// from the payload — without this header saves are anonymous and updates
+// are rejected. Same token the PATCH publish call already forwards.
+function sessionHeader(): Record<string, string> {
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("turnkey_session_token")
+      : null;
+  return token ? { "X-Session-Token": token } : {};
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -15,7 +26,10 @@ export async function apiRequest(
   try {
     const res = await fetch(url, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers: {
+        ...(data ? { "Content-Type": "application/json" } : {}),
+        ...sessionHeader(),
+      },
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
     });
