@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/backend/storage";
 import { z } from "zod";
 
 const searchSuggestionsSchema = z.object({

@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
 import { z } from "zod";
 
 const marketplaceFiltersSchema = z.object({
