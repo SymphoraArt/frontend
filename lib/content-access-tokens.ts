@@ -7,21 +7,18 @@ import crypto from 'crypto';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { storage } from '@/backend/storage';
 
-// Get secret key from environment (should be at least 32 bytes)
+// HMAC key for content-access tokens. Fail closed: never fall back to a
+// hardcoded/in-source default (anyone reading the repo could then forge
+// valid tokens for any prompt) and never pad a too-short secret.
 const getSecretKey = (): Buffer => {
-  const secret = process.env.CONTENT_ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'default-secret-key-change-in-production-min-32-chars';
-  
-  // Ensure secret is at least 32 bytes
-  if (secret.length < 32) {
-    console.warn('⚠️  CONTENT_ACCESS_TOKEN_SECRET should be at least 32 bytes for security');
+  const secret = process.env.CONTENT_ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("CONTENT_ACCESS_TOKEN_SECRET (or JWT_SECRET) is not set");
   }
-  
-  // Use first 32 bytes of secret (or pad if shorter)
-  const key = secret.length >= 32 
-    ? secret.substring(0, 32)
-    : secret.padEnd(32, '0');
-  
-  return Buffer.from(key, 'utf8');
+  if (secret.length < 32) {
+    throw new Error("CONTENT_ACCESS_TOKEN_SECRET must be at least 32 characters");
+  }
+  return Buffer.from(secret.substring(0, 32), "utf8");
 };
 
 export interface AccessTokenPayload {
