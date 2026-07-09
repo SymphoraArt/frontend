@@ -394,6 +394,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Cross-path replay guard: the server-built intent flow writes its
+      // confirmed tx signature into generation_payment_intents and returns it
+      // to the client. That same on-chain payment could otherwise be replayed
+      // HERE as an X-PAYMENT header to buy a second, free generation — the two
+      // flows keep replay state in disjoint tables. Reject any signature that
+      // already settled an intent.
+      const replayDb = getSupabaseServerClientSafe();
+      if (replayDb) {
+        const { data: intentSig } = await replayDb
+          .from("generation_payment_intents")
+          .select("id")
+          .eq("tx_signature", payload.signature)
+          .maybeSingle();
+        if (intentSig) {
+          return NextResponse.json(
+            { error: "Transaction signature has already been used" },
+            { status: 402 }
+          );
+        }
+      }
+
       const replayCheck = await checkAndRecordSolanaSignature(
         payload.signature,
         solanaChain,
