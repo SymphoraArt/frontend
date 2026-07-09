@@ -128,14 +128,14 @@ export async function GET(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // Enrich with prompt titles from MongoDB
+    // Enrich with prompt titles from Supabase
     const topPrompts: TopPrompt[] = [];
     if (topPromptsData && topPromptsData.length > 0) {
-      const { storage } = await import('@/backend/storage');
+      const { getPromptById } = await import('@/lib/prompts-db');
 
       for (const promptData of topPromptsData) {
         try {
-          const prompt = await storage.getPrompt(promptData.prompt_id);
+          const prompt = await getPromptById(supabase, promptData.prompt_id);
 
           // Get view count for conversion rate calculation
           const { count: viewCount } = await supabase

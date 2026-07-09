@@ -5,15 +5,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
+import { getPromptById, getPromptVariables } from "@/lib/prompts-db";
 import { paymentEngine } from "@/backend/x402-engine";
 import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { validatePromptForPurchase, revalidatePromptBeforePurchase, validateListingStatusBeforePurchase } from "@/lib/prompt-consistency";
 import { verifyPaymentOnChain, recordPaymentVerification } from "@/backend/payment-verification";
 import { generateAccessToken } from "@/lib/content-access-tokens";
-import { queueEarningsReconciliation, queuePromptStatsReconciliation } from "@/lib/reconciliation-queue";
-import { sendEarningsAlert, sendPromptStatsAlert } from "@/lib/alerting";
+import { queueEarningsReconciliation } from "@/lib/reconciliation-queue";
+import { sendEarningsAlert } from "@/lib/alerting";
 import type { ChainKey } from "@/shared/payment-config";
 import { z } from "zod";
 
@@ -75,7 +75,8 @@ export async function POST(
     // If already purchased, generate new access token instead of returning content
     if (alreadyPurchased) {
       // Verify prompt still exists
-      const promptCheck = await storage.getPrompt(promptId);
+      const supabase = getSupabaseServerClient();
+      const promptCheck = await getPromptById(supabase, promptId);
       if (!promptCheck) {
         // Prompt was deleted after purchase - this is a consistency issue
         return NextResponse.json(
@@ -96,7 +97,7 @@ export async function POST(
         3600 // 1 hour expiration
       );
 
-      const variables = await storage.getVariablesByPromptId(promptId);
+      const variables = await getPromptVariables(supabase, promptId);
 
       return NextResponse.json({
         success: true,
@@ -136,7 +137,7 @@ export async function POST(
 
       // For free prompts, we still record the "purchase" (access grant) but with $0
       // This allows tracking of free prompt usage and analytics
-      const creatorId = prompt.userId || prompt.artistId;
+      const creatorId = prompt.userId;
       if (!creatorId) {
         return NextResponse.json(
           { success: false, error: 'Prompt creator not found' },
@@ -208,7 +209,7 @@ export async function POST(
             3600 // 1 hour expiration
           );
 
-          const variables = await storage.getVariablesByPromptId(promptId);
+          const variables = await getPromptVariables(supabase, promptId);
 
           return NextResponse.json({
             success: true,
@@ -239,25 +240,11 @@ export async function POST(
         3600 // 1 hour expiration
       );
 
-      const variables = await storage.getVariablesByPromptId(promptId);
+      const variables = await getPromptVariables(supabase, promptId);
 
-      // Update prompt stats (non-critical, queue if fails)
-      try {
-        const newTotalSales = (prompt.totalSales || 0) + 1;
-        await storage.updatePrompt(promptId, {
-          totalSales: newTotalSales,
-          updatedAt: new Date().toISOString(),
-        } as any);
-      } catch (statsError) {
-        console.warn('Failed to update prompt stats for free prompt:', statsError);
-        // Queue reconciliation with current stats
-        await queuePromptStatsReconciliation({
-          promptId,
-          totalSales: (prompt.totalSales || 0) + 1,
-          totalRevenue: prompt.totalRevenue || 0, // Free prompts have $0 revenue
-          attemptCount: 0,
-        });
-      }
+      // Prompt-level sales stats live in Supabase (marketplace_prompts /
+      // user_earnings, updated atomically by record_prompt_purchase). The old
+      // per-prompt MongoDB stats counter is gone, so nothing to update here.
 
       return NextResponse.json({
         success: true,
@@ -421,7 +408,7 @@ export async function POST(
 
     // Record purchase atomically using stored procedure
     // This ensures purchase recording and earnings updates happen in a single transaction
-    const creatorId = prompt.userId || prompt.artistId;
+    const creatorId = prompt.userId;
     if (!creatorId) {
       return NextResponse.json(
         { success: false, error: 'Prompt creator not found' },
@@ -477,7 +464,7 @@ export async function POST(
           3600 // 1 hour expiration
         );
 
-        const variables = await storage.getVariablesByPromptId(promptId);
+        const variables = await getPromptVariables(supabase, promptId);
 
         return NextResponse.json({
           success: true,
@@ -521,7 +508,7 @@ export async function POST(
         3600 // 1 hour expiration
       );
 
-      const variables = await storage.getVariablesByPromptId(promptId);
+      const variables = await getPromptVariables(supabase, promptId);
 
       return NextResponse.json({
         success: true,
@@ -578,48 +565,9 @@ export async function POST(
       );
     }
 
-    // Update prompt statistics in MongoDB
-    // Note: This is a separate database, so we handle it separately
-    // If this fails, the Supabase transaction is already committed
-    // We log the error but don't fail the request since the purchase is already recorded
-    try {
-      // Update prompt statistics (MongoDB allows flexible fields)
-      const newTotalSales = (prompt.totalSales || 0) + 1;
-      const newTotalRevenue = (prompt.totalRevenue || 0) + priceUsdCents;
-
-      await (storage.updatePrompt as any)(promptId, {
-        totalSales: newTotalSales,
-        totalRevenue: newTotalRevenue,
-        updatedAt: new Date().toISOString(),
-      });
-    } catch (mongoError) {
-      // Log error and queue for reconciliation
-      console.error('Error updating prompt stats in MongoDB (non-critical):', {
-        promptId,
-        totalSales: (prompt.totalSales || 0) + 1,
-        totalRevenue: (prompt.totalRevenue || 0) + priceUsdCents,
-        error: mongoError instanceof Error ? mongoError.message : String(mongoError),
-      });
-
-      // Queue for reconciliation
-      await queuePromptStatsReconciliation({
-        promptId,
-        totalSales: (prompt.totalSales || 0) + 1,
-        totalRevenue: (prompt.totalRevenue || 0) + priceUsdCents,
-        attemptCount: 0,
-      });
-
-      // Send alert
-      await sendPromptStatsAlert({
-        promptId,
-        totalSales: (prompt.totalSales || 0) + 1,
-        totalRevenue: (prompt.totalRevenue || 0) + priceUsdCents,
-        error: mongoError,
-      });
-
-      // Purchase still succeeds - MongoDB update can be reconciled later
-      console.warn('⚠️  Prompt stats reconciliation queued. Purchase succeeded but stats not updated in MongoDB.');
-    }
+    // Prompt-level sales stats live in Supabase (marketplace_prompts /
+    // user_earnings, updated atomically by record_prompt_purchase above). The
+    // old per-prompt MongoDB stats counter is gone, so nothing to update here.
 
     // Generate time-limited access token instead of returning decrypted content directly
     // This prevents content from being exposed in HTTP response and allows access control
@@ -632,7 +580,7 @@ export async function POST(
     );
 
     // Get variables (safe to return - not encrypted)
-    const variables = await storage.getVariablesByPromptId(promptId);
+    const variables = await getPromptVariables(supabase, promptId);
 
     return NextResponse.json({
       success: true,

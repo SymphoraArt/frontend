@@ -5,7 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/backend/storage";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { getPromptDecrypted } from "@/lib/prompts-db";
 import { getAccessTokenFromRequest, verifyContentAccess } from "@/lib/content-access-tokens";
 import { requireAuth } from "@/lib/auth";
 
@@ -44,7 +45,8 @@ export async function GET(
     }
 
     // Get decrypted content
-    const content = await storage.getPromptWithDecryptedContent(promptId);
+    const supabase = getSupabaseServerClient();
+    const content = await getPromptDecrypted(supabase, promptId);
     if (!content) {
       return NextResponse.json(
         { error: 'Prompt content not found' },

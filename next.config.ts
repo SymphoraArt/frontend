@@ -4,8 +4,8 @@ import path from "path";
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve(__dirname),
 
-  // Legacy Express server files (backend/app.ts, backend/routes.ts) are preserved
-  // for upstream compatibility but not used in Next.js API routes.
+  // Legacy Express server file (backend/app.ts) is preserved for upstream
+  // compatibility but not used in Next.js API routes.
   // @types/express is installed as dev dependency for TypeScript type checking.
 
   // Webpack configuration

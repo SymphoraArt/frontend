@@ -1,9 +1,10 @@
 /**
  * Prompt Enrichment Utilities
- * Fetches prompt metadata from MongoDB to enrich database queries
+ * Fetches prompt metadata from Supabase to enrich database queries
  */
 
-import { storage } from '@/backend/storage';
+import { getSupabaseServerClient } from '@/lib/supabaseServer';
+import { getPromptById } from '@/lib/prompts-db';
 
 export interface PromptMetadata {
   id: string;
@@ -13,12 +14,13 @@ export interface PromptMetadata {
 }
 
 /**
- * Fetch prompt metadata from MongoDB
+ * Fetch prompt metadata from Supabase
  * Returns null if prompt not found, never throws
  */
 export async function getPromptMetadata(promptId: string): Promise<PromptMetadata | null> {
   try {
-    const prompt = await storage.getPrompt(promptId);
+    const supabase = getSupabaseServerClient();
+    const prompt = await getPromptById(supabase, promptId);
     if (!prompt) {
       return null;
     }
@@ -27,7 +29,7 @@ export async function getPromptMetadata(promptId: string): Promise<PromptMetadat
       id: promptId,
       title: prompt.title || `Prompt ${promptId.slice(-8)}`,
       description: undefined, // Description would come from Supabase marketplace_prompts table
-      previewImage: prompt.previewImageUrl, // Using previewImageUrl from schema
+      previewImage: prompt.previewImageUrl, // First uploaded photo, if any
     };
   } catch (error) {
     console.error(`Failed to fetch prompt metadata for ${promptId}:`, error);

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
+import { getPromptById } from "@/lib/prompts-db";
 import { requireAuth } from "@/lib/auth";
 import type { PromptAnalyticsEventSelect, PromptAnalyticsEventDemographicSelect, DailyMetricRow, DemographicRow } from "@shared/types";
 
@@ -24,8 +24,10 @@ export async function GET(
     // Authenticate user
     const authUser = await requireAuth(request);
 
+    const supabase = getSupabaseServerClient();
+
     // Verify prompt exists and user has access (creator only)
-    const prompt = await storage.getPrompt(promptId);
+    const prompt = await getPromptById(supabase, promptId);
     if (!prompt) {
       return NextResponse.json(
         { success: false, error: 'Prompt not found' },
@@ -34,14 +36,12 @@ export async function GET(
     }
 
     // Check if user is the creator
-    if (prompt.userId !== authUser.userId && prompt.artistId !== authUser.userId) {
+    if (prompt.userId !== authUser.userId) {
       return NextResponse.json(
         { success: false, error: 'You can only view analytics for your own prompts' },
         { status: 403 }
       );
     }
-
-    const supabase = getSupabaseServerClient();
 
     // Get prompt analytics using the analytics function
     const { data: analyticsData, error: analyticsError } = await supabase

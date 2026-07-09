@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { storage } from "@/backend/storage";
+import { getPromptVariables } from "@/lib/prompts-db";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(
@@ -97,7 +97,7 @@ export async function GET(
         let variables: any[] = [];
         if (!isDeleted && purchase.prompt_id) {
           try {
-            variables = await storage.getVariablesByPromptId(purchase.prompt_id);
+            variables = await getPromptVariables(supabase, purchase.prompt_id);
           } catch (error) {
             // Prompt might be deleted - that's okay, variables will be empty
             console.warn(`Could not fetch variables for prompt ${purchase.prompt_id}:`, error);
