@@ -43,13 +43,15 @@ export async function GET(
       console.error('[API] Error fetching earnings:', earningsError);
     }
 
-    // Get creator's prompts from Supabase (ownership is user_id only).
-    // There is no unlist mechanism in Supabase, so every row for this creator
-    // is treated as an active listing.
+    // Get creator's published prompts from Supabase (ownership is user_id only).
+    // Drafts (published_at IS NULL) stay private to the creator; only released
+    // prompts appear on the public profile. Existing rows are backfilled by
+    // migrations/2026-07-09-prompts-published.sql.
     const { data: creatorPromptRows, error: creatorPromptsError } = await supabase
       .from('prompts')
       .select('id, title, price, uploaded_photos, created_at')
       .eq('user_id', creatorId)
+      .not('published_at', 'is', null)
       .order('created_at', { ascending: false })
       .limit(20);
 

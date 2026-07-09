@@ -174,8 +174,14 @@ export async function GET(request: NextRequest) {
     try {
       const supabase = getSupabaseServerClient();
 
-      // Build Supabase query
-      let dbQuery = supabase.from("prompts").select("*");
+      // Build Supabase query. Only surface published prompts — drafts
+      // (published_at IS NULL) stay private to their creator until released
+      // via PATCH /api/prompts/[id] { published: true }. Existing rows are
+      // backfilled to created_at by migrations/2026-07-09-prompts-published.sql.
+      let dbQuery = supabase
+        .from("prompts")
+        .select("*")
+        .not("published_at", "is", null);
 
       if (category) {
         dbQuery = dbQuery.eq("category", category);
