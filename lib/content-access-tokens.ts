@@ -5,7 +5,6 @@
 
 import crypto from 'crypto';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
-import { storage } from '@/backend/storage';
 
 // HMAC key for content-access tokens. Fail closed: never fall back to a
 // hardcoded/in-source default (anyone reading the repo could then forge
