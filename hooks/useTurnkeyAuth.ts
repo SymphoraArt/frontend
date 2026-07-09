@@ -7,8 +7,8 @@ import { Turnkey } from "@turnkey/sdk-browser";
 // Used by Navbar and user pages to detect Turnkey email login.
 
 /**
- * Reads / writes the Turnkey email wallet address stored in localStorage
- * after a successful OTP login via /api/auth/turnkey/verify.
+ * Reads / writes the Turnkey wallet address stored in localStorage after a
+ * successful passkey signup/login (/api/auth/turnkey/passkey[-login]).
  *
  * Each component that calls this hook gets its own React state. To keep all
  * instances (Navbar, editor, settings, payment hook, etc.) in sync after a

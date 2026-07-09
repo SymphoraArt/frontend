@@ -1,26 +1,26 @@
 "use client";
 
 /**
- * Server-built generation payments for Turnkey email wallets (backlog #2):
+ * Server-built, client-signed generation payments (Plan A):
  *
- *   intent → confirm (in-app modal) → pay → generate
+ *   intent → confirm (in-app modal) → build → SIGN WITH PASSKEY → submit → generate
  *
- * The client sends ONLY identifiers — the server prices from its DB, builds
- * and signs the Solana tx (Enki pays the network fee, so buyers need no
- * SOL), and the generate call redeems the confirmed intent one-shot.
+ * The client sends ONLY identifiers — the server prices from its DB and
+ * builds the Solana tx (Enki pays the network fee, so buyers need no SOL).
+ * The buyer's signature is produced IN THE BROWSER by the user's own passkey
+ * (the Face ID / fingerprint prompt is the real approval); Enki never signs
+ * for a user wallet. The generate call redeems the confirmed intent one-shot.
  *
  * Double-charge safety: the intent id is persisted per (wallet, prompt,
  * model, resolution) the moment it exists and only cleared on delivery or a
  * terminal server verdict. Any interruption — closed tab, poll timeout,
  * failed generation — RESUMES the same intent on the next attempt (the pay
  * endpoint replays idempotently), so retrying never pays twice.
- *
- * Replaces the client-built x402 flow for Turnkey users; external wallets
- * keep their adapter flow until the build-then-client-sign variant lands.
  */
 import { useState } from "react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { requestPaymentConfirm } from "@/lib/payment-confirm";
+import { passkeySignPayloadHex } from "@/lib/turnkey-passkey-signer";
 
 export type IntentGenerationParams = {
   promptId: string;
@@ -97,7 +97,7 @@ async function readError(res: Response, fallback: string): Promise<string> {
 }
 
 export function useIntentPayment() {
-  const { address, getAuthHeaders } = useTurnkeyEmailAuth();
+  const { address, subOrgId, getAuthHeaders } = useTurnkeyEmailAuth();
   // Counter, not boolean: batch generation runs several flows concurrently
   // and the flag must only clear when the LAST one settles.
   const [pendingCount, setPendingCount] = useState(0);
@@ -106,7 +106,7 @@ export function useIntentPayment() {
     params: IntentGenerationParams,
   ): Promise<IntentGenerationResult> => {
     const auth = getAuthHeaders();
-    if (!auth || !address) throw new Error("Sign in with your email wallet first.");
+    if (!auth || !address) throw new Error("Sign in first.");
     const headers = { "Content-Type": "application/json", ...auth };
     const storageKey = intentStorageKey(address, params);
 
@@ -141,9 +141,9 @@ export function useIntentPayment() {
         stored = { id: intent.id, approved: false };
         saveStoredIntent(storageKey, stored);
 
-        // 2. Turnkey wallets sign server-side (no extension popup), so the
-        //    user approves in-app first — same modal as the old x402 flow.
-        //    Resumed intents were approved at this exact amount already.
+        // 2. Show the amount in-app first; the passkey prompt that follows is
+        //    the cryptographic approval. Resumed intents were approved at
+        //    this exact amount already.
         const approved = await requestPaymentConfirm({
           amount: microToUsdc(intent.breakdown.totalAmount),
           asset: intent.breakdown.currency,
@@ -156,17 +156,36 @@ export function useIntentPayment() {
         saveStoredIntent(storageKey, stored);
       }
 
-      // 3. Pay — poll on 202 until the tx confirms or the deadline passes.
-      //    Terminal 410 verdicts clear the stored intent (nothing charged);
-      //    everything ambiguous keeps it so the next attempt resumes.
+      // 3. Pay — two phases against one endpoint. {intentId} builds the tx
+      //    and answers awaiting_signature + messageHex; the user's passkey
+      //    signs those exact bytes in the browser (the WebAuthn prompt is the
+      //    payment approval); {intentId, signatureHex} submits. 202 polls
+      //    until the tx confirms. Terminal 410 verdicts clear the stored
+      //    intent; everything ambiguous keeps it so the next attempt resumes.
       const deadline = Date.now() + PAY_DEADLINE_MS;
+      let signatureHex: string | undefined;
       for (;;) {
         const payRes = await fetch("/api/payments/generation/pay", {
           method: "POST",
           headers,
-          body: JSON.stringify({ intentId: stored.id }),
+          body: JSON.stringify(
+            signatureHex ? { intentId: stored.id, signatureHex } : { intentId: stored.id },
+          ),
         });
-        if (payRes.status === 200) break;
+        signatureHex = undefined; // one-shot: only re-sign when asked again
+        if (payRes.status === 200) {
+          const data = (await payRes.json().catch(() => ({}))) as {
+            payment?: { status?: string };
+            messageHex?: string;
+          };
+          if (data.payment?.status === "awaiting_signature" && data.messageHex) {
+            if (!subOrgId) throw new Error("Sign in again to approve this payment.");
+            // Face ID / fingerprint — the user's own key authorizes the transfer.
+            signatureHex = await passkeySignPayloadHex(subOrgId, address, data.messageHex);
+            continue;
+          }
+          break; // confirmed
+        }
         if (payRes.status === 202) {
           if (Date.now() >= deadline) {
             throw new Error(
@@ -176,9 +195,27 @@ export function useIntentPayment() {
           await new Promise((resolve) => setTimeout(resolve, PAY_POLL_MS));
           continue;
         }
+        if (payRes.status === 400) {
+          const message = await readError(payRes, "Payment failed");
+          if (/invalid signature/i.test(message)) {
+            // Server kept the intent awaiting — loop refetches the message
+            // and prompts the passkey again.
+            continue;
+          }
+          throw new Error(message);
+        }
         if (payRes.status === 402) {
           // Claim released server-side; the same intent stays payable.
           throw new Error("Insufficient USDC balance. Top up your wallet and try again.");
+        }
+        if (payRes.status === 409) {
+          // Concurrent request or the signing window expired (intent back to
+          // quoted) — both resolve by waiting and re-POSTing {intentId}.
+          if (Date.now() >= deadline) {
+            throw new Error("Payment did not complete." + RETRY_IS_FREE);
+          }
+          await new Promise((resolve) => setTimeout(resolve, PAY_POLL_MS));
+          continue;
         }
         if (payRes.status === 410) {
           const data = (await payRes.json().catch(() => ({}))) as {

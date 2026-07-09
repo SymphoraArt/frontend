@@ -4536,8 +4536,8 @@ function submitAuth(e, type) {
   e.preventDefault();
   if (type === 'login') {
     // Honest: there is no password backend yet — never fake a successful
-    // login. Real sign-in is the wallet / email-code flow in the app shell.
-    showInlineNote('login', 'Password sign-in isn\'t live during the whitelist stage yet — use "Continue with Wallet" below (it includes an email-code option).');
+    // login. Real sign-in is the passkey / wallet flow in the app shell.
+    showInlineNote('login', 'Password sign-in isn\'t live during the whitelist stage yet — use "Continue with Wallet" below (it includes passkey sign-in with Face ID / fingerprint).');
     return;
   }
   const btn = document.getElementById('submitSignup');
