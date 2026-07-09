@@ -202,7 +202,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     id={prompt.id}
                     title={prompt.title}
                     artist={creator.displayName}
-                    price={prompt.priceUsdCents / 100}
+                    price={prompt.priceUsdCents}
                     category={prompt.category || "General"}
                     rating={prompt.avgRating}
                     downloads={prompt.totalSales}
