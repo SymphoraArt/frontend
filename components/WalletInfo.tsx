@@ -44,21 +44,6 @@ export function WalletInfo() {
   const auth = useWalletAuthentication();
   const { toast } = useToast();
 
-  // #region agent log
-  if (typeof window !== 'undefined' && wallet && walletInfo.isConnected) {
-    (async () => {
-      try {
-        let eoaAddress = null;
-        try {
-          const walletAccount = await wallet.getAccount();
-          eoaAddress = walletAccount?.address || null;
-        } catch (e) {}
-        fetch('http://127.0.0.1:7245/ingest/09072fc2-e9a8-4b0b-9748-5e9d2e8abc2b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WalletInfo.tsx:render',message:'WalletInfo displaying address',data:{displayedAddress:walletInfo.address,walletEOA:eoaAddress,walletId:wallet.id,addressesMatch:walletInfo.address===eoaAddress,isSmartAccount:walletInfo.address!==eoaAddress},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      } catch (e) {}
-    })();
-  }
-  // #endregion
-
   if (!walletInfo.isConnected || !walletInfo.address) {
     return null;
   }
