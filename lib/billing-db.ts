@@ -1,16 +1,12 @@
-import Stripe from "stripe";
 import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
 
 /**
- * Balance persistence for fiat top-ups.
+ * Legacy custodial balance ledger on `turnkey_users.balance`.
  *
- * The balance lives in a single `balance` column on the existing `turnkey_users`
- * table, keyed by `wallet_address` (the same wallet the payment recipient and
- * the navbar use). No extra tables.
- *
- * Idempotency is handled via Stripe PaymentIntent metadata (`credited=true`):
- * once an intent has been applied we never apply it again, so the confirm
- * endpoint and the webhook can both fire safely.
+ * DEPRECATED: the displayed balance is now non-custodial on-chain USDC (see
+ * lib/usdc-balance.ts). Stripe and the fiat top-up flow have been removed; these
+ * read/write helpers are retained only until the remaining custodial call sites
+ * are migrated.
  *
  * NOTE: wallet addresses are matched exactly (NOT lowercased) — Solana base58
  * addresses are case-sensitive.
@@ -76,58 +72,4 @@ export async function creditBalance(
     .eq("wallet_address", walletAddress);
   if (error) throw new Error(error.message);
   return next;
-}
-
-/**
- * Verifies a PaymentIntent with Stripe and, if it has succeeded and hasn't been
- * applied yet, adds the amount to the user's `turnkey_users.balance`. Returns
- * the new balance. Idempotent via the intent's `credited` metadata flag.
- */
-export async function creditFromIntent(
-  intentId: string,
-  fallbackWallet?: string | null
-): Promise<{ balance: number; credited: boolean; amount: number; funded: boolean; fundError?: string }> {
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret) throw new Error("STRIPE_SECRET_KEY is not set");
-
-  const stripe = new Stripe(secret);
-  const intent = await stripe.paymentIntents.retrieve(intentId);
-
-  if (intent.status !== "succeeded") {
-    return { balance: 0, credited: false, amount: 0, funded: false };
-  }
-
-  const wallet =
-    normalizeUserId((intent.metadata?.recipient as string) || "") ||
-    normalizeUserId(fallbackWallet);
-  if (!wallet) throw new Error("No wallet on payment to credit");
-
-  const amount = (intent.amount_received ?? intent.amount ?? 0) / 100;
-
-  const supabase = getSupabaseServerClientSafe();
-  if (!supabase) throw new Error("Supabase is not configured");
-
-  // Idempotency: once an intent is applied we never apply it again, so confirm
-  // and the webhook can both fire safely.
-  const alreadyCredited = intent.metadata?.credited === "true";
-
-  let balance = await getBalance(wallet);
-
-  // Credit the spendable USD balance. The balance is used directly server-side
-  // for generation (the platform pays the API cost) — no on-chain transfer.
-  if (!alreadyCredited) {
-    balance = balance + amount;
-    const { error: updErr } = await supabase
-      .from("turnkey_users")
-      .update({ balance, updated_at: new Date().toISOString() })
-      .eq("wallet_address", wallet);
-    if (updErr) throw new Error(updErr.message);
-
-    await stripe.paymentIntents.update(intent.id, {
-      metadata: { ...intent.metadata, credited: "true" },
-    });
-  }
-
-  // `funded: true` — the balance is immediately spendable (no wallet funding step).
-  return { balance, credited: !alreadyCredited, amount, funded: true };
 }

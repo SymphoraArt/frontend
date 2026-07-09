@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Holdings — the user's spendable USD balance, persisted server-side.
+ * Holdings — the user's spendable balance in USD, read from on-chain USDC.
  *
- * Source of truth is the `user_balances` table, read via /api/billing/balance
- * and credited by the Stripe confirm endpoint / webhook (see lib/billing-db).
- * Pass the signed-in user's wallet/turnkey address; without one we show 0.
+ * Source of truth is the wallet's own USDC balance on Solana, read via
+ * /api/billing/balance (see lib/usdc-balance). Pass the signed-in user's Solana
+ * wallet address; without one we show 0.
  *
- * Every instance (navbar, settings, checkout) re-fetches when any of them calls
+ * Every instance (navbar, settings) re-fetches when any of them calls
  * `refresh()` — it broadcasts a window event so the balance stays in sync after
- * a top-up.
+ * adding funds.
  */
 const HOLDINGS_EVENT = "enki-holdings-changed";
 

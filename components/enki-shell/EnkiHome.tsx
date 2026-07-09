@@ -49,7 +49,9 @@ export default function EnkiHome() {
   const account = useSafeActiveAccount();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
   const walletAddress = account?.address ?? turnkeyAddress ?? null;
-  const { balance } = useHoldings(walletAddress);
+  // Balance is on-chain USDC — always read the Solana (Turnkey) wallet, not the
+  // EVM address (which holds no USDC).
+  const { balance } = useHoldings(turnkeyAddress);
 
   const initials = walletAddress
     ? (walletAddress.startsWith("0x") ? walletAddress.slice(2, 4) : walletAddress.slice(0, 2)).toUpperCase()

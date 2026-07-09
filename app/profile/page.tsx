@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useHoldings } from "@/hooks/useHoldings";
 import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import {
@@ -34,6 +35,8 @@ export default function ProfilePage() {
   const walletAddress =
     account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
   const isAuthed = !!walletAddress;
+  // Non-custodial balance: on-chain USDC in the user's own Solana wallet.
+  const { balance } = useHoldings(turnkeyAddress ?? solanaPublicKey?.toBase58() ?? null);
   const shortAddress = walletAddress
     ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
     : null;
@@ -177,6 +180,16 @@ export default function ProfilePage() {
               <div className="mono" style={{ fontSize: 13, color: "var(--enki-ember)", marginBottom: 8, letterSpacing: "0.1em", textTransform: "uppercase" }}>
                 {shortAddress ?? "Not connected"}
               </div>
+              {isAuthed && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                  <span className="serif" style={{ fontSize: 40, lineHeight: 1, color: "var(--enki-ink)" }}>
+                    ${balance.toFixed(2)}
+                  </span>
+                  <span className="mono" style={{ fontSize: 11, color: "var(--enki-ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Balance · USDC on Solana · non-custodial
+                  </span>
+                </div>
+              )}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <h1 className="serif" style={{ fontSize: "clamp(48px, 5vw, 72px)", fontWeight: 400, margin: 0, lineHeight: 1 }}>
                   {isAuthed ? <em>My</em> : <em>Guest</em>} {isAuthed ? "Profile" : ""}

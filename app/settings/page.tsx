@@ -124,7 +124,7 @@ export default function SettingsPage() {
     wallets: "Manage your connected Turnkey networks and external wallets.",
     earnings: "Track your earnings from owned prompts and hunted affiliates.",
     recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen.",
-    billing: "Top up your balance with the familiar Stripe or PayPal flow.",
+    billing: "Add funds with card, PayPal or bank transfer — delivered to your own wallet.",
   };
 
   // Mock admin check — replace with real wallet role lookup

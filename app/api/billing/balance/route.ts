@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBalance, normalizeUserId } from "@/lib/billing-db";
+import { getUsdcBalance } from "@/lib/usdc-balance";
 
 export const runtime = "nodejs";
 
-/** GET /api/billing/balance?address=0x… → { balance } in USD. */
+/**
+ * GET /api/billing/balance?address=<solana wallet> → { balance } in USD.
+ *
+ * Non-custodial: reads the wallet's own on-chain USDC balance (USDC ≈ $1).
+ * No custodial ledger, no Stripe.
+ */
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
-  const userId = normalizeUserId(address);
-  if (!userId) return NextResponse.json({ balance: 0 });
+  if (!address) return NextResponse.json({ balance: 0 });
 
   try {
-    const balance = await getBalance(userId);
+    const balance = await getUsdcBalance(address);
     return NextResponse.json({ balance });
   } catch (e) {
     console.error("[/api/billing/balance] error:", e);
