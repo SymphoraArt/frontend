@@ -9,6 +9,8 @@
  */
 export function sessionAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
+  const email = localStorage.getItem("enki_session_token");
+  if (email) return { "X-Session-Token": email };
   const turnkey = localStorage.getItem("turnkey_session_token");
   if (turnkey) return { "X-Session-Token": turnkey };
   try {

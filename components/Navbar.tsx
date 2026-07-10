@@ -27,6 +27,7 @@ import { useState, useEffect, createContext, useContext, useRef } from "react";
 import { useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
 import { ChainSwitcher } from "./ChainSwitcher";
 import { WalletPickerModal } from "./WalletPickerModal";
+import { AuthModal } from "./AuthModal";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletInfo } from "@/hooks/useWalletInfo";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -98,6 +99,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { theme, setTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Falls back to the text wordmark if the logo asset is missing/broken.
   const [logoError, setLogoError] = useState(false);
@@ -473,7 +475,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     </DropdownMenuItem>
                   ) : (
                     <DropdownMenuItem
-                      onClick={() => setShowWalletPicker(true)}
+                      onClick={() => setShowAuth(true)}
                       className="focus:bg-[#c96838]/10 focus:text-[#c96838]"
                       style={{
                         padding: "10px 20px",
@@ -487,7 +489,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                         gap: 8,
                       }}
                     >
-                      <Wallet size={14} /> Connect Wallet
+                      <Wallet size={14} /> Sign in
                     </DropdownMenuItem>
                   )}
                 </div>
@@ -537,6 +539,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
           </div>
         </div>
       </header>
+      <AuthModal
+        open={showAuth}
+        onClose={() => setShowAuth(false)}
+        onWallet={() => setShowWalletPicker(true)}
+      />
       <WalletPickerModal open={showWalletPicker} onClose={() => setShowWalletPicker(false)} />
     </>
   );
