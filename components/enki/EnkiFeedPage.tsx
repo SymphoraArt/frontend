@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import EnkiCard from "@/components/enki/EnkiCard";
@@ -36,6 +36,49 @@ export default function EnkiFeedPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [open, setOpen] = useState<EnkiPrompt | null>(null);
   const { favs, toggleFav } = useLocalFavorites();
+
+  // OPEN counter: opening a prompt fires a fire-and-forget beacon; the server
+  // dedupes per viewer for 10 min and increments prompts.opens atomically.
+  useEffect(() => {
+    if (!open?.id) return;
+    fetch(`/api/prompts/${encodeURIComponent(open.id)}/view`, { method: "POST" }).catch(() => {});
+  }, [open?.id]);
+
+  // VIEW counter (timeline impressions): one IntersectionObserver watches every
+  // card; ids that became at least half visible are buffered and flushed as ONE
+  // batched call every 3s. A session-level set makes sure each prompt is sent
+  // at most once per visit (the server dedupes again on top).
+  const impressionSeen = useRef<Set<string>>(new Set());
+  const impressionBuffer = useRef<Set<string>>(new Set());
+  const impressionObserver = useRef<IntersectionObserver | null>(null);
+  useEffect(() => {
+    impressionObserver.current = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const pid = (e.target as HTMLElement).dataset.pid;
+          if (e.isIntersecting && pid && !impressionSeen.current.has(pid)) {
+            impressionSeen.current.add(pid);
+            impressionBuffer.current.add(pid);
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    const flush = setInterval(() => {
+      if (impressionBuffer.current.size === 0) return;
+      const ids = [...impressionBuffer.current];
+      impressionBuffer.current.clear();
+      fetch("/api/prompts/views-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      }).catch(() => {});
+    }, 3000);
+    return () => { impressionObserver.current?.disconnect(); clearInterval(flush); };
+  }, []);
+  const observeCard = useCallback((el: HTMLDivElement | null) => {
+    if (el) impressionObserver.current?.observe(el);
+  }, []);
 
   type Page = { prompts: unknown[]; hasMore: boolean; nextCursor?: string };
 
@@ -120,13 +163,14 @@ export default function EnkiFeedPage() {
         {visible.length > 0 ? (
           <section className="enki-masonry">
             {visible.map((prompt) => (
-              <EnkiCard
-                key={prompt.id}
-                prompt={prompt}
-                onOpen={setOpen}
-                faved={Boolean(favs[prompt.id])}
-                toggleFav={toggleFav}
-              />
+              <div key={prompt.id} data-pid={prompt.id} ref={observeCard} style={{ breakInside: "avoid" }}>
+                <EnkiCard
+                  prompt={prompt}
+                  onOpen={setOpen}
+                  faved={Boolean(favs[prompt.id])}
+                  toggleFav={toggleFav}
+                />
+              </div>
             ))}
             {/* Sentinel for infinite scroll */}
             <div ref={sentinelCallback} style={{ height: 1, breakInside: "avoid" }} />

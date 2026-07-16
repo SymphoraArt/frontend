@@ -18,12 +18,11 @@ export default function EnkiPanel({ title, onClose, children, full }: { title: s
   return (
     <div className={"ek-panel-scrim" + (full ? " ek-panel-scrim--full" : "")} onClick={onClose}>
       <aside className={"ek-panel" + (full ? " ek-panel--full" : "")} onClick={(e) => e.stopPropagation()}>
-        <div className="ek-panel-head">
-          <span className="ek-panel-title">{title}</span>
-          <button className="ek-panel-x" onClick={onClose} aria-label="Close">
-            <Icon name="x" size={18} stroke={2} />
-          </button>
-        </div>
+        {/* No title bar — each panel brings its own serif headline; a floating
+            X keeps the panel closable. */}
+        <button className="ek-panel-x ek-panel-x--float" onClick={onClose} aria-label={`Close ${title}`}>
+          <Icon name="x" size={18} stroke={2} />
+        </button>
         <div className="ek-panel-body">{children}</div>
       </aside>
     </div>

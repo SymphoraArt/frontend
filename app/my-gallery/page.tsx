@@ -12,6 +12,7 @@ import {
 } from "@/lib/creations";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { usePasskey } from "@/hooks/usePasskey";
 import { Images, Trash2, Wallet, Loader2, ImageOff } from "lucide-react";
 
 type SupabaseGeneration = {
@@ -31,6 +32,7 @@ export default function MyGalleryPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { stepUp } = usePasskey();
   const authenticated = !!account || solanaConnected || !!turnkeyAddress;
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const userKey = useMemo(
@@ -140,10 +142,18 @@ export default function MyGalleryPage() {
 
   const handleRemove = async (id: string) => {
     if (!userKey) return;
+    // Step-up 2FA (only prompts if the user enrolled a passkey; null otherwise).
+    // A cancelled/failed passkey check aborts the delete.
+    let stepUpToken: string | null;
+    try {
+      stepUpToken = await stepUp(`delete-work:${id}`);
+    } catch {
+      return;
+    }
     try {
       await fetch(`/api/generations/${encodeURIComponent(id)}`, {
         method: "DELETE",
-        headers: sessionAuthHeaders(),
+        headers: { ...sessionAuthHeaders(), ...(stepUpToken ? { "X-StepUp-Token": stepUpToken } : {}) },
       });
     } catch {
       // ignore

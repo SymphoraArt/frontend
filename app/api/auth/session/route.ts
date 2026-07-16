@@ -12,6 +12,7 @@ import { PublicKey } from "@solana/web3.js";
 import { ed25519 } from "@noble/curves/ed25519";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { whitelistStageActive, isWalletAllowed, grantGateCookie } from "@/lib/allowlist";
 import { APP_NAME } from "@/shared/app-config";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -111,6 +112,15 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseServerClient();
 
+  // Private-beta whitelist: only allow-listed wallets get in. Checked before
+  // the nonce is consumed so a turned-away wallet keeps its nonce.
+  if (whitelistStageActive() && !(await isWalletAllowed(supabase, normalizedWallet))) {
+    return NextResponse.json(
+      { error: "This wallet isn't on the access list yet. Request access to join.", notWhitelisted: true },
+      { status: 403 },
+    );
+  }
+
   // Consume the nonce (atomic — rejects replays)
   const { data: consumed, error: nonceError } = await supabase.rpc("consume_auth_nonce", {
     p_wallet_address: normalizedWallet,
@@ -159,7 +169,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sessionToken, expiresAt, walletAddress: normalizedWallet, walletType });
+  // Whitelisted login → grant app access (sets the gate cookie the proxy checks).
+  const res = NextResponse.json({ sessionToken, expiresAt, walletAddress: normalizedWallet, walletType });
+  return grantGateCookie(res);
 }
 
 export async function DELETE(req: NextRequest) {

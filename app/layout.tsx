@@ -14,7 +14,6 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "../providers";
-import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -170,7 +169,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${sora.variable} ${instrumentSerif.variable} ${playfairDisplay.variable} ${outfit.variable} ${cormorantGaramond.variable} ${dmSans.variable} ${fraunces.variable} antialiased`}
       >
         <Providers>
-          <Navbar />
+          {/* The old top-header Navbar is retired (Kev, 2026-07-12): the app
+              uses ONLY the left-side-menu shell (/home) for navigation. */}
           {children}
         </Providers>
       </body>

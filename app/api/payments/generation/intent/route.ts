@@ -68,11 +68,11 @@ export async function POST(req: NextRequest) {
   const { promptId, modelFamily, resolution } = parsed.data;
 
   const supabase = getSupabaseServerClient();
-  const quote = await computeQuote(supabase, parsed.data);
+  const quote = await computeQuote(supabase, { ...parsed.data, buyer: authUser.userId });
   if (!quote.ok) {
     return NextResponse.json({ error: quote.error }, { status: quote.status });
   }
-  const { artistWallet, split } = quote;
+  const { artistWallet, split, appliedRule } = quote;
 
   const expiresAt = new Date(
     Date.now() + PRICING_POLICY.quoteTtlSeconds * 1000,
@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       fee_base: PRICING_POLICY.feeBase,
       fee_mode: PRICING_POLICY.feeMode,
       expires_at: expiresAt,
+      applied_rule_id: appliedRule?.id ?? null,
     })
     .select("id")
     .single();
@@ -105,6 +106,10 @@ export async function POST(req: NextRequest) {
     console.error("[payments/intent] insert failed:", insertError?.message);
     return NextResponse.json({ error: "Failed to create payment intent" }, { status: 500 });
   }
+
+  // Free-use quotas are NOT counted here: they burn only when the generation
+  // is actually delivered — see fulfillGenerationIntent (Kev, 2026-07-12:
+  // cancellable queue; a cancelled generation must not consume a free use).
 
   return NextResponse.json({
     intent: {
@@ -116,6 +121,7 @@ export async function POST(req: NextRequest) {
       artistWallet,
       expiresAt,
       breakdown: splitToBreakdown(split),
+      appliedRule: appliedRule ? { name: appliedRule.name, effect: appliedRule.effect } : null,
     },
   });
 }

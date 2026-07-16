@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth } from "@/lib/auth";
+import { requireStepUp, resolveStableUserId } from "@/lib/webauthn";
+import { escapeLike } from "@/lib/db-escape";
 import { decryptPrompt } from "@/backend/encryption";
 import {
   updateGenerationSchema,
@@ -127,7 +129,9 @@ export async function PATCH(
       .from("generations")
       .update(updateData)
       .eq("id", id)
-      .ilike("user_id", ownerId)
+      // Ownership guard: case-insensitive but wildcard-escaped so a `_`/`%` can
+      // never widen the match (this ilike is the sole IDOR gate).
+      .ilike("user_id", escapeLike(ownerId))
       .select('id, status, updated_at, image_urls, error_message, completed_at')
       .maybeSingle();
 
@@ -172,11 +176,23 @@ export async function DELETE(
 
   try {
     const supabase = getSupabaseServerClient();
+
+    // Step-up 2FA for "delete work": enforced only if this user has enrolled a
+    // passkey (opt-in). Keyed by the stable users.id (only resolvable users can
+    // own a passkey); the scope is bound to THIS generation so one passkey tap
+    // can't authorize deleting others.
+    const stableId = await resolveStableUserId(supabase, ownerId);
+    if (stableId) {
+      const blocked = await requireStepUp(req, stableId, `delete-work:${id}`);
+      if (blocked) return blocked;
+    }
+
     const { error, count } = await supabase
       .from("generations")
       .delete({ count: "exact" })
       .eq("id", id)
-      .ilike("user_id", ownerId);
+      // Ownership guard: wildcard-escaped so `_`/`%` can't widen this delete.
+      .ilike("user_id", escapeLike(ownerId));
     if (error) throw error;
     if (count === 0) {
       return NextResponse.json({ error: "Generation not found" }, { status: 404 });

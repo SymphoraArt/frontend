@@ -130,11 +130,28 @@
 .nc-pbox{position:relative;border:1px solid var(--enki-rule);border-radius:10px;background:var(--enki-paper-2);overflow:hidden;}
 .nc-pbox:focus-within{border-color:var(--enki-ember);box-shadow:0 0 0 2px rgba(var(--ember-rgb),.1);}
 .nc-pov,.nc-pta{font-family:var(--font-serif),Georgia,serif;font-size:15px;line-height:1.5;letter-spacing:0;padding:11px 13px;font-weight:400;}
-.nc-pov{position:absolute;inset:0;color:var(--enki-ink);pointer-events:none;white-space:pre-wrap;word-wrap:break-word;overflow:hidden;}
-.nc-pta{position:relative;width:100%;min-height:150px;background:transparent;border:none;outline:none;resize:vertical;color:transparent;caret-color:var(--enki-ember);display:block;font-weight:400;}
-/* token must NOT change inline layout width (padding compensated by margin, no
-   bold) so the textarea caret stays perfectly aligned with the overlay text. */
-.nc-tok{border-radius:5px;padding:0 3px;margin:0 -3px;font-weight:400;}
+/* z-index 2: the overlay sits above the (transparent-text) textarea so the
+   variable chips can take pointer events; everything else falls through. */
+.nc-pov{position:absolute;inset:0;z-index:2;color:var(--enki-ink);pointer-events:none;white-space:pre-wrap;word-wrap:break-word;overflow:hidden;}
+.nc-pta{position:relative;z-index:1;width:100%;min-height:150px;background:transparent;border:none;outline:none;resize:vertical;color:transparent;caret-color:var(--enki-ember);display:block;font-weight:400;}
+/* token must NOT change inline layout width (no padding/margin, no bold) so
+   the textarea caret stays perfectly aligned with the overlay text. The chip
+   background is painted by an absolutely positioned ::before that is INSET a
+   few px — that's where the visible gap between neighbouring chips (and to
+   the surrounding text) comes from, with ZERO layout impact and no injected
+   spaces. Clickable: opens the in-place variable editor. */
+.nc-tok{position:relative;padding:0;margin:0;font-weight:400;pointer-events:auto;cursor:pointer;}
+/* Brackets keep their glyph space (textarea sync) but are invisible on chips —
+   they reappear as plain text once the variable is deleted. */
+.nc-tok-br{opacity:0;}
+.nc-tok::before{content:"";position:absolute;inset:1px 2.5px;border-radius:5px;background:var(--tok-bg);box-shadow:var(--tok-ring);z-index:-1;}
+.nc-tok:hover::before{filter:brightness(1.08) saturate(1.15);}
+/* While a chip is being dragged: no hover paint on the chips underneath —
+   only the textarea caret marks the drop spot. */
+.nc-pov.nc-dragging .nc-tok:hover::before{filter:none;}
+.nc-pov.nc-dragging .nc-tok{cursor:grabbing;}
+/* The chip that is being moved stays clearly marked at its origin. */
+.nc-tok.nc-tok-src::before{outline:2px solid var(--enki-ember);outline-offset:1.5px;filter:saturate(1.35) brightness(1.06);}
 .nc-tok.armed{outline:2px solid #e0584f;outline-offset:1px;}
 .nc-addrow{display:flex;gap:8px;margin-top:10px;}
 .nc-addbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:9px;border:1px dashed;background:transparent;font-size:12.5px;font-weight:600;transition:background .14s;}

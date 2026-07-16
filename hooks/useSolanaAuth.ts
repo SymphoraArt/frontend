@@ -70,8 +70,12 @@ async function createSessionFromSignedMessage(params: {
     body: JSON.stringify({ walletAddress, walletType: 'solana', signature, message, timestamp, nonce }),
   });
   if (!sessionRes.ok) {
-    const err = await sessionRes.json().catch(() => ({})) as { error?: string };
-    throw new Error(err.error || 'Session creation failed');
+    const err = await sessionRes.json().catch(() => ({})) as { error?: string; notWhitelisted?: boolean };
+    const e = new Error(err.error || 'Session creation failed') as Error & { notWhitelisted?: boolean };
+    // Surface the allowlist rejection so the UI can show "not allowed yet"
+    // instead of a generic failure.
+    if (sessionRes.status === 403 || err.notWhitelisted) e.notWhitelisted = true;
+    throw e;
   }
   const { sessionToken, expiresAt } = await sessionRes.json() as { sessionToken: string; expiresAt: string };
 
@@ -135,13 +139,17 @@ export async function createSolanaAuthSessionWithSignIn(
 
   const timestamp = Date.now();
   const issuedAt = new Date(timestamp).toISOString();
+  // No chainId: signing a login message proves wallet ownership and is
+  // network-agnostic. Pinning it to a cluster made wallets on a different
+  // network (e.g. mainnet vs the app's devnet) reject with "chain id doesn't
+  // match", blocking sign-in for no reason — the payment flow handles the
+  // network separately.
   const { signedMessage, signature: sigBytes } = await signIn({
     domain: window.location.host,
     address: walletAddress,
     statement: `Sign in to ${APP_NAME} Marketplace.`,
     uri: window.location.origin,
     version: '1',
-    chainId: 'solana:devnet',
     nonce,
     issuedAt,
   });

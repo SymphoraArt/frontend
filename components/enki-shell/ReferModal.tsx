@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Icon } from "./icons";
 import { addReferral, hasReferral } from "@/lib/referrals";
+import { PLATFORM_FEE_PCT, REFERRAL_SHARE_PCT } from "@/shared/revenue-config";
 
 interface ReferModalProps {
   onClose: () => void;
@@ -43,10 +44,19 @@ export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalPro
           <button className="ek-modal-x" onClick={onClose}><Icon name="x" size={17} stroke={2} /></button>
         </div>
         <div className="ek-modal-body">
-          <p style={{ fontSize: 13.5, color: "var(--enki-ink-3)", marginBottom: 16, lineHeight: 1.55 }}>
+          <p style={{ fontSize: 13.5, color: "var(--enki-ink-3)", marginBottom: 10, lineHeight: 1.55 }}>
             Found a great AI image or prompt out in the wild? Drop the social link — our team reviews it and,
             if it&apos;s a fit, recreates it as a referrable prompt and credits you.
           </p>
+          <p style={{ fontSize: 13.5, color: "var(--enki-ink)", fontWeight: 600, marginBottom: 16, lineHeight: 1.55 }}>
+            If it goes live, we split our cut with you: you get {REFERRAL_SHARE_PCT}% of Enki&apos;s{" "}
+            {PLATFORM_FEE_PCT}% fee on every sale of that prompt.
+          </p>
+          {!userKey && (
+            <p style={{ fontSize: 12.5, color: "var(--enki-ember, #c96838)", fontWeight: 600, marginBottom: 16, lineHeight: 1.5 }}>
+              Heads up: only signed-in users get the revenue split. Sign in before you submit, so we know who to pay.
+            </p>
+          )}
           <span className="ek-ed-lab">Social media link</span>
           <div className={"ek-refer-input" + (url && !valid ? " err" : "")}>
             <Icon name="link" size={16} stroke={2} style={{ color: "var(--enki-ink-3)", flexShrink: 0 }} />

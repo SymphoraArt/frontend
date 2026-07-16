@@ -12,6 +12,9 @@ export interface NavItem {
   badge?: number;
 }
 
+/* Sidebar shows at most 10 characters of the name — the row stays tidy. */
+const clip10 = (s: string) => (s.length > 10 ? s.slice(0, 10) + "…" : s);
+
 const THEME_OPTS: { id: ThemeId; name: string; sw: string }[] = [
   { id: "light", name: "Bright", sw: "linear-gradient(135deg,#faf8f4,#e8e2d6)" },
   { id: "dark", name: "Dark", sw: "linear-gradient(135deg,#0a1825,#16303f)" },
@@ -27,19 +30,20 @@ interface SidebarProps {
   onCreate2: () => void;
   nodeActive?: boolean;
   onRefer: () => void;
-  account: { name: string; handle: string; initials: string };
+  account: { name: string; handle: string; initials: string; avatarUrl?: string | null };
   onToggleCollapse: () => void;
   collapsed: boolean;
   balance: number;
   onProfile: () => void;
   onTopUp: () => void;
+  onLogoff?: () => void;
   theme: ThemeId;
   setTheme: (t: ThemeId) => void;
 }
 
 export default function EnkiSidebar({
   nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer,
-  account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, theme, setTheme,
+  account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, onLogoff, theme, setTheme,
 }: SidebarProps) {
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
@@ -131,17 +135,36 @@ export default function EnkiSidebar({
       <div className="ek-side-spacer" />
 
       <div className="ek-account" role="button" onClick={onProfile} title="View profile">
-        <span className="ek-avatar">{account.initials}</span>
+        <span className="ek-avatar">
+          {account.avatarUrl
+            ? /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={account.avatarUrl} alt="" />
+            : account.initials}
+        </span>
         {!rail && (
-          <span className="ek-account-info">
-            <span className="ek-account-nrow">
-              <span className="ek-account-nametext">{account.name}</span>
+          <>
+            <span className="ek-account-info">
+              <span className="ek-account-nametext">{clip10(account.name)}</span>
+              <span className="ek-account-handle">@{clip10(account.handle)}</span>
+            </span>
+            {/* money + log off stacked at the far right — long names stay clear */}
+            <span className="ek-account-side">
               <span className="ek-balance" onClick={(e) => { e.stopPropagation(); onTopUp(); }} title="Add funds">
                 <Icon name="dollar" size={11} stroke={2.4} />{balance.toFixed(2)}
               </span>
+              {onLogoff && (
+                <button
+                  className="ek-logoff"
+                  type="button"
+                  title="Log off"
+                  aria-label="Log off"
+                  onClick={(e) => { e.stopPropagation(); onLogoff(); }}
+                >
+                  <Icon name="logout" size={13} stroke={2.2} />
+                </button>
+              )}
             </span>
-            <span className="ek-account-handle">@{account.handle}</span>
-          </span>
+          </>
         )}
       </div>
     </aside>

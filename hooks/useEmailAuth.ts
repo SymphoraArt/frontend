@@ -48,8 +48,8 @@ export function useEmailAuth() {
     store(await post("/api/auth/password/register", { email: e, password }));
   }, []);
 
-  const login = useCallback(async (e: string, password: string) => {
-    store(await post("/api/auth/password/login", { email: e, password }));
+  const login = useCallback(async (identifier: string, password: string) => {
+    store(await post("/api/auth/password/login", { identifier, password }));
   }, []);
 
   const forgot = useCallback(async (e: string) => {
@@ -63,6 +63,12 @@ export function useEmailAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(EMAIL_KEY);
+    // Kill the Dynamic SDK session too: its runtime unmounts on logout (lazy
+    // mount, see providers), so it can't log itself out — clearing its storage
+    // keeps wallet sessions from leaking into the next account's login.
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("dynamic_"))
+      .forEach((k) => localStorage.removeItem(k));
     window.dispatchEvent(new Event(EVENT));
   }, []);
 

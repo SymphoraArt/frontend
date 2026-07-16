@@ -35,16 +35,30 @@ export async function POST(req: NextRequest) {
   }
 
   const { hash, salt } = hashPassword(parsed.data.password);
-  const { error } = await supabase
-    .from("users")
-    .update({ pw_hash: hash, pw_salt: salt })
-    .eq("id", row.user_id);
+  const { data: updated, error } = await supabase
+    .from("password_credentials")
+    .update({ pw_hash: hash, pw_salt: salt, updated_at: new Date().toISOString() })
+    .eq("user_id", row.user_id)
+    .select("email")
+    .single();
   if (error) {
     console.error("[auth/reset] update failed:", error.message);
     return NextResponse.json({ error: "Could not reset password" }, { status: 500 });
   }
   await supabase.from("password_reset_tokens").delete().eq("token", row.token);
 
+  // Evict every existing session for this user — a reset must lock out anyone
+  // (e.g. a phished session) who was already in. Sessions key on the users.id
+  // bridge before a wallet is attached and on the wallet address after, so
+  // collect both.
+  const { data: wallets } = await supabase
+    .from("user_wallets")
+    .select("address")
+    .eq("user_id", row.user_id)
+    .is("removed_at", null);
+  const keys = [row.user_id, ...(wallets ?? []).map((w) => w.address)];
+  await supabase.from("auth_sessions").delete().in("wallet_address", keys);
+
   const session = await mintUserSession(row.user_id);
-  return NextResponse.json(session);
+  return NextResponse.json({ email: updated?.email ?? undefined, ...session });
 }

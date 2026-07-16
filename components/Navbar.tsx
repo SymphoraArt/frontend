@@ -35,6 +35,7 @@ import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useHoldings } from "@/hooks/useHoldings";
 import { useTheme } from "../providers/ThemeProvider";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useEmailAuth } from "@/hooks/useEmailAuth";
 
 interface NavbarProps {
   username?: string;
@@ -92,6 +93,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
   const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress, logout: solanaSessionLogout } = useSolanaAuth();
   const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
+  const { email: authEmail, isAuthed: emailAuthed, logout: emailLogout } = useEmailAuth();
   // Same key as the billing recipient so the navbar shows the balance that
   // top-ups credit (see BillingPanel / useHoldings).
   const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
@@ -106,7 +108,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const evmAuthenticated = !!account && walletInfo.isConnected;
   // Solana는 서명까지 끝나야(=session active) 인증으로 본다. 단순 connect 상태로는
   // 인증된 것처럼 표시하지 않는다 (premature-login 버그 방지).
-  const authenticated = evmAuthenticated || solanaSessionActive || !!turnkeyAddress;
+  const authenticated = evmAuthenticated || solanaSessionActive || !!turnkeyAddress || emailAuthed;
   const router = useRouter();
   const { toast } = useToast();
   const pathname = usePathname();
@@ -123,6 +125,11 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
   const walletAddress = walletInfo.address ?? solanaSessionAddress ?? turnkeyAddress ?? (solanaSessionActive ? solanaPublicKey?.toBase58() ?? null : null);
+  // Email session with no wallet attached yet (Dynamic provisions one later).
+  const emailOnly = emailAuthed && !walletAddress;
+  const avatarLabel = walletAddress
+    ? (walletAddress.startsWith("0x") ? walletAddress.slice(2, 4) : walletAddress.slice(0, 2)).toUpperCase()
+    : emailOnly && authEmail ? authEmail.slice(0, 2).toUpperCase() : null;
   const { isMobile, isTablet, isDesktop } = useBreakpoint();
   // Purple is a dark variant, so "dark styling" applies to both.
   const isDark = themeReady && theme !== "light";
@@ -173,7 +180,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
         <div style={{ padding: isMobile ? "0 12px" : "0 8px 0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
           
 
-          <div onClick={() => router.push("/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
+          {/* Logged-in users go home; the landing page is only reachable by
+              typing the root URL manually. */}
+          <div onClick={() => router.push(authenticated ? "/home" : "/")} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0, zIndex: 2 }}>
             {/* Transparent-background logo (no font, no bg). Drop the asset at
                 public/enki-art-logo.png. Falls back to the wordmark if missing. */}
             {!logoError ? (
@@ -380,9 +389,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     fontFamily: "monospace", letterSpacing: "0.5px",
                     marginLeft: 4,
                   }}>
-                    {authenticated && walletAddress
-                      ? (walletAddress.startsWith("0x") ? walletAddress.slice(2, 4) : walletAddress.slice(0, 2)).toUpperCase()
-                      : <User size={16} />}
+                    {avatarLabel ?? <User size={16} />}
                   </button>
                 )}
               </DropdownMenuTrigger>
@@ -403,9 +410,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 14, fontWeight: 500, fontFamily: "var(--font-instrument-serif), serif", fontStyle: "italic"
                   }}>
-                    {walletAddress
-                      ? (walletAddress.startsWith("0x") ? walletAddress.slice(2, 4) : walletAddress.slice(0, 2)).toUpperCase()
-                      : <User size={16} />}
+                    {avatarLabel ?? <User size={16} />}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>
@@ -414,7 +419,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                     <div className="mono" style={{ fontSize: 10, color: isDark ? "#7d8a8c" : "#6b665e", marginTop: 2 }}>
                       {walletAddress
                         ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
-                        : "Not connected"}
+                        : emailOnly && authEmail ? authEmail : "Not connected"}
                     </div>
                   </div>
                 </div>
@@ -447,7 +452,9 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                   {authenticated ? (
                     <DropdownMenuItem
                       onClick={async () => {
+                        if (emailAuthed) emailLogout();
                         try {
+                          if (emailOnly) { toast({ title: "Signed out" }); return; }
                           if (turnkeyAddress) { clearTurnkeyAuth(); toast({ title: "Signed out" }); return; }
                           if (solanaConnected || solanaSessionActive) {
                             await solanaSessionLogout().catch(() => {});

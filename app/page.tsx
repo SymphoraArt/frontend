@@ -36,8 +36,9 @@ export default function HomePage() {
     };
   }, []);
 
-  // The landing (inside the iframe) hands off "Connect wallet" to the app
-  // shell's Turnkey wallet UI instead of navigating away, so the user stays put.
+  // The landing (inside the iframe) has its own email/password login. Its
+  // "Continue with Wallet" button postMessages enki-open-wallet; the app shell
+  // opens the external-wallet picker (the wallet list) so the user stays put.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.source !== iframeRef.current?.contentWindow) return;
@@ -47,6 +48,17 @@ export default function HomePage() {
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  // ESC pressed while focus sits in THIS window (not the landing iframe) —
+  // forward it so the auth modal steps back / closes like a local ESC.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      iframeRef.current?.contentWindow?.postMessage({ type: "enki-esc" }, "*");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (

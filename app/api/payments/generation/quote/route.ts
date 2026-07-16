@@ -27,14 +27,8 @@ import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
-import {
-  PRICING_POLICY,
-  UnknownModelError,
-  computeGenerationSplit,
-  getModelCostMicro,
-  splitToBreakdown,
-  usdToMicro,
-} from "@/lib/payments/generation-pricing";
+import { PRICING_POLICY, splitToBreakdown } from "@/lib/payments/generation-pricing";
+import { computeQuote } from "@/lib/payments/generation-quote";
 
 const quoteSchema = z.object({
   promptId: z.string().min(1).max(128),
@@ -76,77 +70,14 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseServerClient();
 
-  // 1. Prompt price comes from the DB — never from the client.
-  const { data: prompt, error: promptError } = await supabase
-    .from("prompts")
-    .select("id, price, user_id, prompt_type, is_free_showcase")
-    .eq("id", promptId)
-    .maybeSingle();
-  if (promptError) {
-    console.error("[payments/quote] prompt lookup failed:", promptError.message);
-    return NextResponse.json({ error: "Failed to load prompt" }, { status: 500 });
+  // Shared with the intent route (lib/payments/generation-quote.ts) so the two
+  // paths can never drift apart — including DB pricing rules (discounts).
+  const quote = await computeQuote(supabase, { ...parsed.data, buyer: authUser.userId });
+  if (!quote.ok) {
+    return NextResponse.json({ error: quote.error }, { status: quote.status });
   }
-  if (!prompt) {
-    return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
-  }
+  const { artistWallet, split, appliedRule } = quote;
 
-  const isFree =
-    prompt.prompt_type === "showcase" ||
-    prompt.prompt_type === "free-prompt" ||
-    prompt.is_free_showcase === true;
-  const promptPriceUsd = typeof prompt.price === "number" ? prompt.price : 0;
-  const artistPriceMicro = isFree ? 0 : usdToMicro(promptPriceUsd);
-
-  // 2. Model cost comes from server-side pricing — never from the client.
-  let modelCostMicro: number;
-  try {
-    modelCostMicro = getModelCostMicro(modelFamily, resolution);
-  } catch (error) {
-    if (error instanceof UnknownModelError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-    throw error;
-  }
-
-  // 3. Artist payout wallet comes from the DB — never from the client.
-  //    Paid prompts without a configured artist wallet cannot be quoted:
-  //    the split has nowhere to send the artist share.
-  let artistWallet: string | null = null;
-  if (artistPriceMicro > 0) {
-    if (!prompt.user_id) {
-      return NextResponse.json(
-        { error: "Prompt has no associated creator" },
-        { status: 422 },
-      );
-    }
-    const { data: creator, error: creatorError } = await supabase
-      .from("users")
-      .select("wallet_address")
-      .eq("id", prompt.user_id)
-      .maybeSingle();
-    if (creatorError) {
-      console.error("[payments/quote] creator lookup failed:", creatorError.message);
-      return NextResponse.json({ error: "Failed to load creator" }, { status: 500 });
-    }
-    artistWallet = creator?.wallet_address ?? null;
-    if (!artistWallet || artistWallet === "legacy-unbound") {
-      return NextResponse.json(
-        { error: "Artist payout wallet not configured for this prompt" },
-        { status: 422 },
-      );
-    }
-    // A base58 Solana address of wallet length always contains uppercase
-    // characters; an all-lowercase non-EVM value is a legacy lowercased row
-    // whose original case is lost — never quote it as a payout destination.
-    if (!artistWallet.startsWith("0x") && artistWallet === artistWallet.toLowerCase()) {
-      return NextResponse.json(
-        { error: "Artist payout wallet is corrupted; the artist must re-link their wallet" },
-        { status: 422 },
-      );
-    }
-  }
-
-  const split = computeGenerationSplit(artistPriceMicro, modelCostMicro);
   const expiresAt = new Date(
     Date.now() + PRICING_POLICY.quoteTtlSeconds * 1000,
   ).toISOString();
@@ -160,6 +91,7 @@ export async function POST(req: NextRequest) {
       artistWallet,
       expiresAt,
       breakdown: splitToBreakdown(split),
+      appliedRule: appliedRule ? { name: appliedRule.name, effect: appliedRule.effect } : null,
     },
   });
 }

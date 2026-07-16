@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
 import { Icon } from "./icons";
 import { generateNanoBanana, persistCreation, placeholderArt } from "./generation";
+import { useModelLimits } from "@/hooks/useModelLimits";
 
 /* ── constants ── */
 const NC_MODELS = [
@@ -20,6 +21,14 @@ const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
 const CATEGORIES = ["Portrait", "Character", "Cinematic", "Architecture", "Abstract", "Product", "Minimal", "Editorial"];
 
 const REF_COLOR = { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" };
+// Reference-image chips get their own DISTINCT pastel family (greens/mint) so
+// they read differently from text-variable chips at a glance.
+const REF_PALETTE = [
+  { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" },
+  { bg: "#EDF9E4", text: "#3A5C1F", border: "#6aa832", dot: "#6aa832" },
+  { bg: "#E4F6EF", text: "#1F5C4A", border: "#2a9a78", dot: "#2a9a78" },
+  { bg: "#F0F9E9", text: "#44551E", border: "#8aa440", dot: "#8aa440" },
+];
 const TEXT_PALETTE = [
   { bg: "#F3E8FD", text: "#4A2E6E", border: "#8e44ad", dot: "#8e44ad" },
   { bg: "#FDF6E8", text: "#6E4A1E", border: "#c96838", dot: "#c96838" },
@@ -208,7 +217,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       return {
         title: String(ep.title || ""), mode: (ep.price ?? 0) > 0 ? "premium" : "free",
         models: ["nano-banana-pro"], cat: "", ratio: "Any", quality: "2K",
-        price: typeof ep.price === "number" ? ep.price : 0.1, body: String(ep.promptTemplate || ""),
+        price: typeof ep.price === "number" ? ep.price : 0.1,
+        body: String(ep.promptTemplate || ""),
         cons: [], conSeq: 0, genCount: 4, nodes,
       };
     }
@@ -221,6 +231,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   const [st, setSt] = useState<St>(initial);
   const stRef = useRef(st); stRef.current = st;
+  // Per-model limits (max reference images, allowed filetypes) from the DB.
+  const modelLimits = useModelLimits(st.models[0]);
   const hist = useRef<{ past: St[]; future: St[] }>({ past: [], future: [] });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -238,6 +250,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const spaceRef = useRef(false);
   const [armed, setArmed] = useState<string | null>(null);
+  // In-place variable editor: clicking a [token] chip in the prompt opens a
+  // small popover right beside it (left when space allows) with that
+  // variable's value — no hunting for the input node on the canvas.
+  const [tokEdit, setTokEdit] = useState<{ name: string; rect: { left: number; right: number; top: number; bottom: number } } | null>(null);
+  const tokEditRef = useRef(false); tokEditRef.current = !!tokEdit;
   const [ctx, setCtx] = useState<{ x: number; y: number; wx: number; wy: number } | null>(null);
   const [dropOn, setDropOn] = useState(false);
   const [pulseId, setPulseId] = useState<string | null>(null);
@@ -345,9 +362,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       onToast("Prompt exported as JSON");
     } catch { onToast("Couldn't export this prompt"); }
   };
-  const applyImportJSON = (raw: unknown) => {
+  const applyImportJSON = (raw: unknown, silent = false) => {
     const data = raw as { format?: string; title?: string; prompt?: string; nodes?: unknown[]; settings?: Record<string, unknown>; constellations?: unknown[]; conSeq?: number; view?: { pan?: { x: number; y: number }; zoom?: number } };
-    if (!data || data.format !== "enki-prompt-graph" || !Array.isArray(data.nodes)) { onToast("Not a valid Enki prompt JSON file"); return; }
+    if (!data || data.format !== "enki-prompt-graph" || !Array.isArray(data.nodes)) { if (!silent) onToast("Not a valid Enki prompt JSON file"); return; }
     const nodes: NodeT[] = data.nodes.map((raw2) => {
       const o = raw2 as Record<string, unknown>;
       const n: NodeT = { id: String(o.id), type: NTYPE_IN[String(o.type)] || (o.type as NodeT["type"]) };
@@ -367,9 +384,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       if (o.widgets_values != null) n.vals = o.widgets_values as Record<string, string>;
       return n;
     });
-    if (!nodes.some((n) => n.type === "prompt")) { onToast("That JSON has no prompt node — can't import"); return; }
+    if (!nodes.some((n) => n.type === "prompt")) { if (!silent) onToast("That JSON has no prompt node — can't import"); return; }
     const s = data.settings || {};
-    pushHist();
+    if (!silent) pushHist();
     setSt((p) => ({
       ...p,
       title: typeof data.title === "string" ? data.title : "",
@@ -390,8 +407,44 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     nodes.forEach((n) => { const m = /(\d+)$/.exec(n.id || ""); if (m) maxN = Math.max(maxN, parseInt(m[1], 10) + 1); });
     NID = maxN;
     if (data.view) { if (data.view.pan) setPan(data.view.pan); if (typeof data.view.zoom === "number") setZoom(Math.min(1, Math.max(0.3, data.view.zoom))); }
-    onToast("Prompt imported from JSON");
+    if (!silent) onToast("Prompt imported from JSON");
   };
+
+  /* ── Browser draft + ESC close flow ──
+     ESC on a neutral canvas (nothing mid-drag/open) asks save-or-discard when
+     there's content. Save keeps the whole graph in localStorage and it's
+     restored the next time Create Prompt 2 opens fresh. */
+  const DRAFT_KEY = "enki-node-creator-draft";
+  const [closeConfirm, setCloseConfirm] = useState(false);
+  const closeConfirmRef = useRef(false); closeConfirmRef.current = closeConfirm;
+  const isDirty = () => {
+    const s = stRef.current;
+    return !!(s.title.trim() || s.body.trim() || (s.cons?.length ?? 0) > 0 || s.nodes.length > 1);
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } };
+  const requestClose = () => {
+    if (!isDirty()) { clearDraft(); onClose(); return; }
+    setCloseConfirm(true);
+  };
+  const saveDraftAndClose = () => {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(buildExportJSON())); } catch { /* quota — draft too big */ }
+    setCloseConfirm(false);
+    onToast("Draft saved — it'll be restored when you come back");
+    onClose();
+  };
+  const discardAndClose = () => { clearDraft(); setCloseConfirm(false); onClose(); };
+
+  // Restore a saved draft when opening fresh (not when editing a released prompt).
+  useEffect(() => {
+    if (editPrompt) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      applyImportJSON(JSON.parse(raw), true);
+      onToast("Restored your saved draft");
+    } catch { clearDraft(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const importPrompt = () => { setMenuOpen(false); fileRef.current?.click(); };
   const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; e.target.value = "";
@@ -404,25 +457,35 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // ESC returns the canvas to a neutral state — it cancels whatever is in
-        // progress (drag / connect / marquee / context menu) and clears the
-        // selection. It never closes the editor; use the × button for that.
-        if (drag.current) {
-          drag.current = null;
-          document.body.style.userSelect = "";
-          window.removeEventListener("pointermove", onPointerMove);
-          window.removeEventListener("pointerup", endDrag);
+        // The in-place variable editor is open → ESC just closes it.
+        if (tokEditRef.current) { setTokEdit(null); return; }
+        // The save/discard dialog is open → ESC just dismisses it (keep editing).
+        if (closeConfirmRef.current) { setCloseConfirm(false); return; }
+        // Something in progress (drag / connect / marquee / menu / selection)?
+        // → ESC cancels it and returns the canvas to a neutral state.
+        const busy = !!drag.current || rightPan.current.active || escBusyRef.current
+          || !!ctx || !!selRef.current || !!selRowRef.current || selSetRef.current.size > 0;
+        if (busy) {
+          if (drag.current) {
+            drag.current = null;
+            document.body.style.userSelect = "";
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", endDrag);
+          }
+          rightPan.current.active = false;
+          setConnectLine(null);
+          setMarquee(null);
+          setMenuOpen(false);
+          setModelOpen(false);
+          setGenPanelOpen(false);
+          setRefMax(null);
+          setGenConfirm(null);
+          if (ctx) setCtx(null);
+          setSel(null); setSelRow(null); setSelSet(new Set());
+          return;
         }
-        rightPan.current.active = false;
-        setConnectLine(null);
-        setMarquee(null);
-        setMenuOpen(false);
-        setModelOpen(false);
-        setGenPanelOpen(false);
-        setRefMax(null);
-        setGenConfirm(null);
-        if (ctx) setCtx(null);
-        setSel(null); setSelRow(null); setSelSet(new Set());
+        // Neutral canvas → leave. Asks save-or-discard when there's content.
+        requestClose();
         return;
       }
       const meta = e.ctrlKey || e.metaKey;
@@ -491,6 +554,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
+
+  /* While the editor is open, unconsumed HORIZONTAL wheel deltas anywhere on
+     the page (sidebar, toolbar, prompt column — not just the canvas) feed the
+     browser's back/forward swipe gesture: a node drag with a second finger on
+     the trackpad moved for a moment, then the "go back" bubble appeared.
+     overscroll-behavior alone didn't stop it, so the deltas are consumed here. */
+  useEffect(() => {
+    const stopNavSwipe = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
+    };
+    window.addEventListener("wheel", stopNavSwipe, { passive: false });
+    return () => window.removeEventListener("wheel", stopNavSwipe);
+  }, []);
   // Smooth, animated zoom toward a target level (cursor/center-anchored). The
   // % readout follows the animation frame-by-frame, so it ramps up/down too.
   const tweenZoom = (target: number) => {
@@ -557,6 +633,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const refOverlap = Math.round(refStep - REF_CARD); // marginLeft for cards after the first (negative = overlap)
   const texts = st.nodes.filter((n) => n.type === "text") as TextNode[];
   const pubNames = new Set(texts.filter((t) => t.pub).map((t) => t.name)); // user-input vars → turquoise
+  // Chips render ONLY for tokens with a live backing node (text var by name,
+  // ref by index); orphaned tokens fall back to plain [bracketed] text.
+  const liveTokNames = new Set(texts.map((t) => t.name));
+  const liveRefCount = st.nodes.filter((n) => n.type === "ref").length;
   const outs = st.nodes.filter((n) => n.type === "output");
   // Can only generate once there's an actual prompt and every text var has a value.
   // Only a prompt is required to generate — unfilled variables just resolve to empty.
@@ -634,28 +714,50 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st.nodes]);
   const colorForTok = (tok: string) => {
-    if (isRefTok(tok)) return REF_COLOR;
+    if (isRefTok(tok)) {
+      const n = parseInt(tok.replace(/\D/g, ""), 10) || 1;
+      return REF_PALETTE[(n - 1) % REF_PALETTE.length];
+    }
     return textColor[tok.slice(1, -1)] || TEXT_PALETTE[0];
   };
 
   /* ── mutations ── */
   // Reference images live inside the prompt node as a reorderable deck (no canvas nodes).
   const refDrag = useRef<number | null>(null); // deck reorder: dragged card index
-  const addRef = (img: string | null = null) => commit((p) => ({
-    ...p, nodes: [...p.nodes, { id: nid("r"), type: "ref", img: img ?? null, userInput: false }],
-  }));
+  const addRef = (img: string | null = null) => commit((p) => {
+    const n = p.nodes.filter((x) => x.type === "ref").length + 1;
+    return {
+      ...p,
+      nodes: [...p.nodes, { id: nid("r"), type: "ref", img: img ?? null, userInput: false }],
+      // Every reference image is also listed in the prompt as its own token.
+      body: p.body.replace(/\s*$/, "") + (p.body.trim() ? " " : "") + "[Reference Image " + n + "]",
+    };
+  });
   const moveRef = (from: number, to: number) => commit((p) => {
     const refs = p.nodes.filter((n) => n.type === "ref");
     if (from === to || from < 0 || to < 0 || from >= refs.length || to >= refs.length) return p;
     const order = refs.slice(); const [m] = order.splice(from, 1); order.splice(to, 0, m);
-    return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order] };
+    // Tokens in the prompt follow their IMAGE through the reorder: old index →
+    // new index, swapped via temp markers so replacements can't collide.
+    let body = p.body;
+    order.forEach((r, newIdx) => {
+      const oldIdx = refs.findIndex((x) => x.id === r.id) + 1;
+      body = body.split("[Reference Image " + oldIdx + "]").join("[[REF_TMP_" + (newIdx + 1) + "]]");
+    });
+    order.forEach((_, newIdx) => {
+      body = body.split("[[REF_TMP_" + (newIdx + 1) + "]]").join("[Reference Image " + (newIdx + 1) + "]");
+    });
+    return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order], body };
   });
   const toggleRefUserInput = (id: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, userInput: !n.userInput } : n)) }));
-  const addText = (atPos?: { x: number; y: number }) => commit((p) => {
+  const addText = (atPos?: { x: number; y: number }, presetName?: string) => commit((p) => {
     const existing = p.nodes.filter((n) => n.type === "text");
     const k = existing.length + 1;
-    let name = "var_" + k; const used = new Set(existing.map((n) => n.name));
-    let kk = k; while (used.has(name)) { kk++; name = "var_" + kk; }
+    const used = new Set(existing.map((n) => n.name));
+    // presetName: the in-place token editor spawns the node for an already
+    // typed [token], so the node must carry exactly that name.
+    let name = presetName ?? "var_" + k;
+    if (!presetName) { let kk = k; while (used.has(name)) { kk++; name = "var_" + kk; } }
     const base = p.nodes.find((n) => n.id === "prompt")!;
     const d = NODE_DIM.text;
     // Drag-release drops it exactly there; otherwise text inputs stack
@@ -669,9 +771,153 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       y = existing.length ? Math.max(...existing.map((n) => n.y || 0)) + d.h + 14 : (base.y || 0);
     }
     const node: NodeT = { id: nid("t"), type: "text", x, y, name, kind: "text", pub: true, value: "" };
-    return { ...p, nodes: [...p.nodes, node], body: p.body.replace(/\s*$/, "") + " [" + name + "]" };
+    // A preset-named node backs an already TYPED token — don't append it again.
+    const tokenAlready = !!presetName && p.body.includes("[" + name + "]");
+    return { ...p, nodes: [...p.nodes, node], body: tokenAlready ? p.body : p.body.replace(/\s*$/, "") + " [" + name + "]" };
   });
   const allFilled = () => stRef.current.nodes.filter((n) => n.type === "text").every((t) => t.kind === "bool" || (t.value && t.value.trim()));
+
+  /* ── Chip drag & drop inside the prompt text ──
+     Click = open the in-place editor; drag (>6px) = move the token to a new
+     spot in the text. While dragging, the TEXTAREA CARET follows the pointer
+     (the drop position is always visible), and on drop the caret lands right
+     after the moved token. Works for text vars AND reference-image chips. */
+  const caretOffsetFromPoint = (x: number, y: number): number | null => {
+    const ov = ovRef.current; if (!ov) return null;
+    const doc = ov.ownerDocument as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    };
+    let node: Node | null = null, off = 0;
+    if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    else if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
+    if (!node || !ov.contains(node)) return null;
+    // Element hit (line gap): treat offset as child index → count text before it.
+    if (node.nodeType !== Node.TEXT_NODE) {
+      const el = node as Element;
+      node = el.childNodes[Math.min(off, el.childNodes.length - 1)] ?? el;
+      off = 0;
+    }
+    let total = 0;
+    const walker = doc.createTreeWalker(ov, NodeFilter.SHOW_TEXT);
+    let cur: Node | null;
+    while ((cur = walker.nextNode())) {
+      if (cur === node) return Math.min(total + off, stRef.current.body.length);
+      if (node.nodeType !== Node.TEXT_NODE && (node as Node).contains?.(cur)) return Math.min(total, stRef.current.body.length);
+      total += (cur.textContent || "").length;
+    }
+    return Math.min(total, stRef.current.body.length);
+  };
+
+  /** A drop must never land INSIDE another token — snap to the nearer edge. */
+  const snapOutsideTokens = (off: number): number => {
+    const body = stRef.current.body;
+    const re = new RegExp(TOKEN_RE.source, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) {
+      const s = m.index, e = s + m[0].length;
+      if (off > s && off < e) return off - s < e - off ? s : e;
+    }
+    return off;
+  };
+
+  /** The render-time offset can be stale (fast successive drags land before a
+      re-render). Re-locate the dragged token in the LIVE body — exact slice
+      match first, else the occurrence nearest the remembered position. A
+      splice must never run on guessed offsets: that's how brackets of OTHER
+      tokens got cut and chips fell apart. */
+  const locateTok = (part: string, near: number): number | null => {
+    const body = stRef.current.body;
+    if (body.slice(near, near + part.length) === part) return near;
+    let best: number | null = null;
+    for (let i = body.indexOf(part); i !== -1; i = body.indexOf(part, i + 1)) {
+      if (best === null || Math.abs(i - near) < Math.abs(best - near)) best = i;
+    }
+    return best;
+  };
+
+  const tokDrag = useRef<{ started: boolean } | null>(null);
+  const beginTokPointer = (part: string, renderStart: number, e: React.PointerEvent<HTMLElement>) => {
+    e.stopPropagation(); e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    const sx = e.clientX, sy = e.clientY;
+    let ghost: HTMLElement | null = null;
+    tokDrag.current = { started: false };
+    const ov = ovRef.current;
+    const onMove = (ev: PointerEvent) => {
+      const d = tokDrag.current; if (!d) return;
+      if (!d.started) {
+        if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 6) return;
+        d.started = true;
+        if (ov) {
+          ov.style.pointerEvents = "auto"; // caret hit-testing everywhere
+          ov.classList.add("nc-dragging"); // suppress hover paint on other chips
+        }
+        el.classList.add("nc-tok-src"); // highlight WHICH chip is being moved
+        ghost = el.cloneNode(true) as HTMLElement;
+        ghost.style.cssText += ";position:fixed;z-index:2000;pointer-events:none;opacity:.9;";
+        document.body.appendChild(ghost);
+      }
+      if (ghost) { ghost.style.left = ev.clientX + 10 + "px"; ghost.style.top = ev.clientY + 12 + "px"; }
+      const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
+      if (off != null) {
+        const snapped = snapOutsideTokens(off);
+        const ta = taRef.current;
+        if (ta) { ta.focus(); ta.setSelectionRange(snapped, snapped); } // caret follows the drag
+      }
+    };
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const d = tokDrag.current; tokDrag.current = null;
+      ghost?.remove();
+      el.classList.remove("nc-tok-src");
+      if (ov) { ov.style.pointerEvents = ""; ov.classList.remove("nc-dragging"); }
+      if (!d) return;
+      if (!d.started) {
+        // plain click: text vars open the editor; ref chips have nothing to edit
+        if (!isRefTok(part)) openTokEdit(part, el);
+        return;
+      }
+      const start = locateTok(part, renderStart);
+      if (start === null) return; // token vanished — never splice blindly
+      const end = start + part.length;
+      const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
+      if (off == null) return;
+      const target = snapOutsideTokens(off);
+      if (target >= start && target <= end) return; // dropped onto itself
+      pushHist();
+      const adjusted = target > end ? target - (end - start) : target;
+      setSt((p) => {
+        // Guard again inside the updater — p.body is the source of truth.
+        if (p.body.slice(start, end) !== part) return p;
+        const without = p.body.slice(0, start) + p.body.slice(end);
+        return { ...p, body: without.slice(0, adjusted) + part + without.slice(adjusted) };
+      });
+      requestAnimationFrame(() => {
+        const ta = taRef.current;
+        if (ta) { ta.focus(); ta.setSelectionRange(adjusted + part.length, adjusted + part.length); }
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  /* ── In-place token editing (click a chip in the prompt) ── */
+  const openTokEdit = (tok: string, el: HTMLElement) => {
+    const name = tok.slice(1, -1);
+    // No input node for this token yet (typed by hand)? Spawn it silently so
+    // the value has somewhere to live — same as dragging one off the port.
+    if (!stRef.current.nodes.some((n) => n.type === "text" && n.name === name)) {
+      addText(undefined, name);
+    } else {
+      pushHist(); // one undo step per edit session
+    }
+    const r = el.getBoundingClientRect();
+    setTokEdit({ name, rect: { left: r.left, right: r.right, top: r.top, bottom: r.bottom } });
+  };
+  const setTokValue = (name: string, v: string) =>
+    setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.type === "text" && n.name === name ? { ...n, value: v } : n)) }));
 
   // Add an empty output slot; Generate fills every empty slot at once.
   // With a drop position it sits exactly there (free); otherwise it joins the current row.
@@ -744,6 +990,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   };
   // Co-generate dialog: which leftover empty slots (from other settings) to also run.
   const [genConfirm, setGenConfirm] = useState<{ ids: string[]; checked: Set<string> } | null>(null);
+  // Mirror of "something is open/in progress" for the ESC handler (whose deps
+  // are deliberately narrow) — busy ESC cancels; neutral ESC starts the close flow.
+  const escBusyRef = useRef(false);
+  useEffect(() => {
+    escBusyRef.current = !!(connectLine || marquee || menuOpen || modelOpen || refMax || genConfirm);
+  }, [connectLine, marquee, menuOpen, modelOpen, refMax, genConfirm]);
   const confirmCoGen = () => {
     if (!genConfirm) return;
     const ids = [...genConfirm.checked];
@@ -788,8 +1040,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (!node || node.type === "prompt") return p;
     const nodes = p.nodes.filter((n) => n.id !== id);
     let body = p.body;
-    // Reference images are a deck inside the prompt (no body token); text vars still drop their token.
     if (node.type === "text") body = body.split("[" + node.name + "]").join("").replace(/\s{2,}/g, " ").trim();
+    if (node.type === "ref") {
+      // Drop the deleted image's token and renumber the ones behind it.
+      const refs = p.nodes.filter((n) => n.type === "ref");
+      const k = refs.findIndex((r) => r.id === id) + 1;
+      if (k > 0) {
+        body = body.split("[Reference Image " + k + "]").join("");
+        for (let m = k + 1; m <= refs.length; m++) {
+          body = body.split("[Reference Image " + m + "]").join("[Reference Image " + (m - 1) + "]");
+        }
+        body = body.replace(/\s{2,}/g, " ").trim();
+      }
+    }
     return { ...p, nodes, body };
   });
 
@@ -831,7 +1094,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const present = new Set<string>();
     const re = /\[([^\]\n]+)\]/g; let m: RegExpExecArray | null;
     while ((m = re.exec(val)) !== null) present.add(m[1]);
-    const nodes = p.nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+    const existingNames = p.nodes.filter((n) => n.type === "text").map((n) => n.name || "");
+    const removed = existingNames.filter((n) => !present.has(n));
+    const added = [...present].filter((n) => !existingNames.includes(n));
+    let nodes = p.nodes;
+    if (removed.length === 1 && added.length === 1) {
+      // Editing a token's name INSIDE the prompt ([var_6] → [var_x]) is a
+      // RENAME: the input node keeps its position, value and settings — it
+      // just carries the new name. (Deleting it and spawning a fresh node at
+      // the bottom was the old, wrong behavior.)
+      nodes = nodes.map((n) => (n.type === "text" && n.name === removed[0] ? { ...n, name: added[0] } : n));
+    } else {
+      nodes = nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+    }
     return { ...p, body: val, nodes };
   });
 
@@ -878,6 +1153,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (ready.length < need) { onToast("Generate " + need + " example" + (need > 1 ? "s" : "") + " first — fill variables and click ▶ on the prompt (" + ready.length + "/" + need + ")"); return; }
     if (picked.length < need) { onToast("Select " + need + " output" + (need > 1 ? "s" : "") + " to publish — tap the ★ on the ones you want shown (" + picked.length + "/" + need + ")"); return; }
     onToast(picked.length + " selected output" + (picked.length > 1 ? "s" : "") + " published · prompt released to marketplace");
+    clearDraft(); // released — a stale draft must not resurrect the old graph
     onClose();
   };
 
@@ -1007,7 +1283,21 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const addRefsFromFiles = async (fileList: FileList | null) => {
     const urls = await readImages(fileList);
     if (!urls.length) return;
-    commit((p) => ({ ...p, nodes: [...p.nodes, ...urls.map((u) => ({ id: nid("r"), type: "ref", img: u, userInput: false } as NodeT))] }));
+    // Per-model cap from the models table (max_reference_images).
+    const current = stRef.current.nodes.filter((n) => n.type === "ref").length;
+    const room = Math.max(0, modelLimits.maxRefs - current);
+    if (room <= 0) { onToast(`${st.models[0]} allows at most ${modelLimits.maxRefs} reference images`); return; }
+    if (urls.length > room) onToast(`Only ${room} more reference image${room === 1 ? "" : "s"} fit (${modelLimits.maxRefs} max for this model)`);
+    const take = urls.slice(0, room);
+    commit((p) => {
+      const base = p.nodes.filter((x) => x.type === "ref").length;
+      const tokens = take.map((_, i) => "[Reference Image " + (base + i + 1) + "]").join(" ");
+      return {
+        ...p,
+        nodes: [...p.nodes, ...take.map((u) => ({ id: nid("r"), type: "ref", img: u, userInput: false } as NodeT))],
+        body: p.body.replace(/\s*$/, "") + (p.body.trim() ? " " : "") + tokens,
+      };
+    });
   };
   // Drop anywhere on the canvas: fill empty reference nodes first, then add new ones.
   const onCanvasDrop = async (e: React.DragEvent) => {
@@ -1138,15 +1428,46 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                     </div>
                   ); })}
                   <button className="nc-refadd" style={{ marginLeft: REF_GAP }} title="Upload reference images" onClick={() => refUploadRef.current?.click()}>+</button>
-                  <input ref={refUploadRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
+                  <input ref={refUploadRef} type="file" accept={modelLimits.accept} multiple style={{ display: "none" }} onChange={(e) => { addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
                 </div>
               </div>
               <div className="nc-pbox">
-                <div className="nc-pov" ref={ovRef} aria-hidden="true">
-                  {st.body.split(TOKEN_RE).map((part, i) => {
-                    if (/^\[[^\]\n]+\]$/.test(part)) { const c = colorForTok(part); const isPub = pubNames.has(part.slice(1, -1)); return <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "")} style={{ background: c.bg, color: c.text, boxShadow: isPub ? "inset 0 0 0 1px " + c.border + ", 0 0 0 2.5px var(--enki-turq)" : "inset 0 0 0 1px " + c.border }}>{part}</span>; }
-                    return <span key={i}>{part}</span>;
-                  })}{"\n"}
+                <div className="nc-pov" ref={ovRef}>
+                  {(() => {
+                    const parts = st.body.split(TOKEN_RE);
+                    let charAt = 0;
+                    return parts.map((part, i) => {
+                      const start = charAt;
+                      charAt += part.length;
+                      if (!/^\[[^\]\n]+\]$/.test(part)) return <span key={i}>{part}</span>;
+                      const name = part.slice(1, -1);
+                      const ref = isRefTok(part);
+                      const refN = ref ? parseInt(part.replace(/\D/g, ""), 10) : 0;
+                      // Orphaned token (variable was deleted) → the raw
+                      // [bracketed] text comes back, no chip.
+                      const alive = ref ? refN >= 1 && refN <= liveRefCount : liveTokNames.has(name);
+                      if (!alive) return <span key={i}>{part}</span>;
+                      const c = colorForTok(part); const isPub = pubNames.has(name);
+                      const tokStyle = {
+                        "--tok-bg": c.bg,
+                        "--tok-ring": isPub
+                          ? "inset 0 0 0 1px " + c.border + ", 0 0 0 2px var(--enki-turq)"
+                          : "inset 0 0 0 1px " + c.border,
+                        color: c.text,
+                      } as React.CSSProperties;
+                      return (
+                        <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "")}
+                          style={tokStyle}
+                          title={ref ? "Drag to move this image reference in the text" : "Click to edit · drag to move"}
+                          onPointerDown={(e) => beginTokPointer(part, start, e)}
+                        >
+                          {/* Brackets stay in the DOM (glyph layout must match the
+                              textarea exactly) but are painted invisible. */}
+                          <span className="nc-tok-br">[</span>{name}<span className="nc-tok-br">]</span>
+                        </span>
+                      );
+                    });
+                  })()}{"\n"}
                 </div>
                 <textarea ref={taRef} className="nc-pta" value={st.body} style={{ minHeight: boxH.current }}
                   placeholder="Describe the image you want to sell as a prompt…"
@@ -1196,8 +1517,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </div>
               <div className="nc-nbody">
                 <div className="nc-vtoggle">
-                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text" } : n)) }))}>Text</button>
-                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", value: n.value === "Yes" || n.value === "on" ? "on" : "off" } : n)) }))}>Checkbox</button>
+                  {/* Switching the type NEVER loses the prompt content: the text
+                      value moves into the checkbox snippet (str) and back. */}
+                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value } : n)) }))}>Text</button>
+                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false } : n)) }))}>Checkbox</button>
                 </div>
                 {t.kind === "text" ? (
                   <textarea className="nc-vin nc-varea" placeholder={"Default value · e.g. " + t.name} value={t.value} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
@@ -1209,9 +1532,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                     </label>
                   </>
                 )}
-                <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
+                {/* Only TEXT variables can be public — checkbox vars are helper vars. */}
+                {t.kind === "text" && <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
                   <span className={"nc-chk-box" + (t.pub ? " on" : "")}>{t.pub && <Icon name="check" size={11} stroke={3} />}</span> Publicly visible (user input)
-                </label>
+                </label>}
               </div>
               <span className="nc-port" style={{ right: -7.5, top: 22.5, background: c.dot }} />
             </div>
@@ -1360,7 +1684,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                 <button className="nc-menu-item" role="menuitem" onClick={exportPrompt}><Icon name="download" size={15} stroke={2} /> Export prompt as JSON</button>
                 <button className="nc-menu-item" role="menuitem" onClick={importPrompt}><Icon name="upload" size={15} stroke={2} /> Import prompt JSON</button>
                 <div className="nc-menu-sep" />
-                <button className="nc-menu-item" role="menuitem" onClick={onClose}><Icon name="x" size={15} stroke={2} /> Close editor</button>
+                <button className="nc-menu-item" role="menuitem" onClick={() => { setMenuOpen(false); requestClose(); }}><Icon name="x" size={15} stroke={2} /> Close editor</button>
               </div>
             </>
           )}
@@ -1549,6 +1873,109 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           </div>
         );
       })(), portalRoot)}
+
+      {/* In-place variable editor — anchored beside the clicked chip (left when
+          space allows, right otherwise; clamped to the viewport → responsive).
+          SAME UI as the input node card on the canvas: rename, Text/Checkbox
+          toggle, value, "Checked by default", "Publicly visible". Both edit the
+          same node state, so the card on the left mirrors every change live. */}
+      {tokEdit && portalRoot && createPortal((() => {
+        const t = st.nodes.find((n) => n.type === "text" && n.name === tokEdit.name);
+        if (!t) return null;
+        const c = colorForTok("[" + tokEdit.name + "]");
+        const W = 260;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const left = tokEdit.rect.left - W - 10 >= 8
+          ? tokEdit.rect.left - W - 10
+          : Math.max(8, Math.min(tokEdit.rect.right + 10, vw - W - 8));
+        const top = Math.max(8, Math.min(tokEdit.rect.top - 10, vh - 230));
+        return (
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 1394 }} onPointerDown={() => setTokEdit(null)} />
+            <div
+              style={{
+                position: "fixed", left, top, width: W, zIndex: 1395,
+                background: "var(--enki-paper-2)", border: "1px solid " + c.border,
+                borderRadius: 12, boxShadow: "0 14px 36px rgba(0,0,0,0.28)", padding: "10px 12px",
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") setTokEdit(null); }}
+            >
+              {/* head — same as the node card: colored dot + renameable name */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: c.bg, boxShadow: "inset 0 0 0 1px " + c.border, flexShrink: 0 }} />
+                <EditName
+                  className="nc-ntitle"
+                  value={t.name || ""}
+                  onChange={(v) => {
+                    const clean = v.replace(/[[\]\n]/g, "");
+                    if (!clean) return;
+                    renameText(t.id, clean);
+                    setTokEdit((prev) => (prev ? { ...prev, name: clean } : prev));
+                  }}
+                  placeholder={t.name}
+                  title={`Double-click to change the name of "${t.name}"`}
+                />
+              </div>
+              {/* body — identical controls to the canvas card */}
+              <div className="nc-vtoggle">
+                <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value } : n)) }))}>Text</button>
+                <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false } : n)) }))}>Checkbox</button>
+              </div>
+              {t.kind === "text" ? (
+                <textarea autoFocus className="nc-vin nc-varea" placeholder={"Default value · e.g. " + t.name} value={t.value} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
+              ) : (
+                <>
+                  <textarea autoFocus className="nc-vin nc-varea" placeholder={"Prompt added when checked · e.g. " + t.name} value={t.str || ""} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, str: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
+                  <label className="nc-chk" title="Default state of the checkbox the user will see" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: n.value === "on" || n.value === "Yes" ? "off" : "on" } : n)) }))}>
+                    <span className={"nc-chk-box" + (t.value === "on" || t.value === "Yes" ? " on" : "")}>{(t.value === "on" || t.value === "Yes") && <Icon name="check" size={11} stroke={3} />}</span> Checked by default
+                  </label>
+                </>
+              )}
+              {/* Only TEXT variables can be public — checkbox vars are helper vars. */}
+              {t.kind === "text" && <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
+                <span className={"nc-chk-box" + (t.pub ? " on" : "")}>{t.pub && <Icon name="check" size={11} stroke={3} />}</span> Publicly visible (user input)
+              </label>}
+            </div>
+          </>
+        );
+      })(), portalRoot)}
+
+      {closeConfirm && portalRoot && createPortal(
+        <div className="ek-modal-scrim" onClick={() => setCloseConfirm(false)} style={{ zIndex: 1400 }}>
+          <div className="ek-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="ek-modal-head">
+              <span className="ek-sheet-bolt"><Icon name="sparkles" size={17} stroke={2} /></span>
+              <span className="ek-modal-title">Keep your work?</span>
+              <button className="ek-modal-x" onClick={() => setCloseConfirm(false)}><Icon name="x" size={17} stroke={2} /></button>
+            </div>
+            <div className="ek-modal-body">
+              <p style={{ fontSize: 13.5, color: "var(--enki-ink-3)", lineHeight: 1.55, marginBottom: 18 }}>
+                You have unsaved changes in this prompt. Save them as a draft in your browser —
+                it&apos;ll be right here next time — or throw them away.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button className="ek-btn" style={{ minHeight: 44 }} onClick={saveDraftAndClose}>
+                  <Icon name="check" size={15} stroke={2} /> Save draft & leave
+                </button>
+                <button
+                  onClick={discardAndClose}
+                  style={{ minHeight: 44, borderRadius: 10, border: "1px solid var(--enki-rule)", background: "transparent", color: "#e0392b", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Discard changes
+                </button>
+                <button
+                  onClick={() => setCloseConfirm(false)}
+                  style={{ minHeight: 36, border: "none", background: "transparent", color: "var(--enki-ink-3)", fontSize: 12.5, cursor: "pointer" }}
+                >
+                  Keep editing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        portalRoot
+      )}
     </div>
   );
 }

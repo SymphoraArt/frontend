@@ -1,16 +1,17 @@
 /**
  * POST /api/auth/password/register  { email, password } → { token, expiresAt, email }
  *
- * Creates a user with an Argon2id+pepper password (see lib/password-auth) and
- * mints a session. The wallet itself is a Dynamic non-custodial embedded wallet
- * provisioned from this session's JWT after login — Enki never holds keys.
+ * Creates a bare users row + an Argon2id+pepper credential in
+ * password_credentials (isolated from Turnkey and the encrypted-email design),
+ * then mints a session. The wallet is a Privy non-custodial embedded wallet
+ * attached after login — Enki never holds keys.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { hashPassword } from "@/lib/password-auth";
 import { mintUserSession } from "@/lib/user-session";
+import { whitelistStageActive, isEmailAllowed, grantGateCookie } from "@/lib/allowlist";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
@@ -27,22 +28,50 @@ export async function POST(req: NextRequest) {
   const email = parsed.data.email.trim().toLowerCase();
 
   const supabase = getSupabaseServerClient();
-  const { data: existing } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
+
+  // Private-beta whitelist: only allow-listed emails may register.
+  if (whitelistStageActive() && !(await isEmailAllowed(supabase, email))) {
+    return NextResponse.json(
+      { error: "This email isn't on the access list yet. Request access to join.", notWhitelisted: true },
+      { status: 403 },
+    );
+  }
+
+  const { data: existing } = await supabase
+    .from("password_credentials")
+    .select("user_id")
+    .eq("email", email)
+    .maybeSingle();
   if (existing) return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
 
   const { hash, salt } = hashPassword(parsed.data.password);
-  const username = `${email.split("@")[0].slice(0, 20)}_${randomBytes(3).toString("hex")}`;
 
-  const { data: user, error } = await supabase
+  // One bare users row per password account (handle/profile filled in later),
+  // so user_wallets + prompts.creator_id link like any other identity.
+  const { data: user, error: userErr } = await supabase
     .from("users")
-    .insert({ email, username, pw_hash: hash, pw_salt: salt })
+    .insert({ account_status: "active" })
     .select("id")
     .single();
-  if (error || !user) {
-    console.error("[auth/register] insert failed:", error?.message);
+  if (userErr || !user) {
+    console.error("[auth/register] users insert failed:", userErr?.message);
     return NextResponse.json({ error: "Could not create account" }, { status: 500 });
   }
 
+  const { error: credErr } = await supabase
+    .from("password_credentials")
+    .insert({ user_id: user.id, email, pw_hash: hash, pw_salt: salt });
+  if (credErr) {
+    // Roll back the orphan users row; a race on the unique email index lands here.
+    await supabase.from("users").delete().eq("id", user.id);
+    const conflict = credErr.code === "23505";
+    return NextResponse.json(
+      { error: conflict ? "An account with this email already exists" : "Could not create account" },
+      { status: conflict ? 409 : 500 },
+    );
+  }
+
   const session = await mintUserSession(user.id);
-  return NextResponse.json({ email, ...session });
+  // Whitelisted registration → grant app access (gate cookie).
+  return grantGateCookie(NextResponse.json({ email, ...session }));
 }

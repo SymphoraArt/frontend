@@ -18,6 +18,32 @@ function isPublic(pathname: string): boolean {
   if (pathname === "/api/access-request") return true;
   // The landing mosaic feed must stay reachable for the public landing
   if (pathname === "/api/header-images") return true;
+  // The wallet vendor's servers fetch our signing keys to validate external JWTs
+  if (pathname === "/api/auth/wallet/jwks") return true;
+  // Recovery flows are used by OUTSIDERS (guardians) and by locked-out users
+  // — neither can have the team cookie. The pages/APIs are token- or
+  // code-gated and rate-limited themselves.
+  if (pathname === "/guardian" || pathname === "/reset-password") return true;
+  if (
+    pathname === "/api/recovery/guardians/confirm" ||
+    pathname === "/api/recovery/request" ||
+    pathname === "/api/recovery/approve" ||
+    pathname === "/api/recovery/complete" ||
+    pathname === "/api/account/delete/approve" // guardians approving a deletion are outsiders
+  ) {
+    return true;
+  }
+  // Login must be reachable BEFORE the gate — a visitor logs in with a
+  // whitelisted wallet/email and the login route itself grants access (sets the
+  // gate cookie) or turns them away. Everything else stays gated.
+  if (
+    pathname === "/api/auth/nonce" ||
+    pathname === "/api/auth/session" ||
+    pathname === "/api/auth/wallet/jwt" ||
+    pathname.startsWith("/api/auth/password/")
+  ) {
+    return true;
+  }
   // Framework internals + asset folders
   if (
     pathname.startsWith("/_next/") ||

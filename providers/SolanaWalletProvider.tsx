@@ -25,7 +25,13 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
         localStorageKey={walletStorageKey}
         onError={(error) => {
           const msg = (error.message ?? "").toLowerCase();
-          if (msg.includes("rejected") || msg.includes("closed") || msg.includes("user reject")) return;
+          // User backing out of a popup (connect/sign) is normal navigation,
+          // not an error — Solflare says "Cancelled", others "rejected"/"denied".
+          if (
+            msg.includes("rejected") || msg.includes("closed") || msg.includes("user reject") ||
+            msg.includes("cancel") || msg.includes("denied") || msg.includes("dismiss") ||
+            msg.includes("record not found") // Solflare disconnect-when-not-connected
+          ) return;
           // SIWS (signIn) isn't supported by every wallet (e.g. Zerion). The wallet
           // picker already falls back to signMessage, so this adapter-emitted
           // "signIn: Not Implemented" event is expected — don't surface it as an error.

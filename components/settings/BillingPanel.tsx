@@ -3,50 +3,102 @@
 import { useEffect, useMemo, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Copy, Check, QrCode, X, Wallet, ArrowDownToLine, CreditCard, CheckCircle2 } from "lucide-react";
+import { Copy, Check, QrCode, X, Wallet, ArrowDownToLine, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useSolanaAuth } from "@/hooks/useSolanaAuth";
+import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { useToast } from "@/hooks/use-toast";
 import { refreshHoldings } from "@/hooks/useHoldings";
+import { getCdpSolanaAddress, requestCdpKeyExport, CDP_ADDRESS_EVENT } from "@/lib/cdp-bridge";
 import SettingsSection from "@/components/settings/SettingsSection";
-import FiatCheckout, { type FiatMethod } from "@/components/settings/FiatCheckout";
-
-const MIN_AMOUNT = 1;
-// Testing cap: top-ups are limited to $2 and accepted as a decimal (Gleitzahl),
-// e.g. $1.50. Raise this once the treasury is funded for production amounts.
-const MAX_AMOUNT = 2;
 
 /**
- * Billing — top up the user's balance in plain dollars.
- *
- * Two funding options: "Buy with Stripe" (card etc.) and "Buy with PayPal".
- * Both charge USD and credit the persisted balance; the user never sees crypto.
- * External-wallet users additionally get a "Deposit Crypto" section to send
- * USDC directly.
+ * Deposit Crypto — for wallet users who already hold USDC and want to send it
+ * to their own address directly. Adding money with a card lives in the
+ * Payment panel's "Add money & cash out" section (Coinbase ramp); the old
+ * Stripe/PayPal "Add Funds" section was removed as a duplicate of it.
  */
 export default function BillingPanel() {
   const account = useActiveAccount();
   const { connected: solanaConnected } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  // Session-backed Solana identity: the adapter is disconnected after a page
+  // load (autoConnect off) but the signed session persists — without it,
+  // logged-in wallet users saw no deposit section.
+  const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress } = useSolanaAuth();
   const { toast } = useToast();
 
-  const walletLogin = Boolean(account?.address) || solanaConnected;
-  const recipient = account?.address ?? turnkeyAddress ?? null;
+  // Email users get a CDP embedded wallet — its address arrives via the
+  // bridge (the CDP provider tree lives outside this component).
+  const { isAuthed: emailAuthed, email } = useEmailAuth();
+  const [cdpAddress, setCdpAddress] = useState<string | null>(getCdpSolanaAddress());
+  useEffect(() => {
+    const sync = () => setCdpAddress(getCdpSolanaAddress());
+    window.addEventListener(CDP_ADDRESS_EVENT, sync);
+    return () => window.removeEventListener(CDP_ADDRESS_EVENT, sync);
+  }, []);
 
-  const [fiatOpen, setFiatOpen] = useState(false);
+  const walletLogin = Boolean(account?.address) || solanaConnected || solanaSessionActive || (emailAuthed && !!cdpAddress);
+  const recipient =
+    account?.address ??
+    (solanaSessionActive ? solanaSessionAddress : null) ??
+    cdpAddress ??
+    turnkeyAddress ??
+    null;
+
   const [depositOpen, setDepositOpen] = useState(false);
-  const [amount, setAmount] = useState("1");
-  const [method, setMethod] = useState<FiatMethod>("stripe");
   const [copied, setCopied] = useState(false);
+  // Self-custody key export (email/CDP wallets): password re-check → reveal.
+  const [exportStep, setExportStep] = useState<null | "password" | "reveal">(null);
+  const [exportPw, setExportPw] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+  const [privKey, setPrivKey] = useState<string | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const closeExport = () => {
+    // The key never outlives the dialog.
+    setExportStep(null); setExportPw(""); setExportErr(null); setPrivKey(null); setKeyCopied(false);
+  };
+  const confirmExport = async () => {
+    setExportBusy(true);
+    setExportErr(null);
+    try {
+      // Re-check the account password — nobody walks up to an open laptop
+      // and walks away with the key.
+      const res = await fetch("/api/auth/password/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: exportPw }),
+      });
+      if (!res.ok) throw new Error("Wrong password");
+      const key = await requestCdpKeyExport();
+      setPrivKey(key);
+      setExportStep("reveal");
+      setExportPw("");
+    } catch (e) {
+      setExportErr(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+  const copyKey = async () => {
+    if (!privKey) return;
+    try {
+      await navigator.clipboard.writeText(privKey);
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 1600);
+    } catch {
+      toast({ title: "Copy failed", description: "Select and copy it manually.", variant: "destructive" });
+    }
+  };
   // Success popup shown after a redirect-based payment (PayPal) returns.
   const [success, setSuccess] = useState<{ amount: number; balance: number | null } | null>(null);
 
-  const amountNum = Number(amount);
-  const amountValid = Number.isFinite(amountNum) && amountNum >= MIN_AMOUNT && amountNum <= MAX_AMOUNT;
-
   // Finalize redirect-based payments (PayPal) when Stripe sends the user back
-  // to /settings?tab=billing with the PaymentIntent in the query string.
+  // with the PaymentIntent in the query string. Kept even though the Add
+  // Funds UI is gone, so in-flight payments still get credited on return.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -95,27 +147,6 @@ export default function BillingPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openBuy = (m: FiatMethod) => {
-    if (!recipient) {
-      toast({
-        title: "Sign in first",
-        description: "Log in with your email or wallet so the balance can be added to your account.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!amountValid) {
-      toast({
-        title: "Enter an amount",
-        description: `Choose any amount between $${MIN_AMOUNT} and $${MAX_AMOUNT}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    setMethod(m);
-    setFiatOpen(true);
-  };
-
   const copyAddress = async () => {
     if (!recipient) return;
     try {
@@ -134,75 +165,12 @@ export default function BillingPanel() {
 
   return (
     <>
-      {/* ── 01 · Add funds ── */}
-      <SettingsSection num="01" title="Add Funds">
-        <div className="set-section-desc" style={{ paddingBottom: 16 }}>
-          Top up your balance with Stripe or PayPal. The dollars are added to your
-          balance and spent automatically when you generate or unlock prompts.
-        </div>
-
-        {!recipient && (
-          <div className="set-fiat-error" style={{ marginBottom: 12 }}>
-            Sign in with your email or wallet to add funds — the balance is tied to your account.
-          </div>
-        )}
-
-        {/* Amount — manual entry */}
-        <div className="set-list-item" style={{ flexWrap: "wrap", gap: 10 }}>
-          <div className="set-item-content">
-            <div className="set-item-title">Amount</div>
-            <div className="set-item-sub">Type how much to add (${MIN_AMOUNT}–${MAX_AMOUNT}, decimals allowed).</div>
-          </div>
-          <div className={`set-amount-wrap ${amount && !amountValid ? "is-invalid" : ""}`}>
-            <span className="set-amount-prefix">$</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={MIN_AMOUNT}
-              max={MAX_AMOUNT}
-              step="0.01"
-              className="set-amount-input"
-              value={amount}
-              placeholder="0.00"
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Payment methods */}
-        <div className="set-list-item">
-          <div className="set-item-icon" style={{ background: "#635bff", color: "#fff" }}>
-            <CreditCard size={14} />
-          </div>
-          <div className="set-item-content">
-            <div className="set-item-title">Buy with Stripe</div>
-            <div className="set-item-sub">Card and more — secure checkout.</div>
-          </div>
-          <button className="set-btn set-btn-dark" onClick={() => openBuy("stripe")} disabled={!amountValid || !recipient}>
-            Buy ${(amountValid ? amountNum : 0).toFixed(2)}
-          </button>
-        </div>
-
-        <div className="set-list-item">
-          <div className="set-item-icon" style={{ background: "#ffc439", color: "#003087", fontWeight: 800, fontSize: 11 }}>
-            P
-          </div>
-          <div className="set-item-content">
-            <div className="set-item-title">Buy with PayPal</div>
-            <div className="set-item-sub">Pay with your PayPal account.</div>
-          </div>
-          <button className="set-btn set-btn-outline" onClick={() => openBuy("paypal")} disabled={!amountValid || !recipient}>
-            Buy ${(amountValid ? amountNum : 0).toFixed(2)}
-          </button>
-        </div>
-      </SettingsSection>
-
-      {/* ── 02 · Deposit crypto — wallet users only ── */}
+      {/* ── Deposit crypto — wallet users only ── */}
       {walletLogin && (
-        <SettingsSection num="02" title="Deposit Crypto">
+        <SettingsSection num="03" title="Deposit Crypto">
           <div className="set-section-desc" style={{ paddingBottom: 16 }}>
-            Already hold USDC? Send it directly to your wallet on Base. Only send
-            USDC on the Base network — other tokens or networks may be lost.
+            Got USDC in another wallet? Send it straight to your address here.
+            Use the Solana network only, anything else can get lost.
           </div>
           <div className="set-list-item">
             <div className="set-item-icon"><Wallet size={14} /></div>
@@ -219,20 +187,94 @@ export default function BillingPanel() {
               </button>
             </div>
           </div>
+          {/* Self-custody: email wallets can export their private key. Wallet
+              logins (Solflare & co) hold their keys themselves already. */}
+          {emailAuthed && (
+            <div className="set-list-item">
+              <div className="set-item-icon"><KeyRound size={14} /></div>
+              <div className="set-item-content">
+                <div className="set-item-title">Your private key</div>
+                <div className="set-item-sub">
+                  This wallet is fully yours. Export the key and you can open it in any Solana wallet app.
+                </div>
+              </div>
+              <button
+                className="set-btn set-btn-outline"
+                onClick={() => setExportStep("password")}
+                disabled={!cdpAddress}
+                title={cdpAddress ? "Export your private key" : "Wallet is still being set up"}
+              >
+                Export
+              </button>
+            </div>
+          )}
         </SettingsSection>
       )}
 
-      {/* ── Dollars checkout (Stripe / PayPal) ── */}
-      {fiatOpen && (
-        <FiatCheckout
-          amount={amount}
-          recipient={recipient}
-          method={method}
-          onClose={() => setFiatOpen(false)}
-          onSuccess={() => {
-            /* FiatCheckout shows its own success screen + credits holdings. */
-          }}
-        />
+      {/* ── Key export: password re-check, then the one-time reveal ── */}
+      {exportStep && (
+        <div className="set-pay-overlay" onClick={() => !exportBusy && closeExport()}>
+          <div className="set-pay-card set-pay-card--fiat" onClick={(e) => e.stopPropagation()}>
+            <button className="set-pay-close" onClick={closeExport} aria-label="Close" disabled={exportBusy}>
+              <X size={16} />
+            </button>
+            {exportStep === "password" ? (
+              <div>
+                <div className="set-item-title" style={{ marginBottom: 6 }}>Confirm it&apos;s you</div>
+                <p className="set-item-sub" style={{ marginBottom: 14 }}>
+                  Enter your account password to reveal the private key.
+                  Anyone with this key controls the money in the wallet. Never share it.
+                </p>
+                <input
+                  type="password"
+                  value={exportPw}
+                  onChange={(e) => setExportPw(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && exportPw && !exportBusy) confirmExport(); }}
+                  placeholder="Your password"
+                  autoFocus
+                  style={{
+                    width: "100%", height: 40, padding: "0 12px", borderRadius: 8, fontSize: 14,
+                    border: "1px solid var(--enki-rule)", background: "transparent", color: "var(--enki-ink)", outline: "none",
+                  }}
+                />
+                {exportErr && <p style={{ fontSize: 12.5, color: "#e0584f", marginTop: 8 }}>{exportErr}</p>}
+                <button
+                  className="set-btn set-btn-dark"
+                  style={{ width: "100%", justifyContent: "center", marginTop: 14 }}
+                  onClick={confirmExport}
+                  disabled={exportBusy || !exportPw}
+                >
+                  {exportBusy ? <Loader2 size={14} className="set-spin" /> : "Reveal key"}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="set-item-title" style={{ marginBottom: 6 }}>Your private key</div>
+                <p className="set-item-sub" style={{ marginBottom: 12 }}>
+                  Store it somewhere safe (a password manager). It disappears when you close this window.
+                  We never see or keep it.
+                </p>
+                <code style={{
+                  display: "block", padding: 12, borderRadius: 8, fontSize: 12, lineHeight: 1.5,
+                  border: "1px solid var(--enki-rule)", background: "var(--enki-paper-2)",
+                  color: "var(--enki-ink)", wordBreak: "break-all", userSelect: "all",
+                }}>
+                  {privKey}
+                </code>
+                <button className="set-btn set-btn-dark" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={copyKey}>
+                  {keyCopied ? <Check size={14} /> : <Copy size={14} />} {keyCopied ? "Copied" : "Copy key"}
+                </button>
+                <button
+                  className="set-btn set-btn-outline"
+                  style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+                  onClick={closeExport}
+                >
+                  Done, close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Success popup (after PayPal / redirect return) ── */}
@@ -272,7 +314,7 @@ export default function BillingPanel() {
             </button>
             <div className="set-qr-head">
               <ArrowDownToLine size={18} />
-              <span>Deposit USDC · Base</span>
+              <span>Deposit USDC · Solana</span>
             </div>
             <div className="set-qr-frame">
               <QRCodeSVG value={recipient} size={196} level="M" includeMargin />
@@ -281,7 +323,7 @@ export default function BillingPanel() {
             <button className="set-btn set-btn-dark" style={{ width: "100%" }} onClick={copyAddress}>
               {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy address"}
             </button>
-            <p className="set-qr-warn">Only send USDC on Base. Sending other assets may result in permanent loss.</p>
+            <p className="set-qr-warn">Only send USDC on Solana. Anything else can get lost.</p>
           </div>
         </div>
       )}

@@ -3,61 +3,101 @@
 import { useState, useEffect } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Laptop, Smartphone, Mail, Loader2, Twitter, Instagram, Wallet, AlertCircle, ArrowUpRight, Key, User, Users, Shield } from "lucide-react";
+import { Loader2, Instagram, AlertCircle, ArrowUpRight, CheckCircle2, X } from "lucide-react";
 
 import SettingsLayout from "@/components/settings/SettingsLayout";
 import SettingsNav, { TabItem } from "@/components/settings/SettingsNav";
 import SettingsSection from "@/components/settings/SettingsSection";
 import SettingsToggle from "@/components/settings/SettingsToggle";
-import TurnkeyDeviceModal from "@/components/settings/TurnkeyDeviceModal";
-import AwaitingConfirmationModal from "@/components/settings/AwaitingConfirmationModal";
-import BillingPanel from "@/components/settings/BillingPanel";
+import PaymentPanel from "@/components/settings/PaymentPanel";
+import RecoveryPanel from "@/components/settings/RecoveryPanel";
 import { listReferrals, type Referral } from "@/lib/referrals";
+import { sessionAuthHeaders } from "@/lib/session-headers";
+import { useRecoveryStatus } from "@/hooks/useRecoveryStatus";
+import { REFERRAL_SHARE_PCT, PLATFORM_FEE_PCT } from "@/shared/revenue-config";
 import "@/components/settings/settings.css";
 
 const TABS: TabItem[] = [
   { id: "profile", label: "Profile" },
-  { id: "wallets", label: "Wallets" },
+  { id: "payment", label: "Payment" },
   { id: "referrals", label: "Referrals" },
   { id: "recovery", label: "Recovery & 2FA" },
-  { id: "billing", label: "Billing" },
 ];
 
-// Visual markers for placeholder UI that isn't wired to live data yet.
-const MockTag = () => (
-  <span style={{ marginLeft: 8, padding: "2px 8px", background: "#fde68a", color: "#92400e", borderRadius: 20, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", verticalAlign: "middle" }}>
-    MOCK
-  </span>
-);
-const MockBanner = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: 8, padding: "12px 18px", marginBottom: 20, fontSize: 13, color: "#92400e", lineHeight: 1.55 }}>
-    <strong>Mock data.</strong> {children}
-  </div>
-);
+// The X (formerly Twitter) logo — lucide ships no brand X icon, so inline it.
+function XLogo({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
-export default function SettingsPage() {
+export default function SettingsPage({ initialTab, focusRamp = false, globalBannerVisible = false, focusGuardians: focusGuardiansProp = false }: { initialTab?: string; focusRamp?: boolean; globalBannerVisible?: boolean; focusGuardians?: boolean } = {}) {
   const account = useActiveAccount();
   const { toast } = useToast();
-  
-  const [activeTab, setActiveTab] = useState("profile");
+
+  // initialTab lets embedders (sidebar balance chip → Payment) open a tab
+  // directly; the URL deep-link below still wins when present.
+  const [activeTab, setActiveTab] = useState(
+    initialTab && TABS.some((t) => t.id === initialTab) ? initialTab : "profile"
+  );
+  // One-shot: the scroll+heartbeat fires only for the balance-chip entry.
+  // Any manual tab click (including re-opening Payment) must not replay it.
+  const [rampFocus, setRampFocus] = useState(focusRamp);
+  // Slide the content pane left/right depending on which way the tab moved.
+  const [slideDir, setSlideDir] = useState<"l" | "r">("r");
+  // Pulse the Guardians area when Recovery is opened via the red banner.
+  const [focusGuardians, setFocusGuardians] = useState(focusGuardiansProp);
+  const changeTab = (t: string) => {
+    const from = TABS.findIndex((x) => x.id === activeTab);
+    const to = TABS.findIndex((x) => x.id === t);
+    setSlideDir(to >= from ? "r" : "l");
+    setRampFocus(false);
+    setFocusGuardians(false); // plain tab clicks don't pulse
+    setActiveTab(t);
+  };
+
+  // Red warning while the account has no confirmed recovery guardian.
+  const recovery = useRecoveryStatus();
+
+  // Leaderboard visibility — real flag (users.hide_from_leaderboard).
+  const [hideLb, setHideLb] = useState<boolean | null>(null);
+  useEffect(() => {
+    const headers = sessionAuthHeaders();
+    if (Object.keys(headers).length === 0) return;
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/users/handle", { headers });
+        if (!res.ok) return;
+        const d = (await res.json()) as { hideFromLeaderboard?: boolean };
+        if (!dead) setHideLb(!!d.hideFromLeaderboard);
+      } catch { /* leave null (toggle stays until loaded) */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+  const toggleLeaderboard = async (showMe: boolean) => {
+    const next = !showMe; // toggle shows "Show me", stored flag is "hide me"
+    const prev = hideLb;
+    setHideLb(next);
+    try {
+      const res = await fetch("/api/users/handle", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+        body: JSON.stringify({ hideFromLeaderboard: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "Saved", description: next ? "You're hidden from the Hall of Fame." : "You'll appear on the Hall of Fame." });
+    } catch {
+      setHideLb(prev); // revert on failure
+      toast({ title: "Couldn't save", variant: "destructive" });
+    }
+  };
   const [referrals, setReferrals] = useState<Referral[]>([]);
   useEffect(() => { setReferrals(listReferrals(account?.address ?? null)); }, [account?.address, activeTab]);
-  const [loading, setLoading] = useState(false); // keeping it fast since we mock mostly
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  const [isAwaitingModalOpen, setIsAwaitingModalOpen] = useState(false);
-  const [showLivenessBanner, setShowLivenessBanner] = useState(true);
-  const [guardiansList, setGuardiansList] = useState([
-    { id: "g1", name: "@lune_lab",  type: "handle", sub: "Enki Art User", status: "confirmed" },
-    { id: "g2", name: "0xA1B2…C3D4", type: "wallet", sub: "Ethereum Wallet", status: "confirmed" },
-    { id: "g3", name: "friend@email.com", type: "email", sub: "Trusted Email", status: "confirmed" },
-  ]);
-
-  const pingGuardian = (id: string) => {
-    setGuardiansList(prev => prev.map(g => g.id === id ? { ...g, status: "pinged" } : g));
-    toast({ title: "Ping sent", description: "Guardian has been requested to confirm their liveness." });
-  };
 
   // --- Mock States ---
   const [settings, setSettings] = useState({
@@ -69,12 +109,6 @@ export default function SettingsPage() {
     showLeaderboardEarn: true,
   });
 
-  const [recoverySettings, setRecoverySettings] = useState({
-    deleteWorkCheck: true,
-    sellPromptCheck: true,
-    sendMoneyCheck: true
-  });
-  
   // --- Change Detection ---
   useEffect(() => {
     const isDifferent = JSON.stringify(settings) !== JSON.stringify(initialSettings);
@@ -85,7 +119,10 @@ export default function SettingsPage() {
   // an "Add funds" entry point).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const tab = new URLSearchParams(window.location.search).get("tab");
+    let tab = new URLSearchParams(window.location.search).get("tab");
+    // The Billing tab merged into Payment — old deep links (PayPal's redirect
+    // back lands on ?tab=billing) keep working.
+    if (tab === "billing") tab = "payment";
     if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab);
   }, []);
 
@@ -103,32 +140,92 @@ export default function SettingsPage() {
     toast({ title: "Settings saved", description: "Your preferences have been updated." });
   };
 
-  const handleDeleteAccount = () => {
-    toast({
-      title: "Action required",
-      description: "Please check your email or authenticator app to confirm account deletion.",
-    });
+  // Connected social accounts. Empty until OAuth is wired (needs Kev's X/IG
+  // developer app keys) — the compact UI already renders the connected state.
+  type SocialAccount = { handle: string; avatar: string | null };
+  const [socials, setSocials] = useState<{ x: SocialAccount | null; instagram: SocialAccount | null }>({ x: null, instagram: null });
+  const connectSocial = (_network: "x" | "instagram") => {
+    toast({ title: "Almost there", description: "Social connections are being switched on — this will go live shortly." });
   };
+  const disconnectSocial = (network: "x" | "instagram") => {
+    setSocials((s) => ({ ...s, [network]: null }));
+    toast({ title: "Disconnected" });
+  };
+
+  // ── Delete account ──────────────────────────────────────────────────────
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deletePending, setDeletePending] = useState(false); // guardians notified
+  const [deleteReq, setDeleteReq] = useState<{ id: string; key: string } | null>(null);
+  const finishDelete = () => { try { localStorage.clear(); } catch { /* ignore */ } window.location.href = "/"; };
+  const submitDelete = async () => {
+    setDeleteBusy(true);
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+        body: JSON.stringify({ confirm: deleteConfirm.trim().replace(/^@/, "") }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Could not delete");
+      if (data.pending) {
+        setDeleteReq({ id: data.requestId, key: data.ownerKey }); // start polling
+        setDeletePending(true);
+      } else {
+        finishDelete(); // deleted immediately (no guardians)
+      }
+    } catch (e) {
+      toast({ title: "Couldn't delete", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
+      setDeleteBusy(false);
+    }
+  };
+  // While guardians approve, poll until the request finalizes → then sign out.
+  useEffect(() => {
+    if (!deleteReq) return;
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/account/delete?id=${deleteReq.id}&key=${deleteReq.key}`);
+        const d = await res.json();
+        if (d.done) { clearInterval(t); finishDelete(); }
+      } catch { /* keep polling */ }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [deleteReq]);
 
   // --- Render Helpers ---
   const titleMap: Record<string, React.ReactNode> = {
     profile: "Profile.",
-    wallets: "Wallets.",
-    earnings: "Earnings.",
-    recovery: <>Recovery<br/><span>&</span> 2FA.</>,
-    billing: "Billing.",
+    payment: "Payment.",
+    referrals: "Referrals.",
+    recovery: <>Recovery <span>&</span> 2FA.</>,
   };
 
   const descMap: Record<string, string> = {
     profile: "Manage your connected social accounts and visibility settings.",
-    wallets: "Manage your connected Turnkey networks and external wallets.",
-    earnings: "Track your earnings from owned prompts and hunted affiliates.",
-    recovery: "Keep more than one way to sign in — that way you'll never lose your account. Turn on the extra check below if you want a second confirmation before risky things happen.",
-    billing: "Top up your balance with the familiar Stripe or PayPal flow.",
+    payment: "Your balance, your earnings, and the ways money moves in and out — always into your own wallet.",
+    referrals: "Found great art on social media? Suggest it. If we turn it into a prompt, you earn on every sale it makes.",
+    recovery: "Keep more than one way back in — a passkey on another device, plus guardians you trust.",
   };
 
-  // Mock admin check — replace with real wallet role lookup
-  const IS_ADMIN = true;
+  // Real role lookup (users.role via session) — Admin section only for
+  // admins/mods. Server-side admin APIs must re-check on their own.
+  const [role, setRole] = useState<string>("user");
+  useEffect(() => {
+    const headers = sessionAuthHeaders();
+    if (Object.keys(headers).length === 0) { setRole("user"); return; }
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/users/handle", { headers });
+        if (!res.ok) return;
+        const data = (await res.json()) as { role?: string };
+        if (!dead && data.role) setRole(data.role);
+      } catch { /* stay 'user' */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+  const IS_ADMIN = role === "admin" || role === "mod";
 
   return (
     <>
@@ -138,51 +235,95 @@ export default function SettingsPage() {
           title={titleMap[activeTab] || "Settings."}
           description={descMap[activeTab]}
         >
-          <SettingsNav 
-            tabs={TABS} 
-            activeTab={activeTab} 
-            onChange={setActiveTab} 
+          {/* Persistent (no X) recovery warning — shown ONLY when the global
+              top banner isn't already visible (else it's redundant). Inside
+              Settings it can't be dismissed, only fixed. */}
+          {!globalBannerVisible && recovery !== null && recovery.confirmed === 0 && (
+            /* Whole strip is the button → same height on every tab (the old
+               inline "Set it up" button changed the row height). */
+            <div
+              role="alert"
+              onClick={() => { if (activeTab !== "recovery") { changeTab("recovery"); setFocusGuardians(true); } }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                margin: "0 0 18px", padding: "12px 14px", borderRadius: 10,
+                background: "#b3271e", color: "#fff", fontSize: 13, fontWeight: 600,
+                cursor: activeTab !== "recovery" ? "pointer" : "default",
+              }}
+            >
+              <span style={{ flex: 1 }}>
+                No recovery set up. Lose this login and the account is gone.
+              </span>
+              {activeTab !== "recovery" && (
+                <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, whiteSpace: "nowrap" }}>Set it up →</span>
+              )}
+            </div>
+          )}
+          <SettingsNav
+            tabs={TABS}
+            activeTab={activeTab}
+            onChange={changeTab}
           />
+
+          {/* Keyed so a tab change replays the slide; direction follows the move. */}
+          <div key={activeTab} className={`set-tabpane set-slide-${slideDir}`}>
 
           {/* === PROFILE TAB === */}
           {activeTab === "profile" && (
             <>
-              <SettingsSection num="01" title="Social Connections">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  Connect your socials. If you've previously posted your prompts on X and they generated revenue, you can claim your dormant X USDC once connected!
+              <SettingsSection num="01" title="Connect social media profiles">
+                <div className="set-section-desc" style={{ paddingBottom: 14, fontSize: 12.5 }}>
+                  Link X and Instagram to share prompts to several places at once — post everywhere in one go, no copy-pasting each time.
                 </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ background: '#1da1f2', color: 'white' }}><Twitter size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Connect X (Twitter)</div>
-                    <div className="set-item-sub">Connect to claim dormant earnings from past generations.</div>
-                  </div>
-                  <button className="set-btn set-btn-outline">Connect</button>
-                </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: 'white' }}><Instagram size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Connect Instagram</div>
-                    <div className="set-item-sub">Link your IG portfolio to your Enki Art profile.</div>
-                  </div>
-                  <button className="set-btn set-btn-outline">Connect</button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "flex-start" }}>
+                  {([
+                    { key: "x", label: "X", icon: <XLogo size={16} />, bg: "#000", account: socials.x },
+                    { key: "instagram", label: "Instagram", icon: <Instagram size={18} />, bg: "linear-gradient(45deg,#f09433,#dc2743,#bc1888)", account: socials.instagram },
+                  ] as const).map((s) => (
+                    <div
+                      key={s.key}
+                      style={{
+                        width: 108,
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
+                        border: "1px solid var(--enki-rule)", borderRadius: 10, padding: "12px 8px", textAlign: "center",
+                      }}
+                    >
+                      <span className="set-item-icon" style={{ background: s.bg, color: "#fff", width: 36, height: 36, borderRadius: 10, marginRight: 0 }}>{s.icon}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--enki-ink)" }}>{s.label}</span>
+                      {s.account ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: "100%" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--enki-ink)", maxWidth: "100%", overflow: "hidden" }}>
+                            <CheckCircle2 size={12} style={{ color: "#1f8a5b", flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{s.account.handle}</span>
+                          </span>
+                          <button
+                            onClick={() => disconnectSocial(s.key)}
+                            style={{ fontSize: 10.5, color: "var(--enki-ink-3)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      ) : (
+                        <button className="set-btn set-btn-outline" style={{ height: 26, padding: "0 14px", fontSize: 12 }} onClick={() => connectSocial(s.key)}>
+                          Connect
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </SettingsSection>
 
-              <SettingsSection num="02" title="Leaderboard Visibility">
-                <div className="set-list-item" title="Leaderboards coming soon">
+              <SettingsSection num="02" title="Hall of Fame">
+                <div className="set-list-item">
                   <div className="set-item-content">
-                    <div className="set-item-title" style={{ color: '#aaa' }}>Show generations on leaderboard</div>
-                    <div className="set-item-sub">Allow others to see your generation count (Coming Soon)</div>
+                    <div className="set-item-title">Show me on the Hall of Fame</div>
+                    <div className="set-item-sub">Appear in the public rankings for generations and earnings.</div>
                   </div>
-                  <SettingsToggle checked={settings.showLeaderboardGen} disabled={true} onChange={(c) => updateSetting("showLeaderboardGen", c)} />
-                </div>
-                <div className="set-list-item" title="Leaderboards coming soon">
-                  <div className="set-item-content">
-                    <div className="set-item-title" style={{ color: '#aaa' }}>Show earnings on leaderboard</div>
-                    <div className="set-item-sub">Allow others to see your total earnings (Coming Soon)</div>
-                  </div>
-                  <SettingsToggle checked={settings.showLeaderboardEarn} disabled={true} onChange={(c) => updateSetting("showLeaderboardEarn", c)} />
+                  <SettingsToggle
+                    checked={hideLb === null ? true : !hideLb}
+                    disabled={hideLb === null}
+                    onChange={(c) => toggleLeaderboard(c)}
+                  />
                 </div>
               </SettingsSection>
 
@@ -190,11 +331,15 @@ export default function SettingsPage() {
                 <div className="set-list-item">
                   <div className="set-item-icon" style={{ color: '#e23b3b', background: '#ffebeb' }}><AlertCircle size={14} /></div>
                   <div className="set-item-content">
-                    <div className="set-item-title" style={{ color: '#e23b3b' }}>Delete Account</div>
-                    <div className="set-item-sub">Permanently delete your account and all associated data. This action requires multi-factor confirmation.</div>
+                    <div className="set-item-title" style={{ color: '#e23b3b' }}>Delete account</div>
+                    <div className="set-item-sub">
+                      {recovery && recovery.confirmed > 0
+                        ? "Your guardians must approve this first. Everything you made is removed."
+                        : "Permanently removes your account and everything you made. Can't be undone."}
+                    </div>
+                  </div>
+                  <button className="set-btn set-btn-danger" onClick={() => setDeleteOpen(true)}>Delete account</button>
                 </div>
-                <button className="set-btn set-btn-danger" onClick={handleDeleteAccount}>Delete Account</button>
-              </div>
               </SettingsSection>
 
               {IS_ADMIN && (
@@ -209,136 +354,36 @@ export default function SettingsPage() {
                       Open Admin <ArrowUpRight size={12} />
                     </a>
                   </div>
-                  <div className="set-list-item">
-                    <div className="set-item-icon" style={{ color: '#6366f1', background: '#eef2ff' }}>📊</div>
-                    <div className="set-item-content">
-                      <div className="set-item-title">Leaderboard</div>
-                      <div className="set-item-sub">View top creators and earners across the platform.</div>
-                    </div>
-                    <a href="/leaderboard" className="set-btn set-btn-secondary" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
-                      View <ArrowUpRight size={12} />
-                    </a>
-                  </div>
                 </SettingsSection>
               )}
             </>
           )}
 
-          {/* === WALLETS TAB === */}
-          {activeTab === "wallets" && (
-            <SettingsSection num="01" title="Network Holdings">
-              <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                Your assets managed securely via Turnkey infrastructure.
-              </div>
-              <MockBanner>
-                These addresses and balances are placeholders. Live balance fetching and the Send flow are not wired yet.
-              </MockBanner>
-              <div className="set-list-item">
-                <div className="set-item-icon"><Wallet size={14} /></div>
-                <div className="set-item-content">
-                  <div className="set-item-title">Ethereum (Base) <span className="set-badge-dark">ACTIVE</span><MockTag /></div>
-                  <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>0x71C...9B3f</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 500 }}>0.45 ETH</div>
-                    <div style={{ fontSize: '11px', color: '#888' }}>~$1,204.50</div>
-                  </div>
-                  <button className="set-btn set-btn-dark"><ArrowUpRight size={14} /> Send</button>
-                </div>
-              </div>
-              <div className="set-list-item">
-                <div className="set-item-icon"><Wallet size={14} /></div>
-                <div className="set-item-content">
-                  <div className="set-item-title">Solana<MockTag /></div>
-                  <div className="set-item-sub" style={{ fontFamily: 'monospace' }}>HN7c...k8W2</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 500 }}>12.5 SOL</div>
-                    <div style={{ fontSize: '11px', color: '#888' }}>~$1,850.00</div>
-                  </div>
-                  <button className="set-btn set-btn-dark"><ArrowUpRight size={14} /> Send</button>
-                </div>
-              </div>
-            </SettingsSection>
-          )}
-
-          {/* === EARNINGS TAB === */}
-          {activeTab === "earnings" && (
-            <>
-              <SettingsSection num="01" title="My Prompts">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  Revenue generated from prompts you created and own.
-                </div>
-                <div className="set-table-wrapper">
-                  <table className="set-table">
-                    <thead>
-                      <tr>
-                        <th>Prompt Name</th>
-                        <th>Generations</th>
-                        <th>Total Earnings</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Quiet Window, Late Afternoon</td>
-                        <td>432</td>
-                        <td className="money">$124.50</td>
-                        <td><button className="set-btn set-btn-outline">View Details</button></td>
-                      </tr>
-                      <tr>
-                        <td>Cyberpunk Alleyway</td>
-                        <td>1,204</td>
-                        <td className="money">$850.00</td>
-                        <td><button className="set-btn set-btn-outline">View Details</button></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </SettingsSection>
-
-              <SettingsSection num="02" title="Hunted Prompts (50% Affiliate)">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  Your 50% affiliate revenue from prompts you brought into Enki Art via the Hunt flow.
-                </div>
-                <div className="set-table-wrapper">
-                  <table className="set-table">
-                    <thead>
-                      <tr>
-                        <th>Prompt Name</th>
-                        <th>Original Artist</th>
-                        <th>Total Affiliate Earnings</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Neon Samurai</td>
-                        <td>@digital_ronin</td>
-                        <td className="money">$45.00</td>
-                        <td><button className="set-btn set-btn-outline">View Details</button></td>
-                      </tr>
-                      <tr>
-                        <td>Ethereal Landscape</td>
-                        <td>@nature_ai</td>
-                        <td className="money">$12.50</td>
-                        <td><button className="set-btn set-btn-outline">View Details</button></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </SettingsSection>
-            </>
-          )}
+          {/* === PAYMENT TAB === */}
+          {activeTab === "payment" && <PaymentPanel focusRamp={rampFocus} />}
 
           {/* === REFERRALS TAB === */}
           {activeTab === "referrals" && (
-            <SettingsSection num="01" title="Referrals · 50/50 revenue split">
+            <SettingsSection num="01" title="Referrals">
               <div className="set-section-desc" style={{ paddingBottom: 16 }}>
-                Links you&apos;ve referred. We review each one; if we rebuild it into a prompt you&apos;re credited,
-                and you earn a <strong>50/50 split with the artist</strong> on every sale.
+                Found great art on social media? Suggest the post with <strong>Refer Prompt</strong>.
+                We review every link; if we rebuild it into a prompt, you&apos;re credited as the referrer
+                and earn <strong>{REFERRAL_SHARE_PCT}% of Enki&apos;s {PLATFORM_FEE_PCT}% platform fee</strong> on
+                every sale of that prompt, automatically.
+              </div>
+              <div className="set-earn-grid" style={{ marginBottom: 14 }}>
+                <div className="set-earn-cell">
+                  <div className="set-earn-num">${referrals.reduce((s, r) => s + r.revenue, 0).toFixed(2)}</div>
+                  <div className="set-earn-label">Earned through referrals</div>
+                </div>
+                <div className="set-earn-cell">
+                  <div className="set-earn-num">{referrals.filter((r) => r.status === "earning").length}</div>
+                  <div className="set-earn-label">Earning prompts</div>
+                </div>
+                <div className="set-earn-cell">
+                  <div className="set-earn-num">{referrals.length}</div>
+                  <div className="set-earn-label">Links referred</div>
+                </div>
               </div>
               {referrals.length === 0 ? (
                 <div className="set-section-desc">No referrals yet — use <strong>Refer Prompt</strong> to suggest a social link.</div>
@@ -375,239 +420,9 @@ export default function SettingsPage() {
           )}
 
           {/* === RECOVERY & 2FA TAB === */}
-          {activeTab === "recovery" && (
-            <>
-              <MockBanner>
-                This whole tab is a UI mockup. The recovery phrase status, guardians, approval threshold, ZK passcode and device list are placeholders — none of it is wired to Turnkey or stored yet.
-              </MockBanner>
-              {showLivenessBanner && (
-                <div style={{ background: "#fef9eb", border: "1px solid #f5e6c0", borderLeft: "3px solid #f5c542", borderRadius: 8, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#7a5c10" }}>Annual Guardians check</p>
-                    <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#8a7020" }}>Please confirm your guardians are still up to date or ping them to verify liveness.</p>
-                  </div>
-                  <button onClick={() => setShowLivenessBanner(false)} style={{ background: "none", border: "none", color: "#a09788", fontSize: 13, cursor: "pointer", fontFamily: "var(--font-outfit)" }}>Dismiss</button>
-                </div>
-              )}
+          {activeTab === "recovery" && <RecoveryPanel focus={focusGuardians} />}
 
-              {/* ── Recovery Phrase ── */}
-              <SettingsSection num="01" title="Recovery Phrase">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  Your 24-word BIP39 master key. Anyone who has it can access your account — store it offline only. Entering it at <strong>/recovery</strong> grants immediate access with no delay.
-                </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ color: '#276738', background: '#eaf6ee' }}><Key size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">
-                      Recovery phrase
-                      <span style={{ marginLeft: 8, padding: '2px 8px', background: '#eaf6ee', color: '#276738', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>✓ Set</span>
-                    </div>
-                    <div className="set-item-sub">Generated at account creation. Stored nowhere by us — only you have it.</div>
-                  </div>
-                  <button className="set-btn set-btn-secondary">Rotate phrase</button>
-                </div>
-                <div className="set-list-item" style={{ background: '#f8f6f1' }}>
-                  <div className="set-item-icon" style={{ color: '#5a3e8f', background: '#f0eafb' }}><Key size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">
-                      Split Recovery Phrase 
-                      <span style={{marginLeft: 6, fontSize: 10, color: '#a09788', fontWeight: 'normal', fontFamily: 'monospace', letterSpacing: '1px'}}>SLIP-39</span>
-                      <span style={{ marginLeft: 6, padding: '2px 8px', background: '#f0ede6', color: '#a09788', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>Coming soon</span>
-                    </div>
-                    <div className="set-item-sub">Split your phrase into 5 shares, any 3 reconstruct it. Eliminates single-point-of-failure. Pending Turnkey infrastructure support.</div>
-                  </div>
-                </div>
-              </SettingsSection>
-
-              {/* ── Social Recovery ── */}
-              <SettingsSection num="02" title="Social Recovery">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  A secondary recovery path. Add trusted friends, wallets, or email addresses as guardians. If you lose your phrase, you can restore access if enough guardians approve it.
-                </div>
-
-                {/* Guardians List */}
-                <div className="set-list-item" style={{ background: '#f8f6f1', borderBottom: 'none' }}>
-                  <div className="set-item-content">
-                    <div className="set-item-title" style={{ fontSize: 13 }}>Your Guardians</div>
-                  </div>
-                  <button className="set-btn set-btn-secondary" style={{ padding: '4px 10px', fontSize: 11 }}>+ Add guardian</button>
-                </div>
-                
-                {guardiansList.map((g, i, arr) => (
-                  <div key={g.id} className="set-list-item" style={{ borderBottom: i === arr.length - 1 ? '1px solid #e8e5de' : 'none' }}>
-                    <div className="set-item-icon" style={{ background: '#f5f3ee' }}>
-                      {g.type === "handle" ? <User size={14} /> : g.type === "wallet" ? <Wallet size={14} /> : <Mail size={14} />}
-                    </div>
-                    <div className="set-item-content">
-                      <div className="set-item-title" style={{ fontFamily: g.type === "wallet" ? "monospace" : "'Outfit', sans-serif" }}>
-                        {g.name}
-                        {showLivenessBanner && (
-                          <span style={{ marginLeft: 8, fontSize: 11, padding: "2px 6px", borderRadius: 12, background: g.status === "pinged" ? "#fff0c2" : "#eaf6ee", color: g.status === "pinged" ? "#966f07" : "#276738", fontWeight: 600 }}>
-                            {g.status === "pinged" ? "Pinged" : "Confirmed"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="set-item-sub">{g.sub}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {showLivenessBanner && g.status !== "pinged" && (
-                        <button className="set-btn set-btn-outline" onClick={() => pingGuardian(g.id)}>Ping</button>
-                      )}
-                      <button className="set-btn set-btn-outline">Remove</button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Threshold */}
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ color: '#4a6fa5', background: '#eff6ff' }}><Users size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Approval Threshold</div>
-                    <div className="set-item-sub">How many guardians must approve to restore access.</div>
-                  </div>
-                  <select className="set-btn set-btn-secondary" style={{ outline: 'none' }}>
-                    <option>2 of 3 required</option>
-                    <option>3 of 3 required</option>
-                  </select>
-                </div>
-
-                {/* ZK Commitment */}
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ color: '#7c5cbf', background: '#f5f0fa' }}><Shield size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">
-                      Guardian Passcode
-                      <span style={{marginLeft: 6, fontSize: 10, color: '#a09788', fontWeight: 'normal', fontFamily: 'monospace', letterSpacing: '1px'}}>ZK PROOF</span>
-                      <span style={{ marginLeft: 8, padding: '2px 8px', background: '#eaf6ee', color: '#276738', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>✓ Set</span>
-                    </div>
-                    <div className="set-item-sub">The cryptographic hash of your passphrase + guardian set. Proves you initiated the recovery without revealing your passphrase.</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="set-btn" style={{ background: '#f5f3ee', color: '#4a4540', border: '1px solid #e8e5de' }}>Verify proof</button>
-                    <button className="set-btn set-btn-secondary">Rotate</button>
-                  </div>
-                </div>
-              </SettingsSection>
-
-              <SettingsSection num="03" title="How you sign in">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  Each device you add is a way back into your account. Add at least two — if you lose one (a stolen phone, a wiped laptop), you can still get in with the other.
-                </div>
-                <div className="px-6 pb-4">
-                  <button className="set-btn set-btn-dark" onClick={() => setDeviceModalOpen(true)}>+ Add a device</button>
-                </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon"><Laptop size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">MacBook Pro &middot; Touch ID <span className="set-badge-dark">THIS DEVICE</span></div>
-                    <div className="set-item-sub">Active now</div>
-                  </div>
-                  <button className="set-btn set-btn-outline">Remove</button>
-                </div>
-                <div className="set-list-item">
-                  <div className="set-item-icon"><Smartphone size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">iPhone 15 &middot; Face ID</div>
-                    <div className="set-item-sub">Used 2 days ago</div>
-                  </div>
-                  <button className="set-btn set-btn-outline">Remove</button>
-                </div>
-                <div className="set-list-item" style={{ background: '#f5f2ec' }}>
-                  <div className="set-item-icon" style={{ background: '#fff' }}><Mail size={14} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Recovery email <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 'normal', color: '#666' }}>eli@enki.studio</span></div>
-                    <div className="set-item-sub">If all your devices are gone, we'll send a one-time code here so you can sign in again.</div>
-                  </div>
-                  <button className="set-btn set-btn-outline" onClick={() => setIsAwaitingModalOpen(true)}>Change email</button>
-                </div>
-              </SettingsSection>
-
-              <SettingsSection num="04" title="Extra check before risky actions">
-                <div className="set-list-item" style={{ borderBottom: 'none' }}>
-                  <div className="set-item-content" style={{ paddingRight: '24px' }}>
-                    <div className="set-item-sub" style={{ fontSize: '12px', color: '#666', lineHeight: '1.5', marginTop: 0 }}>
-                      When this is on, we'll ask you to confirm one more time on this device before something serious happens — like deleting your work or sending a payment. Stops accidents and stops anyone who briefly grabs your laptop.
-                    </div>
-                  </div>
-                  <SettingsToggle 
-                    checked={recoverySettings.deleteWorkCheck} 
-                    onChange={(val) => setRecoverySettings(p => ({...p, deleteWorkCheck: val, sellPromptCheck: val, sendMoneyCheck: val}))} 
-                  />
-                </div>
-                
-                <div className="set-list-item" style={{ paddingTop: 0, borderTop: '1px solid #f0eee8' }}>
-                  <div className="set-check-circle"><Check size={12} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Deleting any of your work</div>
-                    <div className="set-item-sub">Images, prompts, releases — once gone, it's gone.</div>
-                  </div>
-                </div>
-                
-                <div className="set-list-item" style={{ paddingTop: 0 }}>
-                  <div className="set-check-circle"><Check size={12} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Selling or releasing a prompt</div>
-                    <div className="set-item-sub">Anything that takes payment or goes public on-chain.</div>
-                  </div>
-                </div>
-
-                <div className="set-list-item" style={{ paddingTop: 0 }}>
-                  <div className="set-check-circle"><Check size={12} /></div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Sending money out of your wallet</div>
-                    <div className="set-item-sub">Any transfer to an address that isn't yours.</div>
-                  </div>
-                </div>
-              </SettingsSection>
-
-              {/* ── Last Resort Recovery ── */}
-              <SettingsSection num="05" title="Last Resort Recovery">
-                <div className="set-section-desc" style={{ paddingBottom: '16px' }}>
-                  If you ever lose your device, seed phrase, and email simultaneously, our team can manually verify your identity and restore access. No automated path — a real person reviews every case.
-                </div>
-
-                {/* ZKP hash — optional evidence */}
-                <div className="set-list-item">
-                  <div className="set-item-icon" style={{ color: '#5a3e8f', background: '#f0eafb' }}>🔐</div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">
-                      Recovery Evidence Hash
-                      <span style={{ marginLeft: 6, padding: '2px 8px', background: '#fef9eb', color: '#7a5c10', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>Not set</span>
-                    </div>
-                    <div className="set-item-sub">Optional but strong supporting evidence for manual review. You generate 3 secret phrases locally — the hash is stored, never the phrases. Submit it with your recovery request.</div>
-                  </div>
-                  <a href="/recovery/setup-zkp" className="set-btn set-btn-secondary" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>Set up</a>
-                </div>
-
-                {/* What counts as evidence */}
-                <div className="set-list-item" style={{ background: '#f8f6f1', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
-                  <div className="set-item-title" style={{ fontSize: 12 }}>📋 What helps during manual review</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', width: '100%' }}>
-                    {['Old connected email', 'Known wallet address', 'Prompts / content you own', 'Recovery evidence hash', 'Social account links', 'Purchase receipts'].map(e => (
-                      <div key={e} className="set-item-sub" style={{ margin: 0 }}>· {e}</div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Link to recovery page */}
-                <div className="set-list-item" style={{ borderTop: '1px solid #f0ede6', background: '#f8f6f1' }}>
-                  <div className="set-item-icon" style={{ color: '#c2692a', background: '#fef0e6' }}>🆘</div>
-                  <div className="set-item-content">
-                    <div className="set-item-title">Lost all access?</div>
-                    <div className="set-item-sub">Submit a manual recovery request. A team member will review your case within 2–5 business days and reach out at a new email you provide.</div>
-                  </div>
-                  <a href="/recovery" className="set-btn set-btn-secondary" style={{ textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    Request recovery <ArrowUpRight size={12} />
-                  </a>
-                </div>
-              </SettingsSection>
-
-            </>
-          )}
-
-          {/* === BILLING TAB === */}
-          {activeTab === "billing" && <BillingPanel />}
-
+          </div>
         </SettingsLayout>
         
         {/* Floating Save Button */}
@@ -617,14 +432,58 @@ export default function SettingsPage() {
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Settings"}
           </button>
         </div>
-        
-        <TurnkeyDeviceModal isOpen={deviceModalOpen} onClose={() => setDeviceModalOpen(false)} />
-        <AwaitingConfirmationModal 
-          isOpen={isAwaitingModalOpen} 
-          onClose={() => setIsAwaitingModalOpen(false)} 
-          email="eli@enki.studio"
-          device="MacBook Pro"
-        />
+
+        {/* ── Delete account confirm ── */}
+        {deleteOpen && (
+          <div className="set-pay-overlay" onClick={() => !deleteBusy && !deletePending && setDeleteOpen(false)}>
+            <div className="set-pay-card set-pay-card--fiat" onClick={(e) => e.stopPropagation()}>
+              {deletePending ? (
+                <div style={{ textAlign: "center" }}>
+                  <div className="set-item-title" style={{ marginBottom: 8 }}>Waiting for your guardians</div>
+                  <p className="set-item-sub" style={{ marginBottom: 16 }}>
+                    We emailed your guardians. Your account is deleted once enough of them approve. You can close this.
+                  </p>
+                  <button className="set-btn set-btn-outline" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setDeleteOpen(false); setDeletePending(false); }}>
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="set-item-title" style={{ color: "#e23b3b", marginBottom: 6 }}>Delete your account?</div>
+                  <p className="set-item-sub" style={{ marginBottom: 14 }}>
+                    This removes your account and everything you made, for good.
+                    {recovery && recovery.confirmed > 0
+                      ? " Your guardians will be asked to approve before it happens."
+                      : ""} Type your username to confirm.
+                  </p>
+                  <input
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder="your_username"
+                    autoFocus
+                    style={{ width: "100%", height: 40, padding: "0 12px", borderRadius: 8, fontSize: 14, border: "1px solid var(--enki-rule)", background: "transparent", color: "var(--enki-ink)", outline: "none" }}
+                  />
+                  <button
+                    className="set-btn set-btn-danger"
+                    style={{ width: "100%", justifyContent: "center", marginTop: 14 }}
+                    onClick={submitDelete}
+                    disabled={deleteBusy || deleteConfirm.trim().length < 3}
+                  >
+                    {deleteBusy ? <Loader2 size={14} className="set-spin" /> : (recovery && recovery.confirmed > 0 ? "Request deletion" : "Delete forever")}
+                  </button>
+                  <button
+                    className="set-btn set-btn-outline"
+                    style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+                    onClick={() => setDeleteOpen(false)}
+                    disabled={deleteBusy}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

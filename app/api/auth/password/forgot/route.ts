@@ -1,17 +1,19 @@
 /**
  * POST /api/auth/password/forgot  { email } → { ok: true } (always)
  *
- * Issues a single-use reset token (30 min). Always returns ok so an attacker
- * can't probe which emails exist. SEAM: wire the email provider where marked;
- * in dev the reset link is logged server-side.
+ * Emails a single-use 7-digit reset code (15 min TTL). Only the SHA-256 of the
+ * code is stored (in password_reset_tokens.token), so a DB leak reveals no
+ * usable codes. Always returns ok so an attacker can't probe which emails
+ * exist. Without RESEND_API_KEY the code is logged server-side in dev.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { numericCode, sha256 } from "@/lib/password-reset";
+import { sendMail } from "@/lib/mailer";
 
-const RESET_TTL_MS = 30 * 60 * 1000;
+const RESET_TTL_MS = 15 * 60 * 1000;
 const bodySchema = z.object({ email: z.string().email().max(320) });
 
 export async function POST(req: NextRequest) {
@@ -23,15 +25,30 @@ export async function POST(req: NextRequest) {
   const email = parsed.data.email.trim().toLowerCase();
 
   const supabase = getSupabaseServerClient();
-  const { data: user } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
-  if (user) {
-    const token = randomBytes(32).toString("hex");
+  const { data: cred } = await supabase
+    .from("password_credentials")
+    .select("user_id")
+    .eq("email", email)
+    .maybeSingle();
+  if (cred) {
+    // One live code per user: replace older ones so guessing windows don't stack.
+    await supabase.from("password_reset_tokens").delete().eq("user_id", cred.user_id);
+    const code = numericCode(7);
     const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
-    await supabase.from("password_reset_tokens").insert({ token, user_id: user.id, expires_at: expiresAt });
+    await supabase
+      .from("password_reset_tokens")
+      .insert({ token: sha256(code), user_id: cred.user_id, expires_at: expiresAt });
 
-    const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/reset-password?token=${token}`;
-    // TODO(email): send `link` to `email` via the email provider.
-    if (process.env.NODE_ENV !== "production") console.log("[auth/forgot] reset link:", link);
+    const mail = await sendMail({
+      to: email,
+      subject: `${code} is your Enki Art reset code`,
+      text:
+        `Your Enki Art password reset code is:\n\n    ${code}\n\n` +
+        `Enter it on the reset page within 15 minutes. If you didn't ask for this, you can ignore this email — nothing changes without the code.`,
+    });
+    if (!mail.ok && process.env.NODE_ENV !== "production") {
+      console.log(`[auth/forgot] email not configured — reset code for ${email}: ${code}`);
+    }
   }
 
   return NextResponse.json({ ok: true });

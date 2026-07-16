@@ -151,6 +151,9 @@ export async function fulfillGenerationIntent(
   supabase: SupabaseClient,
   intentId: string,
 ): Promise<void> {
+  // Free-use quotas need no hook here: a fulfilled intent keeps counting
+  // against the day's quota purely by its fulfilled_at timestamp (see
+  // resolvePricingRule — quota is derived from intent rows, not counters).
   for (let attempt = 1; attempt <= 3; attempt++) {
     const now = new Date().toISOString();
     const { error } = await supabase

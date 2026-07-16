@@ -50,7 +50,9 @@
 /* ════════════════ Layout ════════════════ */
 .ek-shell { display: flex; min-height: 100vh; }
 .ek-sidebar {
-  position: fixed; top: 0; left: 0; bottom: 0; z-index: 120;
+  /* Above the right-side panel scrim (z 160): no panel may ever cover the
+     sidebar — especially not the collapse chevron poking out of its edge. */
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 165;
   width: 256px;
   display: flex; flex-direction: column;
   padding: 18px 14px 22px;
@@ -162,9 +164,12 @@
   background: var(--cta-bg); color: var(--cta-ink);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600;
+  overflow: hidden;
 }
-.ek-account-info { min-width: 0; flex: 1; }
-.ek-account-nrow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ek-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ek-account-info { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.ek-account-side { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.ek-root--rail .ek-account-side { display: none; }
 .ek-account-nametext { font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ek-root--rail .ek-account-info, .ek-root--rail .ek-account-more { display: none; }
 .ek-account-handle { font-size: 12px; color: var(--enki-ink-3); font-family: var(--font-mono), monospace; }
@@ -179,6 +184,64 @@
 }
 .ek-balance:hover { background: color-mix(in oklab, var(--enki-ember) 26%, transparent); }
 .ek-root--rail .ek-balance { display: none; }
+
+/* ── thin red "no recovery" banner across the very top ── */
+.ek-recovery-banner {
+  position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 300;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 44px 0 14px;
+  background: #b3271e; color: #fff;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ek-recovery-banner-msg {
+  border: none; background: none; color: #fff; cursor: pointer;
+  font: inherit; text-decoration: underline; text-underline-offset: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0;
+}
+.ek-recovery-banner-msg:hover { opacity: 0.85; }
+.ek-recovery-banner-x {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.16); color: #fff;
+}
+.ek-recovery-banner-x:hover { background: rgba(255, 255, 255, 0.3); }
+/* The banner pushes EVERY fixed layer down 30px so nothing hides behind it. */
+.ek-with-banner .ek-sidebar { top: 30px; }
+.ek-with-banner .ek-topbar { top: 30px; }
+.ek-with-banner .ek-panel-scrim { top: 30px; }
+.ek-with-banner .ek-main .enki-catbar { top: 86px; }    /* 30 banner + 56 topbar */
+.ek-with-banner .ek-main > .enki { padding-top: 142px; } /* 112 + 30 */
+.ek-with-banner .nc { top: 30px; }                       /* node editor + its absolute toolbar/ribbon */
+
+/* ── small viewports: compress the sidebar so nothing ever overlaps ── */
+@media (max-height: 800px) {
+  .ek-sidebar { padding-top: 10px; padding-bottom: 12px; }
+  .ek-nav { gap: 1px; }
+  .ek-nav-item { height: 40px; }
+  .ek-create { height: 42px; margin-top: 10px; font-size: 14px; }
+  .ek-account { margin-top: 8px; }
+  .ek-avatar { width: 34px; height: 34px; }
+}
+@media (max-height: 640px) {
+  /* Last resort: the nav list scrolls instead of stacking over the footer. */
+  .ek-nav { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+  .ek-nav::-webkit-scrollbar { display: none; }
+  .ek-nav-item { height: 34px; }
+  .ek-create { height: 36px; margin-top: 6px; }
+}
+.ek-create, .ek-account { flex-shrink: 0; }
+
+/* ── log off button (in account row) ── */
+.ek-logoff {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--enki-rule); background: transparent; color: var(--enki-ink-3);
+  cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ek-logoff:hover { color: #e0584f; border-color: rgba(224, 88, 79, 0.5); background: rgba(224, 88, 79, 0.1); }
+.ek-root--rail .ek-logoff { display: none; }
 
 /* ── color setup dropdown ── */
 .ek-color-dd { position: absolute; z-index: 140; width: 158px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28); padding: 6px; animation: ek-dd-in 0.16s ease; }
@@ -263,12 +326,29 @@
 .ek-panel-scrim { position: fixed; top: 0; bottom: 0; right: 0; left: var(--ek-sw); z-index: 160; background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; justify-content: flex-end; animation: ek-fade 0.16s ease; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
 .ek-panel { width: min(480px, 100%); height: 100%; background: var(--enki-paper); border-left: 1px solid var(--enki-rule); box-shadow: -24px 0 70px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; animation: ek-fade 0.18s ease; }
 /* full view (e.g. Profile): fills the whole main area, no dim/slide */
-.ek-panel-scrim--full { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ek-panel-scrim--full {
+  background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+  /* No fade-in: full panels must cover INSTANTLY. The 0.16s ek-fade let the
+     home feed flash through when switching out of Create Prompt 2 (the node
+     editor unmounts in the same paint, but the panel spent 160ms at opacity 0). */
+  animation: none;
+}
 .ek-panel--full { width: 100%; max-width: none; border-left: none; box-shadow: none; animation: none; }
 .ek-panel-head { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 16px 0 22px; border-bottom: 1px solid var(--enki-rule); flex-shrink: 0; background: var(--header-bg); }
 .ek-panel-title { font-family: var(--font-serif), Georgia, serif; font-size: 21px; color: var(--enki-ink); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ek-panel-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ek-panel-x:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.ek-panel { position: relative; }
+.ek-panel-x--float { position: absolute; top: 14px; right: 18px; z-index: 30; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
+
+/* ── unified panel headline (the landing "Expert-crafted AI Art" serif) ── */
+.ek-panel-hero { padding: 44px 40px 6px; }
+.ek-panel-hero h1 {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+  font-weight: 400; font-size: clamp(34px, 5vw, 52px); line-height: 1.08;
+  margin: 0; color: var(--enki-ink);
+}
+.ek-panel-hero p { margin: 10px 0 0; font-size: 14px; line-height: 1.55; color: var(--enki-ink-3); max-width: 560px; }
 .ek-panel-body { flex: 1; overflow-y: auto; }
 .ek-panel-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--enki-ink-3); text-align: center; padding: 40px; }
 /* tame full-page layouts reused inside the panel */

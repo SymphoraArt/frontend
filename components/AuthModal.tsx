@@ -38,6 +38,11 @@ export function AuthModal({
 
   const reset = () => { setError(null); setSent(false); };
   const go = (m: Mode) => { reset(); setPassword(""); setConfirm(""); setMode(m); };
+  // Clear a stale server error as soon as the user edits a field.
+  const edit = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (error) setError(null);
+    setter(e.target.value);
+  };
   const close = () => { setMode("signin"); setEmail(""); setPassword(""); setConfirm(""); reset(); onClose(); };
 
   const submit = async (e: React.FormEvent) => {
@@ -82,9 +87,11 @@ export function AuthModal({
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="auth-email" className="text-xs">Email</Label>
-              <Input id="auth-email" type="email" required autoComplete="email" placeholder="you@example.com"
-                value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label htmlFor="auth-email" className="text-xs">{mode === "signin" ? "Email or username" : "Email"}</Label>
+              <Input id="auth-email" type={mode === "signin" ? "text" : "email"} required autoFocus
+                autoComplete={mode === "signin" ? "username" : "email"}
+                placeholder={mode === "signin" ? "you@example.com or username" : "you@example.com"}
+                value={email} onChange={edit(setEmail)} />
             </div>
 
             {mode !== "forgot" && (
@@ -98,7 +105,7 @@ export function AuthModal({
                 </div>
                 <Input id="auth-password" type="password" required minLength={8}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder="••••••••"
-                  value={password} onChange={(e) => setPassword(e.target.value)} />
+                  value={password} onChange={edit(setPassword)} />
               </div>
             )}
 
@@ -106,7 +113,7 @@ export function AuthModal({
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="auth-confirm" className="text-xs">Confirm password</Label>
                 <Input id="auth-confirm" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••"
-                  value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+                  value={confirm} onChange={edit(setConfirm)} />
               </div>
             )}
 

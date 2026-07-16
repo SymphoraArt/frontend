@@ -1,6 +1,7 @@
 // app/api/generations/route.ts
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { notifyEvent } from "@/lib/notifications";
 import { substituteVariables } from "@/backend/services/variable-substitution";
 import { encryptPrompt } from "@/backend/encryption";
 import {
@@ -31,7 +32,12 @@ export async function GET(req: Request) {
       return createErrorResponse('userId or userKey is required', 400);
     }
 
-    // Solana public keys are base58, not UUIDs — return empty instead of crashing
+    // generations.user_id is a UUID column (verified live 2026-07-14). Galleries
+    // pass a base58/0x WALLET ADDRESS, which can't cast to uuid — querying it
+    // raises 22P02 (a 500). So a non-UUID caller gets an empty result, not a
+    // crash. (The table is currently empty and this whole route is out of sync
+    // with the live schema — a real fix means resolving wallet→user uuid; that
+    // belongs to angglu's generations refactor, flagged separately.)
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     if (!isUuid) {
       return createSuccessResponse({ generations: [], total: 0, limit, offset });
@@ -122,6 +128,41 @@ export async function POST(req: Request) {
     if (error) {
       console.error('Database error:', error);
       return createErrorResponse('Failed to create generation', 500, error.message);
+    }
+
+    // Tell the prompt's creator their prompt was used — coalesces into one
+    // counter row per prompt per day, so hot prompts can't flood the table.
+    // (generations.user_id is a wallet address, not users.id, so a creator
+    // generating with their own prompt is filtered via their linked wallets.)
+    if (promptId) {
+      try {
+        const { data: prompt } = await supabase
+          .from('prompts')
+          .select('creator_id, title')
+          .eq('id', promptId)
+          .maybeSingle();
+        if (prompt?.creator_id) {
+          const { data: own } = userId
+            ? await supabase
+                .from('user_wallets')
+                .select('address')
+                .eq('user_id', prompt.creator_id)
+                .eq('address', String(userId).toLowerCase())
+                .is('removed_at', null)
+                .maybeSingle()
+            : { data: null };
+          if (!own) {
+            await notifyEvent(supabase, {
+              userId: String(prompt.creator_id),
+              kind: 'generation',
+              title: `"${prompt.title ?? 'Your prompt'}" is being used`,
+              body: 'Someone generated with it.',
+              targetType: 'prompt',
+              targetId: promptId,
+            });
+          }
+        }
+      } catch { /* notifications are best-effort */ }
     }
 
     // 6. Trigger async processing for payment-verified generations
