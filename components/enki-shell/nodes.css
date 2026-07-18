@@ -494,11 +494,13 @@ button.nc-out-var:hover{filter:brightness(.96);}
 
 /* ── Doc view (Enki Docs Editor) — a document skin over the same graph ── */
 .ncd{position:absolute;inset:0;display:flex;background:var(--enki-paper-2);animation:nc-pm-in .14s ease;}
-.ncd-desk{flex:1;min-width:0;overflow-y:auto;padding:64px 14px 48px;}
-.ncd-wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;max-width:940px;margin:0 auto;}
-/* the paper page */
-.ncd-page{position:relative;flex:1;min-width:320px;max-width:660px;display:flex;flex-direction:column;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.07),0 10px 28px rgba(0,0,0,.08);padding:26px 24px 14px;min-height:calc(100vh - 150px);}
-.ncd-pbox{position:relative;flex:1;}
+.ncd-desk{flex:1;min-width:0;overflow-y:auto;padding:56px 10px 10px;}
+.ncd-wrap{display:flex;gap:16px;justify-content:center;align-items:flex-start;max-width:1100px;margin:0 auto;}
+/* the paper page — fills the frame height; the TEXT scrolls inside it, so the
+   foot (and its Generate) sits level with the results release bar */
+.ncd-page{position:relative;flex:1;min-width:320px;max-width:680px;display:flex;flex-direction:column;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.07),0 10px 28px rgba(0,0,0,.08);padding:22px 22px 10px;height:calc(100vh - 66px);min-height:420px;}
+.ncd-tascroll{flex:1;min-height:0;overflow-y:auto;}
+.ncd-pbox{position:relative;min-height:100%;}
 .ncd-pov,.ncd-pta{font-family:var(--font-serif),Georgia,serif;font-size:16.5px;line-height:1.7;color:var(--enki-ink);white-space:pre-wrap;word-break:break-word;}
 .ncd-pov{position:relative;z-index:2;pointer-events:none;min-height:300px;}
 .ncd-pov .nc-tok{pointer-events:auto;cursor:pointer;}
@@ -509,10 +511,10 @@ button.nc-out-var:hover{filter:brightness(.96);}
 /* floating add-variable pill */
 .ncd-pill{position:absolute;z-index:30;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:none;border-radius:999px;background:var(--qc-bg);color:var(--qc-ink);font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.28);animation:nc-pm-in .14s ease;}
 .ncd-pill:hover{filter:brightness(1.1);}
-/* page foot: refs + generate */
-.ncd-foot{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:9px;}
+/* page foot: refs, then settings, then Auto Fill, then Generate — all centered */
+.ncd-foot{display:flex;flex-direction:column;align-items:center;gap:7px;margin-top:10px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:8px;flex-shrink:0;}
 .ncd-lab{font-family:var(--font-mono),monospace;font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--enki-ink-3);}
-.ncd-refs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ncd-refs{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;}
 .ncd-ref{position:relative;width:34px;height:34px;border-radius:7px;overflow:visible;flex-shrink:0;}
 .ncd-ref img{width:100%;height:100%;object-fit:cover;border-radius:7px;border:1px solid var(--enki-rule);display:block;cursor:zoom-in;}
 .ncd-ref.ui img{box-shadow:0 0 0 2px var(--enki-turq);}
@@ -522,11 +524,14 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-ref-ui.on{background:var(--enki-turq);border-color:var(--enki-turq);}
 .ncd-ref-add{width:34px;height:34px;border:1px dashed var(--enki-rule);border-radius:7px;background:var(--enki-paper-2);color:var(--enki-ink-3);font-size:16px;cursor:pointer;flex-shrink:0;}
 .ncd-ref-add:hover{border-color:var(--enki-ember);color:var(--enki-ember);}
-.ncd-genopts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.ncd-genrow{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.ncd-genopts{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;}
 .ncd-autofill{white-space:nowrap;}
+.ncd-gen{display:flex;align-items:center;gap:7px;height:32px;padding:0 18px;border:none;border-radius:999px;background:var(--cta-bg);color:var(--cta-ink);font-family:var(--font-sans),sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:filter .12s;}
+.ncd-gen:hover{filter:brightness(1.05);}
+.ncd-gen.disabled{opacity:.5;cursor:default;filter:none;}
+.ncd-gen-price{font-family:var(--font-mono),monospace;font-size:10.5px;opacity:.8;}
 /* comment rail */
-.ncd-rail{width:236px;flex-shrink:0;display:flex;flex-direction:column;gap:7px;position:sticky;top:0;}
+.ncd-rail{width:236px;flex-shrink:0;display:flex;flex-direction:column;gap:7px;position:sticky;top:0;max-height:calc(100vh - 66px);overflow-y:auto;}
 .ncd-rail-empty{border:1px dashed var(--enki-rule);border-radius:9px;padding:12px;font-size:11.5px;line-height:1.55;color:var(--enki-ink-3);background:color-mix(in oklab,var(--enki-paper) 55%,transparent);}
 .ncd-vcard{background:var(--enki-paper);border:1px solid var(--enki-rule-2,var(--enki-rule));border-left:3px solid var(--enki-rule);border-radius:9px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
 .ncd-vcard.open{box-shadow:0 10px 30px rgba(0,0,0,.14);}
@@ -543,7 +548,7 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-vbody{display:flex;flex-direction:column;gap:6px;padding:4px 2px 2px;}
 .ncd-vwarn{font-size:10.5px;font-style:italic;color:#e0584f;}
 /* results / release column */
-.ncd-results{width:300px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--enki-rule);background:var(--enki-paper);padding-top:56px;}
+.ncd-results{width:340px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--enki-rule);background:var(--enki-paper);padding-top:56px;}
 .ncd-res-head{display:flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-bottom:1px solid var(--enki-rule);flex-shrink:0;}
 .ncd-res-title{font-family:var(--font-serif),Georgia,serif;font-size:14.5px;color:var(--enki-ink);}
 .ncd-res-stats{flex:1;font-family:var(--font-mono),monospace;font-size:9px;color:var(--enki-ink-3);}
@@ -566,5 +571,5 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-res-status{flex:1;min-width:0;font-family:var(--font-mono),monospace;font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--enki-ink-3);line-height:1.4;}
 .ncd-res-status.ready{color:#1f8a5b;}
 .ncd-release{height:30px;padding:0 12px;}
-@media (max-width:1180px){.ncd-results{width:250px;}.ncd-rail{width:210px;}}
+@media (max-width:1180px){.ncd-results{width:290px;}.ncd-rail{width:210px;}}
 @media (max-width:960px){.ncd-results{display:none;}}

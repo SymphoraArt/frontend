@@ -143,7 +143,6 @@ export default function DocView({ api }: { api: DocViewApi }) {
   );
 
   const genCost = perImage; // one render per doc-Generate click
-  const model = NC_MODELS.find((mm) => mm.id === st.models[0]) || NC_MODELS[0];
 
   return (
     <div className="ncd" onPointerDown={(e) => {
@@ -155,6 +154,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
         <div className="ncd-wrap">
           {/* ── the page ── */}
           <div className="ncd-page" ref={pageRef}>
+            <div className="ncd-tascroll" onScroll={() => setPill(null)}>
             <div className="ncd-pbox">
               <div className="ncd-pov" aria-hidden>
                 {(() => {
@@ -197,6 +197,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 onKeyUp={(e) => { if (e.shiftKey || e.key === "Shift") readSelection({}); }}
                 onBlur={() => setTimeout(() => setPill(null), 180)}
               />
+            </div>
             </div>
 
             {pill && (
@@ -241,17 +242,15 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
                   onChange={api.setQuality} />
               </div>
-              <div className="ncd-genrow">
-                <label className="nc-chk ncd-autofill" title="An AI writes the variable values for each new image before rendering" onClick={() => setAutoFill((v) => !v)}>
-                  <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
-                </label>
-                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")}
-                  title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
-                  onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
-                  <span className="nc-genbtn-top"><Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
-                  <span className="nc-genbtn-sub">{model.name.split(" ")[0]} · ${genCost.toFixed(2)}</span>
-                </button>
-              </div>
+              <label className="nc-chk ncd-autofill" title="An AI writes the variable values for each new image before rendering" onClick={() => setAutoFill((v) => !v)}>
+                <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
+              </label>
+              <button className={"ncd-gen" + (canGenerate ? "" : " disabled")}
+                title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
+                onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
+                <Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate
+                <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
+              </button>
             </div>
           </div>
 
