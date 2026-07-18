@@ -377,13 +377,15 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
             <option value="wallet">Wallet</option>
             <option value="email">Email</option>
             <option value="authenticator">Authenticator</option>
-            <option value="phone">Phone</option>
+            {/* Phone (SMS) hidden — needs a paid SMS provider; Authenticator
+                gives the same own-device factor for free. Server code stays,
+                re-enable by restoring this option. */}
           </select>
           {addType !== "authenticator" && (
             <input
               className="set-amount-wrap"
               style={{ flex: 1, height: 34, fontSize: 13, padding: "0 10px", border: "1px solid var(--enki-rule)", borderRadius: 6, background: "transparent", color: "var(--enki-ink)", outline: "none" }}
-              placeholder={addType === "wallet" ? "Guardian's Solana address" : addType === "phone" ? "+49 170 1234567" : "guardian@email.com"}
+              placeholder={addType === "wallet" ? "Guardian's Solana address" : "guardian@email.com"}
               value={addValue}
               onChange={(e) => setAddValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addGuardian(); }}
@@ -395,10 +397,6 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
           <button className="set-btn set-btn-dark" onClick={addGuardian} disabled={addBusy || (addType !== "authenticator" && !addValue.trim())}>
             {addBusy ? <Loader2 size={14} className="set-spin" /> : addType === "authenticator" ? "Set up" : "+ Add"}
           </button>
-        </div>
-        {/* Fixed-height hint row so selecting Phone never shifts the layout. */}
-        <div style={{ minHeight: 18, padding: "2px 2px 0", fontSize: 11.5, color: "var(--enki-ink-3)", lineHeight: 1.4 }}>
-          {addType === "phone" && "We'll text a 6-digit code to confirm the number. Carrier message rates may apply."}
         </div>
 
         {guardians === null ? (
