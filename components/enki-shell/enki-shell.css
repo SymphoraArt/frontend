@@ -364,3 +364,54 @@
 /* Hide the floating "Generate · new image" quick-create pill while the node
    editor (Create Prompt 2) is open — it has its own Generate dock. */
 .ek-app.ek-node-open .ek-generate-launcher { display: none !important; }
+
+/* ════════════════ Messages (DMs) ════════════════ */
+.ek-msg-root { display: flex; height: 100%; min-height: 480px; max-width: 1080px; margin: 0 auto; border-left: 1px solid var(--enki-rule); border-right: 1px solid var(--enki-rule); background: var(--enki-paper); }
+.ek-msg-side { width: 284px; flex-shrink: 0; border-right: 1px solid var(--enki-rule); display: flex; flex-direction: column; min-height: 0; }
+.ek-msg-side-head { padding: 18px 16px 10px; flex-shrink: 0; }
+.ek-msg-title { font-family: var(--font-serif), Georgia, serif; font-size: 30px; font-weight: 400; margin: 0 0 12px; line-height: 1; color: var(--enki-ink); }
+.ek-msg-search { display: flex; align-items: center; gap: 7px; height: 32px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2); padding: 0 11px; color: var(--enki-ink-3); transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.14); }
+.ek-msg-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 12px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-msg-search input::placeholder { color: var(--enki-ink-3); }
+.ek-msg-convs { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ek-msg-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; border-radius: 12px; background: transparent; text-align: left; width: 100%; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-row:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-row.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-row-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row-time { margin-left: auto; font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--enki-ink-3); flex-shrink: 0; }
+.ek-msg-row-prev { flex: 1; min-width: 0; font-size: 11.5px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row.unread .ek-msg-row-name { font-weight: 700; }
+.ek-msg-row.unread .ek-msg-row-prev { color: var(--enki-ink); font-weight: 600; }
+.ek-msg-pill { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--enki-ember); color: #fff; font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ek-msg-lab { padding: 10px 10px 4px; font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-msg-thread { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--enki-paper-2); }
+.ek-msg-thead { display: flex; align-items: center; gap: 10px; padding: 10px 64px 10px 16px; border-bottom: 1px solid var(--enki-rule); background: var(--enki-paper); flex-shrink: 0; }
+.ek-msg-peer { display: flex; align-items: center; gap: 10px; min-width: 0; border: none; background: none; padding: 2px 6px 2px 2px; border-radius: 10px; text-align: left; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-peer:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 8px; display: flex; flex-direction: column; gap: 8px; }
+.ek-msg-sep { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.ek-msg-sep::before, .ek-msg-sep::after { content: ""; flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-msg-sep span { font-family: var(--font-mono), monospace; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-msg-bubble { display: inline-block; max-width: 100%; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--enki-paper); color: var(--enki-ink); border: 1px solid var(--enki-rule-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ek-msg-item.mine .ek-msg-bubble { border-radius: 14px 14px 4px 14px; background: var(--enki-ink); color: var(--enki-paper); border: none; }
+.ek-msg-img { max-width: 240px; max-height: 220px; border-radius: 12px; border: 1px solid var(--enki-rule); display: block; object-fit: cover; }
+.ek-msg-time { font-family: var(--font-mono), monospace; font-size: 8.5px; color: var(--enki-ink-3); padding: 0 4px; }
+.ek-msg-compose-wrap { flex-shrink: 0; padding: 10px 16px 14px; position: relative; }
+.ek-msg-emoji { position: absolute; bottom: calc(100% - 2px); left: 54px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18); padding: 8px; display: grid; grid-template-columns: repeat(6, 30px); gap: 2px; z-index: 20; animation: ek-pop 0.15s ease; }
+.ek-msg-emoji button { width: 30px; height: 30px; border: none; background: none; border-radius: 7px; font-size: 17px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.ek-msg-emoji button:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-msg-compose { display: flex; align-items: center; gap: 6px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); padding: 5px 6px 5px 8px; transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-compose:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.12); }
+.ek-msg-icon-btn { width: 30px; height: 30px; border: none; border-radius: 50%; background: none; color: var(--enki-ink-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+.ek-msg-icon-btn:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); color: var(--enki-ink); }
+.ek-msg-icon-btn.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-icon-btn:disabled { opacity: 0.5; cursor: default; }
+.ek-msg-compose > input[type="text"] { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 13px; color: var(--enki-ink); padding: 4px 2px; font-family: var(--font-sans), sans-serif; }
+.ek-msg-compose > input[type="text"]::placeholder { color: var(--enki-ink-3); }
+/* Design contract: white glyph + soft ember shadow ALWAYS; only the bg swaps
+   muted-tan (empty draft) <-> ember (armed). */
+.ek-msg-send { width: 32px; height: 32px; border: none; border-radius: 50%; background: color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2)); color: #fff; box-shadow: 0 4px 10px rgba(var(--ember-rgb), 0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background 0.15s; }
+.ek-msg-send.on { background: var(--enki-ember); }
+.ek-msg-send.on:hover { filter: brightness(1.06); }
+@media (max-width: 760px) { .ek-msg-side { width: 230px; } }

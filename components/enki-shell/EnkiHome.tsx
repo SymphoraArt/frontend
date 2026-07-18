@@ -13,8 +13,10 @@ import { useBetaAccess } from "@/components/BetaGate";
 import UsernameOnboard from "./UsernameOnboard";
 import AnalyticsPanel from "./AnalyticsPanel";
 import NotificationsPanel from "./NotificationsPanel";
+import MessagesPanel from "./MessagesPanel";
 import { useRecoveryStatus } from "@/hooks/useRecoveryStatus";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useMessages } from "@/hooks/useMessages";
 import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
 import EnkiSidebar, { type NavItem } from "./EnkiSidebar";
 import ReferModal from "./ReferModal";
@@ -128,6 +130,7 @@ export default function EnkiHome() {
   // refreshes on focus (near-realtime) and clears optimistically on open, so
   // the badge here just follows it — no local fetch/race to manage.
   const { unseen } = useNotifications(authed);
+  const { unreadTotal: dmUnread } = useMessages(authed);
 
   // No recovery set up → thin red banner across the top. The X hides it on
   // this device; Settings shows its own non-dismissible copy regardless.
@@ -301,15 +304,7 @@ export default function EnkiHome() {
           <NotificationsPanel onOpenRecovery={openRecoverySettings} />
         </PanelFrame>
       );
-      case "messages": return (
-        <PanelFrame>
-          <PanelHeadline title="Messages" sub="Direct messages with other creators — coming soon." />
-          <div className="ek-panel-stub" style={{ height: "auto", padding: "80px 40px" }}>
-            <Icon name="message" size={26} stroke={1.6} />
-            <p>Person-to-person messaging is on the way.</p>
-          </div>
-        </PanelFrame>
-      );
+      case "messages": return <MessagesPanel toast={showToast} />;
       case "settings": return <SettingsPage initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
       case "profile": return <ProfilePage onBack={() => { setPanel(null); setActiveNav("home"); }} />;
       case "leaderboard": return (
@@ -352,7 +347,9 @@ export default function EnkiHome() {
       <div className="ek-shell">
         <EnkiSidebar
           nav={(authed ? NAV : NAV.filter((n) => !AUTHED_ONLY.has(n.id))).map((n) =>
-            n.id === "notifications" && unseen > 0 ? { ...n, badge: unseen } : n
+            n.id === "notifications" && unseen > 0 ? { ...n, badge: unseen }
+              : n.id === "messages" && dmUnread > 0 ? { ...n, badge: dmUnread }
+              : n
           )}
           active={activeNav}
           onNav={onNav}
