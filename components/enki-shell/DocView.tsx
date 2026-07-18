@@ -207,8 +207,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
               </button>
             )}
 
-            {/* ── page foot: refs + generate ── */}
+            {/* ── page foot: refs+settings left · Auto Fill+Generate right ── */}
             <div className="ncd-foot">
+              <div className="ncd-foot-l">
               <div className="ncd-refs">
                 <span className="ncd-lab">Refs</span>
                 {refs.map((r, i) => (
@@ -242,15 +243,18 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
                   onChange={api.setQuality} />
               </div>
-              <label className="nc-chk ncd-autofill" title="An AI writes the variable values for each new image before rendering" onClick={() => setAutoFill((v) => !v)}>
-                <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
-              </label>
-              <button className={"ncd-gen" + (canGenerate ? "" : " disabled")}
-                title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
-                onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
-                <Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate
-                <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
-              </button>
+              </div>
+              <div className="ncd-foot-r">
+                <label className="nc-chk ncd-autofill" title="An AI writes the variable values for each new image before rendering" onClick={() => setAutoFill((v) => !v)}>
+                  <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
+                </label>
+                <button className={"ncd-gen" + (canGenerate ? "" : " disabled")}
+                  title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
+                  onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
+                  <Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate
+                  <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
+                </button>
+              </div>
             </div>
           </div>
 
