@@ -10,14 +10,15 @@ import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
 import { Icon } from "./icons";
 import { generateNanoBanana, persistCreation, placeholderArt } from "./generation";
 import { useModelLimits } from "@/hooks/useModelLimits";
+import DocView from "./DocView";
 
 /* ── constants ── */
-const NC_MODELS = [
+export const NC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
   { id: "gpt-image-2", name: "GPT Image 2", price: 0.06 },
   { id: "seedance-2", name: "Seedance 2", price: 0.08 },
 ];
-const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
+export const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
 const CATEGORIES = ["Portrait", "Character", "Cinematic", "Architecture", "Abstract", "Product", "Minimal", "Editorial"];
 
 const REF_COLOR = { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" };
@@ -49,15 +50,19 @@ const VPOOL: Record<string, string[]> = {
   mood: ["serene and quietly melancholic, the calm right before rain", "tense and dramatic, heavy with anticipation", "warm, nostalgic golden-hour stillness", "electric, restless, buzzing with night energy", "dreamlike and weightless, softly out of focus"],
   texture: ["hyperreal graphite with fine tooth and soft smudging", "cracked oil-paint impasto catching raking light", "rough cold-press paper grain, visible fibers", "glossy chrome with sharp specular highlights", "matte risograph print with subtle misregistration"],
 };
-const TOKEN_RE = /(\[[^\]\n]+\])/g;
-const isRefTok = (t: string) => /^\[Reference Image \d+\]$/.test(t);
+export const TOKEN_RE = /(\[[^\]\n]+\])/g;
+export const isRefTok = (t: string) => /^\[Reference Image \d+\]$/.test(t);
 const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
+// Last-used editor view (doc-style vs node canvas) — survives close/reopen.
+// Separate key on purpose: the draft's `view` field means pan/zoom, not mode.
+const VIEW_KEY = "enki-node-creator-view";
+export type EditorView = "doc" | "node";
 
 let NID = 1;
 const nid = (p: string) => p + NID++;
 
-type Kind = "text" | "bool";
-type NodeT = {
+export type Kind = "text" | "bool";
+export type NodeT = {
   id: string;
   type: "prompt" | "ref" | "text" | "output";
   x?: number; y?: number;
@@ -66,15 +71,15 @@ type NodeT = {
   sig?: string; vals?: Record<string, string>; status?: "empty" | "loading" | "ready"; picked?: boolean;
   off?: { x: number; y: number };
 };
-type Con = { sig: string; body: string; cidx: number; off?: { x: number; y: number } };
-type St = {
+export type Con = { sig: string; body: string; cidx: number; off?: { x: number; y: number } };
+export type St = {
   title: string; mode: "free" | "premium"; models: string[]; cat: string; ratio: string; quality: string;
   price: number; body: string; cons: Con[]; conSeq: number; genCount: number; nodes: NodeT[];
 };
-const NC_QUALITIES = ["1K", "2K", "4K"];
+export const NC_QUALITIES = ["1K", "2K", "4K"];
 // price multiplier per quality (relative to the model's base 2K price)
-const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
-type TextNode = NodeT & { name: string; kind: Kind; value: string };
+export const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
+export type TextNode = NodeT & { name: string; kind: Kind; value: string };
 
 const sigOf = (body: string, texts: TextNode[]) => body + "||" + texts.map((t) => t.name + ":" + t.kind).join(",");
 const randVals = (texts: TextNode[]) => {
@@ -125,7 +130,7 @@ function EditName({ value, onChange, className, placeholder, title }: { value: s
 
 /* Custom themed dropdown (same look + animation as the prompt's model picker),
    reused for every select in the editor so they all match. */
-function NcSelect({ value, options, onChange, width, title, align = "left", icon }: {
+export function NcSelect({ value, options, onChange, width, title, align = "left", icon }: {
   value: string; options: { value: string; label: string; sub?: string }[]; onChange: (v: string) => void;
   width?: number; title?: string; align?: "left" | "right"; icon?: ReactNode;
 }) {
@@ -231,6 +236,24 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   const [st, setSt] = useState<St>(initial);
   const stRef = useRef(st); stRef.current = st;
+  // Doc-style vs node-canvas view. Doc is the default for new sessions; the
+  // last-used view survives close/reopen (Kev's "resume where I left off").
+  const [view, setView] = useState<EditorView>(() => {
+    try { const v = localStorage.getItem(VIEW_KEY); if (v === "node" || v === "doc") return v; } catch { /* noop */ }
+    return "doc";
+  });
+  const viewRef = useRef(view); viewRef.current = view;
+  const switchView = (v: EditorView) => {
+    if (v === viewRef.current) return;
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* noop */ }
+    if (v === "doc") {
+      // Leaving the canvas: drop canvas-only interaction state so stale
+      // selections can't eat Delete keys or ESC while the doc is up.
+      setSel(null); setSelRow(null); setSelSet(new Set());
+      setCtx(null); setMarquee(null); setTokEdit(null); setMenuOpen(false); setModelOpen(false);
+    }
+  };
   // Per-model limits (max reference images, allowed filetypes) from the DB.
   const modelLimits = useModelLimits(st.models[0]);
   const hist = useRef<{ past: St[]; future: St[] }>({ past: [], future: [] });
@@ -492,6 +515,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       if (meta && (e.key === "z" || e.key === "Z")) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
       if (meta && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
+        if (viewRef.current !== "node") return; // canvas-only shortcut
         const ae = document.activeElement as HTMLElement | null;
         // don't hijack deletes while typing in a field (token-delete etc.)
         if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
@@ -500,7 +524,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         else if (selRowRef.current) { e.preventDefault(); deleteRow(selRowRef.current); setSelRow(null); }
       }
     };
-    const onSpace = (e: KeyboardEvent) => { if (e.code === "Space") { const ae = document.activeElement as HTMLElement | null; if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return; spaceRef.current = e.type === "keydown"; } };
+    const onSpace = (e: KeyboardEvent) => { if (e.code === "Space") { if (viewRef.current !== "node") return; const ae = document.activeElement as HTMLElement | null; if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return; spaceRef.current = e.type === "keydown"; } };
     window.addEventListener("keydown", k);
     window.addEventListener("keydown", onSpace);
     window.addEventListener("keyup", onSpace);
@@ -538,6 +562,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   useEffect(() => {
     const el = canvasRef.current; if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      if (viewRef.current !== "node") return; // doc view scrolls normally
       e.preventDefault();
       const z = zoomRef.current, p = panRef.current;
       // Continuous, cursor-anchored zoom — magnitude follows the scroll delta
@@ -562,6 +587,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
      overscroll-behavior alone didn't stop it, so the deltas are consumed here. */
   useEffect(() => {
     const stopNavSwipe = (e: WheelEvent) => {
+      // Doc view has legitimately h-scrollable strips (results) — don't eat them.
+      if (viewRef.current !== "node") return;
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
     };
     window.addEventListener("wheel", stopNavSwipe, { passive: false });
@@ -956,12 +983,18 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   /* ▶ generate → new output in the current constellation row.
      Never reassigns/removes an empty slot that belongs to a DIFFERENT prompt
      composition — those are left alone and offered via a co-generate dialog. */
-  const spawnOutput = () => {
+  const spawnOutput = (autofill?: boolean) => {
     if (!stRef.current.body.trim()) return;
-    const tx = stRef.current.nodes.filter((n) => n.type === "text") as TextNode[];
+    // strict check: node-view buttons pass the click event as the first arg
+    const wantsAutofill = autofill === true;
+    const baseTx = stRef.current.nodes.filter((n) => n.type === "text") as TextNode[];
+    const rv = wantsAutofill ? randVals(baseTx) : null;
+    const tx: TextNode[] = rv ? baseTx.map((t) => ({ ...t, value: rv["[" + t.name + "]"] ?? t.value })) : baseTx;
     const body = stRef.current.body;
     const vals: Record<string, string> = {}; tx.forEach((t) => { vals["[" + t.name + "]"] = t.value; });
     const finalPrompt = buildPrompt(body, tx, vals);
+    // Mirror the AI-filled values into the editor vars, like runGenerate does.
+    const withFill = (nodes: NodeT[]) => (rv ? nodes.map((n) => (n.type === "text" ? { ...n, value: rv["[" + n.name + "]"] ?? n.value } : n)) : nodes);
     const sig = sigOf(body, tx);
     // empties belonging to THIS composition (or sig-less) → fill them now.
     const mine = stRef.current.nodes.filter((n) => n.type === "output" && n.status === "empty" && (!n.sig || n.sig === sig));
@@ -973,7 +1006,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => {
         let cons = (p.cons || []).slice(); let conSeq = p.conSeq || 0;
         if (!cons.some((c) => c.sig === sig)) { cons = [{ sig, body: p.body, cidx: conSeq }, ...cons]; conSeq += 1; }
-        return { ...p, cons, conSeq, nodes: p.nodes.map((n) => (ids.includes(n.id) ? { ...n, sig, vals, status: "loading" } : n)) };
+        return { ...p, cons, conSeq, nodes: withFill(p.nodes).map((n) => (ids.includes(n.id) ? { ...n, sig, vals, status: "loading" } : n)) };
       });
       ids.forEach((id) => finalizeOutput(id, finalPrompt));
     } else {
@@ -981,7 +1014,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => {
         let cons = (p.cons || []).slice(); let conSeq = p.conSeq || 0;
         if (!cons.some((c) => c.sig === sig)) { cons = [{ sig, body: p.body, cidx: conSeq }, ...cons]; conSeq += 1; }
-        return { ...p, cons, conSeq, nodes: [...p.nodes, { id: oid, type: "output", sig, vals, img: null, status: "loading", picked: false }] };
+        return { ...p, cons, conSeq, nodes: [...withFill(p.nodes), { id: oid, type: "output", sig, vals, img: null, status: "loading", picked: false }] };
       });
       setPulseId(oid); setTimeout(() => setPulseId((v) => (v === oid ? null : v)), 2800);
       finalizeOutput(oid, finalPrompt);
@@ -1069,6 +1102,18 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const body = p.body.split("[" + node.name + "]").join("[" + clean + "]");
     return { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, name: clean } : n)), body };
   });
+  const patchText = (id: string, patch: Partial<NodeT>) =>
+    setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
+  // Switching the type NEVER loses content: the text value moves into the
+  // checkbox snippet (str) and back. Shared by the node cards and the doc rail.
+  const setTextKind = (id: string, kind: Kind) => setSt((p) => ({
+    ...p,
+    nodes: p.nodes.map((n) => {
+      if (n.id !== id) return n;
+      if (kind === "text") return { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value };
+      return { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false };
+    }),
+  }));
 
   /* delete-key two-press on prompt tokens */
   const tokenAtCaret = () => {
@@ -1347,9 +1392,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   return (
     <div className="nc" onDrop={onCanvasDrop} onDragOver={(e) => { if (!e.dataTransfer.types.includes("Files")) return; e.preventDefault(); setDropOn(true); }} onDragLeave={(e) => { if (e.currentTarget === e.target) setDropOn(false); }}>
-      {/* canvas */}
+      {/* canvas — stays MOUNTED in doc view (display:none) so pan/zoom and the
+          wheel-handler wiring survive an instant view switch */}
       <div ref={canvasRef} className={"nc-canvas" + (panning ? " panning" : "") + (tool === "hand" ? " hand" : "")}
-        style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px` }}
+        style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px`, display: view === "node" ? undefined : "none" }}
         onPointerDown={startPan}
         onContextMenu={(e) => { e.preventDefault(); if (rightPan.current.moved) { rightPan.current.moved = false; return; } setCtx({ x: e.clientX, y: e.clientY, wx: (e.clientX - sidebarWRef.current - pan.x) / zoom, wy: (e.clientY - pan.y) / zoom }); }}>
         <div className="nc-world" style={{ transform: "translate(" + pan.x + "px," + pan.y + "px) scale(" + zoom + ")" }}>
@@ -1377,6 +1423,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <div className="nc-nhead" style={{ background: "color-mix(in oklab, var(--enki-ember) 16%, transparent)" }} onPointerDown={(e) => startNodeDrag("prompt", e)}>
               <span className="nc-ndot" style={{ background: "var(--enki-ember)" }} />
               <EditName className="nc-ribbon-title" value={st.title} onChange={(v) => setSt((p) => ({ ...p, title: v }))} placeholder="Write prompt title…" />
+              {/* per-window doc access: jump straight into the doc editor */}
+              <button className="nc-nhead-doc" title="Open this prompt in the Doc editor" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); switchView("doc"); }}>
+                <Icon name="filetext" size={13} stroke={2} />
+              </button>
               <div className={"nc-pm" + (modelFlipUp ? " nc-pm--up" : "")} onPointerDown={(e) => e.stopPropagation()}>
                 <button ref={modelTrigRef} className={"nc-pm-trigger" + (modelOpen ? " open" : "")} title="Model used for this prompt — price shown is the production cost"
                   onClick={(e) => { e.stopPropagation(); if (!modelOpen) { const r = modelTrigRef.current?.getBoundingClientRect(); const ph = NC_MODELS.length * 38 + 16; if (r) setModelFlipUp(window.innerHeight - r.bottom < ph + 14 && r.top > ph + 14); } setModelOpen((o) => !o); }}>
@@ -1483,7 +1533,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.quality} width={88} title="Quality · does not affect grouping"
                     options={NC_QUALITIES.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                 </div>
-                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={spawnOutput}>
+                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={() => spawnOutput()}>
                   <span className="nc-genbtn-top"><Icon name="sparkles" size={14} stroke={2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
                   <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
                 </button>
@@ -1517,10 +1567,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </div>
               <div className="nc-nbody">
                 <div className="nc-vtoggle">
-                  {/* Switching the type NEVER loses the prompt content: the text
-                      value moves into the checkbox snippet (str) and back. */}
-                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value } : n)) }))}>Text</button>
-                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false } : n)) }))}>Checkbox</button>
+                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setTextKind(t.id, "text")}>Text</button>
+                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setTextKind(t.id, "bool")}>Checkbox</button>
                 </div>
                 {t.kind === "text" ? (
                   <textarea className="nc-vin nc-varea" placeholder={"Default value · e.g. " + t.name} value={t.value} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
@@ -1628,7 +1676,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
       {/* edge arrows — point to image groups that are scrolled off-screen;
           click to glide the view onto that group */}
-      {(() => {
+      {view === "node" && (() => {
         const W = vp.w - sidebarW, H = vp.h, M = 32;
         return layout.frames.filter((f) => f.count > 0).map((f) => {
           const scx = (f.x + f.w / 2) * zoom + pan.x, scy = (f.y + 150) * zoom + pan.y;
@@ -1648,10 +1696,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         });
       })()}
 
-      {/* tool group — top-right, separate from the prompt-settings bar */}
+      {/* tool group — top-right; SAME bar in both views (undo/redo/menu), the
+          canvas-only zoom + tool cluster hides while the doc is up */}
       <div className="nc-toolbar">
         <button className="nc-iconbtn" onClick={undo} disabled={!hist.current.past.length} title="Undo"><Icon name="undo" size={15} stroke={2} /></button>
         <button className="nc-iconbtn" onClick={redo} disabled={!hist.current.future.length} title="Redo"><Icon name="redo" size={15} stroke={2} /></button>
+        {view === "node" && <>
         <span className="nc-rb-div" />
         <button className="nc-iconbtn" onClick={() => tweenZoom(zoomRef.current / 1.25)} disabled={zoom <= 0.3} title="Zoom out">−</button>
         {zoomEditing ? (
@@ -1663,12 +1713,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           <span className="nc-zoomval" title="Click to type a zoom level" onClick={() => { setZoomInput(String(Math.round(zoom * 100))); setZoomEditing(true); }}>{Math.round(zoom * 100)}%</span>
         )}
         <button className="nc-iconbtn" onClick={() => tweenZoom(zoomRef.current * 1.25)} disabled={zoom >= 1} title="Zoom in">+</button>
+        </>}
         {mockMode && <button className="nc-mock-chip" title="Mock-up mode is on — Generate produces instant placeholder images. Click to turn off." onClick={() => setMockMode(false)}><Icon name="wand" size={12} stroke={2.2} /> Mock-up</button>}
+        {view === "node" && <>
         <span className="nc-rb-div" />
         <div className="nc-toolseg" role="group" aria-label="Canvas tool">
           <button className={tool === "select" ? "on" : ""} title="Select tool — left-drag moves the view, Ctrl+left-drag marquee-selects, right-drag also moves" onClick={() => setTool("select")}><Icon name="cursor" size={15} stroke={2} /></button>
           <button className={tool === "hand" ? "on" : ""} title="Hand tool — drag anywhere to move the view" onClick={() => setTool("hand")}><Icon name="hand" size={15} stroke={2} /></button>
         </div>
+        </>}
         <span className="nc-rb-div" />
         <div className="nc-menu-wrap">
           <button className={"nc-iconbtn" + (menuOpen ? " on" : "")} onClick={() => setMenuOpen((o) => !o)} title="Menu" aria-haspopup="menu" aria-expanded={menuOpen}><Icon name="menu" size={17} stroke={2} /></button>
@@ -1676,6 +1729,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <>
               <div className="nc-menu-scrim" onPointerDown={() => setMenuOpen(false)} />
               <div className="nc-menu" role="menu">
+                <button className="nc-menu-item" role="menuitem" onClick={() => { setMenuOpen(false); switchView(view === "doc" ? "node" : "doc"); }}>
+                  <Icon name={view === "doc" ? "grid" : "filetext"} size={15} stroke={2} /> {view === "doc" ? "Node view" : "Doc view"}
+                </button>
+                <div className="nc-menu-sep" />
                 <button className={"nc-menu-item nc-menu-toggle" + (mockMode ? " on" : "")} role="menuitemcheckbox" aria-checked={mockMode} onClick={() => setMockMode((v) => !v)}>
                   <Icon name="wand" size={15} stroke={2} /> <span className="nc-menu-grow">Mock-up mode</span>
                   <span className="nc-menu-state">{mockMode ? "On" : "Off"}</span>
@@ -1692,8 +1749,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={onImportFile} />
       </div>
 
-      {/* Generate panel — flush to the top-right frame edge, in line with the toolbar */}
-      <div className="nc-gp" role="dialog">
+      {/* Generate panel — flush to the top-right frame edge, in line with the
+          toolbar. Node view only: the doc view carries its own generate bar +
+          results/release column. */}
+      {view === "node" && <div className="nc-gp" role="dialog">
         <div className="nc-gp-row">
           <span className="nc-gp-lab">{imgCount} image{imgCount > 1 ? "s" : ""}</span>
           <span className="nc-gp-cost">${cost.toFixed(2)}</span>
@@ -1731,13 +1790,21 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           <Icon name="sparkles" size={12} stroke={2} fill="var(--cta-ink)" /> Release{pickedOuts.length ? " " + pickedOuts.length : ""}
         </button>
         {!canRelease && <div className="nc-gp-need">{st.mode === "free" ? "Pick ≥ 1 image" : "Pick ≥ 4 (" + pickedOuts.length + "/4)"}</div>}
-      </div>
+      </div>}
 
-      {/* prompt-settings ribbon (top-left) */}
+      {/* prompt-settings ribbon (top-left) — the SHARED header: identical in
+          doc and node view, incl. the view switch itself */}
       <div className="nc-ribbon">
         <div className="nc-rb-cell">
           <span className="nc-rb-lab">Title</span>
           <input className="nc-rb-input" value={st.title} onChange={(e) => setSt((p) => ({ ...p, title: e.target.value }))} placeholder="Write prompt title…" />
+        </div>
+        <div className="nc-rb-cell">
+          <span className="nc-rb-lab">View</span>
+          <div className="ce-seg nc-viewseg" role="group" aria-label="Editor view">
+            <button type="button" className={view === "doc" ? "active" : ""} title="Doc view — edit your prompt like a document" onClick={() => switchView("doc")}><Icon name="filetext" size={12} stroke={2.2} /> Doc</button>
+            <button type="button" className={view === "node" ? "active" : ""} title="Node view — the full prompt graph on a canvas" onClick={() => switchView("node")}><Icon name="grid" size={12} stroke={2.2} /> Nodes</button>
+          </div>
         </div>
         <div className="nc-rb-cell">
           <span className="nc-rb-lab">Prompt type</span>
@@ -1758,7 +1825,31 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             options={NC_RATIOS.map((r) => ({ value: r, label: r }))}
             onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
         </div>
+        <div className="nc-rb-cell" style={{ opacity: st.mode === "premium" ? 1 : 0.35, transition: "opacity .15s" }}>
+          <span className="nc-rb-lab">Price · render</span>
+          <div className="nc-rb-price" title={st.mode === "premium" ? "What a buyer pays you per render" : "Price applies in Premium mode only"}>
+            <span>$</span>
+            <input type="number" step={0.01} min={0} value={st.price} disabled={st.mode !== "premium"}
+              onChange={(e) => setSt((p) => ({ ...p, price: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+          </div>
+        </div>
       </div>
+
+      {/* doc-style editing view (shares st with the canvas 1:1) */}
+      {view === "doc" && (
+        <DocView api={{
+          st, texts, refs, outs, cons: st.cons, curSig, liveTokNames, liveRefCount, pubNames,
+          colorForTok, palOf, perImage, canGenerate, pickedOuts, releaseMin, canRelease,
+          modelAccept: modelLimits.accept,
+          onBodyChange, pushHist, addText, patchText, setTextKind, renameText, deleteNodeId,
+          addRefsFromFiles, onRefFiles, toggleRefUserInput, setRefMax,
+          spawnOutput, togglePick, release, openLightbox,
+          setModel: (id) => setSt((p) => ({ ...p, models: [id] })),
+          setRatio: (v) => setSt((p) => ({ ...p, ratio: v })),
+          setQuality: (v) => setSt((p) => ({ ...p, quality: v })),
+          onToast, switchView,
+        }} />
+      )}
 
       {/* context menu */}
       {ctx && (
@@ -1772,7 +1863,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         <div className="nc-marquee" style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }} />
       )}
 
-      {tipOpen ? (
+      {view !== "node" ? null : tipOpen ? (
         <div className="nc-help">
           <button className="nc-help-x" onClick={() => setTipOpen(false)} title="Hide tip" aria-label="Hide tip">‹</button>
           <b>Tip:</b> right-click the canvas to add nodes · drag images onto the prompt · press <b>Delete</b> on a colored token to remove its variable.
