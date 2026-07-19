@@ -371,8 +371,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
     measureRaf.current = requestAnimationFrame(() => { measureRaf.current = null; measure(); });
   }, [measure]);
   // After every commit: play queued card glides (DOM now holds the new tops),
-  // then re-measure — card heights/chip positions may have changed.
-  useLayoutEffect(() => { playPend(); scheduleMeasure(); });
+  // then re-measure SYNCHRONOUSLY — deferring to rAF would let the browser
+  // paint a fresh card once at top 0, overlapping its neighbors for a frame.
+  useLayoutEffect(() => { playPend(); measure(); });
   useEffect(() => {
     window.addEventListener("resize", scheduleMeasure);
     return () => {
@@ -527,14 +528,18 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <input ref={refUpRef} type="file" accept={api.modelAccept} multiple style={{ display: "none" }} onChange={(e) => { api.addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
               </div>
               <div className="ncd-genopts">
-                <NcSelect value={st.models[0]} width={112} title="Model used for this prompt"
+                <NcSelect value={st.models[0]} width={176} title="Model used for this prompt"
                   options={NC_MODELS.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
-                <NcSelect value={st.ratio} width={62} title="Aspect ratio"
-                  options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
-                <NcSelect value={st.quality} width={54} title="Quality"
-                  options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
-                  onChange={api.setQuality} />
+                {/* ratio + quality share the row; together they line up with the
+                    model dropdown's right border */}
+                <div className="ncd-genrow2">
+                  <NcSelect value={st.ratio} width={85} title="Aspect ratio"
+                    options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
+                  <NcSelect value={st.quality} width={85} title="Quality"
+                    options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
+                    onChange={api.setQuality} />
+                </div>
               </div>
               </div>
               <div className="ncd-foot-r">
@@ -583,7 +588,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
               const dragging = dragTok === tok;
               return (
                 <div key={t.id} data-vcard={tok}
-                  className={"ncd-vcard" + (open ? " open" : "") + (warn ? " warn" : "") + (top === null ? " hidden" : "") + (dragging ? " dragging" : "")}
+                  className={"ncd-vcard" + (open ? " open" : "") + (warn ? " warn" : "") + (top === null || top === undefined ? " hidden" : "") + (dragging ? " dragging" : "")}
                   style={{ borderLeftColor: c.border, top: dragging ? dragY : (top ?? 0) }}
                   onPointerDown={(e) => e.stopPropagation()}>
                   <button className="ncd-vhead" title="Drag to reorder"
