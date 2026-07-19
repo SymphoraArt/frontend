@@ -162,18 +162,29 @@ export default function DocView({ api }: { api: DocViewApi }) {
     window.addEventListener("pointerup", onUp);
   };
 
-  /* ── selection → variable ── */
-  const readSelection = (e: { clientX?: number; clientY?: number }) => {
-    const ta = taRef.current, page = pageRef.current;
-    if (!ta || !page) return;
-    const s = ta.selectionStart, en = ta.selectionEnd;
-    const seg = st.body.slice(s, en);
-    if (en <= s || !seg.trim() || /[[\]\n]/.test(seg)) { setPill(null); return; }
-    const r = page.getBoundingClientRect();
-    // The design anchors the pill to the mouse — cheap and always visible.
-    const x = Math.max(8, Math.min((e.clientX ?? r.left + 80) - r.left - 56, r.width - 150));
-    const y = (e.clientY ?? r.top + 40) - r.top + 18;
-    setPill({ x, y, start: s, end: en });
+  /* ── selection → variable ──
+     The pill is shown DEFERRED and re-verified: on a click into an existing
+     selection the browser only collapses it AFTER mouseup, so a synchronous
+     read still sees the old range and flashes a phantom pill. 80ms later the
+     selection state is final — only a selection that survives gets the pill. */
+  const pillTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (pillTimer.current) window.clearTimeout(pillTimer.current); }, []);
+  const schedulePill = (e: { clientX?: number; clientY?: number }) => {
+    const cx = e.clientX, cy = e.clientY;
+    if (pillTimer.current) window.clearTimeout(pillTimer.current);
+    pillTimer.current = window.setTimeout(() => {
+      pillTimer.current = null;
+      const ta = taRef.current, page = pageRef.current;
+      if (!ta || !page || document.activeElement !== ta) { setPill(null); return; }
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      const seg = ta.value.slice(s, en);
+      if (en <= s || !seg.trim() || /[[\]\n]/.test(seg)) { setPill(null); return; }
+      const r = page.getBoundingClientRect();
+      // The design anchors the pill to the mouse — cheap and always visible.
+      const x = Math.max(8, Math.min((cx ?? r.left + 80) - r.left - 56, r.width - 150));
+      const y = (cy ?? r.top + 40) - r.top + 18;
+      setPill({ x, y, start: s, end: en });
+    }, 80);
   };
   const addVariableFromPill = () => {
     if (!pill) return;
@@ -403,8 +414,8 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 spellCheck={false}
                 onChange={(e) => { api.onBodyChange(e.target.value); setPill(null); }}
                 onFocus={api.pushHist}
-                onMouseUp={readSelection}
-                onKeyUp={(e) => { if (e.shiftKey || e.key === "Shift") readSelection({}); }}
+                onMouseUp={schedulePill}
+                onKeyUp={(e) => { if (e.shiftKey || e.key === "Shift") schedulePill({}); }}
                 onBlur={() => setTimeout(() => setPill(null), 180)}
               />
             </div>
@@ -488,7 +499,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
               const tok = "[" + t.name + "]";
               const c = colorForTok(tok);
               const warn = needsSetup(t);
-              const open = openVar === tok || warn;
+              // The header ALWAYS toggles — warn only colors the card red, it
+              // never locks it open (Kev: collapse must always be possible).
+              const open = openVar === tok;
               const top = tops[tok];
               const dragging = dragTok === tok;
               return (
@@ -543,7 +556,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                           <span className={"nc-chk-box" + (t.pub ? " on" : "")}>{t.pub && <Icon name="check" size={11} stroke={3} />}</span> User input — buyer types their own words
                         </label>
                       )}
-                      {warn && <div className="ncd-vwarn">Set a default value to collapse this card.</div>}
+                      {warn && <div className="ncd-vwarn">No default yet — buyers would start with an empty value.</div>}
                     </div>
                   )}
                 </div>

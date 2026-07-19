@@ -524,7 +524,8 @@ button.nc-out-var:hover{filter:brightness(.96);}
 /* page foot: two columns — refs above settings (left) · Auto Fill above Generate (right) */
 .ncd-foot{display:flex;justify-content:space-between;align-items:stretch;gap:12px;margin-top:10px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:8px;flex-shrink:0;flex-wrap:wrap;}
 .ncd-foot-l{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;}
-.ncd-foot-r{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:7px;flex-shrink:0;}
+/* Auto Fill sits centered over the Generate button */
+.ncd-foot-r{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:7px;flex-shrink:0;}
 .ncd-lab{font-family:var(--font-mono),monospace;font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--enki-ink-3);}
 .ncd-refs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .ncd-ref{position:relative;width:34px;height:34px;border-radius:7px;overflow:visible;flex-shrink:0;}
