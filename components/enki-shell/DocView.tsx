@@ -2,14 +2,15 @@
 
 /* Doc view for Create Prompt 2 — the "Enki Docs Editor" design: edit the
    prompt like a document (serif page, token chips, comment-rail variable
-   cards, refs + generate at the page foot, results/release on the right).
+   cards with dashed connector lines, refs + generate at the page foot,
+   results/release on the right).
    It is a THIN SKIN over NodeCreator's `st`: every mutation goes through the
    same handlers the node canvas uses, so both views stay in perfect sync. */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
 import {
-  NcSelect, NC_MODELS, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
+  EditName, NcSelect, NC_MODELS, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
 } from "./NodeCreator";
 
@@ -68,6 +69,9 @@ const loadCols = () => {
   }
 };
 
+const CARD_GAP = 7;
+const FALLBACK_CARD_H = 60;
+
 export default function DocView({ api }: { api: DocViewApi }) {
   const {
     st, texts, refs, outs, cons, curSig, liveTokNames, liveRefCount, pubNames,
@@ -81,13 +85,29 @@ export default function DocView({ api }: { api: DocViewApi }) {
   const [autoFill, setAutoFill] = useState(true);
   const [cols, setCols] = useState(loadCols);
   const [levering, setLevering] = useState<"page" | "results" | null>(null);
-  const colsRef = useRef(cols); colsRef.current = cols;
+  // Card layout engine: measured tops (null = its token is scrolled out of
+  // view), connector lines, manual order override, and the drag in flight.
+  const [tops, setTops] = useState<Record<string, number | null>>({});
+  const [lines, setLines] = useState<Array<{ tok: string; d: string; color: string; active: boolean }>>([]);
+  const [railH, setRailH] = useState(280);
+  const [varOrder, setVarOrder] = useState<string[] | null>(null);
+  const [dragTok, setDragTok] = useState<string | null>(null);
+  const [dragY, setDragY] = useState(0);
+
   const openVarRef = useRef(openVar); openVarRef.current = openVar;
   const pillRef = useRef(pill); pillRef.current = pill;
+  const colsRef = useRef(cols); colsRef.current = cols;
+  const topsRef = useRef(tops); topsRef.current = tops;
+  const varOrderRef = useRef(varOrder); varOrderRef.current = varOrder;
   const pageRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const refUpRef = useRef<HTMLInputElement | null>(null);
+  const measureRaf = useRef<number | null>(null);
+  const lastMeasureRef = useRef("");
+  const suppressClickRef = useRef(false);
 
   // ESC closes doc-local popups BEFORE NodeCreator's close flow sees the key.
   useEffect(() => {
@@ -169,7 +189,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
     api.onToast(`"${seg}" is now a variable.`);
   };
 
-  /* ── rail cards: text variables in the order they appear in the body ── */
+  /* ── rail cards: body order, overridden by the user's manual order ── */
   const railVars = useMemo(() => {
     const order = new Map<string, number>();
     let m: RegExpExecArray | null;
@@ -179,15 +199,147 @@ export default function DocView({ api }: { api: DocViewApi }) {
       .slice()
       .sort((a, b) => (order.get("[" + a.name + "]") ?? 1e9) - (order.get("[" + b.name + "]") ?? 1e9));
   }, [st.body, texts]);
+  const orderedVars = useMemo(() => {
+    if (!varOrder) return railVars;
+    const idx = new Map(varOrder.map((n, i) => [n, i]));
+    // manual order wins; unknown (new) vars keep body order at the end
+    return railVars.slice().sort((a, b) => (idx.get(a.name) ?? 1e9) - (idx.get(b.name) ?? 1e9));
+  }, [railVars, varOrder]);
+  const orderedVarsRef = useRef(orderedVars); orderedVarsRef.current = orderedVars;
 
   const needsSetup = (t: TextNode) => (t.kind === "bool" ? !(t.str && t.str.trim()) : !t.value.trim());
 
-  const openCard = (tok: string) => {
-    setOpenVar((v) => (v === tok ? null : tok));
-    // Bring the card into view when a chip in the text is clicked.
-    requestAnimationFrame(() => {
-      railRef.current?.querySelector(`[data-vcard="${CSS.escape(tok)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  /* ── the layout engine: anchor cards to their token chips, pack gap-free ──
+     Each visible token's card wants to sit at the chip's height; cards are
+     placed in order at max(anchor, cursor) so nothing overlaps and no holes
+     open up. The OPEN card claims exactly its chip's height; cards before it
+     pack upward, cards after it pack downward. Off-screen tokens' cards fade
+     out and free their space. Connector curves are computed from the same
+     measurements. */
+  const measure = useCallback(() => {
+    const wrap = wrapRef.current, rail = railRef.current, scroller = scrollerRef.current, page = pageRef.current;
+    if (!wrap || !rail || !scroller || !page) return;
+    const wrapR = wrap.getBoundingClientRect();
+    const railR = rail.getBoundingClientRect();
+    const scR = scroller.getBoundingClientRect();
+
+    const anchors = new Map<string, { y: number; cy: number; x: number }>();
+    page.querySelectorAll<HTMLElement>("[data-tok]").forEach((el) => {
+      const tok = el.dataset.tok as string;
+      if (anchors.has(tok)) return; // first occurrence anchors the card
+      const r = el.getBoundingClientRect();
+      if (r.bottom < scR.top + 4 || r.top > scR.bottom - 4) return; // scrolled away
+      anchors.set(tok, { y: r.top - railR.top, cy: r.top + r.height / 2 - wrapR.top, x: r.right - wrapR.left });
     });
+    const heights = new Map<string, number>();
+    rail.querySelectorAll<HTMLElement>("[data-vcard]").forEach((el) => {
+      heights.set(el.dataset.vcard as string, el.offsetHeight);
+    });
+
+    const toks = orderedVarsRef.current.map((t) => "[" + t.name + "]");
+    const vis = toks.filter((tk) => anchors.has(tk));
+    const nextTops: Record<string, number | null> = {};
+    toks.forEach((tk) => { if (!anchors.has(tk)) nextTops[tk] = null; });
+
+    const hOf = (tk: string) => heights.get(tk) ?? FALLBACK_CARD_H;
+    const flowDown = (list: string[], cursor: number) => {
+      for (const tk of list) {
+        const top = Math.max(anchors.get(tk)!.y - 4, cursor);
+        nextTops[tk] = top;
+        cursor = top + hOf(tk) + CARD_GAP;
+      }
+    };
+    const open = openVarRef.current;
+    const openIdx = open ? vis.indexOf(open) : -1;
+    if (openIdx >= 0) {
+      const openTop = Math.max(0, anchors.get(vis[openIdx])!.y - 4);
+      nextTops[vis[openIdx]] = openTop;
+      let ceil = openTop; // pack the cards above it upward, closest first
+      for (let i = openIdx - 1; i >= 0; i--) {
+        const tk = vis[i];
+        const want = anchors.get(tk)!.y - 4;
+        const top = Math.max(0, Math.min(want, ceil - hOf(tk) - CARD_GAP));
+        nextTops[tk] = top;
+        ceil = top;
+      }
+      flowDown(vis.slice(openIdx + 1), openTop + hOf(vis[openIdx]) + CARD_GAP);
+    } else {
+      flowDown(vis, 0);
+    }
+
+    let maxB = 240;
+    vis.forEach((tk) => { const t = nextTops[tk]; if (typeof t === "number") maxB = Math.max(maxB, t + hOf(tk)); });
+
+    const railX = railR.left - wrapR.left;
+    const railY = railR.top - wrapR.top;
+    const nextLines = vis
+      .filter((tk) => typeof nextTops[tk] === "number")
+      .map((tk) => {
+        const a = anchors.get(tk)!;
+        const x1 = a.x + 2, y1 = a.cy;
+        const x2 = railX - 2, y2 = railY + (nextTops[tk] as number) + 15;
+        const mx = (x1 + x2) / 2;
+        return { tok: tk, d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, color: colorForTok(tk).border, active: openVarRef.current === tk };
+      });
+
+    const sig = JSON.stringify([nextTops, nextLines.map((l) => l.d + l.active), maxB]);
+    if (sig === lastMeasureRef.current) return;
+    lastMeasureRef.current = sig;
+    setTops(nextTops);
+    setLines(nextLines);
+    setRailH(maxB + 8);
+  }, [colorForTok]);
+  const scheduleMeasure = useCallback(() => {
+    if (measureRaf.current) cancelAnimationFrame(measureRaf.current);
+    measureRaf.current = requestAnimationFrame(() => { measureRaf.current = null; measure(); });
+  }, [measure]);
+  // After every commit: card heights/chip positions may have changed.
+  useLayoutEffect(() => { scheduleMeasure(); });
+  useEffect(() => {
+    window.addEventListener("resize", scheduleMeasure);
+    return () => {
+      window.removeEventListener("resize", scheduleMeasure);
+      if (measureRaf.current) cancelAnimationFrame(measureRaf.current);
+    };
+  }, [scheduleMeasure]);
+
+  /* ── drag a card by its header to reorder; the rest repack live ── */
+  const startCardDrag = (tok: string) => (e: React.PointerEvent) => {
+    // name (double-click rename), trash and fields keep their own gestures —
+    // note the head itself IS a button, so don't match on "button" here
+    if ((e.target as HTMLElement).closest("[data-noreorder],.ncd-vtrash,input,textarea")) return;
+    e.preventDefault();
+    const rail = railRef.current; if (!rail) return;
+    const startTop = topsRef.current[tok] ?? 0;
+    const offY = e.clientY - (rail.getBoundingClientRect().top + startTop);
+    let moved = false;
+    setDragTok(tok);
+    setDragY(startTop);
+    const onMove = (ev: PointerEvent) => {
+      const r = rail.getBoundingClientRect();
+      const y = ev.clientY - r.top - offY;
+      if (!moved && Math.abs(y - startTop) > 5) moved = true;
+      setDragY(y);
+      if (!moved) return;
+      // live reorder: sort every card by its current visual center
+      const centers = orderedVarsRef.current.map((t) => {
+        const tk = "[" + t.name + "]";
+        const top = tk === tok ? y : topsRef.current[tk];
+        return { name: t.name, c: typeof top === "number" ? top + 20 : Number.MAX_SAFE_INTEGER };
+      });
+      const next = centers.sort((a, b) => a.c - b.c).map((x) => x.name);
+      const cur = orderedVarsRef.current.map((t) => t.name);
+      if (next.join("|") !== cur.join("|")) setVarOrder(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setDragTok(null);
+      if (moved) suppressClickRef.current = true; // a real drag must not toggle the card
+      scheduleMeasure();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   /* ── results groups: constellation rows with their outputs ── */
@@ -208,10 +360,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
       if (!t.closest("[data-vcard]") && !t.closest(".nc-tok") && !t.closest(".ncd-pill")) setOpenVar(null);
     }}>
       <div className="ncd-desk">
-        <div className="ncd-wrap">
+        <div className="ncd-wrap" ref={wrapRef}>
           {/* ── the page ── */}
           <div className="ncd-page" ref={pageRef} style={{ width: cols.page, flex: "0 0 auto" }}>
-            <div className="ncd-tascroll" onScroll={() => setPill(null)}>
+            <div className="ncd-tascroll" ref={scrollerRef} onScroll={() => { setPill(null); scheduleMeasure(); }}>
             <div className="ncd-pbox">
               <div className="ncd-pov" aria-hidden>
                 {(() => {
@@ -227,6 +379,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     const isPub = pubNames.has(name);
                     return (
                       <span key={i}
+                        data-tok={refTok ? undefined : part}
                         className={"nc-tok" + (isPub ? " pub" : "") + (openVar === part ? " ncd-tok-open" : "")}
                         style={{
                           "--tok-bg": c.bg,
@@ -234,7 +387,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                           color: c.text,
                         } as React.CSSProperties}
                         title={refTok ? "Reference image " + refN : "Click to edit this variable"}
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!refTok) openCard(part); }}
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!refTok) setOpenVar((v) => (v === part ? null : part)); }}
                       >
                         <span className="nc-tok-br">[</span>{name}<span className="nc-tok-br">]</span>
                       </span>
@@ -317,26 +470,42 @@ export default function DocView({ api }: { api: DocViewApi }) {
 
           <div className={"ncd-lever" + (levering === "page" ? " on" : "")} title="Drag to resize the editor" onPointerDown={startLever("page")} />
 
-          {/* ── comment rail: variable cards ── */}
-          <div className="ncd-rail" ref={railRef}>
-            {railVars.length === 0 && (
+          {/* dashed connectors from each chip to its card */}
+          <svg className="ncd-lines" aria-hidden>
+            {lines.map((l) => (
+              <path key={l.tok} className={l.active ? "active" : undefined} d={l.d} stroke={l.color} />
+            ))}
+          </svg>
+
+          {/* ── comment rail: variable cards, anchored to their chips ── */}
+          <div className="ncd-rail" ref={railRef} style={{ height: railH }}>
+            {orderedVars.length === 0 && (
               <div className="ncd-rail-empty">
                 No variables yet. Select a word in your prompt and click <b>Add variable</b> — it will show up here like a comment.
               </div>
             )}
-            {railVars.map((t) => {
+            {orderedVars.map((t) => {
               const tok = "[" + t.name + "]";
               const c = colorForTok(tok);
               const warn = needsSetup(t);
               const open = openVar === tok || warn;
+              const top = tops[tok];
+              const dragging = dragTok === tok;
               return (
                 <div key={t.id} data-vcard={tok}
-                  className={"ncd-vcard" + (open ? " open" : "") + (warn ? " warn" : "")}
-                  style={{ borderLeftColor: c.border }}
+                  className={"ncd-vcard" + (open ? " open" : "") + (warn ? " warn" : "") + (top === null ? " hidden" : "") + (dragging ? " dragging" : "")}
+                  style={{ borderLeftColor: c.border, top: dragging ? dragY : (top ?? 0) }}
                   onPointerDown={(e) => e.stopPropagation()}>
-                  <button className="ncd-vhead" onClick={() => setOpenVar((v) => (v === tok ? null : tok))}>
+                  <button className="ncd-vhead" title="Drag to reorder"
+                    onPointerDown={startCardDrag(tok)}
+                    onClick={() => {
+                      if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+                      setOpenVar((v) => (v === tok ? null : tok));
+                    }}>
                     <span className="ncd-vdot" style={{ background: c.dot }} />
-                    <span className="ncd-vname" style={{ color: c.text }}>{t.name}</span>
+                    <span className="ncd-vname" style={{ color: c.text }} data-noreorder>
+                      <EditName value={t.name} onChange={(v) => api.renameText(t.id, v)} placeholder={t.name} title="Double-click to rename" />
+                    </span>
                     <span className={"ncd-vtype" + (t.kind === "bool" ? " bool" : "")}>{t.kind === "bool" ? "Checkbox" : "Text"}</span>
                     <span className="ncd-vtrash" role="button" title="Remove this variable (the words stay in your prompt)"
                       onClick={(e) => { e.stopPropagation(); api.deleteNodeId(t.id); api.onToast("Variable removed."); }}>

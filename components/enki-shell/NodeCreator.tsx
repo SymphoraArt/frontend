@@ -110,7 +110,7 @@ function buildPrompt(body: string, texts: TextNode[], valsOverride?: Record<stri
 }
 
 /* double-click to rename; static span otherwise */
-function EditName({ value, onChange, className, placeholder, title }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string; title?: string }) {
+export function EditName({ value, onChange, className, placeholder, title }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string; title?: string }) {
   const [edit, setEdit] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { if (edit && ref.current) { ref.current.focus(); ref.current.select(); } }, [edit]);
