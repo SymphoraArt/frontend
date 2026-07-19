@@ -53,6 +53,21 @@ export interface DocViewApi {
   switchView: (v: EditorView) => void;
 }
 
+// Adjustable column widths (page ↔ variables ↔ results), persisted.
+const COLS_KEY = "enki-doc-cols";
+const PAGE_W = { lo: 380, hi: 860, dflt: 612 };
+const RESULTS_W = { lo: 260, hi: 560, dflt: 380 };
+const clampW = (v: unknown, b: { lo: number; hi: number; dflt: number }) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(b.hi, Math.max(b.lo, v)) : b.dflt;
+const loadCols = () => {
+  try {
+    const j = JSON.parse(localStorage.getItem(COLS_KEY) || "") as { page?: number; results?: number };
+    return { page: clampW(j.page, PAGE_W), results: clampW(j.results, RESULTS_W) };
+  } catch {
+    return { page: PAGE_W.dflt, results: RESULTS_W.dflt };
+  }
+};
+
 export default function DocView({ api }: { api: DocViewApi }) {
   const {
     st, texts, refs, outs, cons, curSig, liveTokNames, liveRefCount, pubNames,
@@ -64,6 +79,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
   const [openVar, setOpenVar] = useState<string | null>(null);
   const [pill, setPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
   const [autoFill, setAutoFill] = useState(true);
+  const [cols, setCols] = useState(loadCols);
+  const [levering, setLevering] = useState<"page" | "results" | null>(null);
+  const colsRef = useRef(cols); colsRef.current = cols;
   const openVarRef = useRef(openVar); openVarRef.current = openVar;
   const pillRef = useRef(pill); pillRef.current = pill;
   const pageRef = useRef<HTMLDivElement | null>(null);
@@ -84,6 +102,45 @@ export default function DocView({ api }: { api: DocViewApi }) {
     window.addEventListener("keydown", k, true);
     return () => window.removeEventListener("keydown", k, true);
   }, []);
+
+  // The pill lives EXACTLY as long as a real selection does: whenever the
+  // textarea's selection collapses (click, arrow key, blur), it goes away.
+  useEffect(() => {
+    const onSel = () => {
+      if (!pillRef.current) return;
+      const ta = taRef.current;
+      if (!ta || document.activeElement !== ta || ta.selectionStart === ta.selectionEnd) setPill(null);
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+
+  // Column levers: drag to shift width between page↔variables↔results.
+  const startLever = (which: "page" | "results") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    const sx = e.clientX;
+    const w0 = which === "page" ? colsRef.current.page : colsRef.current.results;
+    setLevering(which);
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - sx;
+      setCols((c) =>
+        which === "page"
+          ? { ...c, page: clampW(w0 + dx, PAGE_W) }
+          : { ...c, results: clampW(w0 - dx, RESULTS_W) },
+      );
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = prevSelect;
+      setLevering(null);
+      try { localStorage.setItem(COLS_KEY, JSON.stringify(colsRef.current)); } catch { /* noop */ }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   /* ── selection → variable ── */
   const readSelection = (e: { clientX?: number; clientY?: number }) => {
@@ -153,7 +210,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
       <div className="ncd-desk">
         <div className="ncd-wrap">
           {/* ── the page ── */}
-          <div className="ncd-page" ref={pageRef}>
+          <div className="ncd-page" ref={pageRef} style={{ width: cols.page, flex: "0 0 auto" }}>
             <div className="ncd-tascroll" onScroll={() => setPill(null)}>
             <div className="ncd-pbox">
               <div className="ncd-pov" aria-hidden>
@@ -258,6 +315,8 @@ export default function DocView({ api }: { api: DocViewApi }) {
             </div>
           </div>
 
+          <div className={"ncd-lever" + (levering === "page" ? " on" : "")} title="Drag to resize the editor" onPointerDown={startLever("page")} />
+
           {/* ── comment rail: variable cards ── */}
           <div className="ncd-rail" ref={railRef}>
             {railVars.length === 0 && (
@@ -325,10 +384,12 @@ export default function DocView({ api }: { api: DocViewApi }) {
         </div>
       </div>
 
+      <div className={"ncd-lever ncd-lever--edge" + (levering === "results" ? " on" : "")} title="Drag to resize results" onPointerDown={startLever("results")} />
+
       {/* ── results / release column ── */}
-      <aside className="ncd-results">
+      <aside className="ncd-results" style={{ width: cols.results }}>
         <div className="ncd-res-head">
-          <span className="ncd-res-title serif">Results</span>
+          <span className="ncd-res-title"><em>Results</em></span>
           <span className="ncd-res-stats">{groups.length} group{groups.length === 1 ? "" : "s"} · {outs.filter((o) => o.img).length} result{outs.filter((o) => o.img).length === 1 ? "" : "s"}</span>
           <span className="ncd-res-help" title="Every different mix of prompt text + variables gets its own group. Pick images from ONE group to publish.">?</span>
         </div>
@@ -374,8 +435,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
           <span className={"ncd-res-status" + (canRelease ? " ready" : "")}>
             {canRelease ? pickedOuts.length + " of " + releaseMin + " picked — ready" : pickedOuts.length + " of " + releaseMin + " picked · pick " + releaseMin + " from one group"}
           </span>
-          <button className={"nc-gp-release ncd-release" + (canRelease ? "" : " disabled")} disabled={!canRelease} onClick={api.release}>
-            <Icon name="sparkles" size={12} stroke={2} fill="var(--cta-ink)" /> Release
+          <button className={"ncd-gen" + (canRelease ? "" : " disabled")} disabled={!canRelease} onClick={api.release}>
+            <Icon name="sparkles" size={13} stroke={2.2} fill={canRelease ? "var(--cta-ink)" : "none"} /> Release
+            {pickedOuts.length > 0 && <span className="ncd-gen-price">{pickedOuts.length}/{releaseMin}</span>}
           </button>
         </div>
       </aside>
