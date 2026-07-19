@@ -521,11 +521,13 @@ button.nc-out-var:hover{filter:brightness(.96);}
 /* floating add-variable pill */
 .ncd-pill{position:absolute;z-index:30;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:none;border-radius:999px;background:var(--qc-bg);color:var(--qc-ink);font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.28);animation:nc-pm-in .14s ease;}
 .ncd-pill:hover{filter:brightness(1.1);}
-/* page foot: two columns — refs above settings (left) · Auto Fill above Generate (right) */
-.ncd-foot{display:flex;justify-content:space-between;align-items:stretch;gap:12px;margin-top:10px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:8px;flex-shrink:0;flex-wrap:wrap;}
-.ncd-foot-l{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;}
+/* page foot: two columns — refs above settings (left) · Auto Fill above Generate (right).
+   Never wraps: on a narrow page the left side shrinks and the right column
+   stays right-anchored with the price tucked under Generate. */
+.ncd-foot{display:flex;justify-content:space-between;align-items:stretch;gap:10px;margin-top:10px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:8px;flex-shrink:0;flex-wrap:nowrap;}
+.ncd-foot-l{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;flex:1 1 auto;}
 /* Auto Fill sits centered over the Generate button */
-.ncd-foot-r{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:7px;flex-shrink:0;}
+.ncd-foot-r{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:7px;flex-shrink:0;margin-left:auto;}
 .ncd-lab{font-family:var(--font-mono),monospace;font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--enki-ink-3);}
 .ncd-refs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .ncd-ref{position:relative;width:34px;height:34px;border-radius:7px;overflow:visible;flex-shrink:0;}
@@ -537,12 +539,19 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-ref-ui.on{background:var(--enki-turq);border-color:var(--enki-turq);}
 .ncd-ref-add{width:34px;height:34px;border:1px dashed var(--enki-rule);border-radius:7px;background:var(--enki-paper-2);color:var(--enki-ink-3);font-size:16px;cursor:pointer;flex-shrink:0;}
 .ncd-ref-add:hover{border-color:var(--enki-ember);color:var(--enki-ember);}
-.ncd-genopts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ncd-genopts{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+/* compact pickers: smaller trigger, price/sub only inside the open dropdown */
+.ncd-genopts .nc-pm-trigger{height:24px;font-size:11px;padding:0 6px;gap:4px;}
+.ncd-genopts .nc-pm-trigger>.nc-pm-price{display:none;}
+.ncd-genopts .nc-pm-trigger .nc-pm-chev{width:11px;height:11px;}
 .ncd-autofill{white-space:nowrap;}
 .ncd-gen{display:flex;align-items:center;gap:7px;height:32px;padding:0 18px;border:none;border-radius:999px;background:var(--cta-bg);color:var(--cta-ink);font-family:var(--font-sans),sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:filter .12s;}
 .ncd-gen:hover{filter:brightness(1.05);}
 .ncd-gen.disabled{opacity:.5;cursor:default;filter:none;}
+.ncd-gen-top{display:inline-flex;align-items:center;gap:7px;}
 .ncd-gen-price{font-family:var(--font-mono),monospace;font-size:10.5px;opacity:.8;}
+/* narrow page: price on its own line under the label */
+.ncd-gen.stack{flex-direction:column;gap:0;height:auto;padding:5px 14px;line-height:1.25;border-radius:14px;}
 /* comment rail */
 /* the rail takes ALL the width between the editor and the results column;
    cards are absolutely positioned by the anchor/packing engine */

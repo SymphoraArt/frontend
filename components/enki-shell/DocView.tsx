@@ -81,6 +81,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
   // Which variable card is open in the rail (token incl. brackets), and the
   // floating "+ Add variable" pill (page-relative position + selection range).
   const [openVar, setOpenVar] = useState<string | null>(null);
+  // How the card was opened: only a CHIP click makes the card fly to the
+  // chip's height — toggling via the card header expands it in place.
+  const [openVia, setOpenVia] = useState<"chip" | "head">("head");
   const [pill, setPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
   const [autoFill, setAutoFill] = useState(true);
   const [cols, setCols] = useState(loadCols);
@@ -95,6 +98,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
   const [dragY, setDragY] = useState(0);
 
   const openVarRef = useRef(openVar); openVarRef.current = openVar;
+  const openViaRef = useRef(openVia); openViaRef.current = openVia;
   const pillRef = useRef(pill); pillRef.current = pill;
   const colsRef = useRef(cols); colsRef.current = cols;
   const topsRef = useRef(tops); topsRef.current = tops;
@@ -196,6 +200,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
     api.onBodyChange(body);
     if (!texts.some((t) => t.name === seg)) api.addText(undefined, seg);
     setPill(null);
+    setOpenVia("chip"); // align the fresh card with its new chip
     setOpenVar("[" + seg + "]");
     api.onToast(`"${seg}" is now a variable.`);
   };
@@ -260,19 +265,24 @@ export default function DocView({ api }: { api: DocViewApi }) {
         cursor = top + hOf(tk) + CARD_GAP;
       }
     };
+    // Only a chip-click anchors the open card to its chip; a header toggle
+    // keeps the normal top-down flow so nothing jumps around.
     const open = openVarRef.current;
-    const openIdx = open ? vis.indexOf(open) : -1;
+    const openIdx = open && openViaRef.current === "chip" ? vis.indexOf(open) : -1;
     if (openIdx >= 0) {
-      const openTop = Math.max(0, anchors.get(vis[openIdx])!.y - 4);
-      nextTops[vis[openIdx]] = openTop;
-      let ceil = openTop; // pack the cards above it upward, closest first
-      for (let i = openIdx - 1; i >= 0; i--) {
-        const tk = vis[i];
-        const want = anchors.get(tk)!.y - 4;
-        const top = Math.max(0, Math.min(want, ceil - hOf(tk) - CARD_GAP));
+      const need = (arr: string[]) => arr.reduce((s, tk) => s + hOf(tk) + CARD_GAP, 0);
+      const before = vis.slice(0, openIdx);
+      // If the cards above don't fit over the anchor, the open card yields
+      // downward — overlap is never allowed.
+      const openTop = Math.max(anchors.get(vis[openIdx])!.y - 4, need(before));
+      let cursor = 0;
+      before.forEach((tk, i) => {
+        const cap = openTop - need(before.slice(i)); // room the rest still needs
+        const top = Math.max(0, Math.min(Math.max(anchors.get(tk)!.y - 4, cursor), cap));
         nextTops[tk] = top;
-        ceil = top;
-      }
+        cursor = top + hOf(tk) + CARD_GAP;
+      });
+      nextTops[vis[openIdx]] = openTop;
       flowDown(vis.slice(openIdx + 1), openTop + hOf(vis[openIdx]) + CARD_GAP);
     } else {
       flowDown(vis, 0);
@@ -398,7 +408,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                           color: c.text,
                         } as React.CSSProperties}
                         title={refTok ? "Reference image " + refN : "Click to edit this variable"}
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!refTok) setOpenVar((v) => (v === part ? null : part)); }}
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); if (!refTok) { setOpenVia("chip"); setOpenVar((v) => (v === part ? null : part)); } }}
                       >
                         <span className="nc-tok-br">[</span>{name}<span className="nc-tok-br">]</span>
                       </span>
@@ -455,12 +465,12 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <input ref={refUpRef} type="file" accept={api.modelAccept} multiple style={{ display: "none" }} onChange={(e) => { api.addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
               </div>
               <div className="ncd-genopts">
-                <NcSelect value={st.models[0]} width={148} title="Model used for this prompt"
+                <NcSelect value={st.models[0]} width={112} title="Model used for this prompt"
                   options={NC_MODELS.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
-                <NcSelect value={st.ratio} width={84} title="Aspect ratio"
+                <NcSelect value={st.ratio} width={62} title="Aspect ratio"
                   options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
-                <NcSelect value={st.quality} width={76} title="Quality"
+                <NcSelect value={st.quality} width={54} title="Quality"
                   options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
                   onChange={api.setQuality} />
               </div>
@@ -469,10 +479,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <label className="nc-chk ncd-autofill" title="An AI writes the variable values for each new image before rendering" onClick={() => setAutoFill((v) => !v)}>
                   <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
                 </label>
-                <button className={"ncd-gen" + (canGenerate ? "" : " disabled")}
+                {/* narrow page: the price wraps under the label to save width */}
+                <button className={"ncd-gen" + (cols.page < 540 ? " stack" : "") + (canGenerate ? "" : " disabled")}
                   title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
                   onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
-                  <Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate
+                  <span className="ncd-gen-top"><Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
                   <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
                 </button>
               </div>
@@ -513,6 +524,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     onPointerDown={startCardDrag(tok)}
                     onClick={() => {
                       if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+                      setOpenVia("head");
                       setOpenVar((v) => (v === tok ? null : tok));
                     }}>
                     <span className="ncd-vdot" style={{ background: c.dot }} />
