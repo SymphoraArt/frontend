@@ -8,6 +8,7 @@
    same handlers the node canvas uses, so both views stay in perfect sync. */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import {
   EditName, NcSelect, NC_MODELS, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
@@ -96,9 +97,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
   const [varOrder, setVarOrder] = useState<string[] | null>(null);
   const [dragTok, setDragTok] = useState<string | null>(null);
   const [dragY, setDragY] = useState(0);
+  const [confirmDel, setConfirmDel] = useState<TextNode | null>(null);
 
   const openVarRef = useRef(openVar); openVarRef.current = openVar;
   const openViaRef = useRef(openVia); openViaRef.current = openVia;
+  const confirmDelRef = useRef(confirmDel); confirmDelRef.current = confirmDel;
   const pillRef = useRef(pill); pillRef.current = pill;
   const colsRef = useRef(cols); colsRef.current = cols;
   const topsRef = useRef(tops); topsRef.current = tops;
@@ -131,6 +134,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (confirmDelRef.current) {
+        e.stopPropagation();
+        setConfirmDel(null);
+        return;
+      }
       if (openVarRef.current || pillRef.current) {
         e.stopPropagation();
         setOpenVar(null);
@@ -140,6 +148,24 @@ export default function DocView({ api }: { api: DocViewApi }) {
     window.addEventListener("keydown", k, true);
     return () => window.removeEventListener("keydown", k, true);
   }, []);
+
+  /* ── remove a variable (confirmed): its default value — or, without one,
+     its bare name — takes the token's place in the prompt text. The chip,
+     card and connector line all go with the same body change. ── */
+  const confirmRemoveVar = () => {
+    const t = confirmDel;
+    if (!t) return;
+    const tok = "[" + t.name + "]";
+    const raw = (t.kind === "bool" ? t.str : t.value) ?? "";
+    // brackets in a default would spawn NEW tokens — strip them
+    const repl = (raw.trim() || t.name).replace(/[[\]]/g, "");
+    api.pushHist();
+    // onBodyChange's orphan cleanup drops the text node in the same update
+    api.onBodyChange(st.body.split(tok).join(repl));
+    if (openVar === tok) setOpenVar(null);
+    setConfirmDel(null);
+    api.onToast(raw.trim() ? "Variable removed — its default value stayed in the text." : "Variable removed — its name stayed in the text.");
+  };
 
   // The pill lives EXACTLY as long as a real selection does: whenever the
   // textarea's selection collapses (click, arrow key, blur), it goes away.
@@ -407,6 +433,8 @@ export default function DocView({ api }: { api: DocViewApi }) {
   );
 
   const genCost = perImage; // one render per doc-Generate click
+  // Confirm dialog portals above the whole shell, same as NodeCreator's modals.
+  const portalRoot = typeof document !== "undefined" ? ((document.querySelector(".ek-app") as HTMLElement) || document.body) : null;
 
   return (
     <div className="ncd" onPointerDown={(e) => {
@@ -535,6 +563,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
 
           {/* ── comment rail: variable cards, anchored to their chips ── */}
           <div className="ncd-rail" ref={railRef} style={{ height: railH }}>
+            {/* insertion indicator while dragging a card: marks the slot it drops into */}
+            {dragTok && typeof tops[dragTok] === "number" && (
+              <div className="ncd-drop-line" style={{ top: (tops[dragTok] as number) - 5 }} />
+            )}
             {orderedVars.length === 0 && (
               <div className="ncd-rail-empty">
                 No variables yet. Select a word in your prompt and click <b>Add variable</b> — it will show up here like a comment.
@@ -556,8 +588,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   onPointerDown={(e) => e.stopPropagation()}>
                   <button className="ncd-vhead" title="Drag to reorder"
                     onPointerDown={startCardDrag(tok)}
-                    onClick={() => {
+                    onClick={(e) => {
                       if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+                      // renaming in progress → the tap edits text, it must not collapse
+                      if ((e.target as HTMLElement).closest("input,textarea")) return;
                       setOpenVia("head");
                       setOpenVar((v) => (v === tok ? null : tok));
                     }}>
@@ -566,8 +600,8 @@ export default function DocView({ api }: { api: DocViewApi }) {
                       <EditName value={t.name} onChange={(v) => api.renameText(t.id, v)} placeholder={t.name} title="Double-click to rename" />
                     </span>
                     <span className={"ncd-vtype" + (t.kind === "bool" ? " bool" : "")}>{t.kind === "bool" ? "Checkbox" : "Text"}</span>
-                    <span className="ncd-vtrash" role="button" title="Remove this variable (the words stay in your prompt)"
-                      onClick={(e) => { e.stopPropagation(); api.deleteNodeId(t.id); api.onToast("Variable removed."); }}>
+                    <span className="ncd-vtrash" role="button" title="Remove this variable"
+                      onClick={(e) => { e.stopPropagation(); setConfirmDel(t); }}>
                       <Icon name="trash" size={12} stroke={2} />
                     </span>
                     <Icon name="chevronDown" size={12} stroke={2.4} style={{ transform: open ? "rotate(180deg)" : "none", opacity: warn ? 0.3 : 0.7, transition: "transform .15s" }} />
@@ -669,6 +703,34 @@ export default function DocView({ api }: { api: DocViewApi }) {
           </button>
         </div>
       </aside>
+
+      {/* ── remove-variable confirm ── */}
+      {confirmDel && portalRoot && createPortal(
+        <div className="ek-modal-scrim" style={{ zIndex: 1400 }} onClick={() => setConfirmDel(null)}>
+          <div className="ek-modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ek-modal-head">
+              <span className="ek-sheet-bolt"><Icon name="trash" size={16} stroke={2} /></span>
+              <div className="ek-modal-title">Remove this variable?</div>
+              <button className="ek-modal-x" onClick={() => setConfirmDel(null)} aria-label="Keep the variable"><Icon name="x" size={16} stroke={2} /></button>
+            </div>
+            <div className="ek-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--enki-ink-2)" }}>
+                “{confirmDel.name}” stops being a variable.{" "}
+                {((confirmDel.kind === "bool" ? confirmDel.str : confirmDel.value) ?? "").trim()
+                  ? "Its default value takes its place in the prompt text."
+                  : "Its name stays in the prompt text as plain words."}
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button className="ek-btn-2" style={{ minHeight: 38, width: "auto", padding: "0 16px" }} onClick={() => setConfirmDel(null)}>Cancel</button>
+                <button className="ek-btn" style={{ minHeight: 38, width: "auto", padding: "0 16px" }} onClick={confirmRemoveVar}>
+                  <Icon name="trash" size={14} stroke={2} /> Remove variable
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        portalRoot,
+      )}
     </div>
   );
 }

@@ -564,6 +564,8 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-vcard.warn{border-color:#e0584f;box-shadow:0 0 0 3px rgba(224,88,79,.16);}
 .ncd-vcard.hidden{opacity:0;pointer-events:none;}
 .ncd-vcard.dragging{transition:none;z-index:10;box-shadow:0 14px 34px rgba(0,0,0,.25);}
+/* insertion marker while dragging a card — shows the slot it will drop into */
+.ncd-drop-line{position:absolute;left:2px;right:2px;height:3px;border-radius:2px;background:var(--enki-ember);box-shadow:0 0 8px rgba(var(--ember-rgb),.6);z-index:9;pointer-events:none;}
 .ncd-vhead{display:flex;align-items:center;gap:6px;width:100%;border:none;background:none;padding:2px;cursor:grab;text-align:left;touch-action:none;}
 .ncd-vcard.dragging .ncd-vhead{cursor:grabbing;}
 .ncd-vdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
