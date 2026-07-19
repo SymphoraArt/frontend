@@ -526,8 +526,8 @@ button.nc-out-var:hover{filter:brightness(.96);}
    stays right-anchored with the price tucked under Generate. */
 .ncd-foot{display:flex;justify-content:space-between;align-items:stretch;gap:10px;margin-top:10px;border-top:1px dashed var(--enki-rule-2,var(--enki-rule));padding-top:8px;flex-shrink:0;flex-wrap:nowrap;}
 .ncd-foot-l{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;flex:1 1 auto;}
-/* Auto Fill sits centered over the Generate button */
-.ncd-foot-r{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:7px;flex-shrink:0;margin-left:auto;}
+/* Auto Fill sits tight, centered directly over the Generate button */
+.ncd-foot-r{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;flex-shrink:0;margin-left:auto;}
 .ncd-lab{font-family:var(--font-mono),monospace;font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--enki-ink-3);}
 .ncd-refs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .ncd-ref{position:relative;width:34px;height:34px;border-radius:7px;overflow:visible;flex-shrink:0;}
@@ -557,7 +557,9 @@ button.nc-out-var:hover{filter:brightness(.96);}
    cards are absolutely positioned by the anchor/packing engine */
 .ncd-rail{flex:1 1 auto;min-width:190px;position:relative;}
 .ncd-rail-empty{border:1px dashed var(--enki-rule);border-radius:9px;padding:12px;font-size:11.5px;line-height:1.55;color:var(--enki-ink-3);background:color-mix(in oklab,var(--enki-paper) 55%,transparent);}
-.ncd-vcard{position:absolute;left:0;right:0;background:var(--enki-paper);border:1px solid var(--enki-rule-2,var(--enki-rule));border-left:3px solid var(--enki-rule);border-radius:9px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.07);transition:top .18s ease,opacity .15s ease,box-shadow .15s;}
+/* top moves are WAAPI-animated in JS (new cards appear IN PLACE, moved cards
+   glide) — top must NOT be in the CSS transition or fresh cards fly in from 0 */
+.ncd-vcard{position:absolute;left:0;right:0;background:var(--enki-paper);border:1px solid var(--enki-rule-2,var(--enki-rule));border-left:3px solid var(--enki-rule);border-radius:9px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.07);transition:opacity .15s ease,box-shadow .15s;}
 .ncd-vcard.open{box-shadow:0 10px 30px rgba(0,0,0,.14);z-index:5;}
 .ncd-vcard.warn{border-color:#e0584f;box-shadow:0 0 0 3px rgba(224,88,79,.16);}
 .ncd-vcard.hidden{opacity:0;pointer-events:none;}

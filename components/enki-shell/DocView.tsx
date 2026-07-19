@@ -112,6 +112,20 @@ export default function DocView({ api }: { api: DocViewApi }) {
   const measureRaf = useRef<number | null>(null);
   const lastMeasureRef = useRef("");
   const suppressClickRef = useRef(false);
+  const dragTokRef = useRef<string | null>(null); dragTokRef.current = dragTok;
+  // Queued WAAPI card moves: moved cards glide from→to; brand-new cards have
+  // no `from` and simply appear at their slot (no fly-in from 0).
+  const pendingAnimRef = useRef(new Map<string, { from: number; to: number }>());
+  const dropFromRef = useRef<{ tok: string; y: number } | null>(null);
+  const playPend = () => {
+    const pend = pendingAnimRef.current;
+    if (!pend.size || !railRef.current) return;
+    railRef.current.querySelectorAll<HTMLElement>("[data-vcard]").forEach((el) => {
+      const a = pend.get(el.dataset.vcard as string);
+      if (a) el.animate([{ top: a.from + "px" }, { top: a.to + "px" }], { duration: 180, easing: "ease" });
+    });
+    pend.clear();
+  };
 
   // ESC closes doc-local popups BEFORE NodeCreator's close flow sees the key.
   useEffect(() => {
@@ -291,6 +305,17 @@ export default function DocView({ api }: { api: DocViewApi }) {
     let maxB = 240;
     vis.forEach((tk) => { const t = nextTops[tk]; if (typeof t === "number") maxB = Math.max(maxB, t + hOf(tk)); });
 
+    // queue glide animations for cards that MOVED (never for fresh mounts)
+    const prevT = topsRef.current;
+    vis.forEach((tk) => {
+      const next = nextTops[tk];
+      if (typeof next !== "number" || dragTokRef.current === tk) return;
+      let from: number | null = null;
+      if (dropFromRef.current?.tok === tk) { from = dropFromRef.current.y; dropFromRef.current = null; }
+      else if (typeof prevT[tk] === "number") from = prevT[tk] as number;
+      if (from !== null && Math.abs(from - next) > 1) pendingAnimRef.current.set(tk, { from, to: next });
+    });
+
     const railX = railR.left - wrapR.left;
     const railY = railR.top - wrapR.top;
     const nextLines = vis
@@ -304,7 +329,12 @@ export default function DocView({ api }: { api: DocViewApi }) {
       });
 
     const sig = JSON.stringify([nextTops, nextLines.map((l) => l.d + l.active), maxB]);
-    if (sig === lastMeasureRef.current) return;
+    if (sig === lastMeasureRef.current) {
+      // DOM already sits at these tops (e.g. a drop back into the same slot) —
+      // play any queued glide right away.
+      playPend();
+      return;
+    }
     lastMeasureRef.current = sig;
     setTops(nextTops);
     setLines(nextLines);
@@ -314,8 +344,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
     if (measureRaf.current) cancelAnimationFrame(measureRaf.current);
     measureRaf.current = requestAnimationFrame(() => { measureRaf.current = null; measure(); });
   }, [measure]);
-  // After every commit: card heights/chip positions may have changed.
-  useLayoutEffect(() => { scheduleMeasure(); });
+  // After every commit: play queued card glides (DOM now holds the new tops),
+  // then re-measure — card heights/chip positions may have changed.
+  useLayoutEffect(() => { playPend(); scheduleMeasure(); });
   useEffect(() => {
     window.addEventListener("resize", scheduleMeasure);
     return () => {
@@ -352,9 +383,12 @@ export default function DocView({ api }: { api: DocViewApi }) {
       const cur = orderedVarsRef.current.map((t) => t.name);
       if (next.join("|") !== cur.join("|")) setVarOrder(next);
     };
-    const onUp = () => {
+    const onUp = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      // let the dropped card glide from where it was released into its slot
+      const r = rail.getBoundingClientRect();
+      dropFromRef.current = { tok, y: ev.clientY - r.top - offY };
       setDragTok(null);
       if (moved) suppressClickRef.current = true; // a real drag must not toggle the card
       scheduleMeasure();
