@@ -8,7 +8,12 @@
  *
  * Server-side gate on EVERY request: session → users.role ∈ {admin, mod}.
  * (The client gate in /admin is cosmetic — this check is the real wall.)
- * All tables verified live 2026-07-20 via PostgREST OpenAPI probe.
+ * All tables verified live 2026-07-20 via PostgREST OpenAPI probe; check
+ * constraints verified live 2026-07-21 via probe inserts:
+ *   strikes.severity ∈ {1,2,3} · bans.scope ∈ {full} · appeals.status ∈
+ *   {pending,approved,denied,withdrawn} · appeals.target_type ∈ {strike,ban} ·
+ *   reports.status ∈ {pending,actioned,dismissed,duplicate} · reports.reason ∈
+ *   {spam,copyright,hate,impersonation,other}
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
@@ -56,7 +61,7 @@ export async function GET(req: NextRequest) {
       .eq("status", "pending").order("submitted_at", { ascending: false }).limit(100),
     supabase.from("reports")
       .select("id, reporter_user_id, target_type, target_uuid, reason, details, severity, status, created_at")
-      .in("status", ["open", "pending"]).order("created_at", { ascending: false }).limit(100),
+      .eq("status", "pending").order("created_at", { ascending: false }).limit(100),
     supabase.from("feedback_submissions")
       .select("id, user_id, submitter_name, submitter_email_ct, submitter_email_iv, submitter_email_tag, submitter_email_kid, description, category, severity, payout_cents, paid_at, created_at")
       .order("created_at", { ascending: false }).limit(100),
@@ -246,7 +251,7 @@ export async function POST(req: NextRequest) {
   if (body.resource === "reports" && body.id) {
     if (body.action === "resolve" || body.action === "dismiss") {
       const { error } = await supabase.from("reports")
-        .update({ status: body.action === "resolve" ? "resolved" : "dismissed", decided_by: userId, decided_at: now })
+        .update({ status: body.action === "resolve" ? "actioned" : "dismissed", decided_by: userId, decided_at: now })
         .eq("id", body.id);
       return error ? fail(error, body.action) : NextResponse.json({ ok: true });
     }
