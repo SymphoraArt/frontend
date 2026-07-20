@@ -307,12 +307,8 @@ export default function EnkiHome() {
       case "messages": return <MessagesPanel toast={showToast} />;
       case "settings": return <SettingsPage initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
       case "profile": return <ProfilePage onBack={() => { setPanel(null); setActiveNav("home"); }} />;
-      case "leaderboard": return (
-        <PanelFrame>
-          <PanelHeadline title="Hall of Fame" sub="Top creators and earners on Enki Art." />
-          <LeaderboardPage />
-        </PanelFrame>
-      );
+      {/* Leaderboard brings its own editorial header (design), no PanelHeadline */}
+      case "leaderboard": return <LeaderboardPage />;
       default: return (
         <PanelFrame>
           <PanelHeadline title={PANEL_TITLES[key] || key} />
