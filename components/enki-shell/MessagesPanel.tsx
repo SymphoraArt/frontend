@@ -415,7 +415,7 @@ export default function MessagesPanel({ toast }: { toast?: (msg: string) => void
                     <div key={`sep-${i}`} className="ek-msg-sep"><span>{row.sep}</span></div>
                   ) : (
                     <div key={row.msg.id} className={"ek-msg-item" + (row.msg.mine ? " mine" : "")} style={{ display: "flex", justifyContent: row.msg.mine ? "flex-end" : "flex-start" }}>
-                      <div style={{ maxWidth: "64%", display: "flex", flexDirection: "column", alignItems: row.msg.mine ? "flex-end" : "flex-start", gap: 3 }}>
+                      <div style={{ maxWidth: "min(64%, 620px)", display: "flex", flexDirection: "column", alignItems: row.msg.mine ? "flex-end" : "flex-start", gap: 3 }}>
                         {row.msg.imageUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img

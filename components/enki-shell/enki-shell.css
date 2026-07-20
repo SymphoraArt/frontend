@@ -366,7 +366,8 @@
 .ek-app.ek-node-open .ek-generate-launcher { display: none !important; }
 
 /* ════════════════ Messages (DMs) ════════════════ */
-.ek-msg-root { display: flex; height: 100%; min-height: 480px; max-width: 1080px; margin: 0 auto; border-left: 1px solid var(--enki-rule); border-right: 1px solid var(--enki-rule); background: var(--enki-paper); }
+/* fills the panel from the left — no centering gap, no stray side borders */
+.ek-msg-root { display: flex; height: 100%; min-height: 480px; background: var(--enki-paper); }
 .ek-msg-side { width: 284px; flex-shrink: 0; border-right: 1px solid var(--enki-rule); display: flex; flex-direction: column; min-height: 0; }
 .ek-msg-side-head { padding: 18px 16px 10px; flex-shrink: 0; }
 .ek-msg-title { font-family: var(--font-serif), Georgia, serif; font-size: 30px; font-weight: 400; margin: 0 0 12px; line-height: 1; color: var(--enki-ink); }
