@@ -79,30 +79,6 @@ export default function EnkiSidebar({
 
       <nav className="ek-nav">
         {nav.map((item) => {
-          if (item.id === "color") {
-            return (
-              <div key="color" ref={colorRef} style={{ position: "relative" }}>
-                <button className={"ek-nav-item" + (colorOpen ? " active" : "")} onClick={() => setColorOpen((o) => !o)} type="button">
-                  <span className="ek-nav-ico"><Icon name="palette" size={23} stroke={colorOpen ? 2.4 : 1.9} /></span>
-                  {!rail && <span className="ek-nav-label">Color Setup</span>}
-                  {!rail && <Icon name="chevronDown" size={15} stroke={2} style={{ transform: colorOpen ? "rotate(180deg)" : "none", color: "var(--enki-ink-3)" }} />}
-                  {rail && <span className="ek-nav-tip">Color Setup</span>}
-                </button>
-                {colorOpen && (
-                  <div className="ek-color-dd" style={{ left: rail ? 70 : 14, top: "100%", marginTop: 4 }}>
-                    <div className="ek-color-dd-h">Color setup</div>
-                    {THEME_OPTS.map((t) => (
-                      <button key={t.id} type="button" className={"ek-color-opt" + (theme === t.id ? " active" : "")} onClick={() => setTheme(t.id)}>
-                        <span className="ek-color-sw" style={{ background: t.sw }} />
-                        {t.name}
-                        {theme === t.id && <span className="ek-color-check"><Icon name="check" size={16} stroke={2.4} /></span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
           return (
             <button key={item.id} className={"ek-nav-item" + (active === item.id ? " active" : "")} onClick={() => onNav(item.id)} type="button">
               <span className="ek-nav-ico"><Icon name={item.icon} size={23} stroke={active === item.id ? 2.4 : 1.9} /></span>
@@ -134,7 +110,7 @@ export default function EnkiSidebar({
 
       <div className="ek-side-spacer" />
 
-      <div className="ek-account" role="button" onClick={onProfile} title="View profile">
+      <div className="ek-account" role="button" onClick={onProfile} title="View profile" ref={colorRef}>
         <span className="ek-avatar">
           {account.avatarUrl
             ? /* eslint-disable-next-line @next/next/no-img-element */
@@ -165,6 +141,29 @@ export default function EnkiSidebar({
               )}
             </span>
           </>
+        )}
+        {/* 3-dot menu (hover to reveal): the color theme lives here */}
+        <button
+          className={"ek-kebab" + (colorOpen ? " on" : "") + (rail ? " ek-kebab--rail" : "")}
+          type="button"
+          title="Options"
+          aria-haspopup="menu"
+          aria-expanded={colorOpen}
+          onClick={(e) => { e.stopPropagation(); setColorOpen((o) => !o); }}
+        >
+          <Icon name="dots" size={14} stroke={2.2} />
+        </button>
+        {colorOpen && (
+          <div className="ek-color-dd ek-color-dd--up" onClick={(e) => e.stopPropagation()}>
+            <div className="ek-color-dd-h">Color theme</div>
+            {THEME_OPTS.map((t) => (
+              <button key={t.id} type="button" className={"ek-color-opt" + (theme === t.id ? " active" : "")} onClick={() => setTheme(t.id)}>
+                <span className="ek-color-sw" style={{ background: t.sw }} />
+                {t.name}
+                {theme === t.id && <span className="ek-color-check"><Icon name="check" size={16} stroke={2.4} /></span>}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </aside>

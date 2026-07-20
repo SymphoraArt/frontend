@@ -52,7 +52,6 @@ const NAV: NavItem[] = [
   { id: "favorites", label: "Bookmarks", icon: "bookmark" },
   { id: "leaderboard", label: "Hall of Fame", icon: "trophy" },
   { id: "analytics", label: "Analytics", icon: "chart" },
-  { id: "color", label: "Color Setup", icon: "palette" },
   { id: "settings", label: "Settings", icon: "settings" },
 ];
 
