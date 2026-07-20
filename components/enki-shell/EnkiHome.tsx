@@ -290,14 +290,8 @@ export default function EnkiHome() {
       // Balance chip + billing entries render the EXACT Settings → Payment
       // view (same container, same scale), scrolled to "Add money".
       case "billing": return <SettingsPage initialTab="payment" focusRamp={payFocus} />;
-      case "analytics": return (
-        <PanelFrame>
-          <PanelHeadline title="Analytics" sub="How your prompts perform: earnings, views, opens and ratings." />
-          <div style={{ padding: "0 40px 40px" }}>
-            <AnalyticsPanel />
-          </div>
-        </PanelFrame>
-      );
+      {/* Analytics brings its own editorial header (design), no PanelHeadline */}
+      case "analytics": return <AnalyticsPanel />;
       case "notifications": return (
         <PanelFrame>
           <PanelHeadline title="Notifications" sub="What happened around your work: comments, ratings, generations and guardian answers." />
