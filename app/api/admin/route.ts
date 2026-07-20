@@ -170,6 +170,7 @@ export async function GET(req: NextRequest) {
       name: (r.label as string) ?? "—",
       address: (r.address as string) ?? "",
       type: (r.address_type as string) ?? "EOA",
+      chain: (r.chain_key as string) ?? "solana",
       notes: (r.notes as string) ?? null,
     })),
     hunters: (hu.data ?? []).map((r) => ({

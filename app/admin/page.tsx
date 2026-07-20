@@ -17,7 +17,7 @@ import { sessionAuthHeaders } from "@/lib/session-headers";
 type Imp = { id: string; name: string; url: string | null; hunter: string; tags: string[]; at: string };
 type Rep = { id: string; target: string; type: "prompt" | "profile"; reason: string; details: string | null; reporter: string; severity: number | string | null; at: string };
 type Fb = { id: string; name: string; email: string | null; desc: string; images: number; paid: boolean; payoutCents: number | null; at: string };
-type Friend = { id: string; name: string; address: string; type: string; notes: string | null };
+type Friend = { id: string; name: string; address: string; type: string; chain: string; notes: string | null };
 type Hunter = { handle: string; total: number; approved: number; denied: number; earningsCents: number };
 type StrikeRow = { userId: string; handle: string; strikes: { id: string; reason: string | null }[]; banned: boolean; permanent: boolean; note: string | null; appeal: { id: string; note: string | null } | null };
 type Rec = { id: string; handle: string; wallet: string | null; contact: string | null; explanation: string | null; evidence: { kind: string; matched: boolean | null }[]; status: string; at: string };
@@ -464,6 +464,11 @@ export default function AdminPage() {
                       <select value={flType} onChange={(e) => setFlType(e.target.value)} style={{ height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5 }}>
                         {["EOA", "Collection", "Multi-sig"].map((t) => <option key={t}>{t}</option>)}
                       </select>
+                      {/* network picker — greyed out until there is more than Solana */}
+                      <select value="solana" disabled title="More networks are coming — Solana is the only one for now"
+                        style={{ height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink-3)", fontSize: 11.5, opacity: 0.55, cursor: "not-allowed" }}>
+                        <option value="solana">Solana</option>
+                      </select>
                       <Pill kind="green" label="Save" onClick={() => {
                         if (!flName.trim() || !flAddr.trim()) { say("Name and address are required."); return; }
                         void (async () => {
@@ -487,6 +492,7 @@ export default function AdminPage() {
                         <span style={{ width: 140, fontSize: 12.5, fontWeight: 600, color: "var(--enki-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                         <span style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 10.5, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.address}</span>
                         <Badge pal={PILL.blue} label={r.type} />
+                        <Badge pal={{ bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" }} label={r.chain} />
                         <span style={{ flex: 1, fontSize: 11, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes ?? "—"}</span>
                         <Pill kind="red" label="Delete" onClick={() => setDelPending(r)} />
                       </div>
