@@ -48,6 +48,22 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
 
   const [earnings, setEarnings] = useState<Earnings | null>(earningsCache);
   const [rampBusy, setRampBusy] = useState<"buy" | "sell" | null>(null);
+  // Which ramp providers the server has keys for; the chooser only appears
+  // when there is an actual choice. Last pick is remembered per device.
+  const [providers, setProviders] = useState<{ coinbase: boolean; moonpay: boolean }>({ coinbase: true, moonpay: false });
+  const [chooseSide, setChooseSide] = useState<"buy" | "sell" | null>(null);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/onramp/session");
+        if (!res.ok) return;
+        const d = (await res.json()) as { providers?: { coinbase: boolean; moonpay: boolean } };
+        if (!dead && d.providers) setProviders(d.providers);
+      } catch { /* keep defaults */ }
+    })();
+    return () => { dead = true; };
+  }, []);
 
   // Balance chip in the sidebar → scroll to "Add money & cash out" and pulse
   // a heartbeat around the whole section so the eye lands on it.
@@ -93,23 +109,26 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
     return () => { cancelled = true; };
   }, [address]);
 
-  // Coinbase Onramp/Offramp: the server mints a session token bound to the
-  // user's own wallet address, we open Coinbase's hosted flow in a new tab.
-  // KYC happens entirely on Coinbase's side; funds land in the user's wallet.
-  const openRamp = async (side: "buy" | "sell") => {
-    if (!address) {
-      toast({ title: "Sign in first", description: "Log in so we know which wallet the money belongs to.", variant: "destructive" });
-      return;
-    }
+  // On/offramp: the server builds a provider session (Coinbase token mint or
+  // signed MoonPay URL) bound to the user's own wallet; we open the hosted
+  // flow in a new tab. KYC is the provider's job; funds land in the wallet.
+  const PROVIDER_KEY = "enki-ramp-provider";
+  const lastProvider = (): "coinbase" | "moonpay" => {
+    try { const v = localStorage.getItem(PROVIDER_KEY); if (v === "moonpay" || v === "coinbase") return v; } catch { /* noop */ }
+    return "coinbase";
+  };
+  const launchRamp = async (side: "buy" | "sell", provider: "coinbase" | "moonpay") => {
+    setChooseSide(null);
     setRampBusy(side);
+    try { localStorage.setItem(PROVIDER_KEY, provider); } catch { /* noop */ }
     try {
       const res = await fetch("/api/onramp/session", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
-        body: JSON.stringify({ side, address }),
+        body: JSON.stringify({ side, address, provider }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) throw new Error(data.error || "Could not start the Coinbase flow");
+      if (!res.ok || !data.url) throw new Error(data.error || "Could not start the payment flow");
       window.open(data.url, "_blank", "noopener");
     } catch (e) {
       toast({
@@ -120,6 +139,56 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
     } finally {
       setRampBusy(null);
     }
+  };
+  const openRamp = (side: "buy" | "sell") => {
+    if (!address) {
+      toast({ title: "Sign in first", description: "Log in so we know which wallet the money belongs to.", variant: "destructive" });
+      return;
+    }
+    const both = providers.coinbase && providers.moonpay;
+    if (!both) {
+      // no real choice → straight through (whichever one is configured)
+      void launchRamp(side, providers.moonpay && !providers.coinbase ? "moonpay" : "coinbase");
+      return;
+    }
+    setChooseSide((v) => (v === side ? null : side)); // one more click picks the provider
+  };
+
+  // Facts a chooser needs — enough to decide at a glance, nothing more.
+  const RAMPS: { id: "coinbase" | "moonpay"; name: string; buySub: string; sellSub: string }[] = [
+    { id: "coinbase", name: "Coinbase", buySub: "From ~$5 · card & Apple Pay", sellSub: "To your bank account" },
+    { id: "moonpay", name: "MoonPay", buySub: "From ~$20 · card, PayPal & more", sellSub: "To card, PayPal or bank" },
+  ];
+  const rampChooser = (side: "buy" | "sell") => {
+    const last = lastProvider();
+    const ordered = [...RAMPS].sort((a, b) => (a.id === last ? -1 : b.id === last ? 1 : 0));
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0 10px 44px" }}>
+        {ordered.map((r) => (
+          <button key={r.id} onClick={() => void launchRamp(side, r.id)} disabled={rampBusy !== null}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer",
+              padding: "10px 12px", borderRadius: 10, background: "transparent",
+              border: "1px solid " + (r.id === last ? "var(--enki-ember, #c96838)" : "var(--enki-rule)"),
+            }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "var(--enki-ink)" }}>
+                {r.name}
+                {r.id === last && (
+                  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ember, #c96838)", background: "rgba(var(--ember-rgb, 201, 104, 56), 0.12)", borderRadius: 4, padding: "1px 6px" }}>
+                    Last used
+                  </span>
+                )}
+              </span>
+              <span style={{ display: "block", fontSize: 11.5, color: "var(--enki-ink-3)", marginTop: 2 }}>
+                {side === "buy" ? r.buySub : r.sellSub}
+              </span>
+            </span>
+            <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />
+          </button>
+        ))}
+      </div>
+    );
   };
 
   const copyAddress = async () => {
@@ -187,22 +256,28 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
           <div className="set-item-icon"><Landmark size={14} /></div>
           <div className="set-item-content">
             <div className="set-item-title">Add money</div>
-            <div className="set-item-sub">From about $5 through Coinbase. It lands straight in your own wallet, we never hold it.</div>
+            <div className="set-item-sub">
+              {providers.moonpay ? "Through Coinbase or MoonPay — your pick." : "From about $5 through Coinbase."} It lands straight in your own wallet, we never hold it.
+            </div>
           </div>
           <button className="set-btn set-btn-outline" onClick={() => openRamp("buy")} disabled={rampBusy !== null}>
             {rampBusy === "buy" ? <Loader2 size={14} className="set-spin" /> : "Buy"}
           </button>
         </div>
+        {chooseSide === "buy" && rampChooser("buy")}
         <div className="set-list-item">
           <div className="set-item-icon"><Landmark size={14} /></div>
           <div className="set-item-content">
             <div className="set-item-title">Cash out</div>
-            <div className="set-item-sub">Move your balance back to your bank through Coinbase.</div>
+            <div className="set-item-sub">
+              Move your balance back to {providers.moonpay ? "your bank — via Coinbase or MoonPay." : "your bank through Coinbase."}
+            </div>
           </div>
           <button className="set-btn set-btn-outline" onClick={() => openRamp("sell")} disabled={rampBusy !== null}>
             {rampBusy === "sell" ? <Loader2 size={14} className="set-spin" /> : "Cash out"}
           </button>
         </div>
+        {chooseSide === "sell" && rampChooser("sell")}
       </SettingsSection>
       </div>
 

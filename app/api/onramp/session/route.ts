@@ -1,15 +1,17 @@
 /**
- * POST /api/onramp/session → { url }
+ * On/offramp sessions — Coinbase (primary) + MoonPay (alternative).
  *
- * Mints a Coinbase Onramp/Offramp session token (server-side, CDP API keys)
- * bound to the signed-in user's OWN wallet address, and returns the hosted
- * Coinbase URL to open. KYC is handled entirely by Coinbase; USDC-on-Solana
- * is delivered straight to the user's wallet — we never custody funds.
+ *   GET  → { providers: { coinbase, moonpay } }  which ones are configured
+ *   POST { side: "buy"|"sell", address, provider? } → { url }
  *
- * Body: { side: "buy" | "sell", address: string }
- * The address must belong to the session user (no minting for foreign wallets).
+ * Coinbase: server-minted session token (CDP keys). MoonPay: signed widget
+ * URL (HMAC-SHA256 over the query, required when walletAddress is passed) —
+ * envs MOONPAY_API_KEY (pk_...) + MOONPAY_SECRET_KEY. Either way KYC is the
+ * provider's job and USDC-on-Solana lands in the user's OWN wallet — we
+ * never custody funds. The address must belong to the session user.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "crypto";
 import { PublicKey } from "@solana/web3.js";
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
@@ -18,13 +20,42 @@ const HOST = "api.developer.coinbase.com";
 const PATH = "/onramp/v1/token";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const moonpayConfigured = () => !!(process.env.MOONPAY_API_KEY && process.env.MOONPAY_SECRET_KEY);
+
+/** MoonPay hosted widget URL, signed the way their docs require. */
+function moonpayUrl(side: "buy" | "sell", address: string, redirect: string): string {
+  const pk = process.env.MOONPAY_API_KEY as string;
+  const sk = process.env.MOONPAY_SECRET_KEY as string;
+  const base = side === "buy" ? "https://buy.moonpay.com" : "https://sell.moonpay.com";
+  const params = new URLSearchParams(
+    side === "buy"
+      ? { apiKey: pk, currencyCode: "usdc_sol", walletAddress: address, baseCurrencyCode: "eur", redirectURL: redirect }
+      : { apiKey: pk, baseCurrencyCode: "usdc_sol", quoteCurrencyCode: "eur", refundWalletAddress: address, redirectURL: redirect },
+  );
+  const query = "?" + params.toString();
+  const signature = createHmac("sha256", sk).update(query).digest("base64");
+  return `${base}/${query}&signature=${encodeURIComponent(signature)}`;
+}
+
+/** Which ramps the client may offer — drives the provider chooser. */
+export async function GET() {
+  return NextResponse.json({
+    providers: {
+      coinbase: !!(process.env.CDP_API_KEY_ID && process.env.CDP_SECRET_KEY),
+      moonpay: moonpayConfigured(),
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   const token = req.headers.get("X-Session-Token");
   if (!token) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  let side: string, address: string;
+  let side: string, address: string, provider: string;
   try {
-    ({ side, address } = (await req.json()) as { side: string; address: string });
+    const body = (await req.json()) as { side: string; address: string; provider?: string };
+    side = body.side; address = body.address;
+    provider = body.provider === "moonpay" ? "moonpay" : "coinbase";
   } catch {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
@@ -72,6 +103,17 @@ export async function POST(req: NextRequest) {
           .maybeSingle()
       : { data: null };
     if (!owned) return NextResponse.json({ error: "That wallet isn't linked to your account" }, { status: 403 });
+  }
+
+  const origin0 = process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://enki.gallery";
+  const redirect = `${origin0}/settings?tab=payment`;
+
+  // ── MoonPay: a signed hosted-widget URL, no session mint needed ──
+  if (provider === "moonpay") {
+    if (!moonpayConfigured()) {
+      return NextResponse.json({ error: "MoonPay isn't configured on the server yet" }, { status: 501 });
+    }
+    return NextResponse.json({ url: moonpayUrl(side as "buy" | "sell", address, redirect) });
   }
 
   const apiKeyId = process.env.CDP_API_KEY_ID;
