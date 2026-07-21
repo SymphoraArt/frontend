@@ -156,15 +156,24 @@ export default function DocView({ api }: { api: DocViewApi }) {
     const t = confirmDel;
     if (!t) return;
     const tok = "[" + t.name + "]";
-    const raw = (t.kind === "bool" ? t.str : t.value) ?? "";
+    // What the token EFFECTIVELY contributes: text vars → their value; checkbox
+    // vars → the snippet only when checked, nothing when unchecked (inserting
+    // str for an off checkbox would silently change every future render).
+    const checked = t.value === "on" || t.value === "Yes";
+    const raw = t.kind === "bool" ? (checked ? (t.str ?? "") : "") : (t.value ?? "");
+    const fallback = t.kind === "bool" ? "" : t.name; // no default → keep the name (text vars only)
     // brackets in a default would spawn NEW tokens — strip them
-    const repl = (raw.trim() || t.name).replace(/[[\]]/g, "");
+    const repl = (raw.trim() || fallback).replace(/[[\]]/g, "");
     api.pushHist();
     // onBodyChange's orphan cleanup drops the text node in the same update
-    api.onBodyChange(st.body.split(tok).join(repl));
+    api.onBodyChange(st.body.split(tok).join(repl).replace(/ {2,}/g, " "));
     if (openVar === tok) setOpenVar(null);
     setConfirmDel(null);
-    api.onToast(raw.trim() ? "Variable removed — its default value stayed in the text." : "Variable removed — its name stayed in the text.");
+    api.onToast(
+      raw.trim() ? "Variable removed — its default value stayed in the text."
+      : repl ? "Variable removed — its name stayed in the text."
+      : "Variable removed.",
+    );
   };
 
   // The pill lives EXACTLY as long as a real selection does: whenever the
@@ -223,6 +232,13 @@ export default function DocView({ api }: { api: DocViewApi }) {
       const s = ta.selectionStart, en = ta.selectionEnd;
       const seg = ta.value.slice(s, en);
       if (en <= s || !seg.trim() || /[[\]\n]/.test(seg)) { setPill(null); return; }
+      // A selection INSIDE an existing [token] must never become a variable —
+      // splicing brackets into a token corrupts the rename heuristic.
+      const re = new RegExp(TOKEN_RE.source, "g");
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(ta.value)) !== null) {
+        if (s < m.index + m[0].length && en > m.index) { setPill(null); return; }
+      }
       const r = page.getBoundingClientRect();
       // The design anchors the pill to the mouse — cheap and always visible.
       const x = Math.max(8, Math.min((cx ?? r.left + 80) - r.left - 56, r.width - 150));
@@ -232,9 +248,14 @@ export default function DocView({ api }: { api: DocViewApi }) {
   };
   const addVariableFromPill = () => {
     if (!pill) return;
-    const seg = st.body.slice(pill.start, pill.end).trim();
+    // Splice over the TRIMMED range only — boundary whitespace stays in the text.
+    const rawSeg = st.body.slice(pill.start, pill.end);
+    const lead = rawSeg.length - rawSeg.trimStart().length;
+    const trail = rawSeg.length - rawSeg.trimEnd().length;
+    const s2 = pill.start + lead, e2 = pill.end - trail;
+    const seg = st.body.slice(s2, e2);
     if (!seg) { setPill(null); return; }
-    const body = st.body.slice(0, pill.start) + "[" + seg + "]" + st.body.slice(pill.end);
+    const body = st.body.slice(0, s2) + "[" + seg + "]" + st.body.slice(e2);
     // Body first, then the backing node: addText sees the token already in the
     // (queued) body and skips its own append — same path as typing a token.
     api.onBodyChange(body);
@@ -417,7 +438,12 @@ export default function DocView({ api }: { api: DocViewApi }) {
       const r = rail.getBoundingClientRect();
       dropFromRef.current = { tok, y: ev.clientY - r.top - offY };
       setDragTok(null);
-      if (moved) suppressClickRef.current = true; // a real drag must not toggle the card
+      if (moved) {
+        suppressClickRef.current = true; // a real drag must not toggle the card
+        // a drop outside the header never fires the click — don't let the flag
+        // swallow the NEXT genuine click
+        window.setTimeout(() => { suppressClickRef.current = false; }, 250);
+      }
       scheduleMeasure();
     };
     window.addEventListener("pointermove", onMove);
@@ -439,9 +465,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
 
   return (
     <div className="ncd" onPointerDown={(e) => {
-      // Clicking plain desk (not a card, chip or the pill) closes the open card.
+      // Clicking plain desk (not a card, chip, the pill or a portaled modal —
+      // portals bubble through the REACT tree) closes the open card.
       const t = e.target as HTMLElement;
-      if (!t.closest("[data-vcard]") && !t.closest(".nc-tok") && !t.closest(".ncd-pill")) setOpenVar(null);
+      if (!t.closest("[data-vcard]") && !t.closest(".nc-tok") && !t.closest(".ncd-pill") && !t.closest(".ek-modal-scrim")) setOpenVar(null);
     }}>
       <div className="ncd-desk">
         <div className="ncd-wrap" ref={wrapRef}>
@@ -595,14 +622,24 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     onPointerDown={startCardDrag(tok)}
                     onClick={(e) => {
                       if (suppressClickRef.current) { suppressClickRef.current = false; return; }
-                      // renaming in progress → the tap edits text, it must not collapse
-                      if ((e.target as HTMLElement).closest("input,textarea")) return;
+                      // the name is the rename affordance — clicks there never
+                      // toggle (kills the double-click open/close flicker too)
+                      if ((e.target as HTMLElement).closest("input,textarea,[data-noreorder]")) return;
                       setOpenVia("head");
                       setOpenVar((v) => (v === tok ? null : tok));
                     }}>
                     <span className="ncd-vdot" style={{ background: c.dot }} />
                     <span className="ncd-vname" style={{ color: c.text }} data-noreorder>
-                      <EditName value={t.name} onChange={(v) => api.renameText(t.id, v)} placeholder={t.name} title="Double-click to rename" />
+                      <EditName value={t.name} placeholder={t.name} title="Double-click to rename"
+                        onChange={(v) => {
+                          api.renameText(t.id, v);
+                          // keep the open card open across the rename (openVar is
+                          // keyed by token text) — only when the rename is valid
+                          const clean = v.replace(/[[\]\n]/g, "");
+                          if (clean.trim() && !texts.some((x) => x.id !== t.id && x.name === clean)) {
+                            setOpenVar((cur) => (cur === tok ? "[" + clean + "]" : cur));
+                          }
+                        }} />
                     </span>
                     <span className={"ncd-vtype" + (t.kind === "bool" ? " bool" : "")}>{t.kind === "bool" ? "Checkbox" : "Text"}</span>
                     <span className="ncd-vtrash" role="button" title="Remove this variable"

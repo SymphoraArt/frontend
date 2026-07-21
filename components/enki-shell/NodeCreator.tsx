@@ -450,7 +450,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     setCloseConfirm(true);
   };
   const saveDraftAndClose = () => {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(buildExportJSON())); } catch { /* quota — draft too big */ }
+    // Quota failures must NOT close the editor while claiming success — with
+    // data-URL reference images a draft easily exceeds the ~5MB localStorage cap.
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(buildExportJSON()));
+    } catch {
+      setCloseConfirm(false);
+      onToast("Draft too big to save (images count against a ~5MB cap) — export as JSON via the menu, or remove some images.");
+      return;
+    }
     setCloseConfirm(false);
     onToast("Draft saved — it'll be restored when you come back");
     onClose();
@@ -587,9 +595,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
      overscroll-behavior alone didn't stop it, so the deltas are consumed here. */
   useEffect(() => {
     const stopNavSwipe = (e: WheelEvent) => {
-      // Doc view has legitimately h-scrollable strips (results) — don't eat them.
-      if (viewRef.current !== "node") return;
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      // Doc view: only the results strips legitimately scroll horizontally —
+      // everywhere else the delta would feed the browser's back/forward swipe
+      // and nuke unsaved work.
+      if (viewRef.current !== "node") {
+        const t = e.target as HTMLElement | null;
+        if (t && typeof t.closest === "function" && t.closest(".ncd-strip")) return;
+      }
+      e.preventDefault();
     };
     window.addEventListener("wheel", stopNavSwipe, { passive: false });
     return () => window.removeEventListener("wheel", stopNavSwipe);
@@ -1099,6 +1113,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const renameText = (id: string, newName: string) => setSt((p) => {
     const node = p.nodes.find((n) => n.id === id); if (!node) return p;
     const clean = newName.replace(/[[\]\n]/g, "");
+    // "" would leave an unmatchable "[]" token (invisible, unrecoverable card);
+    // a name collision would stack two cards on one token and starve the
+    // second variable in buildPrompt — both renames are simply ignored.
+    if (!clean.trim()) return p;
+    if (p.nodes.some((n) => n.type === "text" && n.id !== id && n.name === clean)) return p;
     const body = p.body.split("[" + node.name + "]").join("[" + clean + "]");
     return { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, name: clean } : n)), body };
   });
@@ -1151,6 +1170,20 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       nodes = nodes.map((n) => (n.type === "text" && n.name === removed[0] ? { ...n, name: added[0] } : n));
     } else {
       nodes = nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+      // Typing [brackets] CREATES the variable (both editors promise it) —
+      // otherwise the literal token would leak into the generated prompt.
+      const toAdd = added.filter((n) => n.trim() && !/^Reference Image \d+$/.test(n));
+      if (toAdd.length) {
+        const base = nodes.find((n) => n.id === "prompt")!;
+        const dim = NODE_DIM.text;
+        let texts = nodes.filter((n) => n.type === "text");
+        for (const name of toAdd) {
+          const y = texts.length ? Math.max(...texts.map((n) => n.y || 0)) + dim.h + 14 : (base.y || 0);
+          const node: NodeT = { id: nid("t"), type: "text", x: (base.x || 0) - dim.w - 80, y, name, kind: "text", pub: true, value: "" };
+          nodes = [...nodes, node];
+          texts = [...texts, node];
+        }
+      }
     }
     return { ...p, body: val, nodes };
   });

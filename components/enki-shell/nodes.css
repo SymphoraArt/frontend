@@ -581,6 +581,8 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-vprev{padding:1px 4px 3px 16px;font-size:11px;line-height:1.5;color:var(--enki-ink-2);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}
 .ncd-vprev i{color:var(--enki-ink-3);}
 .ncd-vbody{display:flex;flex-direction:column;gap:6px;padding:4px 2px 2px;}
+/* a user-resized textarea would silently break the packed card layout */
+.ncd-vbody .nc-varea{resize:none;}
 .ncd-vwarn{font-size:10.5px;font-style:italic;color:#e0584f;}
 /* results / release column */
 /* padding-top 40 + head 32 puts the header's border-bottom at y72 — the exact
