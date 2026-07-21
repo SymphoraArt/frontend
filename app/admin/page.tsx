@@ -21,9 +21,12 @@ type Friend = { id: string; name: string; address: string; type: string; chain: 
 type Hunter = { handle: string; total: number; approved: number; denied: number; earningsCents: number };
 type StrikeRow = { userId: string; handle: string; strikes: { id: string; reason: string | null }[]; banned: boolean; permanent: boolean; note: string | null; appeal: { id: string; note: string | null } | null };
 type Rec = { id: string; handle: string; wallet: string | null; contact: string | null; explanation: string | null; evidence: { kind: string; matched: boolean | null }[]; status: string; at: string };
-type AdminData = { imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[] };
+type Proposal = { id: string; kind: string; target: string; targetUserId: string | null; days: number | null; violation: string; proposer: string; status: string; confirms: number; denies: number; myVote: string | null; quorum: number; at: string; expiresAt: string };
+type Council = { ready: boolean; isOwner: boolean; enabled: boolean; quorum: number; ttlDays: number; members: { handle: string; role: string; hasEmail: boolean }[]; myEmail: string | null; proposals: Proposal[] };
+type AdminData = { imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[]; council: Council };
+const COUNCIL_OFF: Council = { ready: false, isOwner: false, enabled: false, quorum: 3, ttlDays: 7, members: [], myEmail: null, proposals: [] };
 
-type Tab = "imports" | "reports" | "feedback" | "friends" | "hunters" | "strikes" | "recovery";
+type Tab = "imports" | "reports" | "feedback" | "friends" | "hunters" | "strikes" | "council" | "recovery" | "settings";
 const REJECT_REASONS = ["Duplicate", "Low quality", "Not a prompt", "Spam", "Policy violation", "Other"];
 
 /* ── the admin sidebar's own palette: inverted warm dark, theme-independent ── */
@@ -87,7 +90,9 @@ const TABS: { id: Tab; label: string; icon: string; sub: string; search: boolean
   { id: "friends", label: "Friends (whitelist)", icon: "key", sub: "Wallets and collections with early or elevated access.", search: false },
   { id: "hunters", label: "Hunter trust", icon: "target", sub: "Importers ranked by how often their finds get approved.", search: false },
   { id: "strikes", label: "Strikes & bans", icon: "zap", sub: "Users with active strikes, bans, and open appeals.", search: false },
+  { id: "council", label: "Council", icon: "hand", sub: "Ban decisions the admin council votes on — quorum executes automatically.", search: false },
   { id: "recovery", label: "Recovery requests", icon: "lifebuoy", sub: "People who lost every sign-in method. Click a row to check their evidence.", search: true },
+  { id: "settings", label: "Admin settings", icon: "settings", sub: "Your notification email — and, for the owner, the council policy.", search: false },
 ];
 
 export default function AdminPage() {
@@ -120,6 +125,11 @@ export default function AdminPage() {
   const [appealOpen, setAppealOpen] = useState<string | null>(null);
   const [repStrikeId, setRepStrikeId] = useState<string | null>(null);
   const [repSev, setRepSev] = useState("1");
+  const [cpHandle, setCpHandle] = useState(""); const [cpKind, setCpKind] = useState("ban_temp:7");
+  const [cpViolation, setCpViolation] = useState("");
+  const [seEmail, setSeEmail] = useState("");
+  const [polEnabled, setPolEnabled] = useState(false);
+  const [polQuorum, setPolQuorum] = useState("3"); const [polTtl, setPolTtl] = useState("7");
   const [recOpen, setRecOpen] = useState<string | null>(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement | null>(null);
@@ -149,6 +159,23 @@ export default function AdminPage() {
     return () => { dead = true; };
   }, [access, isAdmin]);
 
+  const reload = async () => {
+    try {
+      const res = await fetch("/api/admin", { headers: sessionAuthHeaders() });
+      if (res.ok) setData(await res.json());
+    } catch { /* keep the current view */ }
+  };
+
+  // council settings mirror the freshest server state
+  useEffect(() => {
+    const c = data?.council;
+    if (!c) return;
+    setSeEmail(c.myEmail ?? "");
+    setPolEnabled(c.enabled);
+    setPolQuorum(String(c.quorum));
+    setPolTtl(String(c.ttlDays));
+  }, [data?.council]);
+
   const post = async (payload: Record<string, unknown>, okMsg: string, apply: (d: AdminData) => AdminData) => {
     try {
       const res = await fetch("/api/admin", {
@@ -176,7 +203,9 @@ export default function AdminPage() {
     friends: 0,
     hunters: 0,
     strikes: data?.strikes.filter((s) => s.appeal).length ?? 0,
+    council: data?.council?.proposals.filter((p) => p.status === "pending").length ?? 0,
     recovery: data?.recovery.filter((r) => r.status === "pending").length ?? 0,
+    settings: 0,
   }), [data]);
 
   /* ── gate states ── */
@@ -210,7 +239,8 @@ export default function AdminPage() {
     );
   }
 
-  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [] };
+  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [], council: COUNCIL_OFF };
+  const c = d.council ?? COUNCIL_OFF;
   const filteredImports = d.imports.filter((r) => !q || r.name.toLowerCase().includes(q) || r.hunter.toLowerCase().includes(q));
   const filteredFeedback = d.feedback.filter((r) => !q || r.name.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q) || r.desc.toLowerCase().includes(q));
   const filteredRecovery = d.recovery.filter((r) => !q || r.handle.toLowerCase().includes(q) || (r.contact ?? "").toLowerCase().includes(q));
@@ -573,16 +603,20 @@ export default function AdminPage() {
                               }))} />
                           )}
                           {!r.banned && (
-                            <Pill kind="red" label="Ban 7d" title="Full ban, expires in 7 days"
-                              onClick={() => void post({ resource: "bans", action: "ban", userId: r.userId, days: 7 }, `@${r.handle} banned for 7 days.`, (cur) => ({
-                                ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: false } : x)),
-                              }))} />
+                            <Pill kind="red" label={c.enabled ? "Propose ban" : "Ban 7d"} title={c.enabled ? "Propose a 7-day ban to the council" : "Full ban, expires in 7 days"}
+                              onClick={() => c.enabled
+                                ? void post({ resource: "council", action: "propose", kind: "ban_temp", days: 7, userId: r.userId, violation: r.note ?? "Repeated strikes" }, "Proposal sent — council notified.", (cur) => cur)
+                                : void post({ resource: "bans", action: "ban", userId: r.userId, days: 7 }, `@${r.handle} banned for 7 days.`, (cur) => ({
+                                    ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: false } : x)),
+                                  }))} />
                           )}
                           {!r.permanent && (
-                            <Pill kind="red" label="Permban" title="Full ban, no expiry"
-                              onClick={() => void post({ resource: "bans", action: "ban", userId: r.userId, permanent: true }, `@${r.handle} permanently banned.`, (cur) => ({
-                                ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: true } : x)),
-                              }))} />
+                            <Pill kind="red" label={c.enabled ? "Propose permban" : "Permban"} title={c.enabled ? "Propose a permanent ban to the council" : "Full ban, no expiry"}
+                              onClick={() => c.enabled
+                                ? void post({ resource: "council", action: "propose", kind: "ban_perm", userId: r.userId, violation: r.note ?? "Repeated strikes" }, "Proposal sent — council notified.", (cur) => cur)
+                                : void post({ resource: "bans", action: "ban", userId: r.userId, permanent: true }, `@${r.handle} permanently banned.`, (cur) => ({
+                                    ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: true } : x)),
+                                  }))} />
                           )}
                           {r.banned && (
                             <Pill kind="green" label="Reinstate" title="Lift the active ban"
@@ -607,12 +641,7 @@ export default function AdminPage() {
                                 void (async () => {
                                   const ok = await post({ resource: "appeals", action: "approve", id: apId }, "Appeal approved — the strike/ban was undone.", (cur) => cur);
                                   // the server revoked/lifted the target — re-fetch so the row reflects it
-                                  if (ok) {
-                                    try {
-                                      const res = await fetch("/api/admin", { headers: sessionAuthHeaders() });
-                                      if (res.ok) setData(await res.json());
-                                    } catch { /* next visit reconciles */ }
-                                  }
+                                  if (ok) await reload();
                                 })();
                               }} />
                               <Pill kind="red" label="Deny" onClick={() => {
@@ -633,6 +662,80 @@ export default function AdminPage() {
                   })}
                 </div>
               )}
+
+              {/* ── COUNCIL ── */}
+              {tab === "council" && (!c.ready ? (
+                <div style={{ ...cardStyle, padding: "26px 18px", textAlign: "center", fontSize: 12.5, color: "var(--enki-ink-3)" }}>
+                  The council isn&apos;t set up yet — run <span style={{ fontFamily: MONO }}>migrations/2026-07-21-moderation-council.sql</span> in Supabase, then refresh.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontFamily: MONO, fontSize: 10, color: "var(--enki-ink-3)" }}>
+                    <Badge pal={c.enabled ? PILL.green : PILL.amber} label={c.enabled ? "Council mode ON" : "Council mode OFF"} />
+                    <span>quorum {c.quorum} of {c.members.length} · proposals expire after {c.ttlDays}d{c.enabled ? "" : " · while off, proposals execute immediately"}</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7, border: "1px solid var(--enki-rule-2, var(--enki-rule))", borderRadius: 11, background: "var(--enki-paper)", padding: "10px 12px", marginBottom: 8 }}>
+                    <input placeholder="@handle" value={cpHandle} onChange={(e) => setCpHandle(e.target.value)} style={{ width: 130, height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 9px", fontFamily: MONO, outline: "none" }} />
+                    <select value={cpKind} onChange={(e) => setCpKind(e.target.value)} style={{ height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5 }}>
+                      <option value="ban_temp:7">Ban 7 days</option>
+                      <option value="ban_temp:30">Ban 30 days</option>
+                      <option value="ban_perm">Permanent ban</option>
+                      <option value="ip_ban">IP ban (indefinite)</option>
+                    </select>
+                    <input placeholder="Violation — what rule did they break?" value={cpViolation} onChange={(e) => setCpViolation(e.target.value)} style={{ flex: 1, minWidth: 160, height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 9px", outline: "none" }} />
+                    <Pill kind="red" label={c.enabled ? "Propose to council" : "Execute now"} onClick={() => {
+                      if (!cpHandle.trim() || !cpViolation.trim()) { say("Handle and violation are required."); return; }
+                      const [kind, days] = cpKind.split(":");
+                      void (async () => {
+                        const ok = await post(
+                          { resource: "council", action: "propose", kind, days: days ? Number(days) : undefined, handle: cpHandle.trim(), violation: cpViolation.trim() },
+                          c.enabled ? "Proposal sent — council notified by email." : "Executed.",
+                          (cur) => cur,
+                        );
+                        if (ok) { setCpHandle(""); setCpViolation(""); await reload(); }
+                      })();
+                    }} />
+                  </div>
+                  <div style={cardStyle}>
+                    {c.proposals.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: "var(--enki-ink-3)" }}>No proposals yet.</div>}
+                    {c.proposals.map((p) => {
+                      const kindLabel = p.kind === "ip_ban" ? "IP ban" : p.kind === "ban_perm" ? "Permban" : `Ban ${p.days ?? 7}d`;
+                      const statusPal =
+                        p.status === "approved" ? PILL.green
+                        : p.status === "denied" ? PILL.red
+                        : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" } as { bg: string; ink: string };
+                      return (
+                        <div key={p.id} style={rowStyle}>
+                          <Badge pal={p.kind === "ban_temp" ? PILL.amber : PILL.red} label={kindLabel} />
+                          <span style={{ width: 106, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: "var(--enki-ink)", overflow: "hidden", textOverflow: "ellipsis" }}>{p.target}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.violation}>{p.violation}</span>
+                          <span style={{ width: 78, fontFamily: MONO, fontSize: 9.5, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis" }}>by @{p.proposer}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 10, color: "var(--enki-ink-2)", whiteSpace: "nowrap" }}>
+                            {p.confirms}✓ {p.denies}✗ <span style={{ color: "var(--enki-ink-3)" }}>/ {p.quorum}</span>
+                          </span>
+                          {p.status === "pending" ? (
+                            <span style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                              <span style={{ fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)" }}>{timeAgo(p.at)}</span>
+                              <Pill kind="green" label={p.myVote === "confirm" ? "Confirmed ✓" : "Confirm"}
+                                onClick={p.myVote === "confirm" ? undefined : () => void (async () => {
+                                  const ok = await post({ resource: "council", action: "vote", id: p.id, vote: "confirm" }, "Vote recorded.", (cur) => cur);
+                                  if (ok) await reload();
+                                })()} />
+                              <Pill kind="red" label={p.myVote === "deny" ? "Denied ✗" : "Deny"}
+                                onClick={p.myVote === "deny" ? undefined : () => void (async () => {
+                                  const ok = await post({ resource: "council", action: "vote", id: p.id, vote: "deny" }, "Vote recorded.", (cur) => cur);
+                                  if (ok) await reload();
+                                })()} />
+                            </span>
+                          ) : (
+                            <Badge pal={statusPal} label={p.status} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ))}
 
               {/* ── RECOVERY REQUESTS ── */}
               {tab === "recovery" && (
@@ -686,6 +789,67 @@ export default function AdminPage() {
                   })}
                 </div>
               )}
+              {/* ── ADMIN SETTINGS ── */}
+              {tab === "settings" && (!c.ready ? (
+                <div style={{ ...cardStyle, padding: "26px 18px", textAlign: "center", fontSize: 12.5, color: "var(--enki-ink-3)" }}>
+                  Admin settings need the council tables — run <span style={{ fontFamily: MONO }}>migrations/2026-07-21-moderation-council.sql</span> in Supabase, then refresh.
+                </div>
+              ) : (
+                <>
+                  <div style={{ ...cardStyle, padding: "14px 16px", marginBottom: 10, maxWidth: 560 }}>
+                    <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 17, color: "var(--enki-ink)", marginBottom: 4 }}>Council notifications.</div>
+                    <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "var(--enki-ink-3)", lineHeight: 1.55 }}>
+                      Council vote requests are mailed here. Stored encrypted — leave empty to opt out of emails (you still vote in this panel).
+                    </p>
+                    <div style={{ display: "flex", gap: 7 }}>
+                      <input placeholder="you@example.com" value={seEmail} onChange={(e) => setSeEmail(e.target.value)} style={{ flex: 1, height: 30, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 9px", fontFamily: MONO, outline: "none" }} />
+                      <Pill kind="green" label="Save" onClick={() => {
+                        const email = seEmail.trim();
+                        void post({ resource: "prefs", action: "setEmail", email }, email ? "Notification email saved." : "Notification email cleared.",
+                          (cur) => ({ ...cur, council: { ...cur.council, myEmail: email || null } }));
+                      }} />
+                    </div>
+                  </div>
+                  {c.isOwner && (
+                    <div style={{ ...cardStyle, padding: "14px 16px", maxWidth: 560 }}>
+                      <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 17, color: "var(--enki-ink)", marginBottom: 4 }}>Moderation policy.</div>
+                      <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "var(--enki-ink-3)", lineHeight: 1.55 }}>
+                        Owner only. With council mode on, no single admin can ban — every ban executes only after the quorum confirms it.
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 10 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--enki-ink)", cursor: "pointer" }}>
+                          <input type="checkbox" checked={polEnabled} onChange={(e) => setPolEnabled(e.target.checked)} style={{ accentColor: "var(--enki-ember, #c96838)" }} />
+                          Council mode
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--enki-ink-2)" }}>
+                          Quorum
+                          <input type="number" min={1} max={20} value={polQuorum} onChange={(e) => setPolQuorum(e.target.value)} style={{ width: 54, height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 7px" }} />
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--enki-ink-2)" }}>
+                          Expiry (days)
+                          <input type="number" min={1} max={30} value={polTtl} onChange={(e) => setPolTtl(e.target.value)} style={{ width: 54, height: 28, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 7px" }} />
+                        </label>
+                        <Pill kind="green" label="Save policy" onClick={() => void (async () => {
+                          const ok = await post({ resource: "policy", action: "set", enabled: polEnabled, quorum: Number(polQuorum), ttlDays: Number(polTtl) }, "Policy saved.", (cur) => cur);
+                          if (ok) await reload();
+                        })()} />
+                      </div>
+                      {Number(polQuorum) > c.members.length && (
+                        <p style={{ margin: "0 0 8px", fontSize: 11, color: "#8B2E2E" }}>
+                          Quorum is larger than the council ({c.members.length} member{c.members.length === 1 ? "" : "s"}) — no proposal can pass until more admins exist.
+                        </p>
+                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                        {c.members.map((m) => (
+                          <span key={m.handle} style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid var(--enki-rule)", borderRadius: 999, padding: "3px 9px", fontSize: 10.5, fontFamily: MONO, color: "var(--enki-ink-2)" }}>
+                            @{m.handle} · {m.role}{m.hasEmail ? " · ✉ ok" : " · no email"}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ))}
             </>
           )}
         </div>
