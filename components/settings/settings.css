@@ -497,33 +497,34 @@
 }
 .set-wallet-note b { color: var(--enki-ink-2, var(--enki-ink)); font-weight: 600; }
 
-/* Move money — Add money / Pay out mode tiles + provider chooser. */
-.set-mode-grid {
+/* Move money — big square Add money / Pay out tiles; picking one swaps the
+   same area to equally square provider tiles (Coinbase left, MoonPay right). */
+.set-sq-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
-}
-.set-mode-tile {
-  display: flex;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  text-align: left;
-  padding: 14px 16px;
+  max-width: 480px;
+}
+.set-mode-tile,
+.set-prov-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  aspect-ratio: 1;
+  padding: 18px 14px;
   border: 1px solid var(--enki-rule);
-  border-radius: 12px;
+  border-radius: 14px;
   background: transparent;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 .set-mode-tile:hover { border-color: var(--enki-ink-3); }
-.set-mode-tile--on,
-.set-mode-tile--on:hover {
-  border-color: var(--enki-ember, #c96838);
-  background: rgba(var(--ember-rgb, 201, 104, 56), 0.05);
-}
 .set-mode-ic {
-  width: 32px;
-  height: 32px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: var(--enki-ink);
   color: var(--enki-paper);
@@ -531,32 +532,46 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-bottom: 4px;
 }
-.set-mode-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.set-mode-title { font-size: 13.5px; font-weight: 600; color: var(--enki-ink); }
-.set-mode-sub { font-size: 11px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-mode-title { font-size: 15px; font-weight: 600; color: var(--enki-ink); }
+.set-mode-sub { font-size: 11px; color: var(--enki-ink-3); line-height: 1.45; }
+/* Narrow screens: a strict square can't hold the copy — let both tiles share
+   the tallest content height instead so the pair stays even. */
+@media (max-width: 540px) {
+  .set-mode-tile,
+  .set-prov-card {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 150px;
+  }
+}
 .set-prov-wrap { animation: set-fade 0.18s ease-out; }
 @keyframes set-fade {
   from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: none; }
 }
-.set-prov-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 8px;
-}
-.set-prov-card {
+.set-prov-head {
   display: flex;
   align-items: center;
-  gap: 11px;
-  text-align: left;
-  padding: 12px 13px;
-  border: 1px solid var(--enki-rule);
-  border-radius: 11px;
-  background: transparent;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  gap: 9px;
+  margin-bottom: 12px;
 }
+.set-back-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-2, var(--enki-ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.set-back-btn:hover { border-color: var(--enki-ink-3); }
 .set-prov-card:hover { border-color: var(--enki-ink-3); }
 .set-prov-card--last,
 .set-prov-card--last:hover {
@@ -566,23 +581,20 @@
 .set-prov-card--off { opacity: 0.5; cursor: not-allowed; }
 .set-prov-card--off:hover { border-color: var(--enki-rule); }
 .set-prov-logo {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   color: #fff;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 19px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-bottom: 2px;
 }
-.set-prov-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .set-prov-name {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--enki-ink);
 }
@@ -600,7 +612,7 @@
   color: var(--enki-ink-3);
   background: color-mix(in oklab, var(--enki-ink) 6%, transparent);
 }
-.set-prov-sub { font-size: 11px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-prov-sub { font-size: 11px; color: var(--enki-ink-3); line-height: 1.45; }
 .set-footnote {
   margin-top: 12px;
   font-size: 10.5px;

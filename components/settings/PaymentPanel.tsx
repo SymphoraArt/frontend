@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Copy, Loader2 } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, ChevronDown, Copy, Loader2 } from "lucide-react";
 
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
@@ -180,17 +180,11 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
 
   const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
   const last = lastProvider();
-  // configured providers first (last-used leading), greyed ones at the end
-  const orderedRamps = [...RAMPS].sort((a, b) => {
-    const ca = providers[a.id] ? 0 : 1, cb = providers[b.id] ? 0 : 1;
-    if (ca !== cb) return ca - cb;
-    return a.id === last ? -1 : b.id === last ? 1 : 0;
-  });
   const payoutSub = !address
     ? "Sign in first"
     : ready && balance > 0
       ? `$${balance.toFixed(2)} available`
-      : "Nothing here yet";
+      : "Cash out your funds to your bank, card or PayPal";
 
   return (
     <>
@@ -238,40 +232,41 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
       <div ref={rampRef} className={pulse ? "set-heartbeat" : undefined}>
       <SettingsSection num="02" title="Move money">
         <div style={{ padding: "16px 24px 20px" }}>
-          <div className="set-mode-grid">
-            <button
-              className={"set-mode-tile" + (mode === "buy" ? " set-mode-tile--on" : "")}
-              onClick={() => pickMode("buy")}
-              disabled={rampBusy !== null}
-              style={!address ? { opacity: 0.55 } : undefined}
-            >
-              <span className="set-mode-ic"><ArrowDownToLine size={15} /></span>
-              <span className="set-mode-txt">
+          {!mode ? (
+            <div className="set-sq-grid">
+              <button
+                className="set-mode-tile"
+                onClick={() => pickMode("buy")}
+                disabled={rampBusy !== null}
+                style={!address ? { opacity: 0.55 } : undefined}
+              >
+                <span className="set-mode-ic"><ArrowDownToLine size={20} /></span>
                 <span className="set-mode-title">Add money</span>
                 <span className="set-mode-sub">Card, Apple Pay or PayPal</span>
-              </span>
-            </button>
-            <button
-              className={"set-mode-tile" + (mode === "sell" ? " set-mode-tile--on" : "")}
-              onClick={() => pickMode("sell")}
-              disabled={rampBusy !== null}
-              style={!address ? { opacity: 0.55 } : undefined}
-            >
-              <span className="set-mode-ic"><ArrowUpFromLine size={15} /></span>
-              <span className="set-mode-txt">
+              </button>
+              <button
+                className="set-mode-tile"
+                onClick={() => pickMode("sell")}
+                disabled={rampBusy !== null}
+                style={!address ? { opacity: 0.55 } : undefined}
+              >
+                <span className="set-mode-ic"><ArrowUpFromLine size={20} /></span>
                 <span className="set-mode-title">Pay out</span>
                 <span className="set-mode-sub">{payoutSub}</span>
-              </span>
-            </button>
-          </div>
-
-          {mode && (
+              </button>
+            </div>
+          ) : (
             <div className="set-prov-wrap">
-              <div className="set-holdings-label" style={{ margin: "18px 0 8px" }}>
-                Pick a provider to {mode === "buy" ? "top up" : "pay out"}
+              <div className="set-prov-head">
+                <button className="set-back-btn" onClick={() => setMode(null)} aria-label="Back">
+                  <ArrowLeft size={15} />
+                </button>
+                <span className="set-holdings-label" style={{ marginBottom: 0 }}>
+                  Pick a provider to {mode === "buy" ? "top up" : "pay out"}
+                </span>
               </div>
-              <div className="set-prov-grid">
-                {orderedRamps.map((r) => {
+              <div className="set-sq-grid">
+                {RAMPS.map((r) => {
                   const on = providers[r.id];
                   const isLast = on && r.id === last;
                   return (
@@ -282,18 +277,13 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
                       disabled={!on || rampBusy !== null}
                       title={on ? undefined : "Coming soon"}
                     >
-                      <span className="set-prov-logo" style={{ background: r.logoBg }}>{r.logo}</span>
-                      <span className="set-prov-txt">
-                        <span className="set-prov-name">
-                          {r.name}
-                          {isLast && <span className="set-prov-chip">Last used</span>}
-                          {!on && <span className="set-prov-chip set-prov-chip--off">Coming soon</span>}
-                        </span>
-                        <span className="set-prov-sub">{mode === "buy" ? r.buySub : r.sellSub}</span>
+                      <span className="set-prov-logo" style={{ background: r.logoBg }}>
+                        {rampBusy === r.id ? <Loader2 size={18} className="set-spin" /> : r.logo}
                       </span>
-                      {rampBusy === r.id
-                        ? <Loader2 size={14} className="set-spin" style={{ color: "var(--enki-ink-3)" }} />
-                        : <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />}
+                      <span className="set-prov-name">{r.name}</span>
+                      {isLast && <span className="set-prov-chip">Last used</span>}
+                      {!on && <span className="set-prov-chip set-prov-chip--off">Coming soon</span>}
+                      <span className="set-prov-sub">{mode === "buy" ? r.buySub : r.sellSub}</span>
                     </button>
                   );
                 })}
