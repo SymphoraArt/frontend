@@ -145,13 +145,10 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
       toast({ title: "Sign in first", description: "Log in so we know which wallet the money belongs to.", variant: "destructive" });
       return;
     }
-    const both = providers.coinbase && providers.moonpay;
-    if (!both) {
-      // no real choice → straight through (whichever one is configured)
-      void launchRamp(side, providers.moonpay && !providers.coinbase ? "moonpay" : "coinbase");
-      return;
-    }
-    setChooseSide((v) => (v === side ? null : side)); // one more click picks the provider
+    // The chooser always shows both providers; unconfigured ones are greyed
+    // out (same pattern as the admin whitelist's network picker) and light up
+    // the moment their server keys exist.
+    setChooseSide((v) => (v === side ? null : side));
   };
 
   // Facts a chooser needs — enough to decide at a glance, nothing more.
@@ -161,32 +158,48 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
   ];
   const rampChooser = (side: "buy" | "sell") => {
     const last = lastProvider();
-    const ordered = [...RAMPS].sort((a, b) => (a.id === last ? -1 : b.id === last ? 1 : 0));
+    // configured providers first (last-used leading), greyed ones at the end
+    const ordered = [...RAMPS].sort((a, b) => {
+      const ca = providers[a.id] ? 0 : 1, cb = providers[b.id] ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      return a.id === last ? -1 : b.id === last ? 1 : 0;
+    });
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0 10px 44px" }}>
-        {ordered.map((r) => (
-          <button key={r.id} onClick={() => void launchRamp(side, r.id)} disabled={rampBusy !== null}
-            style={{
-              display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer",
-              padding: "10px 12px", borderRadius: 10, background: "transparent",
-              border: "1px solid " + (r.id === last ? "var(--enki-ember, #c96838)" : "var(--enki-rule)"),
-            }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "var(--enki-ink)" }}>
-                {r.name}
-                {r.id === last && (
-                  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ember, #c96838)", background: "rgba(var(--ember-rgb, 201, 104, 56), 0.12)", borderRadius: 4, padding: "1px 6px" }}>
-                    Last used
-                  </span>
-                )}
+        {ordered.map((r) => {
+          const on = providers[r.id];
+          const isLast = on && r.id === last;
+          return (
+            <button key={r.id} onClick={() => { if (on) void launchRamp(side, r.id); }} disabled={!on || rampBusy !== null}
+              title={on ? undefined : "Coming soon"}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+                cursor: on ? "pointer" : "not-allowed", opacity: on ? 1 : 0.5,
+                padding: "10px 12px", borderRadius: 10, background: "transparent",
+                border: "1px solid " + (isLast ? "var(--enki-ember, #c96838)" : "var(--enki-rule)"),
+              }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "var(--enki-ink)" }}>
+                  {r.name}
+                  {isLast && (
+                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ember, #c96838)", background: "rgba(var(--ember-rgb, 201, 104, 56), 0.12)", borderRadius: 4, padding: "1px 6px" }}>
+                      Last used
+                    </span>
+                  )}
+                  {!on && (
+                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ink-3)", background: "color-mix(in oklab, var(--enki-ink) 6%, transparent)", borderRadius: 4, padding: "1px 6px" }}>
+                      Coming soon
+                    </span>
+                  )}
+                </span>
+                <span style={{ display: "block", fontSize: 11.5, color: "var(--enki-ink-3)", marginTop: 2 }}>
+                  {side === "buy" ? r.buySub : r.sellSub}
+                </span>
               </span>
-              <span style={{ display: "block", fontSize: 11.5, color: "var(--enki-ink-3)", marginTop: 2 }}>
-                {side === "buy" ? r.buySub : r.sellSub}
-              </span>
-            </span>
-            <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />
-          </button>
-        ))}
+              <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />
+            </button>
+          );
+        })}
       </div>
     );
   };
