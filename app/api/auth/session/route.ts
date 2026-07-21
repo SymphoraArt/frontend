@@ -13,6 +13,7 @@ import { ed25519 } from "@noble/curves/ed25519";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { whitelistStageActive, isWalletAllowed, grantGateCookie } from "@/lib/allowlist";
+import { getClientIp, hashIp, isIpBanned } from "@/lib/ip-hash";
 import { APP_NAME } from "@/shared/app-config";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -121,6 +122,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Council-banned network → no new sessions (checked before the nonce burns).
+  const ipHash = hashIp(getClientIp(req));
+  if (await isIpBanned(supabase, ipHash)) {
+    return NextResponse.json({ error: "Access from this network is blocked." }, { status: 403 });
+  }
+
   // Consume the nonce (atomic — rejects replays)
   const { data: consumed, error: nonceError } = await supabase.rpc("consume_auth_nonce", {
     p_wallet_address: normalizedWallet,
@@ -137,12 +144,22 @@ export async function POST(req: NextRequest) {
   const sessionToken = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
-  const { error: sessionError } = await supabase.from("auth_sessions").insert({
+  let { error: sessionError } = await supabase.from("auth_sessions").insert({
     token: sessionToken,
     wallet_address: normalizedWallet,
     wallet_type: walletType,
     expires_at: expiresAt,
+    ip_hash: ipHash,
   });
+  if (sessionError && /ip_hash/.test(sessionError.message)) {
+    // moderation-council migration not run yet — insert without the column
+    ({ error: sessionError } = await supabase.from("auth_sessions").insert({
+      token: sessionToken,
+      wallet_address: normalizedWallet,
+      wallet_type: walletType,
+      expires_at: expiresAt,
+    }));
+  }
   if (sessionError) {
     console.error("Failed to create auth session:", sessionError);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

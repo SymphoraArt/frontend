@@ -12,6 +12,7 @@ import { verifyOrDecoy } from "@/lib/password-auth";
 import { mintUserSession } from "@/lib/user-session";
 import { whitelistStageActive, isEmailAllowed, grantGateCookie } from "@/lib/allowlist";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { getClientIp, hashIp, isIpBanned } from "@/lib/ip-hash";
 
 const bodySchema = z.object({
   identifier: z.string().min(1).max(320).optional(),
@@ -77,7 +78,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Wrong login or password" }, { status: 401 });
   }
 
-  const session = await mintUserSession(cred.user_id);
+  const ipHash = hashIp(getClientIp(req));
+  if (await isIpBanned(supabase, ipHash)) {
+    return NextResponse.json({ error: "Access from this network is blocked." }, { status: 403 });
+  }
+  const session = await mintUserSession(cred.user_id, ipHash);
   // Whitelisted login → grant app access (gate cookie).
   return grantGateCookie(NextResponse.json({ email: cred.email, ...session }));
 }

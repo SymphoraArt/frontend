@@ -16,12 +16,28 @@ export async function resolveSessionUserId(supabase: SupabaseClient, token: stri
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
   if (!session) return null;
-  if (UUID.test(session.wallet_address)) return session.wallet_address;
-  const { data: row } = await supabase
-    .from("user_wallets")
-    .select("user_id")
-    .eq("address", session.wallet_address)
-    .is("removed_at", null)
-    .maybeSingle();
-  return row?.user_id ?? null;
+  let userId: string | null = null;
+  if (UUID.test(session.wallet_address)) {
+    userId = session.wallet_address;
+  } else {
+    const { data: row } = await supabase
+      .from("user_wallets")
+      .select("user_id")
+      .eq("address", session.wallet_address)
+      .is("removed_at", null)
+      .maybeSingle();
+    userId = row?.user_id ?? null;
+  }
+  if (!userId) return null;
+  // Active full ban → the session resolves to nobody (locks every authed API).
+  // A future user-facing appeal flow must NOT depend on this resolution.
+  const { data: ban } = await supabase
+    .from("bans")
+    .select("id")
+    .eq("user_id", userId)
+    .is("lifted_at", null)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .limit(1);
+  if (ban?.length) return null;
+  return userId;
 }

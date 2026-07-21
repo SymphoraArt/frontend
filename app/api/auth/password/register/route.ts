@@ -11,6 +11,7 @@ import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { hashPassword } from "@/lib/password-auth";
 import { mintUserSession } from "@/lib/user-session";
+import { getClientIp, hashIp, isIpBanned } from "@/lib/ip-hash";
 import { whitelistStageActive, isEmailAllowed, grantGateCookie } from "@/lib/allowlist";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -28,6 +29,12 @@ export async function POST(req: NextRequest) {
   const email = parsed.data.email.trim().toLowerCase();
 
   const supabase = getSupabaseServerClient();
+
+  // Council-banned network → no fresh accounts (the ban-evasion path).
+  const ipHash = hashIp(getClientIp(req));
+  if (await isIpBanned(supabase, ipHash)) {
+    return NextResponse.json({ error: "Access from this network is blocked." }, { status: 403 });
+  }
 
   // Private-beta whitelist: only allow-listed emails may register.
   if (whitelistStageActive() && !(await isEmailAllowed(supabase, email))) {
@@ -71,7 +78,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const session = await mintUserSession(user.id);
+  const session = await mintUserSession(user.id, ipHash);
   // Whitelisted registration → grant app access (gate cookie).
   return grantGateCookie(NextResponse.json({ email, ...session }));
 }

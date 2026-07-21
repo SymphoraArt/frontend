@@ -9,6 +9,7 @@ import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { hashPassword } from "@/lib/password-auth";
 import { mintUserSession } from "@/lib/user-session";
+import { getClientIp, hashIp } from "@/lib/ip-hash";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
@@ -59,6 +60,6 @@ export async function POST(req: NextRequest) {
   const keys = [row.user_id, ...(wallets ?? []).map((w) => w.address)];
   await supabase.from("auth_sessions").delete().in("wallet_address", keys);
 
-  const session = await mintUserSession(row.user_id);
+  const session = await mintUserSession(row.user_id, hashIp(getClientIp(req)));
   return NextResponse.json({ email: updated?.email ?? undefined, ...session });
 }
