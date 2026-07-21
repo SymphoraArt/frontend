@@ -219,6 +219,7 @@ export async function POST(req: NextRequest) {
   let body: {
     resource?: string; action?: string; id?: string; ids?: string[];
     reason?: string; name?: string; address?: string; type?: string; notes?: string; status?: string;
+    userId?: string; severity?: number; days?: number; permanent?: boolean;
   };
   try {
     body = await req.json();
@@ -254,6 +255,38 @@ export async function POST(req: NextRequest) {
         .update({ status: body.action === "resolve" ? "actioned" : "dismissed", decided_by: userId, decided_at: now })
         .eq("id", body.id);
       return error ? fail(error, body.action) : NextResponse.json({ ok: true });
+    }
+    if (body.action === "strike" || body.action === "delist") {
+      const { data: rep } = await supabase.from("reports")
+        .select("target_type, target_uuid, reason, status").eq("id", body.id).maybeSingle();
+      if (!rep || rep.status !== "pending") {
+        return NextResponse.json({ error: "Report not found or already decided" }, { status: 400 });
+      }
+      if (body.action === "delist") {
+        if (rep.target_type !== "prompt") return NextResponse.json({ error: "Only prompt reports can be delisted" }, { status: 400 });
+        const { error } = await supabase.from("prompts")
+          .update({ is_listed: false, delisted_at: now }).eq("id", rep.target_uuid);
+        if (error) return fail(error, "delist the prompt");
+      } else {
+        // strike goes to the reported user; for prompt reports that's the creator
+        let targetUserId = String(rep.target_uuid);
+        if (rep.target_type === "prompt") {
+          const { data: p } = await supabase.from("prompts").select("creator_id").eq("id", rep.target_uuid).maybeSingle();
+          if (!p) return NextResponse.json({ error: "Prompt no longer exists — dismiss the report instead" }, { status: 400 });
+          targetUserId = String(p.creator_id);
+        }
+        const severity = [1, 2, 3].includes(Number(body.severity)) ? Number(body.severity) : 1;
+        const { error } = await supabase.from("strikes").insert({
+          user_id: targetUserId, issued_by: userId, severity,
+          reason: `Report: ${rep.reason}`,
+          related_report_id: body.id, related_target_type: rep.target_type, related_target_uuid: rep.target_uuid,
+        });
+        if (error) return fail(error, "issue the strike");
+      }
+      const { error } = await supabase.from("reports")
+        .update({ status: "actioned", decided_by: userId, decided_at: now })
+        .eq("id", body.id).eq("status", "pending");
+      return error ? fail(error, "close the report") : NextResponse.json({ ok: true });
     }
   }
 
@@ -294,6 +327,61 @@ export async function POST(req: NextRequest) {
       .update({ revoked_at: now, revoked_by: userId, revoke_reason: "Revoked from the admin panel" })
       .eq("id", body.id).is("revoked_at", null);
     return error ? fail(error, "revoke the strike") : NextResponse.json({ ok: true });
+  }
+
+  // ── bans (scope 'full' is the only live-allowed value) ──
+  if (body.resource === "bans" && body.userId) {
+    if (body.action === "ban") {
+      const permanent = body.permanent === true;
+      const days = Number.isInteger(body.days) && body.days! >= 1 && body.days! <= 365 ? body.days! : null;
+      if (!permanent && !days) return NextResponse.json({ error: "days (1–365) or permanent required" }, { status: 400 });
+      const { data: active } = await supabase.from("bans")
+        .select("id").eq("user_id", body.userId).is("lifted_at", null).limit(1);
+      if (active?.length) {
+        if (!permanent) return NextResponse.json({ error: "Already banned" }, { status: 400 });
+        // escalate the active ban instead of stacking a second one
+        const { error } = await supabase.from("bans").update({ expires_at: null }).eq("id", active[0].id);
+        return error ? fail(error, "make the ban permanent") : NextResponse.json({ ok: true });
+      }
+      const { error } = await supabase.from("bans").insert({
+        user_id: body.userId, issued_by: userId, scope: "full",
+        reason: (body.reason ?? "Banned from the admin panel").slice(0, 200),
+        expires_at: permanent ? null : new Date(Date.now() + days! * 86400_000).toISOString(),
+      });
+      return error ? fail(error, "ban the user") : NextResponse.json({ ok: true });
+    }
+    if (body.action === "lift") {
+      const { error } = await supabase.from("bans")
+        .update({ lifted_at: now, lifted_by: userId, lifted_reason: "Reinstated from the admin panel" })
+        .eq("user_id", body.userId).is("lifted_at", null);
+      return error ? fail(error, "reinstate the user") : NextResponse.json({ ok: true });
+    }
+  }
+
+  // ── appeals ──
+  if (body.resource === "appeals" && body.id && (body.action === "approve" || body.action === "deny")) {
+    const { data: ap } = await supabase.from("appeals")
+      .select("target_type, target_uuid, status").eq("id", body.id).maybeSingle();
+    if (!ap || ap.status !== "pending") {
+      return NextResponse.json({ error: "Appeal not found or already decided" }, { status: 400 });
+    }
+    const approve = body.action === "approve";
+    const { error } = await supabase.from("appeals")
+      .update({ status: approve ? "approved" : "denied", decided_by: userId, decided_at: now })
+      .eq("id", body.id).eq("status", "pending");
+    if (error) return fail(error, "decide the appeal");
+    if (approve) {
+      // approving undoes the appealed strike/ban
+      const { error: undo } = ap.target_type === "strike"
+        ? await supabase.from("strikes")
+            .update({ revoked_at: now, revoked_by: userId, revoke_reason: "Appeal approved" })
+            .eq("id", ap.target_uuid).is("revoked_at", null)
+        : await supabase.from("bans")
+            .update({ lifted_at: now, lifted_by: userId, lifted_reason: "Appeal approved" })
+            .eq("id", ap.target_uuid).is("lifted_at", null);
+      if (undo) return fail(undo, `undo the appealed ${ap.target_type}`);
+    }
+    return NextResponse.json({ ok: true });
   }
 
   // ── recovery requests ──

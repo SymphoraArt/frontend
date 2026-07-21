@@ -118,6 +118,8 @@ export default function AdminPage() {
   const [flType, setFlType] = useState("EOA"); const [flNotes, setFlNotes] = useState("");
   const [delPending, setDelPending] = useState<Friend | null>(null);
   const [appealOpen, setAppealOpen] = useState<string | null>(null);
+  const [repStrikeId, setRepStrikeId] = useState<string | null>(null);
+  const [repSev, setRepSev] = useState("1");
   const [recOpen, setRecOpen] = useState<string | null>(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement | null>(null);
@@ -406,10 +408,25 @@ export default function AdminPage() {
                       <span style={{ width: 90, fontSize: 11, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.reason}</span>
                       <span style={{ width: 76, fontFamily: MONO, fontSize: 9.5, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis" }}>@{r.reporter}</span>
                       <span style={{ width: 40, textAlign: "right", fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)" }}>{timeAgo(r.at)}</span>
-                      <span style={{ display: "flex", gap: 5 }}>
-                        <Pill kind="green" label="Resolve" onClick={() => void post({ resource: "reports", action: "resolve", id: r.id }, "Report resolved.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }))} />
-                        <Pill kind="plain" label="Dismiss" onClick={() => void post({ resource: "reports", action: "dismiss", id: r.id }, "Report dismissed.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }))} />
-                      </span>
+                      {repStrikeId === r.id ? (
+                        <span style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                          <select value={repSev} onChange={(e) => setRepSev(e.target.value)} style={{ height: 26, border: "1px solid var(--enki-rule)", borderRadius: 7, background: "var(--enki-paper)", color: "var(--enki-ink)", fontSize: 10.5 }}>
+                            {["1", "2", "3"].map((s) => <option key={s} value={s}>Severity {s}</option>)}
+                          </select>
+                          <Pill kind="red" label="Confirm" onClick={() => {
+                            void post({ resource: "reports", action: "strike", id: r.id, severity: Number(repSev) }, "Strike issued — report closed.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }));
+                            setRepStrikeId(null);
+                          }} />
+                          <Pill kind="plain" label="Cancel" onClick={() => setRepStrikeId(null)} />
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", gap: 5 }}>
+                          {r.type === "prompt" && <Pill kind="amber" label="Delist" onClick={() => void post({ resource: "reports", action: "delist", id: r.id }, "Prompt delisted — report closed.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }))} />}
+                          <Pill kind="red" label="Strike" title="Strike the reported user and close the report" onClick={() => { setRepSev("1"); setRepStrikeId(r.id); }} />
+                          <Pill kind="green" label="Resolve" onClick={() => void post({ resource: "reports", action: "resolve", id: r.id }, "Report resolved.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }))} />
+                          <Pill kind="plain" label="Dismiss" onClick={() => void post({ resource: "reports", action: "dismiss", id: r.id }, "Report dismissed.", (cur) => ({ ...cur, reports: cur.reports.filter((x) => x.id !== r.id) }))} />
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -555,6 +572,27 @@ export default function AdminPage() {
                                   .filter((x) => x.strikes.length > 0 || x.banned || x.appeal),
                               }))} />
                           )}
+                          {!r.banned && (
+                            <Pill kind="red" label="Ban 7d" title="Full ban, expires in 7 days"
+                              onClick={() => void post({ resource: "bans", action: "ban", userId: r.userId, days: 7 }, `@${r.handle} banned for 7 days.`, (cur) => ({
+                                ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: false } : x)),
+                              }))} />
+                          )}
+                          {!r.permanent && (
+                            <Pill kind="red" label="Permban" title="Full ban, no expiry"
+                              onClick={() => void post({ resource: "bans", action: "ban", userId: r.userId, permanent: true }, `@${r.handle} permanently banned.`, (cur) => ({
+                                ...cur, strikes: cur.strikes.map((x) => (x.userId === r.userId ? { ...x, banned: true, permanent: true } : x)),
+                              }))} />
+                          )}
+                          {r.banned && (
+                            <Pill kind="green" label="Reinstate" title="Lift the active ban"
+                              onClick={() => void post({ resource: "bans", action: "lift", userId: r.userId }, `@${r.handle} reinstated.`, (cur) => ({
+                                ...cur,
+                                strikes: cur.strikes
+                                  .map((x) => (x.userId === r.userId ? { ...x, banned: false, permanent: false } : x))
+                                  .filter((x) => x.strikes.length > 0 || x.banned || x.appeal),
+                              }))} />
+                          )}
                         </div>
                         {appealOpen === r.userId && r.appeal && (
                           <div style={{ padding: "2px 0 12px 10px", borderLeft: `3px solid ${PILL.purple.border}`, margin: "0 0 8px 4px" }}>
@@ -562,6 +600,32 @@ export default function AdminPage() {
                             <p style={{ margin: 0, fontSize: 12, fontStyle: "italic", color: "var(--enki-ink-2)", lineHeight: 1.6, maxWidth: 640 }}>
                               “{r.appeal.note ?? "No statement provided."}”
                             </p>
+                            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                              <Pill kind="green" label="Approve" title="Approve the appeal — the appealed strike/ban is undone" onClick={() => {
+                                const apId = r.appeal!.id;
+                                setAppealOpen(null);
+                                void (async () => {
+                                  const ok = await post({ resource: "appeals", action: "approve", id: apId }, "Appeal approved — the strike/ban was undone.", (cur) => cur);
+                                  // the server revoked/lifted the target — re-fetch so the row reflects it
+                                  if (ok) {
+                                    try {
+                                      const res = await fetch("/api/admin", { headers: sessionAuthHeaders() });
+                                      if (res.ok) setData(await res.json());
+                                    } catch { /* next visit reconciles */ }
+                                  }
+                                })();
+                              }} />
+                              <Pill kind="red" label="Deny" onClick={() => {
+                                const apId = r.appeal!.id;
+                                setAppealOpen(null);
+                                void post({ resource: "appeals", action: "deny", id: apId }, "Appeal denied.", (cur) => ({
+                                  ...cur,
+                                  strikes: cur.strikes
+                                    .map((x) => (x.userId === r.userId ? { ...x, appeal: null } : x))
+                                    .filter((x) => x.strikes.length > 0 || x.banned || x.appeal),
+                                }));
+                              }} />
+                            </div>
                           </div>
                         )}
                       </div>
