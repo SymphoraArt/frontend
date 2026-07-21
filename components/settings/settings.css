@@ -487,6 +487,127 @@
   margin-top: 2px;
 }
 
+/* Wallet explainer — the 10th-grader line under the balance hero. */
+.set-wallet-note {
+  padding: 14px 24px 16px;
+  border-bottom: 1px solid var(--enki-rule);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--enki-ink-3);
+}
+.set-wallet-note b { color: var(--enki-ink-2, var(--enki-ink)); font-weight: 600; }
+
+/* Move money — Add money / Pay out mode tiles + provider chooser. */
+.set-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.set-mode-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.set-mode-tile:hover { border-color: var(--enki-ink-3); }
+.set-mode-tile--on,
+.set-mode-tile--on:hover {
+  border-color: var(--enki-ember, #c96838);
+  background: rgba(var(--ember-rgb, 201, 104, 56), 0.05);
+}
+.set-mode-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.set-mode-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.set-mode-title { font-size: 13.5px; font-weight: 600; color: var(--enki-ink); }
+.set-mode-sub { font-size: 11px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-prov-wrap { animation: set-fade 0.18s ease-out; }
+@keyframes set-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.set-prov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+.set-prov-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.set-prov-card:hover { border-color: var(--enki-ink-3); }
+.set-prov-card--last,
+.set-prov-card--last:hover {
+  border-color: var(--enki-ember, #c96838);
+  background: rgba(var(--ember-rgb, 201, 104, 56), 0.05);
+}
+.set-prov-card--off { opacity: 0.5; cursor: not-allowed; }
+.set-prov-card--off:hover { border-color: var(--enki-rule); }
+.set-prov-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.set-prov-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.set-prov-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--enki-ink);
+}
+.set-prov-chip {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--enki-ember, #c96838);
+  background: rgba(var(--ember-rgb, 201, 104, 56), 0.12);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.set-prov-chip--off {
+  color: var(--enki-ink-3);
+  background: color-mix(in oklab, var(--enki-ink) 6%, transparent);
+}
+.set-prov-sub { font-size: 11px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-footnote {
+  margin-top: 12px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--enki-ink-3);
+}
+
 /* Collapsible networks accordion */
 .set-networks summary {
   list-style: none;

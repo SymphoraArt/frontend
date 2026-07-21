@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { ChevronDown, Copy, Landmark, Loader2 } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Copy, Loader2 } from "lucide-react";
 
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
@@ -16,17 +16,26 @@ import BillingPanel from "@/components/settings/BillingPanel";
 interface Earnings {
   earnings: { total: number; thisMonth: number };
   sales: { total: number };
-  recentSales: { id: string; promptTitle: string; amountCents: number; createdAt: string }[];
 }
 
 // The panel remounts on every menu click — the last response is kept at
 // module level so earnings paint instantly and refresh in the background.
 let earningsCache: Earnings | null = null;
 
+type RampSide = "buy" | "sell";
+type RampProvider = "coinbase" | "moonpay";
+
+// Facts a chooser needs — enough to decide at a glance, nothing more.
+const RAMPS: { id: RampProvider; name: string; logo: string; logoBg: string; buySub: string; sellSub: string }[] = [
+  { id: "coinbase", name: "Coinbase", logo: "C", logoBg: "#0052ff", buySub: "From ~$5 · card & Apple Pay", sellSub: "To your bank account · usually minutes" },
+  { id: "moonpay", name: "MoonPay", logo: "M", logoBg: "#7d00ff", buySub: "From ~$20 · card, PayPal & more", sellSub: "To your bank, card or PayPal" },
+];
+
 /**
- * Payment — the money page. Your balance up top, what you've earned below it,
- * ways to add or cash out money, and (collapsed at the bottom) the networks
- * everything runs on. Replaces the old mock "Network Holdings" Wallets tab.
+ * Payment — the money page. Your balance up top (with a plain-words wallet
+ * explainer), one "Move money" card whose Add money / Pay out tiles expand
+ * into a provider chooser (Coinbase live, MoonPay greyed until its keys
+ * exist), deposit-crypto for wallet users, and the networks at the bottom.
  */
 export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolean } = {}) {
   const account = useActiveAccount();
@@ -47,11 +56,11 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
   const { balance, ready } = useHoldings(address);
 
   const [earnings, setEarnings] = useState<Earnings | null>(earningsCache);
-  const [rampBusy, setRampBusy] = useState<"buy" | "sell" | null>(null);
-  // Which ramp providers the server has keys for; the chooser only appears
-  // when there is an actual choice. Last pick is remembered per device.
+  const [rampBusy, setRampBusy] = useState<RampProvider | null>(null);
+  const [mode, setMode] = useState<RampSide | null>(null);
+  // Which ramp providers the server has keys for; unconfigured ones show
+  // greyed with "Coming soon" and light up the moment their keys exist.
   const [providers, setProviders] = useState<{ coinbase: boolean; moonpay: boolean }>({ coinbase: true, moonpay: false });
-  const [chooseSide, setChooseSide] = useState<"buy" | "sell" | null>(null);
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -65,8 +74,21 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
     return () => { dead = true; };
   }, []);
 
-  // Balance chip in the sidebar → scroll to "Add money & cash out" and pulse
-  // a heartbeat around the whole section so the eye lands on it.
+  // ESC steps back one level (chooser → nothing) before the settings panel's
+  // own ESC handling gets a chance to close the whole page.
+  useEffect(() => {
+    if (!mode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setMode(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [mode]);
+
+  // Balance chip in the sidebar → scroll to "Move money" and pulse a
+  // heartbeat around the whole section so the eye lands on it.
   const rampRef = useRef<HTMLDivElement | null>(null);
   const [pulse, setPulse] = useState(false);
   useEffect(() => {
@@ -85,19 +107,17 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
     let cancelled = false;
     (async () => {
       try {
-        // summary=1 → totals + recent sales only; the server skips the heavy
-        // per-prompt joins the Analytics panel needs.
+        // summary=1 → totals only; the server skips the heavy per-prompt
+        // joins the Analytics panel needs.
         const res = await fetch("/api/analytics/me?summary=1", { headers: sessionAuthHeaders() });
         if (!res.ok) return;
         const data = (await res.json()) as {
           summary: { totalCents: number; salesCount: number; month: { cents: number } };
-          recentSales: Earnings["recentSales"];
         };
         if (!cancelled) {
           const next: Earnings = {
             earnings: { total: data.summary.totalCents, thisMonth: data.summary.month.cents },
             sales: { total: data.summary.salesCount },
-            recentSales: data.recentSales ?? [],
           };
           earningsCache = next;
           setEarnings(next);
@@ -113,13 +133,12 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
   // signed MoonPay URL) bound to the user's own wallet; we open the hosted
   // flow in a new tab. KYC is the provider's job; funds land in the wallet.
   const PROVIDER_KEY = "enki-ramp-provider";
-  const lastProvider = (): "coinbase" | "moonpay" => {
+  const lastProvider = (): RampProvider => {
     try { const v = localStorage.getItem(PROVIDER_KEY); if (v === "moonpay" || v === "coinbase") return v; } catch { /* noop */ }
     return "coinbase";
   };
-  const launchRamp = async (side: "buy" | "sell", provider: "coinbase" | "moonpay") => {
-    setChooseSide(null);
-    setRampBusy(side);
+  const launchRamp = async (side: RampSide, provider: RampProvider) => {
+    setRampBusy(provider);
     try { localStorage.setItem(PROVIDER_KEY, provider); } catch { /* noop */ }
     try {
       const res = await fetch("/api/onramp/session", {
@@ -130,9 +149,10 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) throw new Error(data.error || "Could not start the payment flow");
       window.open(data.url, "_blank", "noopener");
+      setMode(null);
     } catch (e) {
       toast({
-        title: side === "buy" ? "Couldn't open Buy" : "Couldn't open Cash out",
+        title: side === "buy" ? "Couldn't open Add money" : "Couldn't open Pay out",
         description: e instanceof Error ? e.message : "Please try again.",
         variant: "destructive",
       });
@@ -140,68 +160,12 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
       setRampBusy(null);
     }
   };
-  const openRamp = (side: "buy" | "sell") => {
+  const pickMode = (side: RampSide) => {
     if (!address) {
       toast({ title: "Sign in first", description: "Log in so we know which wallet the money belongs to.", variant: "destructive" });
       return;
     }
-    // The chooser always shows both providers; unconfigured ones are greyed
-    // out (same pattern as the admin whitelist's network picker) and light up
-    // the moment their server keys exist.
-    setChooseSide((v) => (v === side ? null : side));
-  };
-
-  // Facts a chooser needs — enough to decide at a glance, nothing more.
-  const RAMPS: { id: "coinbase" | "moonpay"; name: string; buySub: string; sellSub: string }[] = [
-    { id: "coinbase", name: "Coinbase", buySub: "From ~$5 · card & Apple Pay", sellSub: "To your bank account" },
-    { id: "moonpay", name: "MoonPay", buySub: "From ~$20 · card, PayPal & more", sellSub: "To card, PayPal or bank" },
-  ];
-  const rampChooser = (side: "buy" | "sell") => {
-    const last = lastProvider();
-    // configured providers first (last-used leading), greyed ones at the end
-    const ordered = [...RAMPS].sort((a, b) => {
-      const ca = providers[a.id] ? 0 : 1, cb = providers[b.id] ? 0 : 1;
-      if (ca !== cb) return ca - cb;
-      return a.id === last ? -1 : b.id === last ? 1 : 0;
-    });
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0 10px 44px" }}>
-        {ordered.map((r) => {
-          const on = providers[r.id];
-          const isLast = on && r.id === last;
-          return (
-            <button key={r.id} onClick={() => { if (on) void launchRamp(side, r.id); }} disabled={!on || rampBusy !== null}
-              title={on ? undefined : "Coming soon"}
-              style={{
-                display: "flex", alignItems: "center", gap: 10, textAlign: "left",
-                cursor: on ? "pointer" : "not-allowed", opacity: on ? 1 : 0.5,
-                padding: "10px 12px", borderRadius: 10, background: "transparent",
-                border: "1px solid " + (isLast ? "var(--enki-ember, #c96838)" : "var(--enki-rule)"),
-              }}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600, color: "var(--enki-ink)" }}>
-                  {r.name}
-                  {isLast && (
-                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ember, #c96838)", background: "rgba(var(--ember-rgb, 201, 104, 56), 0.12)", borderRadius: 4, padding: "1px 6px" }}>
-                      Last used
-                    </span>
-                  )}
-                  {!on && (
-                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--enki-ink-3)", background: "color-mix(in oklab, var(--enki-ink) 6%, transparent)", borderRadius: 4, padding: "1px 6px" }}>
-                      Coming soon
-                    </span>
-                  )}
-                </span>
-                <span style={{ display: "block", fontSize: 11.5, color: "var(--enki-ink-3)", marginTop: 2 }}>
-                  {side === "buy" ? r.buySub : r.sellSub}
-                </span>
-              </span>
-              <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />
-            </button>
-          );
-        })}
-      </div>
-    );
+    setMode((v) => (v === side ? null : side));
   };
 
   const copyAddress = async () => {
@@ -215,89 +179,140 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
   };
 
   const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const last = lastProvider();
+  // configured providers first (last-used leading), greyed ones at the end
+  const orderedRamps = [...RAMPS].sort((a, b) => {
+    const ca = providers[a.id] ? 0 : 1, cb = providers[b.id] ? 0 : 1;
+    if (ca !== cb) return ca - cb;
+    return a.id === last ? -1 : b.id === last ? 1 : 0;
+  });
+  const payoutSub = !address
+    ? "Sign in first"
+    : ready && balance > 0
+      ? `$${balance.toFixed(2)} available`
+      : "Nothing here yet";
 
   return (
     <>
-      {/* ── 01 · Balance + earnings ── */}
+      {/* ── 01 · Your money ── */}
       <SettingsSection num="01" title="Your money">
         <div className="set-holdings-hero">
           <div className="set-holdings-label">Balance</div>
           <div className="set-holdings-amount">
-            {!address ? <span>Sign in to see it</span> : ready ? <>${balance.toFixed(2)}</> : <span>Loading…</span>}
+            {!address ? <span>Sign in to see it.</span> : ready ? <>${balance.toFixed(2)}</> : <span>Loading…</span>}
           </div>
           <div className="set-item-sub" style={{ marginTop: 8 }}>
-            This is what you can spend on generations right now.
+            {!address
+              ? "Your balance shows up here."
+              : ready && balance <= 0
+                ? "Add money to start generating."
+                : "Yours to spend or withdraw, any time."}
           </div>
         </div>
-        <div className="set-earn-grid">
-          <div className="set-earn-cell">
-            <div className="set-earn-num">{earnings ? usd(earnings.earnings.total) : "—"}</div>
-            <div className="set-earn-label">Earned in total</div>
-          </div>
-          <div className="set-earn-cell">
-            <div className="set-earn-num">{earnings ? usd(earnings.earnings.thisMonth) : "—"}</div>
-            <div className="set-earn-label">Earned this month</div>
-          </div>
-          <div className="set-earn-cell">
-            <div className="set-earn-num">{earnings ? earnings.sales.total : "—"}</div>
-            <div className="set-earn-label">Sales</div>
-          </div>
+        {/* Wallet, explained for a 10th grader — and why it exists at all. */}
+        <div className="set-wallet-note">
+          <div className="set-holdings-label" style={{ marginBottom: 4 }}>What&apos;s a wallet?</div>
+          Your money lives in a <b>wallet</b> — a small digital pocket on the internet that only
+          you hold the key to. We can&apos;t open it, and that&apos;s the whole point: because we never
+          hold your money, everything you add stays yours and you can take it out any time.
         </div>
-        {earnings && earnings.recentSales.length > 0 && (
-          <div>
-            {earnings.recentSales.slice(0, 3).map((s) => (
-              <div key={s.id} className="set-list-item">
-                <div className="set-item-content">
-                  <div className="set-item-title">{s.promptTitle}</div>
-                  <div className="set-item-sub">{new Date(s.createdAt).toLocaleDateString()}</div>
-                </div>
-                <div className="set-earn-num" style={{ fontSize: 14 }}>{usd(s.amountCents)}</div>
-              </div>
-            ))}
+        {earnings && earnings.earnings.total > 0 && (
+          <div className="set-earn-grid">
+            <div className="set-earn-cell">
+              <div className="set-earn-num">{usd(earnings.earnings.total)}</div>
+              <div className="set-earn-label">Earned in total</div>
+            </div>
+            <div className="set-earn-cell">
+              <div className="set-earn-num">{usd(earnings.earnings.thisMonth)}</div>
+              <div className="set-earn-label">Earned this month</div>
+            </div>
+            <div className="set-earn-cell">
+              <div className="set-earn-num">{earnings.sales.total}</div>
+              <div className="set-earn-label">Sales</div>
+            </div>
           </div>
         )}
       </SettingsSection>
 
-      {/* ── 02 · Add money / cash out ── */}
+      {/* ── 02 · Move money ── */}
       <div ref={rampRef} className={pulse ? "set-heartbeat" : undefined}>
-      <SettingsSection num="02" title="Add money & cash out">
-        <div className="set-section-desc" style={{ paddingBottom: 16 }}>
-          Adding money needs a one-time identity check (KYC). That&apos;s the law for money services,
-          and it&apos;s handled by the payment provider, not by us. Your money always lands in your own wallet.
-        </div>
-        <div className="set-list-item">
-          <div className="set-item-icon"><Landmark size={14} /></div>
-          <div className="set-item-content">
-            <div className="set-item-title">Add money</div>
-            <div className="set-item-sub">
-              {providers.moonpay ? "Through Coinbase or MoonPay — your pick." : "From about $5 through Coinbase."} It lands straight in your own wallet, we never hold it.
-            </div>
+      <SettingsSection num="02" title="Move money">
+        <div style={{ padding: "16px 24px 20px" }}>
+          <div className="set-mode-grid">
+            <button
+              className={"set-mode-tile" + (mode === "buy" ? " set-mode-tile--on" : "")}
+              onClick={() => pickMode("buy")}
+              disabled={rampBusy !== null}
+              style={!address ? { opacity: 0.55 } : undefined}
+            >
+              <span className="set-mode-ic"><ArrowDownToLine size={15} /></span>
+              <span className="set-mode-txt">
+                <span className="set-mode-title">Add money</span>
+                <span className="set-mode-sub">Card, Apple Pay or PayPal</span>
+              </span>
+            </button>
+            <button
+              className={"set-mode-tile" + (mode === "sell" ? " set-mode-tile--on" : "")}
+              onClick={() => pickMode("sell")}
+              disabled={rampBusy !== null}
+              style={!address ? { opacity: 0.55 } : undefined}
+            >
+              <span className="set-mode-ic"><ArrowUpFromLine size={15} /></span>
+              <span className="set-mode-txt">
+                <span className="set-mode-title">Pay out</span>
+                <span className="set-mode-sub">{payoutSub}</span>
+              </span>
+            </button>
           </div>
-          <button className="set-btn set-btn-outline" onClick={() => openRamp("buy")} disabled={rampBusy !== null}>
-            {rampBusy === "buy" ? <Loader2 size={14} className="set-spin" /> : "Buy"}
-          </button>
-        </div>
-        {chooseSide === "buy" && rampChooser("buy")}
-        <div className="set-list-item">
-          <div className="set-item-icon"><Landmark size={14} /></div>
-          <div className="set-item-content">
-            <div className="set-item-title">Cash out</div>
-            <div className="set-item-sub">
-              Move your balance back to {providers.moonpay ? "your bank — via Coinbase or MoonPay." : "your bank through Coinbase."}
+
+          {mode && (
+            <div className="set-prov-wrap">
+              <div className="set-holdings-label" style={{ margin: "18px 0 8px" }}>
+                Pick a provider to {mode === "buy" ? "top up" : "pay out"}
+              </div>
+              <div className="set-prov-grid">
+                {orderedRamps.map((r) => {
+                  const on = providers[r.id];
+                  const isLast = on && r.id === last;
+                  return (
+                    <button
+                      key={r.id}
+                      className={"set-prov-card" + (isLast ? " set-prov-card--last" : "") + (on ? "" : " set-prov-card--off")}
+                      onClick={() => { if (on) void launchRamp(mode, r.id); }}
+                      disabled={!on || rampBusy !== null}
+                      title={on ? undefined : "Coming soon"}
+                    >
+                      <span className="set-prov-logo" style={{ background: r.logoBg }}>{r.logo}</span>
+                      <span className="set-prov-txt">
+                        <span className="set-prov-name">
+                          {r.name}
+                          {isLast && <span className="set-prov-chip">Last used</span>}
+                          {!on && <span className="set-prov-chip set-prov-chip--off">Coming soon</span>}
+                        </span>
+                        <span className="set-prov-sub">{mode === "buy" ? r.buySub : r.sellSub}</span>
+                      </span>
+                      {rampBusy === r.id
+                        ? <Loader2 size={14} className="set-spin" style={{ color: "var(--enki-ink-3)" }} />
+                        : <ChevronDown size={14} style={{ transform: "rotate(-90deg)", color: "var(--enki-ink-3)" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="set-footnote">
+                {mode === "buy"
+                  ? "Adding money needs a one-time identity check with the payment partner — that's the law for money services, and it's their job, not ours. Deposits arrive as digital dollars (USDC) in your own wallet: always worth $1, always yours to withdraw. We never hold your money."
+                  : "Your whole balance goes to your bank, card or PayPal. We never hold your money."}
+              </div>
             </div>
-          </div>
-          <button className="set-btn set-btn-outline" onClick={() => openRamp("sell")} disabled={rampBusy !== null}>
-            {rampBusy === "sell" ? <Loader2 size={14} className="set-spin" /> : "Cash out"}
-          </button>
+          )}
         </div>
-        {chooseSide === "sell" && rampChooser("sell")}
       </SettingsSection>
       </div>
 
       {/* ── 03 · Deposit crypto (wallet users only) ── */}
       <BillingPanel />
 
-      {/* ── Networks (collapsed by default) ── */}
+      {/* ── 04 · Networks (collapsed by default) ── */}
       <details className="set-section set-networks">
         <summary>
           <span><span className="set-section-num" style={{ marginRight: 12 }}>04</span>Networks</span>
@@ -320,6 +335,20 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
           {address && (
             <button className="set-btn set-btn-outline" onClick={copyAddress}><Copy size={12} /> Copy</button>
           )}
+        </div>
+        <div className="set-list-item" style={{ opacity: 0.6 }}>
+          <div className="set-item-icon">◆</div>
+          <div className="set-item-content">
+            <div className="set-item-title">Base <span className="set-badge-warn">Coming soon</span></div>
+            <div className="set-item-sub">Cheaper card top-ups later on.</div>
+          </div>
+        </div>
+        <div className="set-list-item" style={{ opacity: 0.6 }}>
+          <div className="set-item-icon">◇</div>
+          <div className="set-item-content">
+            <div className="set-item-title">Ethereum <span className="set-badge-warn">Coming soon</span></div>
+            <div className="set-item-sub">For collectors who live there.</div>
+          </div>
         </div>
       </details>
     </>
