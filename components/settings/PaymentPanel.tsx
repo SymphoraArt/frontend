@@ -205,7 +205,7 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
         </div>
         {/* Wallet, explained for a 10th grader — and why it exists at all. */}
         <div className="set-wallet-note">
-          <div className="set-holdings-label" style={{ marginBottom: 4 }}>What&apos;s a wallet?</div>
+          <div className="set-holdings-label" style={{ marginBottom: 6 }}>What&apos;s a wallet?</div>
           Your money lives in a <b>wallet</b> — a small digital pocket on the internet that only
           you hold the key to. We can&apos;t open it, and that&apos;s the whole point: because we never
           hold your money, everything you add stays yours and you can take it out any time.
@@ -231,7 +231,7 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
       {/* ── 02 · Move money ── */}
       <div ref={rampRef} className={pulse ? "set-heartbeat" : undefined}>
       <SettingsSection num="02" title="Move money">
-        <div style={{ padding: "16px 24px 20px" }}>
+        <div className="set-money-body">
           {!mode ? (
             <div className="set-sq-grid">
               <button
