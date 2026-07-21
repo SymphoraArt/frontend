@@ -20,13 +20,21 @@ const HOST = "api.developer.coinbase.com";
 const PATH = "/onramp/v1/token";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const moonpayConfigured = () => !!(process.env.MOONPAY_API_KEY && process.env.MOONPAY_SECRET_KEY);
+// Accept both env spellings — MoonPay's dashboard calls the pk_ key
+// "publishable key", their widget docs call it "API key".
+const moonpayPk = () => process.env.MOONPAY_API_KEY || process.env.MOONPAY_PUBLISHABLE_KEY;
+const moonpayConfigured = () => !!(moonpayPk() && process.env.MOONPAY_SECRET_KEY);
 
 /** MoonPay hosted widget URL, signed the way their docs require. */
 function moonpayUrl(side: "buy" | "sell", address: string, redirect: string): string {
-  const pk = process.env.MOONPAY_API_KEY as string;
+  const pk = moonpayPk() as string;
   const sk = process.env.MOONPAY_SECRET_KEY as string;
-  const base = side === "buy" ? "https://buy.moonpay.com" : "https://sell.moonpay.com";
+  // Test keys only work against MoonPay's sandbox widget hosts.
+  const sandbox = pk.startsWith("pk_test");
+  const base =
+    side === "buy"
+      ? `https://buy${sandbox ? "-sandbox" : ""}.moonpay.com`
+      : `https://sell${sandbox ? "-sandbox" : ""}.moonpay.com`;
   const params = new URLSearchParams(
     side === "buy"
       ? { apiKey: pk, currencyCode: "usdc_sol", walletAddress: address, baseCurrencyCode: "eur", redirectURL: redirect }
