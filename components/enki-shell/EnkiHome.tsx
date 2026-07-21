@@ -20,6 +20,7 @@ import { useMessages } from "@/hooks/useMessages";
 import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
 import EnkiSidebar, { type NavItem } from "./EnkiSidebar";
 import ReferModal from "./ReferModal";
+import FeedbackModal from "./FeedbackModal";
 import NodeCreator from "./NodeCreator";
 import EnkiPanel from "./EnkiPanel";
 import { EDIT_PROMPT_EVENT, consumePromptEdit } from "./editorBridge";
@@ -108,6 +109,7 @@ export default function EnkiHome() {
   }, []);
   const [nodeOpen, setNodeOpen] = useState(false);
   const [referOpen, setReferOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // Balance chip → Payment panel, scrolled to "Add money" with a heartbeat.
   const [payFocus, setPayFocus] = useState(false);
   const closePanel = () => { setPanel(null); setPayFocus(false); };
@@ -353,6 +355,7 @@ export default function EnkiHome() {
           }}
           nodeActive={nodeOpen}
           onRefer={() => setReferOpen(true)}
+          onFeedback={() => { if (!authed) { showToast("Sign in to use this."); return; } setFeedbackOpen(true); }}
           account={{ name, handle, initials, avatarUrl: myProfile?.avatarUrl ?? null }}
           collapsed={rail}
           onToggleCollapse={toggleMenu}
@@ -407,6 +410,7 @@ export default function EnkiHome() {
           }}
         />
       )}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} onToast={showToast} />}
 
       {logoffOpen && (
         <div className="ek-modal-scrim" onClick={() => !logoffBusy && setLogoffOpen(false)}>

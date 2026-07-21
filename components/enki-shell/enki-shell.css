@@ -181,6 +181,14 @@
 .ek-kebab:hover, .ek-kebab.on { color: var(--enki-ink); border-color: var(--enki-ink-3); }
 .ek-kebab--rail { top: -10px; right: -4px; width: 20px; height: 20px; }
 .ek-color-dd--up { bottom: calc(100% + 8px); right: 0; left: auto; }
+/* ── Earn money section (refer + feedback) ── */
+.ek-earn-lab { display: flex; align-items: center; gap: 6px; margin: 12px 8px 2px; }
+.ek-earn-lab span:first-child { font-family: var(--font-mono), monospace; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-earn-rule { flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-earn-row { position: relative; display: flex; align-items: center; gap: 13px; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--enki-ink); font-size: 13.5px; width: 100%; text-align: left; cursor: pointer; }
+.ek-earn-row:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-earn-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-earn-chip { font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.1); border: 1px solid rgba(var(--ember-rgb), 0.4); border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
 
 /* ── balance pill (in account row) ── */
 .ek-balance {

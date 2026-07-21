@@ -30,6 +30,7 @@ interface SidebarProps {
   onCreate2: () => void;
   nodeActive?: boolean;
   onRefer: () => void;
+  onFeedback?: () => void;
   account: { name: string; handle: string; initials: string; avatarUrl?: string | null };
   onToggleCollapse: () => void;
   collapsed: boolean;
@@ -42,7 +43,7 @@ interface SidebarProps {
 }
 
 export default function EnkiSidebar({
-  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer,
+  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer, onFeedback,
   account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, onLogoff, theme, setTheme,
 }: SidebarProps) {
   const [colorOpen, setColorOpen] = useState(false);
@@ -90,7 +91,29 @@ export default function EnkiSidebar({
         })}
       </nav>
 
-      <button className="ek-create" onClick={onCreate} type="button" title="Create Prompt">
+      {/* ── Earn money: refer + feedback, both pay out ── */}
+      {!rail && (
+        <div className="ek-earn-lab">
+          <span>Earn money</span>
+          <span className="ek-earn-rule" />
+        </div>
+      )}
+      <button className="ek-earn-row" onClick={onRefer} type="button" title="Refer a prompt — earn when it goes live">
+        <Icon name="link" size={18} stroke={1.9} />
+        {!rail && <span className="ek-earn-label">Refer a prompt</span>}
+        {!rail && <span className="ek-earn-chip">$</span>}
+        {rail && <span className="ek-nav-tip">Refer a prompt · earn</span>}
+      </button>
+      {onFeedback && (
+        <button className="ek-earn-row" onClick={onFeedback} type="button" title="Feedback — win $100 if we build your change">
+          <Icon name="message" size={18} stroke={1.9} />
+          {!rail && <span className="ek-earn-label">Feedback</span>}
+          {!rail && <span className="ek-earn-chip">$100</span>}
+          {rail && <span className="ek-nav-tip">Feedback · win $100</span>}
+        </button>
+      )}
+
+      <button className="ek-create" onClick={onCreate} type="button" title="Create Prompt" style={{ marginTop: 12 }}>
         <Icon name="pen" size={20} stroke={2.2} />
         {!rail && <span className="ek-create-label">Create Prompt</span>}
         {rail && <span className="ek-nav-tip">Create Prompt</span>}
@@ -100,12 +123,6 @@ export default function EnkiSidebar({
         <Icon name="grid" size={19} stroke={2.2} />
         {!rail && <span className="ek-create-label">Create Prompt 2</span>}
         {rail && <span className="ek-nav-tip">Node Creator</span>}
-      </button>
-
-      <button className="ek-create ek-create2" onClick={onRefer} type="button" title="Refer a prompt — submit a social link for review">
-        <Icon name="link" size={18} stroke={2.2} />
-        {!rail && <span className="ek-create-label">Refer Prompt</span>}
-        {rail && <span className="ek-nav-tip">Refer Prompt</span>}
       </button>
 
       <div className="ek-side-spacer" />
