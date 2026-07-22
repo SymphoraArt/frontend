@@ -19,7 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { resolveSessionUserId } from "@/lib/session-user";
 import { decryptString, encryptString, type EncryptedPayload } from "@/lib/crypto";
-import { sendMail } from "@/lib/mailer";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 type Supabase = ReturnType<typeof getSupabaseServerClient>;
 
@@ -169,30 +169,21 @@ async function executeProposal(supabase: Supabase, p: ProposalRow, now: string):
 
 /** Email every council member with a saved notify address (except the proposer). */
 async function notifyCouncil(supabase: Supabase, proposerId: string, p: { kind: string; days: number | null; violation: string; targetHandle: string; quorum: number }) {
-  const [{ data: members }, { data: prefs }, proposer] = await Promise.all([
-    supabase.from("users").select("id, handle").in("role", ["admin", "mod"]).is("deleted_at", null),
-    supabase.from("admin_prefs").select("user_id, notify_email_ct, notify_email_iv, notify_email_tag, notify_email_kid"),
-    supabase.from("users").select("handle").eq("id", proposerId).maybeSingle(),
-  ]);
-  const prefMap = new Map((prefs ?? []).map((r) => [String(r.user_id), r]));
+  const { data: proposer } = await supabase.from("users").select("handle").eq("id", proposerId).maybeSingle();
   const label = p.kind === "ip_ban" ? "indefinite IP ban" : p.kind === "ban_perm" ? "permanent ban" : `${p.days ?? 7}-day ban`;
   const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_ORIGIN || "";
-  const subject = `[Enki Admin] Council vote: ${label} for @${p.targetHandle}`;
-  const text = [
-    `@${(proposer.data?.handle as string) ?? "an admin"} proposes a ${label} against @${p.targetHandle}.`,
-    "",
-    `Violation: ${p.violation}`,
-    "",
-    `Confirm or deny in the admin panel (Council tab)${origin ? `: ${origin}/admin` : "."}`,
-    `The action executes at ${p.quorum} confirmations.`,
-  ].join("\n");
-  await Promise.allSettled((members ?? [])
-    .filter((m) => String(m.id) !== proposerId)
-    .map((m) => {
-      const pref = prefMap.get(String(m.id));
-      const email = pref ? tryDecrypt(pref.notify_email_ct, pref.notify_email_iv, pref.notify_email_tag, pref.notify_email_kid, [String(m.id), undefined]) : null;
-      return email ? sendMail({ to: email, subject, text }) : Promise.resolve({ ok: false });
-    }));
+  await notifyAdmins(supabase, {
+    exceptUserId: proposerId,
+    subject: `[Enki Admin] Council vote: ${label} for @${p.targetHandle}`,
+    text: [
+      `@${(proposer?.handle as string) ?? "an admin"} proposes a ${label} against @${p.targetHandle}.`,
+      "",
+      `Violation: ${p.violation}`,
+      "",
+      `Confirm or deny in the admin panel (Council tab)${origin ? `: ${origin}/admin` : "."}`,
+      `The action executes at ${p.quorum} confirmations.`,
+    ].join("\n"),
+  });
 }
 
 export async function GET(req: NextRequest) {
