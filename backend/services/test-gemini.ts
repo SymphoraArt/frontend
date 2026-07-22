@@ -67,7 +67,7 @@ const TEST_CASES: Array<{ name: string; request: ImageGenerationRequest }> = [
     request: {
       prompt: 'A cute robot mascot waving hello, friendly and approachable design',
       aspectRatio: '1:1',
-      numImages: 2
+      numImages: 1
     }
   }
 ];
@@ -243,12 +243,12 @@ async function interactiveTest() {
 
   rl.close();
 
-  const testCase = {
+  const testCase: { name: string; request: ImageGenerationRequest } = {
     name: 'interactive-test',
     request: {
       prompt,
       aspectRatio: aspectRatio as any,
-      numImages
+      numImages: 1
     }
   };
 

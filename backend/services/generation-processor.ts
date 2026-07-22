@@ -16,7 +16,7 @@
 
 import { getSupabaseClient } from '../database/db.js';
 import { decryptPrompt } from '../encryption.js';
-import { routeGeneration, initializeRouter } from './generation-router.js';
+import { routeImageGeneration } from './generation-router.js';
 import type { GenerationSettings } from './types.js';
 
 /**
@@ -132,60 +132,42 @@ export async function processGeneration(generationId: string): Promise<void> {
     }
 
     // 5. Route through the Generation Router (handles moderation, failover, concurrency)
-    const numImages = generation.settings?.numImages || 1;
-    console.log(`🎭 Routing generation for ${generationId} (${numImages} image(s))`);
+    const settings = generation.settings as GenerationSettings;
+    console.log(`🎭 Routing generation for ${generationId}`);
     console.log(`📝 Prompt: "${finalPrompt.substring(0, 100)}${finalPrompt.length > 100 ? '...' : ''}"`);
 
-    const result = await routeGeneration({
+    const result = await routeImageGeneration({
       prompt: finalPrompt,
-      walletAddress: generation.user_id,
-      aspectRatio: generation.settings?.aspectRatio || '1:1',
-      numImages,
-      modelVersion: generation.settings?.modelVersion,
+      aspectRatio: (settings.aspectRatio as '1:1' | '16:9' | '9:16' | '4:3' | '3:4') || '1:1',
+      numImages: 1, // Enforce platform n:1 policy
+      modelFamily: settings.modelFamily, // Route by model family
+      modelVersion: settings.modelVersion,
+      walletAddress: generation.user_id || undefined
     });
 
-    // 6. Handle moderation blocks (do NOT retry these)
-    if (!result.moderation.allowed) {
-      console.warn(`🚫 Prompt blocked by moderation for ${generationId}: ${result.moderation.reason}`);
-      await updateGenerationError(
-        generationId,
-        `Content blocked: ${result.moderation.reason}`
-      );
-      // Set retry_count to max so the retry worker skips it
-      await supabase
-        .from('generations')
-        .update({ retry_count: 99 })
-        .eq('id', generationId);
-      return;
-    }
-
-    // 7. Handle provider safety blocks (Tier 3)
-    if (result.providerSafetyBlock) {
-      console.warn(`🚫 Provider safety block for ${generationId}`);
-      await updateGenerationError(
-        generationId,
-        `Provider safety block: ${result.error}`
-      );
-      await supabase
-        .from('generations')
-        .update({ retry_count: 99 })
-        .eq('id', generationId);
-      return;
-    }
-
-    // 8. Handle generation failure (retryable)
+    // 6. Handle generation failure (moderation, safety blocks, timeouts)
     if (!result.success) {
       console.error(`❌ Generation failed for ${generationId}: ${result.error}`);
       await updateGenerationError(generationId, result.error || 'Image generation failed');
-      // Increment retry count
-      await supabase
-        .from('generations')
-        .update({ retry_count: (generation.retry_count || 0) + 1 })
-        .eq('id', generationId);
+      
+      const isPolicyBlock = result.error === 'Your prompt violates our content guidelines.';
+      
+      // Do not retry policy blocks or non-retryable errors
+      if (isPolicyBlock || result.retryable === false) {
+        await supabase
+          .from('generations')
+          .update({ retry_count: 99 })
+          .eq('id', generationId);
+      } else {
+        await supabase
+          .from('generations')
+          .update({ retry_count: (generation.retry_count || 0) + 1 })
+          .eq('id', generationId);
+      }
       throw new Error(result.error || 'Image generation failed');
     }
 
-    console.log(`✅ Generated via ${result.provider} (key: ${result.keyUsed}) in ${result.totalTimeMs}ms`);
+    console.log(`✅ Generated via ${result.metadata?.model || 'unknown'} in ${result.generationTime}ms`);
 
     // 9. Store images to permanent storage
     const imageBuffers = result.imageBuffers || [];
