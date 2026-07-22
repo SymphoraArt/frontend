@@ -1,24 +1,37 @@
 /**
  * Wallet Blacklist Service
  *
- * Tracks content moderation violations per wallet address and automatically
- * blacklists wallets that exceed a configurable violation threshold.
+ * Tracks content moderation violations per wallet address and enforces
+ * staged strike rules per PR #54 review (section 3).
+ *
+ * Enforcement tiers:
+ *   instant_ban   -> CSAM hit or sexual/minors >= 0.7 -> immediate permanent ban
+ *   human_review  -> sexual/minors 0.2-0.7 -> block + flag for human review
+ *   strike        -> Standard Tier 1 hit or provider SAFETY -> 3 strikes = ban
+ *   log_only      -> Soft AI block (other categories) -> block + log, NO strike
+ *
+ * Violation storage privacy (PR #54 review #10):
+ *   Prompts are stored as SHA-256 hash + first 100 chars only.
+ *   Full-text retention for CSAM evidence is a pending legal question.
  *
  * Storage: Supabase (wallet_violations + wallet_blacklist tables).
  * Fallback: In-memory cache for reads to avoid hitting DB on every request.
  *
- * Architecture decision: We log the violating wallet address so we can
- * blacklist repeat offenders. This was a specific requirement from Kev
- * (brainstorm3.txt): "we can then even maybe blacklist people or entire wallets."
+ * ⚠️ SINGLE-INSTANCE CONSTRAINT: This module uses an in-memory Map for the
+ * blacklist cache. Do NOT run a second instance or move to serverless before
+ * migrating this cache to Redis (Upstash / Redis Cloud / self-host).
+ * With N instances, fresh bans stay invisible up to cache TTL (5 min).
  */
 
+import { createHash } from 'crypto';
 import { getSupabaseClient } from '../database/db.js';
+import type { ViolationSeverity } from './content-moderation.js';
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
-/** Number of violations before auto-blacklist */
+/** Number of STRIKES before auto-blacklist (log_only does not count) */
 const AUTO_BLACKLIST_THRESHOLD = parseInt(
   process.env.WALLET_BLACKLIST_THRESHOLD || '3',
   10
@@ -33,6 +46,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // We cache blacklist lookups in memory so we don't hit Supabase on every
 // single generation request. The cache is invalidated after TTL or when
 // we explicitly add a new blacklist entry.
+//
+// ⚠️ SINGLE-INSTANCE CONSTRAINT (see module doc)
 // ---------------------------------------------------------------------------
 
 interface CacheEntry {
@@ -57,6 +72,20 @@ function setCachedStatus(wallet: string, blacklisted: boolean): void {
     blacklisted,
     cachedAt: Date.now(),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Violation Privacy Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a privacy-safe prompt snippet for violation storage.
+ * Stores SHA-256 hash + first 100 chars (PR #54 review #10).
+ */
+function createPromptSnippet(prompt: string): string {
+  const hash = createHash('sha256').update(prompt).digest('hex').substring(0, 16);
+  const truncated = prompt.substring(0, 100);
+  return `[${hash}] ${truncated}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,35 +134,39 @@ export async function isWalletBlacklisted(walletAddress: string): Promise<boolea
 }
 
 /**
- * Records a content moderation violation for a wallet address.
+ * Records a content moderation violation with staged enforcement.
  *
- * If the wallet exceeds the auto-blacklist threshold, it is automatically
- * blacklisted. The prompt snippet is stored (first 200 chars) for audit.
+ * Enforcement rules (PR #54 review, section 3):
+ *   instant_ban  -> immediate permanent blacklist
+ *   human_review -> flag for human review (no auto-action)
+ *   strike       -> increment strike count, auto-ban at threshold
+ *   log_only     -> log the violation, NO strike increment
  *
  * @param walletAddress - The offending wallet
  * @param reason - Why it was flagged (e.g., "Tier 1: csam")
- * @param prompt - The offending prompt (truncated for storage)
+ * @param prompt - The offending prompt (stored as hash + 100 chars)
+ * @param severity - Enforcement severity from moderation
  */
 export async function recordViolation(
   walletAddress: string,
   reason: string,
-  prompt: string
+  prompt: string,
+  severity: ViolationSeverity = 'strike'
 ): Promise<void> {
   if (!walletAddress) return;
 
   const normalizedWallet = walletAddress.toLowerCase();
-  // Truncate prompt to avoid storing massive payloads
-  const promptSnippet = prompt.substring(0, 200);
+  const promptSnippet = createPromptSnippet(prompt);
 
   try {
     const supabase = getSupabaseClient();
 
-    // Insert violation record
+    // Insert violation record (always, regardless of severity)
     const { error: insertError } = await supabase
       .from('wallet_violations')
       .insert({
         wallet_address: normalizedWallet,
-        reason,
+        reason: `[${severity}] ${reason}`,
         prompt_snippet: promptSnippet,
       });
 
@@ -143,26 +176,54 @@ export async function recordViolation(
     }
 
     console.warn(
-      `[Wallet Blacklist] Violation recorded for ${normalizedWallet}: ${reason}`
+      `[Wallet Blacklist] Violation recorded for ${normalizedWallet}: ` +
+      `severity=${severity}, reason=${reason}`
     );
 
-    // Check total violations for auto-blacklist
-    const { count, error: countError } = await supabase
-      .from('wallet_violations')
-      .select('id', { count: 'exact', head: true })
-      .eq('wallet_address', normalizedWallet);
+    // --- Apply staged enforcement ---
 
-    if (countError) {
-      console.error('[Wallet Blacklist] Failed to count violations:', countError.message);
+    if (severity === 'instant_ban') {
+      // Immediate permanent blacklist
+      await blacklistWallet(
+        normalizedWallet,
+        `Instant ban: ${reason}`
+      );
       return;
     }
 
-    if (count !== null && count >= AUTO_BLACKLIST_THRESHOLD) {
-      await blacklistWallet(
-        normalizedWallet,
-        `Auto-blacklisted after ${count} content violations`
+    if (severity === 'human_review') {
+      // Flag for human review - insert into a review queue table
+      // For launch: just log prominently. Admin reviews violation logs.
+      console.error(
+        `[HUMAN REVIEW REQUIRED] Wallet ${normalizedWallet}: ${reason}. ` +
+        `Prompt snippet: ${promptSnippet}`
       );
+      return;
     }
+
+    if (severity === 'strike') {
+      // Count strikes (only 'strike' severity counts toward threshold)
+      const { count, error: countError } = await supabase
+        .from('wallet_violations')
+        .select('id', { count: 'exact', head: true })
+        .eq('wallet_address', normalizedWallet)
+        .like('reason', '[strike]%');
+
+      if (countError) {
+        console.error('[Wallet Blacklist] Failed to count strikes:', countError.message);
+        return;
+      }
+
+      if (count !== null && count >= AUTO_BLACKLIST_THRESHOLD) {
+        await blacklistWallet(
+          normalizedWallet,
+          `Auto-blacklisted after ${count} strikes`
+        );
+      }
+      return;
+    }
+
+    // severity === 'log_only' -> no further action
   } catch (err: any) {
     console.error('[Wallet Blacklist] Unexpected error recording violation:', err.message);
   }

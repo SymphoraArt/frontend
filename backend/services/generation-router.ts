@@ -228,26 +228,27 @@ export async function routeGeneration(request: RouterRequest): Promise<RouterRes
   if (!moderation.allowed) {
     totalModBlocked++;
 
-    // Record violation if wallet is provided
+    // Record violation with severity-based enforcement
     if (request.walletAddress) {
-      // Fire-and-forget: don't block the response on DB write
       recordViolation(
         request.walletAddress,
         `Tier ${moderation.tier}: ${moderation.reason}`,
-        request.prompt
+        request.prompt,
+        moderation.severity || 'strike'
       ).catch((err) =>
         console.error('[GenerationRouter] Failed to record violation:', err)
       );
     }
 
     console.warn(
-      `[GenerationRouter] Prompt BLOCKED by moderation (Tier ${moderation.tier}): ` +
-      `${moderation.reason}`
+      `[GenerationRouter] Prompt BLOCKED (Tier ${moderation.tier}, ` +
+      `severity: ${moderation.severity}): ${moderation.reason}`
     );
 
     return {
       success: false,
-      error: moderation.reason || 'Content blocked by moderation',
+      // NEVER return category/reason to client (probing oracle prevention)
+      error: CLIENT_BLOCK_MESSAGE,
       totalTimeMs: Date.now() - startTime,
       moderation,
     };
@@ -334,12 +335,13 @@ export async function routeGeneration(request: RouterRequest): Promise<RouterRes
         // Release the slot as failed
         concurrencyTracker.releaseSlot(availableKeyId, false);
 
-        // Record violation for the wallet
+        // Record violation for the wallet (provider SAFETY = strike severity)
         if (request.walletAddress) {
           recordViolation(
             request.walletAddress,
             `Tier 3 (${tier.provider} safety block): ${result.error}`,
-            request.prompt
+            request.prompt,
+            'strike'
           ).catch((err) =>
             console.error('[GenerationRouter] Failed to record violation:', err)
           );
