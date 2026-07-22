@@ -138,7 +138,8 @@ export async function generateImageWithWaveSpeed(
     const payload: WaveSpeedPredictionRequest = {
       prompt: request.prompt,
       size,
-      num_images: 1, // Multi T2I at $0.07/img -- always 1 for cost control
+      // Enforce n:1 at launch (PR #54 review #14)
+      num_images: 1,
     };
 
     console.log(`[WaveSpeed] Submitting prediction: ${size}`);

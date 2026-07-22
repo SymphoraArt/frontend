@@ -1,8 +1,8 @@
 /**
- * OpenAI GPT Image Generation Service (Tier 2 Backup)
+ * OpenAI GPT Image 2 Generation Service
  *
- * Integrates with OpenAI's Images API using the gpt-image-1 model.
- * This serves as the primary backup when all WaveSpeed keys are saturated.
+ * Integrates with OpenAI's Images API using the gpt-image-2 model.
+ * Upgraded from gpt-image-1 per PR #54 review #13.
  *
  * API key is passed per-call by the generation router (never stored globally).
  * This enables multi-key rotation for OpenAI keys as well.
@@ -10,7 +10,11 @@
  * Pricing: ~$0.04-$0.08 per image depending on size/quality
  *
  * Security: All calls are routed through our backend server.
- *           No API keys are ever exposed to the client (per the Twitter video lesson).
+ *           No API keys are ever exposed to the client.
+ *
+ * Error handling (PR #54 review #12):
+ *   Uses machine-readable error codes (e.g. 'moderation_blocked') instead
+ *   of substring matching on error text, which breaks when providers reword.
  */
 
 import type { ImageGenerationRequest, ImageGenerationResult } from './types.js';
@@ -20,7 +24,7 @@ import type { ImageGenerationRequest, ImageGenerationResult } from './types.js';
 // ---------------------------------------------------------------------------
 
 const OPENAI_API_BASE = 'https://api.openai.com/v1';
-const DEFAULT_MODEL = 'gpt-image-1';
+const DEFAULT_MODEL = 'gpt-image-2';
 
 /** Timeout for the generation request (ms) */
 const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes
@@ -86,6 +90,7 @@ export async function generateImageWithOpenAI(
     console.log(`[OpenAI] Prompt: "${request.prompt.substring(0, 100)}..."`);
 
     // Build the request payload
+    // numImages is always 1 at launch (PR #54 review #14)
     const payload = {
       model: DEFAULT_MODEL,
       prompt: request.prompt,
@@ -141,25 +146,37 @@ export async function generateImageWithOpenAI(
           };
         }
 
-        // Content policy violations (safety block)
-        if (
-          response.status === 400 &&
-          (parsedError.toLowerCase().includes('safety') ||
-           parsedError.toLowerCase().includes('content policy') ||
-           parsedError.toLowerCase().includes('rejected'))
-        ) {
-          return {
-            success: false,
-            error: `OpenAI content policy violation: ${parsedError}`,
-            generationTime: Date.now() - startTime,
-            retryable: false,
-            metadata: {
-              model: DEFAULT_MODEL,
-              aspectRatio: request.aspectRatio || '1:1',
-              resolution: size,
-              finishReason: 'SAFETY',
-            },
-          };
+        // Content policy violations (PR #54 review #12: machine-readable codes)
+        // Check for OpenAI's error code field first, fall back to HTTP status
+        if (response.status === 400) {
+          let errorCode: string | undefined;
+          try {
+            const errorJson = JSON.parse(errorBody);
+            errorCode = errorJson.error?.code;
+          } catch { /* ignore parse errors */ }
+
+          // Machine-readable: OpenAI returns code 'moderation_blocked' or
+          // 'content_policy_violation' for safety blocks
+          const isSafetyBlock =
+            errorCode === 'moderation_blocked' ||
+            errorCode === 'content_policy_violation' ||
+            errorCode === 'safety_system';
+
+          if (isSafetyBlock) {
+            return {
+              success: false,
+              error: 'Provider safety block',
+              errorCode: errorCode,
+              generationTime: Date.now() - startTime,
+              retryable: false,
+              metadata: {
+                model: DEFAULT_MODEL,
+                aspectRatio: request.aspectRatio || '1:1',
+                resolution: size,
+                finishReason: 'SAFETY',
+              },
+            };
+          }
         }
 
         return {

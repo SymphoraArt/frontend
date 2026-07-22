@@ -1,225 +1,63 @@
 /**
- * Generation Router - The Unified Orchestrator
+ * Central Generation Router
  *
- * This is the core of the API handling architecture discussed in all brainstorm
- * files and api_algo_improvements.md. It wires together:
+ * Implements the core architecture mandated by PR #54 review:
+ *   - Model-family pinned routing (no cross-model failover)
+ *   - FIFO queueing when pool is saturated (instead of failing)
+ *   - Tier 1 + Tier 2 Moderation pipeline
+ *   - Wallet violation tracking
  *
- *   1. Content Moderation (3-tier safety filter)
- *   2. Wallet Blacklist (repeat offender blocking)
- *   3. Pessimistic Concurrency Tracker (pre-emptive multi-key routing)
- *   4. Vertical Failover Chain (WaveSpeed -> OpenAI -> Gemini)
- *
- * Flow:
- *   Request -> Moderation -> Blacklist Check -> Route to Provider -> Generate -> Cleanup
- *
- * The user NEVER sees a "Failed" error as long as at least one provider
- * in the chain is available.
- *
- * Security:
- *   - All API keys remain server-side (never exposed to clients)
- *   - Moderation runs BEFORE payment settlement to avoid charging for blocked prompts
- *   - Wallet blacklisting prevents repeat abuse
+ * ⚠️ SINGLE-INSTANCE CONSTRAINT: Concurrency and Queueing rely on in-memory state.
+ * Do NOT run multiple backend instances before migrating to Redis.
  */
 
 import { moderatePrompt, type ModerationResult, CLIENT_BLOCK_MESSAGE } from './content-moderation.js';
 import { isWalletBlacklisted, recordViolation } from './wallet-blacklist.js';
 import { concurrencyTracker, type KeyHealth } from './concurrency-tracker.js';
-import { loadProviderConfig, maskApiKey, type ProviderKeyConfig, type RoutingConfig } from './provider-config.js';
+import { loadProviderConfig, maskApiKey, type RoutingConfig } from './provider-config.js';
 import { generateImageWithWaveSpeed } from './wavespeed-image-generation.js';
 import { generateImageWithOpenAI } from './openai-image-generation.js';
 import { generateImagesWithGemini } from './gemini-image-generation.js';
-import type { ImageGenerationRequest, ImageGenerationResult } from './types.js';
+import { enqueue, dequeue } from './generation-queue.js';
+import type { ImageGenerationRequest, ImageGenerationResult, ModelFamily } from './types.js';
 
 // Side-effect import: registers omni-moderation as Tier 2 in content-moderation.ts
 import './openai-moderation.js';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface RouterRequest {
-  /** The user's prompt */
-  prompt: string;
-  /** The user's wallet address (for blacklist checks and violation logging) */
-  walletAddress?: string;
-  /** Aspect ratio */
-  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-  /** Number of images (default: 1) */
-  numImages?: number;
-  /** Optional model preference (overrides routing) */
-  modelVersion?: string;
-  /** Image size for providers that support it */
-  imageSize?: '1K' | '2K' | '4K';
-}
-
-export interface RouterResult {
-  /** Whether generation succeeded */
-  success: boolean;
-  /** Image buffers if successful */
-  imageBuffers?: Buffer[];
-  /** Error message if failed */
-  error?: string;
-  /** Which provider handled the request */
-  provider?: string;
-  /** Which specific key was used (masked for logging) */
-  keyUsed?: string;
-  /** Total processing time including moderation */
-  totalTimeMs: number;
-  /** Moderation result */
-  moderation: ModerationResult;
-  /** Whether the prompt was blocked by the provider's native safety (Tier 3) */
-  providerSafetyBlock?: boolean;
-  /** Image metadata */
-  metadata?: {
-    model: string;
-    aspectRatio: string;
-    resolution: string;
-    finishReason?: string;
-  };
-}
-
-export interface RouterStatus {
-  /** Whether the router is initialized */
-  initialized: boolean;
-  /** Provider tier status */
-  tiers: Array<{
-    provider: string;
-    tierLabel: string;
-    keyCount: number;
-    totalActive: number;
-    totalCapacity: number;
-    availableSlots: number;
-    keysInCooldown: number;
-  }>;
-  /** Total requests served since startup */
-  totalRouted: number;
-  /** Total requests blocked by moderation */
-  totalModBlocked: number;
-  /** Total requests blocked by blacklist */
-  totalBlacklistBlocked: number;
-  /** Total provider failovers */
-  totalFailovers: number;
-}
-
-// ---------------------------------------------------------------------------
-// Router State
+// Configuration
 // ---------------------------------------------------------------------------
 
 let config: RoutingConfig | null = null;
-let routerInitialized = false;
 
-// Metrics
-let totalRouted = 0;
+// Initialize metrics
+let totalRequests = 0;
 let totalModBlocked = 0;
 let totalBlacklistBlocked = 0;
-let totalFailovers = 0;
 
 // ---------------------------------------------------------------------------
-// Initialization
-// ---------------------------------------------------------------------------
-
-/**
- * Initializes the generation router.
- *
- * Must be called once at startup (e.g., in the generation worker or app.ts).
- * Loads provider config from env vars and registers all keys with the
- * concurrency tracker.
- */
-export function initializeRouter(): void {
-  if (routerInitialized) {
-    console.warn('[GenerationRouter] Already initialized, skipping');
-    return;
-  }
-
-  config = loadProviderConfig();
-
-  // Register all keys with the concurrency tracker
-  for (const tier of config.tiers) {
-    for (const key of tier.keys) {
-      concurrencyTracker.registerKey(key.id, tier.maxConcurrencyPerKey);
-    }
-    console.log(
-      `[GenerationRouter] Registered ${tier.keys.length} ${tier.provider} key(s) ` +
-      `with max ${tier.maxConcurrencyPerKey} concurrency each`
-    );
-  }
-
-  routerInitialized = true;
-  console.log(
-    `[GenerationRouter] Initialized with ${config.tiers.length} tier(s), ` +
-    `${config.totalKeys} total key(s)`
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Core Routing Logic
+// Main Entry Point
 // ---------------------------------------------------------------------------
 
 /**
- * Dispatches a generation request to the appropriate provider.
- *
- * @param key - The selected API key config
- * @param request - The generation request
- * @returns ImageGenerationResult from the provider
+ * Main entry point for generating images.
+ * Handles moderation, blacklists, queueing, routing, and provider fallbacks.
  */
-async function dispatchToProvider(
-  key: ProviderKeyConfig,
-  request: ImageGenerationRequest
+export async function routeImageGeneration(
+  request: ImageGenerationRequest & { walletAddress?: string; modelFamily?: ModelFamily }
 ): Promise<ImageGenerationResult> {
-  switch (key.provider) {
-    case 'wavespeed':
-      return generateImageWithWaveSpeed(request, key.apiKey);
-
-    case 'openai':
-      return generateImageWithOpenAI(request, key.apiKey);
-
-    case 'gemini':
-      // Gemini uses the globally configured client (key is in env)
-      return generateImagesWithGemini(request);
-
-    default:
-      return {
-        success: false,
-        error: `Unknown provider: ${key.provider}`,
-        retryable: false,
-      };
-  }
-}
-
-/**
- * Routes a generation request through the full pipeline.
- *
- * This is the main entry point. It:
- *   1. Runs content moderation (Tier 1 + Tier 2)
- *   2. Checks wallet blacklist
- *   3. Finds an available key via pessimistic concurrency control
- *   4. Dispatches to the selected provider
- *   5. Handles provider safety blocks (Tier 3)
- *   6. Fails over to next tier if needed
- *   7. Guarantees slot cleanup via `finally`
- *
- * @param request - The router request
- * @returns RouterResult with full context
- */
-export async function routeGeneration(request: RouterRequest): Promise<RouterResult> {
   const startTime = Date.now();
+  totalRequests++;
 
-  // Ensure router is initialized
-  if (!routerInitialized || !config) {
-    initializeRouter();
-    if (!config) {
-      return {
-        success: false,
-        error: 'Generation router failed to initialize: no providers configured',
-        totalTimeMs: Date.now() - startTime,
-        moderation: {
-          allowed: true,
-          reason: null,
-          tier: null,
-          flaggedTerms: [],
-          processingTimeMs: 0,
-        },
-      };
+  // Load configuration if not yet loaded
+  if (!config) {
+    config = loadProviderConfig();
+
+    // Register all keys from all pools with the concurrency tracker
+    for (const pool of config.pools.values()) {
+      for (const key of pool.keys) {
+        concurrencyTracker.registerKey(key.id, pool.maxConcurrencyPerKey);
+      }
     }
   }
 
@@ -228,7 +66,6 @@ export async function routeGeneration(request: RouterRequest): Promise<RouterRes
   if (!moderation.allowed) {
     totalModBlocked++;
 
-    // Record violation with severity-based enforcement
     if (request.walletAddress) {
       recordViolation(
         request.walletAddress,
@@ -247,10 +84,8 @@ export async function routeGeneration(request: RouterRequest): Promise<RouterRes
 
     return {
       success: false,
-      // NEVER return category/reason to client (probing oracle prevention)
       error: CLIENT_BLOCK_MESSAGE,
-      totalTimeMs: Date.now() - startTime,
-      moderation,
+      generationTime: Date.now() - startTime,
     };
   }
 
@@ -259,203 +94,196 @@ export async function routeGeneration(request: RouterRequest): Promise<RouterRes
     const blacklisted = await isWalletBlacklisted(request.walletAddress);
     if (blacklisted) {
       totalBlacklistBlocked++;
-      console.warn(
-        `[GenerationRouter] BLACKLISTED wallet: ${request.walletAddress}`
-      );
+      console.warn(`[GenerationRouter] Wallet ${request.walletAddress} is blacklisted.`);
       return {
         success: false,
-        error: 'Your account has been suspended due to repeated policy violations',
-        totalTimeMs: Date.now() - startTime,
-        moderation,
+        error: 'Your wallet has been banned for repeated content policy violations.',
+        generationTime: Date.now() - startTime,
       };
     }
   }
 
-  // --- Step 3: Build the generation request ---
-  const genRequest: ImageGenerationRequest = {
-    prompt: request.prompt,
-    aspectRatio: request.aspectRatio || '1:1',
-    numImages: request.numImages || 1,
-    modelVersion: request.modelVersion,
-    imageSize: request.imageSize,
-  };
+  // --- Step 3: Determine Model Pool ---
+  const modelFamily: ModelFamily = request.modelFamily || config.defaultFamily;
+  const pool = config.pools.get(modelFamily);
 
-  // --- Step 4: Route through tiers with failover ---
-  let lastError: string = 'No providers available';
+  if (!pool) {
+    return {
+      success: false,
+      error: `Model family '${modelFamily}' is not configured or unavailable.`,
+      generationTime: Date.now() - startTime,
+    };
+  }
 
-  for (const tier of config!.tiers) {
-    // Find an available key in this tier
-    const availableKeyId = concurrencyTracker.findAvailableKey(tier.keyIds);
-    if (!availableKeyId) {
-      // All keys in this tier are at capacity; try next tier
-      console.log(
-        `[GenerationRouter] ${tier.tierLabel}: all keys at capacity, failing over`
-      );
-      totalFailovers++;
-      continue;
-    }
+  console.log(`[GenerationRouter] Routing to pool: ${modelFamily} (${pool.keys.length} keys)`);
 
-    // Find the actual key config
-    const keyConfig = tier.keys.find((k) => k.id === availableKeyId);
-    if (!keyConfig) {
-      console.error(
-        `[GenerationRouter] Key ${availableKeyId} not found in tier config`
-      );
-      continue;
-    }
+  // --- Step 4: Acquire Slot & Queueing ---
+  let availableKeyId: string | null = null;
+  let didWaitInQueue = false;
 
-    // Acquire the slot
-    const acquired = concurrencyTracker.acquireSlot(availableKeyId);
+  // Try to find an available key immediately
+  availableKeyId = concurrencyTracker.findAvailableKey(pool.keyIds);
+
+  if (!availableKeyId) {
+    console.log(`[GenerationRouter] Pool ${modelFamily} at capacity. Enqueueing request.`);
+    didWaitInQueue = true;
+
+    // Enqueue returns a promise that resolves when a slot frees up
+    const acquired = await enqueue(modelFamily);
     if (!acquired) {
-      // Race condition (extremely unlikely in single-threaded Node.js)
-      console.warn(
-        `[GenerationRouter] Failed to acquire slot for ${availableKeyId}, trying next`
-      );
-      continue;
+      // Aborted by safety valve (timeout) or queue full
+      return {
+        success: false,
+        error: 'Generation queue timed out. Please try again later.',
+        errorCode: 'queue_timeout',
+        generationTime: Date.now() - startTime,
+        retryable: true,
+      };
     }
 
-    try {
-      console.log(
-        `[GenerationRouter] Dispatching to ${tier.provider} ` +
-        `(key: ${maskApiKey(keyConfig.apiKey)}, active: ${concurrencyTracker.getActiveCount(availableKeyId)})`
-      );
+    // Try finding the key again now that we've been dequeued
+    availableKeyId = concurrencyTracker.findAvailableKey(pool.keyIds);
 
-      const result = await dispatchToProvider(keyConfig, genRequest);
-      totalRouted++;
-
-      // Check for provider safety block (Tier 3 moderation)
-      if (
-        !result.success &&
-        result.metadata?.finishReason === 'SAFETY'
-      ) {
-        console.warn(
-          `[GenerationRouter] Provider ${tier.provider} SAFETY block on prompt`
-        );
-
-        // Release the slot as failed
-        concurrencyTracker.releaseSlot(availableKeyId, false);
-
-        // Record violation for the wallet (provider SAFETY = strike severity)
-        if (request.walletAddress) {
-          recordViolation(
-            request.walletAddress,
-            `Tier 3 (${tier.provider} safety block): ${result.error}`,
-            request.prompt,
-            'strike'
-          ).catch((err) =>
-            console.error('[GenerationRouter] Failed to record violation:', err)
-          );
-        }
-
-        return {
-          success: false,
-          error: 'Image generation blocked by content safety filters',
-          provider: tier.provider,
-          keyUsed: maskApiKey(keyConfig.apiKey),
-          totalTimeMs: Date.now() - startTime,
-          moderation,
-          providerSafetyBlock: true,
-          metadata: result.metadata,
-        };
-      }
-
-      if (result.success) {
-        // Release the slot as successful
-        concurrencyTracker.releaseSlot(availableKeyId, true);
-
-        return {
-          success: true,
-          imageBuffers: result.imageBuffers,
-          provider: tier.provider,
-          keyUsed: maskApiKey(keyConfig.apiKey),
-          totalTimeMs: Date.now() - startTime,
-          moderation,
-          metadata: result.metadata,
-        };
-      }
-
-      // Generation failed but NOT a safety block -- try failover
-      concurrencyTracker.releaseSlot(availableKeyId, false);
-      lastError = result.error || 'Generation failed';
-
-      // If rate-limited, put the key in cooldown
-      if (result.error?.includes('rate limit')) {
-        concurrencyTracker.cooldownKey(availableKeyId, 60_000);
-      }
-
-      console.warn(
-        `[GenerationRouter] ${tier.provider} failed: ${lastError}. Trying next tier.`
-      );
-      totalFailovers++;
-      // Continue to the next tier
-    } catch (error: any) {
-      // Unexpected error -- release slot and try next tier
-      concurrencyTracker.releaseSlot(availableKeyId, false);
-      lastError = error.message || 'Unexpected generation error';
-
-      console.error(
-        `[GenerationRouter] Unexpected error with ${tier.provider}: ${lastError}`
-      );
-      totalFailovers++;
-      // Continue to the next tier
+    // Rare race condition: if it somehow got stolen, we fail-safe
+    if (!availableKeyId) {
+      return {
+        success: false,
+        error: 'Failed to acquire slot after queue wait. System under heavy load.',
+        generationTime: Date.now() - startTime,
+        retryable: true,
+      };
     }
   }
 
-  // All tiers exhausted
-  console.error(
-    `[GenerationRouter] ALL PROVIDERS EXHAUSTED. Last error: ${lastError}`
+  // Atomically acquire the slot
+  if (!concurrencyTracker.acquireSlot(availableKeyId)) {
+    return {
+      success: false,
+      error: 'Concurrency slot acquisition failed. System under heavy load.',
+      generationTime: Date.now() - startTime,
+      retryable: true,
+    };
+  }
+
+  // Find the exact config for the acquired key
+  const keyConfig = pool.keys.find(k => k.id === availableKeyId)!;
+
+  console.log(
+    `[GenerationRouter] Acquired slot on key ${availableKeyId} ` +
+    `(${keyConfig.provider}, pool: ${modelFamily})`
   );
 
-  return {
-    success: false,
-    error: `All generation providers are currently unavailable. Please try again in a moment. (${lastError})`,
-    totalTimeMs: Date.now() - startTime,
-    moderation,
-  };
+  // --- Step 5: Provider Execution ---
+  try {
+    // Override the model version for the exact pinned version configured for this key
+    const providerRequest = {
+      ...request,
+      modelVersion: keyConfig.modelVersion,
+    };
+
+    let result: ImageGenerationResult;
+
+    switch (keyConfig.provider) {
+      case 'wavespeed':
+        result = await generateImageWithWaveSpeed(providerRequest, keyConfig.apiKey);
+        break;
+      case 'openai':
+        result = await generateImageWithOpenAI(providerRequest, keyConfig.apiKey);
+        break;
+      case 'gemini':
+        // Using existing gemini provider wrapper
+        result = await generateImagesWithGemini(providerRequest);
+        break;
+      default:
+        throw new Error(`Unknown provider: ${keyConfig.provider}`);
+    }
+
+    // Handle provider safety blocks (Tier 3)
+    if (
+      !result.success &&
+      (result.metadata?.finishReason === 'SAFETY' ||
+       result.errorCode === 'moderation_blocked' ||
+       result.errorCode === 'content_policy_violation' ||
+       result.errorCode === 'safety_system')
+    ) {
+      console.warn(`[GenerationRouter] Provider ${keyConfig.provider} SAFETY block`);
+
+      if (request.walletAddress) {
+        recordViolation(
+          request.walletAddress,
+          `Tier 3 (${keyConfig.provider} safety block): ${result.error}`,
+          request.prompt,
+          'strike'
+        ).catch(err => console.error('[GenerationRouter] Failed to record violation:', err));
+      }
+
+      // Return generic client message
+      result.error = CLIENT_BLOCK_MESSAGE;
+    }
+
+    // Rate limit backoff (if provider returns 429)
+    if (
+      !result.success &&
+      (result.error?.includes('rate limit') || result.error?.includes('429'))
+    ) {
+      console.warn(`[GenerationRouter] Provider ${keyConfig.provider} returned 429. Cooldown key.`);
+      concurrencyTracker.cooldownKey(availableKeyId, 60_000); // 60s cooldown
+    }
+
+    // Inject our metadata
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        model: keyConfig.modelVersion,
+        aspectRatio: request.aspectRatio || '1:1',
+        resolution: '1K',
+      }
+    };
+  } catch (error: any) {
+    console.error(`[GenerationRouter] Unexpected execution error: ${error.message}`);
+    return {
+      success: false,
+      error: 'Unexpected generation error',
+      generationTime: Date.now() - startTime,
+      retryable: true,
+    };
+  } finally {
+    // ALWAYS release the slot
+    concurrencyTracker.releaseSlot(availableKeyId, true);
+
+    // Dequeue the next waiting request in this pool if any
+    // This fixes the "ratelimit sudden stoppage error" by ensuring
+    // the queue keeps flowing whenever a slot frees up.
+    dequeue(modelFamily);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Status / Health
+// Health and Metrics
 // ---------------------------------------------------------------------------
 
-/**
- * Returns the current status of the generation router.
- * Useful for admin dashboards and monitoring.
- */
-export function getRouterStatus(): RouterStatus {
-  const tiers =
-    config?.tiers.map((tier) => {
-      const stats = concurrencyTracker.getGroupStats(tier.keyIds);
-      return {
-        provider: tier.provider,
-        tierLabel: tier.tierLabel,
-        keyCount: tier.keys.length,
-        totalActive: stats.totalActive,
-        totalCapacity: stats.totalCapacity,
-        availableSlots: stats.availableSlots,
-        keysInCooldown: stats.keysInCooldown,
-      };
-    }) || [];
+export function getRouterMetrics() {
+  if (!config) return null;
+
+  const poolStats: Record<string, any> = {};
+  for (const [family, pool] of config.pools.entries()) {
+    poolStats[family] = concurrencyTracker.getGroupStats(pool.keyIds);
+  }
 
   return {
-    initialized: routerInitialized,
-    tiers,
-    totalRouted,
+    totalRequests,
     totalModBlocked,
     totalBlacklistBlocked,
-    totalFailovers,
+    activeKeys: concurrencyTracker.getAllHealth(),
+    poolStats,
   };
 }
 
-/**
- * Resets the router (for testing only).
- */
-export function resetRouter(): void {
+// For testing
+export function __testing_resetRouter() {
   config = null;
-  routerInitialized = false;
-  totalRouted = 0;
+  totalRequests = 0;
   totalModBlocked = 0;
   totalBlacklistBlocked = 0;
-  totalFailovers = 0;
-  concurrencyTracker.reset();
 }
