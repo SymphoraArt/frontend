@@ -21,7 +21,7 @@
  *   - Wallet blacklisting prevents repeat abuse
  */
 
-import { moderatePrompt, type ModerationResult } from './content-moderation.js';
+import { moderatePrompt, type ModerationResult, CLIENT_BLOCK_MESSAGE } from './content-moderation.js';
 import { isWalletBlacklisted, recordViolation } from './wallet-blacklist.js';
 import { concurrencyTracker, type KeyHealth } from './concurrency-tracker.js';
 import { loadProviderConfig, maskApiKey, type ProviderKeyConfig, type RoutingConfig } from './provider-config.js';
@@ -29,6 +29,9 @@ import { generateImageWithWaveSpeed } from './wavespeed-image-generation.js';
 import { generateImageWithOpenAI } from './openai-image-generation.js';
 import { generateImagesWithGemini } from './gemini-image-generation.js';
 import type { ImageGenerationRequest, ImageGenerationResult } from './types.js';
+
+// Side-effect import: registers omni-moderation as Tier 2 in content-moderation.ts
+import './openai-moderation.js';
 
 // ---------------------------------------------------------------------------
 // Types
