@@ -58,7 +58,13 @@ interface KeyState {
 }
 
 // ---------------------------------------------------------------------------
-// Concurrency Tracker
+/**
+ * Concurrency Tracking Service
+ *
+ * ⚠️ SINGLE-INSTANCE CONSTRAINT: This module uses an in-memory Map.
+ * Do NOT run a second instance or move to serverless before migrating to Redis.
+ * See: Redis migration plan (Upstash / Redis Cloud / self-host).
+ *
 // ---------------------------------------------------------------------------
 
 export class ConcurrencyTracker {

@@ -1,3 +1,9 @@
+/**
+ * Rate Limit Service
+ *
+ * ⚠️ SINGLE-INSTANCE CONSTRAINT: This module uses an in-memory Map.
+ * Do NOT run a second instance or move to serverless before migrating to Redis.
+ */
 import { NextRequest, NextResponse } from "next/server";
 
 type Bucket = {

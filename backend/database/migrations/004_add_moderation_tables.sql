@@ -64,18 +64,26 @@ ALTER TABLE wallet_violations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wallet_blacklist ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Only service role can access wallet_violations
-CREATE POLICY "Service role access only"
-  ON wallet_violations
-  FOR ALL
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'wallet_violations' AND policyname = 'Service role access only'
+  ) THEN
+    CREATE POLICY "Service role access only" ON wallet_violations
+      FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- Policy: Only service role can access wallet_blacklist
-CREATE POLICY "Service role access only"
-  ON wallet_blacklist
-  FOR ALL
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'wallet_blacklist' AND policyname = 'Service role access only'
+  ) THEN
+    CREATE POLICY "Service role access only" ON wallet_blacklist
+      FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- Add provider tracking column to generations table
