@@ -142,9 +142,9 @@ const TIER1_BLOCKED_PATTERNS: BlockedPattern[] = [
   { pattern: /\bloli\b/i, category: 'csam', checkLeet: true, severity: 'instant_ban' },
   { pattern: /\blolicon\b/i, category: 'csam', checkLeet: true, severity: 'instant_ban' },
   { pattern: /\bshotacon\b/i, category: 'csam', checkLeet: true, severity: 'instant_ban' },
-  // nude + child/teen/minor variant (PR #54 fix: catches "nude teenager")
+  // nude/naked + child/teen/minor variant (PR #54 fix: catches "nude teenager")
   {
-    pattern: /\bnude\s*(child(ren)?|teen(ager)?s?|minor|kid|toddler|infant|bab(y|ies)|girl|boy)s?\b/i,
+    pattern: /\b(nude|naked)\s*(child(ren)?|teen(ager)?s?|minor|kid|toddler|infant|bab(y|ies)|girl|boy)s?\b/i,
     category: 'csam', checkLeet: true, severity: 'instant_ban',
   },
   // shota + sexual term within a 5-word window (PR #54 fix: common Japanese name)
