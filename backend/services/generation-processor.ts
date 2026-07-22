@@ -143,6 +143,19 @@ export async function processGeneration(generationId: string): Promise<void> {
       modelFamily: settings.modelFamily, // Route by model family
       modelVersion: settings.modelVersion,
       walletAddress: generation.user_id || undefined
+    }, () => {
+      // Async fire-and-forget: signal client that we are in the FIFO queue
+      (async () => {
+        try {
+          await supabase
+            .from('generations')
+            .update({ status: 'queued', updated_at: new Date().toISOString() })
+            .eq('id', generationId);
+          console.log(`🔄 Status updated to queued for ${generationId}`);
+        } catch (err: any) {
+          console.error('Failed to update status to queued', err);
+        }
+      })();
     });
 
     // 6. Handle generation failure (moderation, safety blocks, timeouts)

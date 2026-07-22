@@ -107,3 +107,16 @@ BEGIN
     ALTER TABLE generations ADD COLUMN provider_cost_usd DECIMAL(10,6);
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Update generations status constraint to include 'queued'
+-- ---------------------------------------------------------------------------
+
+DO $$
+BEGIN
+  -- Drop the old constraint
+  ALTER TABLE generations DROP CONSTRAINT IF EXISTS generations_status_check;
+  -- Add the new constraint with 'queued'
+  ALTER TABLE generations ADD CONSTRAINT generations_status_check
+    CHECK (status IN ('pending', 'payment_verified', 'queued', 'generating', 'completed', 'failed'));
+END $$;

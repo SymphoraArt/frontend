@@ -71,6 +71,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ---
 
+## ⚙️ Operations & Deployment
+
+> [!WARNING]
+> **Single-Instance Constraint**
+> The backend generation router relies on in-memory state for rate limiting, concurrency tracking, the wallet blacklist cache, and the FIFO queue.
+> 
+> **Do NOT run a second instance or move to serverless** before migrating these state modules to Redis (e.g., Upstash, Redis Cloud, or self-hosted). Scaling horizontally without Redis will cause API quota exhaustion, split-brain queueing, and bypasses to the content moderation blacklist.
+
+---
 ## 🏗️ Project Structure
 
 - `/app`: Next.js App Router pages and API routes.

@@ -5,6 +5,7 @@ import { z } from 'zod';
 export const generationStatusSchema = z.enum([
   'pending',
   'payment_verified',
+  'queued',
   'generating',
   'completed',
   'failed'

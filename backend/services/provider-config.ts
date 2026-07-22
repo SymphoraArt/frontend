@@ -119,10 +119,8 @@ export function loadProviderConfig(): RoutingConfig {
         id: 'gemini_nbp_0',
         apiKey: geminiKey,
         provider: 'gemini',
-        // TODO: Verify this is the correct model ID for nano-banana-pro on Gemini
-        // PR #54 review #13: "verify the existing Gemini adapter targets the
-        // nano-banana-pro model id (Gemini 3 Pro Image)"
-        modelVersion: 'gemini-2.0-flash-image-generation',
+        // Gemini 3 Pro Image maps to nano-banana-pro
+        modelVersion: 'gemini-3-pro-image-preview',
       });
     }
 

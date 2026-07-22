@@ -44,7 +44,8 @@ let totalBlacklistBlocked = 0;
  * Handles moderation, blacklists, queueing, routing, and provider fallbacks.
  */
 export async function routeImageGeneration(
-  request: ImageGenerationRequest & { walletAddress?: string; modelFamily?: ModelFamily }
+  request: ImageGenerationRequest & { walletAddress?: string; modelFamily?: ModelFamily },
+  onQueued?: () => void
 ): Promise<ImageGenerationResult> {
   const startTime = Date.now();
   totalRequests++;
@@ -127,6 +128,7 @@ export async function routeImageGeneration(
   if (!availableKeyId) {
     console.log(`[GenerationRouter] Pool ${modelFamily} at capacity. Enqueueing request.`);
     didWaitInQueue = true;
+    if (onQueued) onQueued(); // Signal client that request is queued
 
     // Enqueue returns a promise that resolves when a slot frees up
     const acquired = await enqueue(modelFamily);
