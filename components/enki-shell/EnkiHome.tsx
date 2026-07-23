@@ -25,8 +25,8 @@ import NodeCreator from "./NodeCreator";
 import EnkiPanel from "./EnkiPanel";
 import { EDIT_PROMPT_EVENT, consumePromptEdit } from "./editorBridge";
 import { Icon } from "./icons";
-import SettingsPage from "../../app/settings/page";
-import ProfilePage from "../../app/profile/page";
+import SettingsView from "@/components/settings/SettingsView";
+import ProfileView from "@/components/profile/ProfileView";
 import LeaderboardPage from "../../app/leaderboard/page";
 import "./enki-shell.css";
 import "./nodes.css";
@@ -290,7 +290,7 @@ export default function EnkiHome() {
       );
       // Balance chip + billing entries render the EXACT Settings → Payment
       // view (same container, same scale), scrolled to "Add money".
-      case "billing": return <SettingsPage initialTab="payment" focusRamp={payFocus} />;
+      case "billing": return <SettingsView initialTab="payment" focusRamp={payFocus} />;
       {/* Analytics brings its own editorial header (design), no PanelHeadline */}
       case "analytics": return <AnalyticsPanel />;
       case "notifications": return (
@@ -300,8 +300,8 @@ export default function EnkiHome() {
         </PanelFrame>
       );
       case "messages": return <MessagesPanel toast={showToast} />;
-      case "settings": return <SettingsPage initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
-      case "profile": return <ProfilePage onBack={() => { setPanel(null); setActiveNav("home"); }} />;
+      case "settings": return <SettingsView initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
+      case "profile": return <ProfileView onBack={() => { setPanel(null); setActiveNav("home"); }} />;
       {/* Leaderboard brings its own editorial header (design), no PanelHeadline */}
       case "leaderboard": return <LeaderboardPage />;
       default: return (
