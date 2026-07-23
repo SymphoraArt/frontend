@@ -13,9 +13,9 @@ export default function SettingsLayout({ children, breadcrumbs, title, descripti
     <div className="set-page">
       <div className="set-container">
         <div className="set-breadcrumbs">{breadcrumbs}</div>
-        <div className="set-header-sub">TWO WAYS TO KEEP YOUR ACCOUNT SAFE</div>
         <h1 className="set-title">{title}</h1>
-        {description && <p className="set-description">{description}</p>}
+        {/* Always rendered so the reserved min-height keeps the tab menu fixed. */}
+        <p className="set-description">{description}</p>
         {children}
       </div>
     </div>

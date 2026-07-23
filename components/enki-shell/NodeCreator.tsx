@@ -9,17 +9,27 @@ import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
 import { Icon } from "./icons";
 import { generateNanoBanana, persistCreation, placeholderArt } from "./generation";
+import { useModelLimits } from "@/hooks/useModelLimits";
+import DocView from "./DocView";
 
 /* ── constants ── */
-const NC_MODELS = [
+export const NC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
   { id: "gpt-image-2", name: "GPT Image 2", price: 0.06 },
   { id: "seedance-2", name: "Seedance 2", price: 0.08 },
 ];
-const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
+export const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
 const CATEGORIES = ["Portrait", "Character", "Cinematic", "Architecture", "Abstract", "Product", "Minimal", "Editorial"];
 
 const REF_COLOR = { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" };
+// Reference-image chips get their own DISTINCT pastel family (greens/mint) so
+// they read differently from text-variable chips at a glance.
+const REF_PALETTE = [
+  { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" },
+  { bg: "#EDF9E4", text: "#3A5C1F", border: "#6aa832", dot: "#6aa832" },
+  { bg: "#E4F6EF", text: "#1F5C4A", border: "#2a9a78", dot: "#2a9a78" },
+  { bg: "#F0F9E9", text: "#44551E", border: "#8aa440", dot: "#8aa440" },
+];
 const TEXT_PALETTE = [
   { bg: "#F3E8FD", text: "#4A2E6E", border: "#8e44ad", dot: "#8e44ad" },
   { bg: "#FDF6E8", text: "#6E4A1E", border: "#c96838", dot: "#c96838" },
@@ -40,15 +50,19 @@ const VPOOL: Record<string, string[]> = {
   mood: ["serene and quietly melancholic, the calm right before rain", "tense and dramatic, heavy with anticipation", "warm, nostalgic golden-hour stillness", "electric, restless, buzzing with night energy", "dreamlike and weightless, softly out of focus"],
   texture: ["hyperreal graphite with fine tooth and soft smudging", "cracked oil-paint impasto catching raking light", "rough cold-press paper grain, visible fibers", "glossy chrome with sharp specular highlights", "matte risograph print with subtle misregistration"],
 };
-const TOKEN_RE = /(\[[^\]\n]+\])/g;
-const isRefTok = (t: string) => /^\[Reference Image \d+\]$/.test(t);
+export const TOKEN_RE = /(\[[^\]\n]+\])/g;
+export const isRefTok = (t: string) => /^\[Reference Image \d+\]$/.test(t);
 const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
+// Last-used editor view (doc-style vs node canvas) — survives close/reopen.
+// Separate key on purpose: the draft's `view` field means pan/zoom, not mode.
+const VIEW_KEY = "enki-node-creator-view";
+export type EditorView = "doc" | "node";
 
 let NID = 1;
 const nid = (p: string) => p + NID++;
 
-type Kind = "text" | "bool";
-type NodeT = {
+export type Kind = "text" | "bool";
+export type NodeT = {
   id: string;
   type: "prompt" | "ref" | "text" | "output";
   x?: number; y?: number;
@@ -57,15 +71,15 @@ type NodeT = {
   sig?: string; vals?: Record<string, string>; status?: "empty" | "loading" | "ready"; picked?: boolean;
   off?: { x: number; y: number };
 };
-type Con = { sig: string; body: string; cidx: number; off?: { x: number; y: number } };
-type St = {
+export type Con = { sig: string; body: string; cidx: number; off?: { x: number; y: number } };
+export type St = {
   title: string; mode: "free" | "premium"; models: string[]; cat: string; ratio: string; quality: string;
   price: number; body: string; cons: Con[]; conSeq: number; genCount: number; nodes: NodeT[];
 };
-const NC_QUALITIES = ["1K", "2K", "4K"];
+export const NC_QUALITIES = ["1K", "2K", "4K"];
 // price multiplier per quality (relative to the model's base 2K price)
-const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
-type TextNode = NodeT & { name: string; kind: Kind; value: string };
+export const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
+export type TextNode = NodeT & { name: string; kind: Kind; value: string };
 
 const sigOf = (body: string, texts: TextNode[]) => body + "||" + texts.map((t) => t.name + ":" + t.kind).join(",");
 const randVals = (texts: TextNode[]) => {
@@ -96,7 +110,7 @@ function buildPrompt(body: string, texts: TextNode[], valsOverride?: Record<stri
 }
 
 /* double-click to rename; static span otherwise */
-function EditName({ value, onChange, className, placeholder, title }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string; title?: string }) {
+export function EditName({ value, onChange, className, placeholder, title }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string; title?: string }) {
   const [edit, setEdit] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { if (edit && ref.current) { ref.current.focus(); ref.current.select(); } }, [edit]);
@@ -116,7 +130,7 @@ function EditName({ value, onChange, className, placeholder, title }: { value: s
 
 /* Custom themed dropdown (same look + animation as the prompt's model picker),
    reused for every select in the editor so they all match. */
-function NcSelect({ value, options, onChange, width, title, align = "left", icon }: {
+export function NcSelect({ value, options, onChange, width, title, align = "left", icon }: {
   value: string; options: { value: string; label: string; sub?: string }[]; onChange: (v: string) => void;
   width?: number; title?: string; align?: "left" | "right"; icon?: ReactNode;
 }) {
@@ -208,7 +222,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       return {
         title: String(ep.title || ""), mode: (ep.price ?? 0) > 0 ? "premium" : "free",
         models: ["nano-banana-pro"], cat: "", ratio: "Any", quality: "2K",
-        price: typeof ep.price === "number" ? ep.price : 0.1, body: String(ep.promptTemplate || ""),
+        price: typeof ep.price === "number" ? ep.price : 0.1,
+        body: String(ep.promptTemplate || ""),
         cons: [], conSeq: 0, genCount: 4, nodes,
       };
     }
@@ -221,6 +236,26 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   const [st, setSt] = useState<St>(initial);
   const stRef = useRef(st); stRef.current = st;
+  // Doc-style vs node-canvas view. Doc is the default for new sessions; the
+  // last-used view survives close/reopen (Kev's "resume where I left off").
+  const [view, setView] = useState<EditorView>(() => {
+    try { const v = localStorage.getItem(VIEW_KEY); if (v === "node" || v === "doc") return v; } catch { /* noop */ }
+    return "doc";
+  });
+  const viewRef = useRef(view); viewRef.current = view;
+  const switchView = (v: EditorView) => {
+    if (v === viewRef.current) return;
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* noop */ }
+    if (v === "doc") {
+      // Leaving the canvas: drop canvas-only interaction state so stale
+      // selections can't eat Delete keys or ESC while the doc is up.
+      setSel(null); setSelRow(null); setSelSet(new Set());
+      setCtx(null); setMarquee(null); setTokEdit(null); setMenuOpen(false); setModelOpen(false);
+    }
+  };
+  // Per-model limits (max reference images, allowed filetypes) from the DB.
+  const modelLimits = useModelLimits(st.models[0]);
   const hist = useRef<{ past: St[]; future: St[] }>({ past: [], future: [] });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -238,6 +273,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const spaceRef = useRef(false);
   const [armed, setArmed] = useState<string | null>(null);
+  // In-place variable editor: clicking a [token] chip in the prompt opens a
+  // small popover right beside it (left when space allows) with that
+  // variable's value — no hunting for the input node on the canvas.
+  const [tokEdit, setTokEdit] = useState<{ name: string; rect: { left: number; right: number; top: number; bottom: number } } | null>(null);
+  const tokEditRef = useRef(false); tokEditRef.current = !!tokEdit;
   const [ctx, setCtx] = useState<{ x: number; y: number; wx: number; wy: number } | null>(null);
   const [dropOn, setDropOn] = useState(false);
   const [pulseId, setPulseId] = useState<string | null>(null);
@@ -345,9 +385,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       onToast("Prompt exported as JSON");
     } catch { onToast("Couldn't export this prompt"); }
   };
-  const applyImportJSON = (raw: unknown) => {
+  const applyImportJSON = (raw: unknown, silent = false) => {
     const data = raw as { format?: string; title?: string; prompt?: string; nodes?: unknown[]; settings?: Record<string, unknown>; constellations?: unknown[]; conSeq?: number; view?: { pan?: { x: number; y: number }; zoom?: number } };
-    if (!data || data.format !== "enki-prompt-graph" || !Array.isArray(data.nodes)) { onToast("Not a valid Enki prompt JSON file"); return; }
+    if (!data || data.format !== "enki-prompt-graph" || !Array.isArray(data.nodes)) { if (!silent) onToast("Not a valid Enki prompt JSON file"); return; }
     const nodes: NodeT[] = data.nodes.map((raw2) => {
       const o = raw2 as Record<string, unknown>;
       const n: NodeT = { id: String(o.id), type: NTYPE_IN[String(o.type)] || (o.type as NodeT["type"]) };
@@ -367,9 +407,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       if (o.widgets_values != null) n.vals = o.widgets_values as Record<string, string>;
       return n;
     });
-    if (!nodes.some((n) => n.type === "prompt")) { onToast("That JSON has no prompt node — can't import"); return; }
+    if (!nodes.some((n) => n.type === "prompt")) { if (!silent) onToast("That JSON has no prompt node — can't import"); return; }
     const s = data.settings || {};
-    pushHist();
+    if (!silent) pushHist();
     setSt((p) => ({
       ...p,
       title: typeof data.title === "string" ? data.title : "",
@@ -390,8 +430,52 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     nodes.forEach((n) => { const m = /(\d+)$/.exec(n.id || ""); if (m) maxN = Math.max(maxN, parseInt(m[1], 10) + 1); });
     NID = maxN;
     if (data.view) { if (data.view.pan) setPan(data.view.pan); if (typeof data.view.zoom === "number") setZoom(Math.min(1, Math.max(0.3, data.view.zoom))); }
-    onToast("Prompt imported from JSON");
+    if (!silent) onToast("Prompt imported from JSON");
   };
+
+  /* ── Browser draft + ESC close flow ──
+     ESC on a neutral canvas (nothing mid-drag/open) asks save-or-discard when
+     there's content. Save keeps the whole graph in localStorage and it's
+     restored the next time Create Prompt 2 opens fresh. */
+  const DRAFT_KEY = "enki-node-creator-draft";
+  const [closeConfirm, setCloseConfirm] = useState(false);
+  const closeConfirmRef = useRef(false); closeConfirmRef.current = closeConfirm;
+  const isDirty = () => {
+    const s = stRef.current;
+    return !!(s.title.trim() || s.body.trim() || (s.cons?.length ?? 0) > 0 || s.nodes.length > 1);
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } };
+  const requestClose = () => {
+    if (!isDirty()) { clearDraft(); onClose(); return; }
+    setCloseConfirm(true);
+  };
+  const saveDraftAndClose = () => {
+    // Quota failures must NOT close the editor while claiming success — with
+    // data-URL reference images a draft easily exceeds the ~5MB localStorage cap.
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(buildExportJSON()));
+    } catch {
+      setCloseConfirm(false);
+      onToast("Draft too big to save (images count against a ~5MB cap) — export as JSON via the menu, or remove some images.");
+      return;
+    }
+    setCloseConfirm(false);
+    onToast("Draft saved — it'll be restored when you come back");
+    onClose();
+  };
+  const discardAndClose = () => { clearDraft(); setCloseConfirm(false); onClose(); };
+
+  // Restore a saved draft when opening fresh (not when editing a released prompt).
+  useEffect(() => {
+    if (editPrompt) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      applyImportJSON(JSON.parse(raw), true);
+      onToast("Restored your saved draft");
+    } catch { clearDraft(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const importPrompt = () => { setMenuOpen(false); fileRef.current?.click(); };
   const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; e.target.value = "";
@@ -404,31 +488,42 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // ESC returns the canvas to a neutral state — it cancels whatever is in
-        // progress (drag / connect / marquee / context menu) and clears the
-        // selection. It never closes the editor; use the × button for that.
-        if (drag.current) {
-          drag.current = null;
-          document.body.style.userSelect = "";
-          window.removeEventListener("pointermove", onPointerMove);
-          window.removeEventListener("pointerup", endDrag);
+        // The in-place variable editor is open → ESC just closes it.
+        if (tokEditRef.current) { setTokEdit(null); return; }
+        // The save/discard dialog is open → ESC just dismisses it (keep editing).
+        if (closeConfirmRef.current) { setCloseConfirm(false); return; }
+        // Something in progress (drag / connect / marquee / menu / selection)?
+        // → ESC cancels it and returns the canvas to a neutral state.
+        const busy = !!drag.current || rightPan.current.active || escBusyRef.current
+          || !!ctx || !!selRef.current || !!selRowRef.current || selSetRef.current.size > 0;
+        if (busy) {
+          if (drag.current) {
+            drag.current = null;
+            document.body.style.userSelect = "";
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", endDrag);
+          }
+          rightPan.current.active = false;
+          setConnectLine(null);
+          setMarquee(null);
+          setMenuOpen(false);
+          setModelOpen(false);
+          setGenPanelOpen(false);
+          setRefMax(null);
+          setGenConfirm(null);
+          if (ctx) setCtx(null);
+          setSel(null); setSelRow(null); setSelSet(new Set());
+          return;
         }
-        rightPan.current.active = false;
-        setConnectLine(null);
-        setMarquee(null);
-        setMenuOpen(false);
-        setModelOpen(false);
-        setGenPanelOpen(false);
-        setRefMax(null);
-        setGenConfirm(null);
-        if (ctx) setCtx(null);
-        setSel(null); setSelRow(null); setSelSet(new Set());
+        // Neutral canvas → leave. Asks save-or-discard when there's content.
+        requestClose();
         return;
       }
       const meta = e.ctrlKey || e.metaKey;
       if (meta && (e.key === "z" || e.key === "Z")) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
       if (meta && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
+        if (viewRef.current !== "node") return; // canvas-only shortcut
         const ae = document.activeElement as HTMLElement | null;
         // don't hijack deletes while typing in a field (token-delete etc.)
         if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
@@ -437,7 +532,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         else if (selRowRef.current) { e.preventDefault(); deleteRow(selRowRef.current); setSelRow(null); }
       }
     };
-    const onSpace = (e: KeyboardEvent) => { if (e.code === "Space") { const ae = document.activeElement as HTMLElement | null; if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return; spaceRef.current = e.type === "keydown"; } };
+    const onSpace = (e: KeyboardEvent) => { if (e.code === "Space") { if (viewRef.current !== "node") return; const ae = document.activeElement as HTMLElement | null; if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return; spaceRef.current = e.type === "keydown"; } };
     window.addEventListener("keydown", k);
     window.addEventListener("keydown", onSpace);
     window.addEventListener("keyup", onSpace);
@@ -475,6 +570,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   useEffect(() => {
     const el = canvasRef.current; if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      if (viewRef.current !== "node") return; // doc view scrolls normally
       e.preventDefault();
       const z = zoomRef.current, p = panRef.current;
       // Continuous, cursor-anchored zoom — magnitude follows the scroll delta
@@ -490,6 +586,27 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  /* While the editor is open, unconsumed HORIZONTAL wheel deltas anywhere on
+     the page (sidebar, toolbar, prompt column — not just the canvas) feed the
+     browser's back/forward swipe gesture: a node drag with a second finger on
+     the trackpad moved for a moment, then the "go back" bubble appeared.
+     overscroll-behavior alone didn't stop it, so the deltas are consumed here. */
+  useEffect(() => {
+    const stopNavSwipe = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      // Doc view: only the results strips legitimately scroll horizontally —
+      // everywhere else the delta would feed the browser's back/forward swipe
+      // and nuke unsaved work.
+      if (viewRef.current !== "node") {
+        const t = e.target as HTMLElement | null;
+        if (t && typeof t.closest === "function" && t.closest(".ncd-strip")) return;
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("wheel", stopNavSwipe, { passive: false });
+    return () => window.removeEventListener("wheel", stopNavSwipe);
   }, []);
   // Smooth, animated zoom toward a target level (cursor/center-anchored). The
   // % readout follows the animation frame-by-frame, so it ramps up/down too.
@@ -557,6 +674,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const refOverlap = Math.round(refStep - REF_CARD); // marginLeft for cards after the first (negative = overlap)
   const texts = st.nodes.filter((n) => n.type === "text") as TextNode[];
   const pubNames = new Set(texts.filter((t) => t.pub).map((t) => t.name)); // user-input vars → turquoise
+  // Chips render ONLY for tokens with a live backing node (text var by name,
+  // ref by index); orphaned tokens fall back to plain [bracketed] text.
+  const liveTokNames = new Set(texts.map((t) => t.name));
+  const liveRefCount = st.nodes.filter((n) => n.type === "ref").length;
   const outs = st.nodes.filter((n) => n.type === "output");
   // Can only generate once there's an actual prompt and every text var has a value.
   // Only a prompt is required to generate — unfilled variables just resolve to empty.
@@ -634,28 +755,50 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st.nodes]);
   const colorForTok = (tok: string) => {
-    if (isRefTok(tok)) return REF_COLOR;
+    if (isRefTok(tok)) {
+      const n = parseInt(tok.replace(/\D/g, ""), 10) || 1;
+      return REF_PALETTE[(n - 1) % REF_PALETTE.length];
+    }
     return textColor[tok.slice(1, -1)] || TEXT_PALETTE[0];
   };
 
   /* ── mutations ── */
   // Reference images live inside the prompt node as a reorderable deck (no canvas nodes).
   const refDrag = useRef<number | null>(null); // deck reorder: dragged card index
-  const addRef = (img: string | null = null) => commit((p) => ({
-    ...p, nodes: [...p.nodes, { id: nid("r"), type: "ref", img: img ?? null, userInput: false }],
-  }));
+  const addRef = (img: string | null = null) => commit((p) => {
+    const n = p.nodes.filter((x) => x.type === "ref").length + 1;
+    return {
+      ...p,
+      nodes: [...p.nodes, { id: nid("r"), type: "ref", img: img ?? null, userInput: false }],
+      // Every reference image is also listed in the prompt as its own token.
+      body: p.body.replace(/\s*$/, "") + (p.body.trim() ? " " : "") + "[Reference Image " + n + "]",
+    };
+  });
   const moveRef = (from: number, to: number) => commit((p) => {
     const refs = p.nodes.filter((n) => n.type === "ref");
     if (from === to || from < 0 || to < 0 || from >= refs.length || to >= refs.length) return p;
     const order = refs.slice(); const [m] = order.splice(from, 1); order.splice(to, 0, m);
-    return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order] };
+    // Tokens in the prompt follow their IMAGE through the reorder: old index →
+    // new index, swapped via temp markers so replacements can't collide.
+    let body = p.body;
+    order.forEach((r, newIdx) => {
+      const oldIdx = refs.findIndex((x) => x.id === r.id) + 1;
+      body = body.split("[Reference Image " + oldIdx + "]").join("[[REF_TMP_" + (newIdx + 1) + "]]");
+    });
+    order.forEach((_, newIdx) => {
+      body = body.split("[[REF_TMP_" + (newIdx + 1) + "]]").join("[Reference Image " + (newIdx + 1) + "]");
+    });
+    return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order], body };
   });
   const toggleRefUserInput = (id: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, userInput: !n.userInput } : n)) }));
-  const addText = (atPos?: { x: number; y: number }) => commit((p) => {
+  const addText = (atPos?: { x: number; y: number }, presetName?: string) => commit((p) => {
     const existing = p.nodes.filter((n) => n.type === "text");
     const k = existing.length + 1;
-    let name = "var_" + k; const used = new Set(existing.map((n) => n.name));
-    let kk = k; while (used.has(name)) { kk++; name = "var_" + kk; }
+    const used = new Set(existing.map((n) => n.name));
+    // presetName: the in-place token editor spawns the node for an already
+    // typed [token], so the node must carry exactly that name.
+    let name = presetName ?? "var_" + k;
+    if (!presetName) { let kk = k; while (used.has(name)) { kk++; name = "var_" + kk; } }
     const base = p.nodes.find((n) => n.id === "prompt")!;
     const d = NODE_DIM.text;
     // Drag-release drops it exactly there; otherwise text inputs stack
@@ -669,9 +812,153 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       y = existing.length ? Math.max(...existing.map((n) => n.y || 0)) + d.h + 14 : (base.y || 0);
     }
     const node: NodeT = { id: nid("t"), type: "text", x, y, name, kind: "text", pub: true, value: "" };
-    return { ...p, nodes: [...p.nodes, node], body: p.body.replace(/\s*$/, "") + " [" + name + "]" };
+    // A preset-named node backs an already TYPED token — don't append it again.
+    const tokenAlready = !!presetName && p.body.includes("[" + name + "]");
+    return { ...p, nodes: [...p.nodes, node], body: tokenAlready ? p.body : p.body.replace(/\s*$/, "") + " [" + name + "]" };
   });
   const allFilled = () => stRef.current.nodes.filter((n) => n.type === "text").every((t) => t.kind === "bool" || (t.value && t.value.trim()));
+
+  /* ── Chip drag & drop inside the prompt text ──
+     Click = open the in-place editor; drag (>6px) = move the token to a new
+     spot in the text. While dragging, the TEXTAREA CARET follows the pointer
+     (the drop position is always visible), and on drop the caret lands right
+     after the moved token. Works for text vars AND reference-image chips. */
+  const caretOffsetFromPoint = (x: number, y: number): number | null => {
+    const ov = ovRef.current; if (!ov) return null;
+    const doc = ov.ownerDocument as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    };
+    let node: Node | null = null, off = 0;
+    if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    else if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
+    if (!node || !ov.contains(node)) return null;
+    // Element hit (line gap): treat offset as child index → count text before it.
+    if (node.nodeType !== Node.TEXT_NODE) {
+      const el = node as Element;
+      node = el.childNodes[Math.min(off, el.childNodes.length - 1)] ?? el;
+      off = 0;
+    }
+    let total = 0;
+    const walker = doc.createTreeWalker(ov, NodeFilter.SHOW_TEXT);
+    let cur: Node | null;
+    while ((cur = walker.nextNode())) {
+      if (cur === node) return Math.min(total + off, stRef.current.body.length);
+      if (node.nodeType !== Node.TEXT_NODE && (node as Node).contains?.(cur)) return Math.min(total, stRef.current.body.length);
+      total += (cur.textContent || "").length;
+    }
+    return Math.min(total, stRef.current.body.length);
+  };
+
+  /** A drop must never land INSIDE another token — snap to the nearer edge. */
+  const snapOutsideTokens = (off: number): number => {
+    const body = stRef.current.body;
+    const re = new RegExp(TOKEN_RE.source, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) {
+      const s = m.index, e = s + m[0].length;
+      if (off > s && off < e) return off - s < e - off ? s : e;
+    }
+    return off;
+  };
+
+  /** The render-time offset can be stale (fast successive drags land before a
+      re-render). Re-locate the dragged token in the LIVE body — exact slice
+      match first, else the occurrence nearest the remembered position. A
+      splice must never run on guessed offsets: that's how brackets of OTHER
+      tokens got cut and chips fell apart. */
+  const locateTok = (part: string, near: number): number | null => {
+    const body = stRef.current.body;
+    if (body.slice(near, near + part.length) === part) return near;
+    let best: number | null = null;
+    for (let i = body.indexOf(part); i !== -1; i = body.indexOf(part, i + 1)) {
+      if (best === null || Math.abs(i - near) < Math.abs(best - near)) best = i;
+    }
+    return best;
+  };
+
+  const tokDrag = useRef<{ started: boolean } | null>(null);
+  const beginTokPointer = (part: string, renderStart: number, e: React.PointerEvent<HTMLElement>) => {
+    e.stopPropagation(); e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    const sx = e.clientX, sy = e.clientY;
+    let ghost: HTMLElement | null = null;
+    tokDrag.current = { started: false };
+    const ov = ovRef.current;
+    const onMove = (ev: PointerEvent) => {
+      const d = tokDrag.current; if (!d) return;
+      if (!d.started) {
+        if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 6) return;
+        d.started = true;
+        if (ov) {
+          ov.style.pointerEvents = "auto"; // caret hit-testing everywhere
+          ov.classList.add("nc-dragging"); // suppress hover paint on other chips
+        }
+        el.classList.add("nc-tok-src"); // highlight WHICH chip is being moved
+        ghost = el.cloneNode(true) as HTMLElement;
+        ghost.style.cssText += ";position:fixed;z-index:2000;pointer-events:none;opacity:.9;";
+        document.body.appendChild(ghost);
+      }
+      if (ghost) { ghost.style.left = ev.clientX + 10 + "px"; ghost.style.top = ev.clientY + 12 + "px"; }
+      const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
+      if (off != null) {
+        const snapped = snapOutsideTokens(off);
+        const ta = taRef.current;
+        if (ta) { ta.focus(); ta.setSelectionRange(snapped, snapped); } // caret follows the drag
+      }
+    };
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const d = tokDrag.current; tokDrag.current = null;
+      ghost?.remove();
+      el.classList.remove("nc-tok-src");
+      if (ov) { ov.style.pointerEvents = ""; ov.classList.remove("nc-dragging"); }
+      if (!d) return;
+      if (!d.started) {
+        // plain click: text vars open the editor; ref chips have nothing to edit
+        if (!isRefTok(part)) openTokEdit(part, el);
+        return;
+      }
+      const start = locateTok(part, renderStart);
+      if (start === null) return; // token vanished — never splice blindly
+      const end = start + part.length;
+      const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
+      if (off == null) return;
+      const target = snapOutsideTokens(off);
+      if (target >= start && target <= end) return; // dropped onto itself
+      pushHist();
+      const adjusted = target > end ? target - (end - start) : target;
+      setSt((p) => {
+        // Guard again inside the updater — p.body is the source of truth.
+        if (p.body.slice(start, end) !== part) return p;
+        const without = p.body.slice(0, start) + p.body.slice(end);
+        return { ...p, body: without.slice(0, adjusted) + part + without.slice(adjusted) };
+      });
+      requestAnimationFrame(() => {
+        const ta = taRef.current;
+        if (ta) { ta.focus(); ta.setSelectionRange(adjusted + part.length, adjusted + part.length); }
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  /* ── In-place token editing (click a chip in the prompt) ── */
+  const openTokEdit = (tok: string, el: HTMLElement) => {
+    const name = tok.slice(1, -1);
+    // No input node for this token yet (typed by hand)? Spawn it silently so
+    // the value has somewhere to live — same as dragging one off the port.
+    if (!stRef.current.nodes.some((n) => n.type === "text" && n.name === name)) {
+      addText(undefined, name);
+    } else {
+      pushHist(); // one undo step per edit session
+    }
+    const r = el.getBoundingClientRect();
+    setTokEdit({ name, rect: { left: r.left, right: r.right, top: r.top, bottom: r.bottom } });
+  };
+  const setTokValue = (name: string, v: string) =>
+    setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.type === "text" && n.name === name ? { ...n, value: v } : n)) }));
 
   // Add an empty output slot; Generate fills every empty slot at once.
   // With a drop position it sits exactly there (free); otherwise it joins the current row.
@@ -710,12 +997,18 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   /* ▶ generate → new output in the current constellation row.
      Never reassigns/removes an empty slot that belongs to a DIFFERENT prompt
      composition — those are left alone and offered via a co-generate dialog. */
-  const spawnOutput = () => {
+  const spawnOutput = (autofill?: boolean) => {
     if (!stRef.current.body.trim()) return;
-    const tx = stRef.current.nodes.filter((n) => n.type === "text") as TextNode[];
+    // strict check: node-view buttons pass the click event as the first arg
+    const wantsAutofill = autofill === true;
+    const baseTx = stRef.current.nodes.filter((n) => n.type === "text") as TextNode[];
+    const rv = wantsAutofill ? randVals(baseTx) : null;
+    const tx: TextNode[] = rv ? baseTx.map((t) => ({ ...t, value: rv["[" + t.name + "]"] ?? t.value })) : baseTx;
     const body = stRef.current.body;
     const vals: Record<string, string> = {}; tx.forEach((t) => { vals["[" + t.name + "]"] = t.value; });
     const finalPrompt = buildPrompt(body, tx, vals);
+    // Mirror the AI-filled values into the editor vars, like runGenerate does.
+    const withFill = (nodes: NodeT[]) => (rv ? nodes.map((n) => (n.type === "text" ? { ...n, value: rv["[" + n.name + "]"] ?? n.value } : n)) : nodes);
     const sig = sigOf(body, tx);
     // empties belonging to THIS composition (or sig-less) → fill them now.
     const mine = stRef.current.nodes.filter((n) => n.type === "output" && n.status === "empty" && (!n.sig || n.sig === sig));
@@ -727,7 +1020,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => {
         let cons = (p.cons || []).slice(); let conSeq = p.conSeq || 0;
         if (!cons.some((c) => c.sig === sig)) { cons = [{ sig, body: p.body, cidx: conSeq }, ...cons]; conSeq += 1; }
-        return { ...p, cons, conSeq, nodes: p.nodes.map((n) => (ids.includes(n.id) ? { ...n, sig, vals, status: "loading" } : n)) };
+        return { ...p, cons, conSeq, nodes: withFill(p.nodes).map((n) => (ids.includes(n.id) ? { ...n, sig, vals, status: "loading" } : n)) };
       });
       ids.forEach((id) => finalizeOutput(id, finalPrompt));
     } else {
@@ -735,7 +1028,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => {
         let cons = (p.cons || []).slice(); let conSeq = p.conSeq || 0;
         if (!cons.some((c) => c.sig === sig)) { cons = [{ sig, body: p.body, cidx: conSeq }, ...cons]; conSeq += 1; }
-        return { ...p, cons, conSeq, nodes: [...p.nodes, { id: oid, type: "output", sig, vals, img: null, status: "loading", picked: false }] };
+        return { ...p, cons, conSeq, nodes: [...withFill(p.nodes), { id: oid, type: "output", sig, vals, img: null, status: "loading", picked: false }] };
       });
       setPulseId(oid); setTimeout(() => setPulseId((v) => (v === oid ? null : v)), 2800);
       finalizeOutput(oid, finalPrompt);
@@ -744,6 +1037,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   };
   // Co-generate dialog: which leftover empty slots (from other settings) to also run.
   const [genConfirm, setGenConfirm] = useState<{ ids: string[]; checked: Set<string> } | null>(null);
+  // Mirror of "something is open/in progress" for the ESC handler (whose deps
+  // are deliberately narrow) — busy ESC cancels; neutral ESC starts the close flow.
+  const escBusyRef = useRef(false);
+  useEffect(() => {
+    escBusyRef.current = !!(connectLine || marquee || menuOpen || modelOpen || refMax || genConfirm);
+  }, [connectLine, marquee, menuOpen, modelOpen, refMax, genConfirm]);
   const confirmCoGen = () => {
     if (!genConfirm) return;
     const ids = [...genConfirm.checked];
@@ -788,8 +1087,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (!node || node.type === "prompt") return p;
     const nodes = p.nodes.filter((n) => n.id !== id);
     let body = p.body;
-    // Reference images are a deck inside the prompt (no body token); text vars still drop their token.
     if (node.type === "text") body = body.split("[" + node.name + "]").join("").replace(/\s{2,}/g, " ").trim();
+    if (node.type === "ref") {
+      // Drop the deleted image's token and renumber the ones behind it.
+      const refs = p.nodes.filter((n) => n.type === "ref");
+      const k = refs.findIndex((r) => r.id === id) + 1;
+      if (k > 0) {
+        body = body.split("[Reference Image " + k + "]").join("");
+        for (let m = k + 1; m <= refs.length; m++) {
+          body = body.split("[Reference Image " + m + "]").join("[Reference Image " + (m - 1) + "]");
+        }
+        body = body.replace(/\s{2,}/g, " ").trim();
+      }
+    }
     return { ...p, nodes, body };
   });
 
@@ -803,9 +1113,26 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const renameText = (id: string, newName: string) => setSt((p) => {
     const node = p.nodes.find((n) => n.id === id); if (!node) return p;
     const clean = newName.replace(/[[\]\n]/g, "");
+    // "" would leave an unmatchable "[]" token (invisible, unrecoverable card);
+    // a name collision would stack two cards on one token and starve the
+    // second variable in buildPrompt — both renames are simply ignored.
+    if (!clean.trim()) return p;
+    if (p.nodes.some((n) => n.type === "text" && n.id !== id && n.name === clean)) return p;
     const body = p.body.split("[" + node.name + "]").join("[" + clean + "]");
     return { ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, name: clean } : n)), body };
   });
+  const patchText = (id: string, patch: Partial<NodeT>) =>
+    setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
+  // Switching the type NEVER loses content: the text value moves into the
+  // checkbox snippet (str) and back. Shared by the node cards and the doc rail.
+  const setTextKind = (id: string, kind: Kind) => setSt((p) => ({
+    ...p,
+    nodes: p.nodes.map((n) => {
+      if (n.id !== id) return n;
+      if (kind === "text") return { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value };
+      return { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false };
+    }),
+  }));
 
   /* delete-key two-press on prompt tokens */
   const tokenAtCaret = () => {
@@ -831,7 +1158,33 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const present = new Set<string>();
     const re = /\[([^\]\n]+)\]/g; let m: RegExpExecArray | null;
     while ((m = re.exec(val)) !== null) present.add(m[1]);
-    const nodes = p.nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+    const existingNames = p.nodes.filter((n) => n.type === "text").map((n) => n.name || "");
+    const removed = existingNames.filter((n) => !present.has(n));
+    const added = [...present].filter((n) => !existingNames.includes(n));
+    let nodes = p.nodes;
+    if (removed.length === 1 && added.length === 1) {
+      // Editing a token's name INSIDE the prompt ([var_6] → [var_x]) is a
+      // RENAME: the input node keeps its position, value and settings — it
+      // just carries the new name. (Deleting it and spawning a fresh node at
+      // the bottom was the old, wrong behavior.)
+      nodes = nodes.map((n) => (n.type === "text" && n.name === removed[0] ? { ...n, name: added[0] } : n));
+    } else {
+      nodes = nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+      // Typing [brackets] CREATES the variable (both editors promise it) —
+      // otherwise the literal token would leak into the generated prompt.
+      const toAdd = added.filter((n) => n.trim() && !/^Reference Image \d+$/.test(n));
+      if (toAdd.length) {
+        const base = nodes.find((n) => n.id === "prompt")!;
+        const dim = NODE_DIM.text;
+        let texts = nodes.filter((n) => n.type === "text");
+        for (const name of toAdd) {
+          const y = texts.length ? Math.max(...texts.map((n) => n.y || 0)) + dim.h + 14 : (base.y || 0);
+          const node: NodeT = { id: nid("t"), type: "text", x: (base.x || 0) - dim.w - 80, y, name, kind: "text", pub: true, value: "" };
+          nodes = [...nodes, node];
+          texts = [...texts, node];
+        }
+      }
+    }
     return { ...p, body: val, nodes };
   });
 
@@ -878,6 +1231,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (ready.length < need) { onToast("Generate " + need + " example" + (need > 1 ? "s" : "") + " first — fill variables and click ▶ on the prompt (" + ready.length + "/" + need + ")"); return; }
     if (picked.length < need) { onToast("Select " + need + " output" + (need > 1 ? "s" : "") + " to publish — tap the ★ on the ones you want shown (" + picked.length + "/" + need + ")"); return; }
     onToast(picked.length + " selected output" + (picked.length > 1 ? "s" : "") + " published · prompt released to marketplace");
+    clearDraft(); // released — a stale draft must not resurrect the old graph
     onClose();
   };
 
@@ -1007,7 +1361,21 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const addRefsFromFiles = async (fileList: FileList | null) => {
     const urls = await readImages(fileList);
     if (!urls.length) return;
-    commit((p) => ({ ...p, nodes: [...p.nodes, ...urls.map((u) => ({ id: nid("r"), type: "ref", img: u, userInput: false } as NodeT))] }));
+    // Per-model cap from the models table (max_reference_images).
+    const current = stRef.current.nodes.filter((n) => n.type === "ref").length;
+    const room = Math.max(0, modelLimits.maxRefs - current);
+    if (room <= 0) { onToast(`${st.models[0]} allows at most ${modelLimits.maxRefs} reference images`); return; }
+    if (urls.length > room) onToast(`Only ${room} more reference image${room === 1 ? "" : "s"} fit (${modelLimits.maxRefs} max for this model)`);
+    const take = urls.slice(0, room);
+    commit((p) => {
+      const base = p.nodes.filter((x) => x.type === "ref").length;
+      const tokens = take.map((_, i) => "[Reference Image " + (base + i + 1) + "]").join(" ");
+      return {
+        ...p,
+        nodes: [...p.nodes, ...take.map((u) => ({ id: nid("r"), type: "ref", img: u, userInput: false } as NodeT))],
+        body: p.body.replace(/\s*$/, "") + (p.body.trim() ? " " : "") + tokens,
+      };
+    });
   };
   // Drop anywhere on the canvas: fill empty reference nodes first, then add new ones.
   const onCanvasDrop = async (e: React.DragEvent) => {
@@ -1057,9 +1425,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   return (
     <div className="nc" onDrop={onCanvasDrop} onDragOver={(e) => { if (!e.dataTransfer.types.includes("Files")) return; e.preventDefault(); setDropOn(true); }} onDragLeave={(e) => { if (e.currentTarget === e.target) setDropOn(false); }}>
-      {/* canvas */}
+      {/* canvas — stays MOUNTED in doc view (display:none) so pan/zoom and the
+          wheel-handler wiring survive an instant view switch */}
       <div ref={canvasRef} className={"nc-canvas" + (panning ? " panning" : "") + (tool === "hand" ? " hand" : "")}
-        style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px` }}
+        style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px`, display: view === "node" ? undefined : "none" }}
         onPointerDown={startPan}
         onContextMenu={(e) => { e.preventDefault(); if (rightPan.current.moved) { rightPan.current.moved = false; return; } setCtx({ x: e.clientX, y: e.clientY, wx: (e.clientX - sidebarWRef.current - pan.x) / zoom, wy: (e.clientY - pan.y) / zoom }); }}>
         <div className="nc-world" style={{ transform: "translate(" + pan.x + "px," + pan.y + "px) scale(" + zoom + ")" }}>
@@ -1087,6 +1456,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <div className="nc-nhead" style={{ background: "color-mix(in oklab, var(--enki-ember) 16%, transparent)" }} onPointerDown={(e) => startNodeDrag("prompt", e)}>
               <span className="nc-ndot" style={{ background: "var(--enki-ember)" }} />
               <EditName className="nc-ribbon-title" value={st.title} onChange={(v) => setSt((p) => ({ ...p, title: v }))} placeholder="Write prompt title…" />
+              {/* per-window doc access: jump straight into the doc editor */}
+              <button className="nc-nhead-doc" title="Open this prompt in the Doc editor" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); switchView("doc"); }}>
+                <Icon name="filetext" size={13} stroke={2} />
+              </button>
               <div className={"nc-pm" + (modelFlipUp ? " nc-pm--up" : "")} onPointerDown={(e) => e.stopPropagation()}>
                 <button ref={modelTrigRef} className={"nc-pm-trigger" + (modelOpen ? " open" : "")} title="Model used for this prompt — price shown is the production cost"
                   onClick={(e) => { e.stopPropagation(); if (!modelOpen) { const r = modelTrigRef.current?.getBoundingClientRect(); const ph = NC_MODELS.length * 38 + 16; if (r) setModelFlipUp(window.innerHeight - r.bottom < ph + 14 && r.top > ph + 14); } setModelOpen((o) => !o); }}>
@@ -1138,15 +1511,46 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                     </div>
                   ); })}
                   <button className="nc-refadd" style={{ marginLeft: REF_GAP }} title="Upload reference images" onClick={() => refUploadRef.current?.click()}>+</button>
-                  <input ref={refUploadRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
+                  <input ref={refUploadRef} type="file" accept={modelLimits.accept} multiple style={{ display: "none" }} onChange={(e) => { addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
                 </div>
               </div>
               <div className="nc-pbox">
-                <div className="nc-pov" ref={ovRef} aria-hidden="true">
-                  {st.body.split(TOKEN_RE).map((part, i) => {
-                    if (/^\[[^\]\n]+\]$/.test(part)) { const c = colorForTok(part); const isPub = pubNames.has(part.slice(1, -1)); return <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "")} style={{ background: c.bg, color: c.text, boxShadow: isPub ? "inset 0 0 0 1px " + c.border + ", 0 0 0 2.5px var(--enki-turq)" : "inset 0 0 0 1px " + c.border }}>{part}</span>; }
-                    return <span key={i}>{part}</span>;
-                  })}{"\n"}
+                <div className="nc-pov" ref={ovRef}>
+                  {(() => {
+                    const parts = st.body.split(TOKEN_RE);
+                    let charAt = 0;
+                    return parts.map((part, i) => {
+                      const start = charAt;
+                      charAt += part.length;
+                      if (!/^\[[^\]\n]+\]$/.test(part)) return <span key={i}>{part}</span>;
+                      const name = part.slice(1, -1);
+                      const ref = isRefTok(part);
+                      const refN = ref ? parseInt(part.replace(/\D/g, ""), 10) : 0;
+                      // Orphaned token (variable was deleted) → the raw
+                      // [bracketed] text comes back, no chip.
+                      const alive = ref ? refN >= 1 && refN <= liveRefCount : liveTokNames.has(name);
+                      if (!alive) return <span key={i}>{part}</span>;
+                      const c = colorForTok(part); const isPub = pubNames.has(name);
+                      const tokStyle = {
+                        "--tok-bg": c.bg,
+                        "--tok-ring": isPub
+                          ? "inset 0 0 0 1px " + c.border + ", 0 0 0 2px var(--enki-turq)"
+                          : "inset 0 0 0 1px " + c.border,
+                        color: c.text,
+                      } as React.CSSProperties;
+                      return (
+                        <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "")}
+                          style={tokStyle}
+                          title={ref ? "Drag to move this image reference in the text" : "Click to edit · drag to move"}
+                          onPointerDown={(e) => beginTokPointer(part, start, e)}
+                        >
+                          {/* Brackets stay in the DOM (glyph layout must match the
+                              textarea exactly) but are painted invisible. */}
+                          <span className="nc-tok-br">[</span>{name}<span className="nc-tok-br">]</span>
+                        </span>
+                      );
+                    });
+                  })()}{"\n"}
                 </div>
                 <textarea ref={taRef} className="nc-pta" value={st.body} style={{ minHeight: boxH.current }}
                   placeholder="Describe the image you want to sell as a prompt…"
@@ -1162,7 +1566,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.quality} width={88} title="Quality · does not affect grouping"
                     options={NC_QUALITIES.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                 </div>
-                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={spawnOutput}>
+                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={() => spawnOutput()}>
                   <span className="nc-genbtn-top"><Icon name="sparkles" size={14} stroke={2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
                   <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
                 </button>
@@ -1196,8 +1600,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </div>
               <div className="nc-nbody">
                 <div className="nc-vtoggle">
-                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text" } : n)) }))}>Text</button>
-                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", value: n.value === "Yes" || n.value === "on" ? "on" : "off" } : n)) }))}>Checkbox</button>
+                  <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setTextKind(t.id, "text")}>Text</button>
+                  <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setTextKind(t.id, "bool")}>Checkbox</button>
                 </div>
                 {t.kind === "text" ? (
                   <textarea className="nc-vin nc-varea" placeholder={"Default value · e.g. " + t.name} value={t.value} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
@@ -1209,9 +1613,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                     </label>
                   </>
                 )}
-                <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
+                {/* Only TEXT variables can be public — checkbox vars are helper vars. */}
+                {t.kind === "text" && <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
                   <span className={"nc-chk-box" + (t.pub ? " on" : "")}>{t.pub && <Icon name="check" size={11} stroke={3} />}</span> Publicly visible (user input)
-                </label>
+                </label>}
               </div>
               <span className="nc-port" style={{ right: -7.5, top: 22.5, background: c.dot }} />
             </div>
@@ -1304,7 +1709,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
       {/* edge arrows — point to image groups that are scrolled off-screen;
           click to glide the view onto that group */}
-      {(() => {
+      {view === "node" && (() => {
         const W = vp.w - sidebarW, H = vp.h, M = 32;
         return layout.frames.filter((f) => f.count > 0).map((f) => {
           const scx = (f.x + f.w / 2) * zoom + pan.x, scy = (f.y + 150) * zoom + pan.y;
@@ -1324,10 +1729,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         });
       })()}
 
-      {/* tool group — top-right, separate from the prompt-settings bar */}
+      {/* tool group — top-right; SAME bar in both views (undo/redo/menu), the
+          canvas-only zoom + tool cluster hides while the doc is up */}
       <div className="nc-toolbar">
         <button className="nc-iconbtn" onClick={undo} disabled={!hist.current.past.length} title="Undo"><Icon name="undo" size={15} stroke={2} /></button>
         <button className="nc-iconbtn" onClick={redo} disabled={!hist.current.future.length} title="Redo"><Icon name="redo" size={15} stroke={2} /></button>
+        {view === "node" && <>
         <span className="nc-rb-div" />
         <button className="nc-iconbtn" onClick={() => tweenZoom(zoomRef.current / 1.25)} disabled={zoom <= 0.3} title="Zoom out">−</button>
         {zoomEditing ? (
@@ -1339,12 +1746,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           <span className="nc-zoomval" title="Click to type a zoom level" onClick={() => { setZoomInput(String(Math.round(zoom * 100))); setZoomEditing(true); }}>{Math.round(zoom * 100)}%</span>
         )}
         <button className="nc-iconbtn" onClick={() => tweenZoom(zoomRef.current * 1.25)} disabled={zoom >= 1} title="Zoom in">+</button>
+        </>}
         {mockMode && <button className="nc-mock-chip" title="Mock-up mode is on — Generate produces instant placeholder images. Click to turn off." onClick={() => setMockMode(false)}><Icon name="wand" size={12} stroke={2.2} /> Mock-up</button>}
+        {view === "node" && <>
         <span className="nc-rb-div" />
         <div className="nc-toolseg" role="group" aria-label="Canvas tool">
           <button className={tool === "select" ? "on" : ""} title="Select tool — left-drag moves the view, Ctrl+left-drag marquee-selects, right-drag also moves" onClick={() => setTool("select")}><Icon name="cursor" size={15} stroke={2} /></button>
           <button className={tool === "hand" ? "on" : ""} title="Hand tool — drag anywhere to move the view" onClick={() => setTool("hand")}><Icon name="hand" size={15} stroke={2} /></button>
         </div>
+        </>}
         <span className="nc-rb-div" />
         <div className="nc-menu-wrap">
           <button className={"nc-iconbtn" + (menuOpen ? " on" : "")} onClick={() => setMenuOpen((o) => !o)} title="Menu" aria-haspopup="menu" aria-expanded={menuOpen}><Icon name="menu" size={17} stroke={2} /></button>
@@ -1352,6 +1762,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <>
               <div className="nc-menu-scrim" onPointerDown={() => setMenuOpen(false)} />
               <div className="nc-menu" role="menu">
+                <button className="nc-menu-item" role="menuitem" onClick={() => { setMenuOpen(false); switchView(view === "doc" ? "node" : "doc"); }}>
+                  <Icon name={view === "doc" ? "grid" : "filetext"} size={15} stroke={2} /> {view === "doc" ? "Node view" : "Doc view"}
+                </button>
+                <div className="nc-menu-sep" />
                 <button className={"nc-menu-item nc-menu-toggle" + (mockMode ? " on" : "")} role="menuitemcheckbox" aria-checked={mockMode} onClick={() => setMockMode((v) => !v)}>
                   <Icon name="wand" size={15} stroke={2} /> <span className="nc-menu-grow">Mock-up mode</span>
                   <span className="nc-menu-state">{mockMode ? "On" : "Off"}</span>
@@ -1360,7 +1774,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                 <button className="nc-menu-item" role="menuitem" onClick={exportPrompt}><Icon name="download" size={15} stroke={2} /> Export prompt as JSON</button>
                 <button className="nc-menu-item" role="menuitem" onClick={importPrompt}><Icon name="upload" size={15} stroke={2} /> Import prompt JSON</button>
                 <div className="nc-menu-sep" />
-                <button className="nc-menu-item" role="menuitem" onClick={onClose}><Icon name="x" size={15} stroke={2} /> Close editor</button>
+                <button className="nc-menu-item" role="menuitem" onClick={() => { setMenuOpen(false); requestClose(); }}><Icon name="x" size={15} stroke={2} /> Close editor</button>
               </div>
             </>
           )}
@@ -1368,8 +1782,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={onImportFile} />
       </div>
 
-      {/* Generate panel — flush to the top-right frame edge, in line with the toolbar */}
-      <div className="nc-gp" role="dialog">
+      {/* Generate panel — flush to the top-right frame edge, in line with the
+          toolbar. Node view only: the doc view carries its own generate bar +
+          results/release column. */}
+      {view === "node" && <div className="nc-gp" role="dialog">
         <div className="nc-gp-row">
           <span className="nc-gp-lab">{imgCount} image{imgCount > 1 ? "s" : ""}</span>
           <span className="nc-gp-cost">${cost.toFixed(2)}</span>
@@ -1407,13 +1823,21 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           <Icon name="sparkles" size={12} stroke={2} fill="var(--cta-ink)" /> Release{pickedOuts.length ? " " + pickedOuts.length : ""}
         </button>
         {!canRelease && <div className="nc-gp-need">{st.mode === "free" ? "Pick ≥ 1 image" : "Pick ≥ 4 (" + pickedOuts.length + "/4)"}</div>}
-      </div>
+      </div>}
 
-      {/* prompt-settings ribbon (top-left) */}
+      {/* prompt-settings ribbon (top-left) — the SHARED header: identical in
+          doc and node view, incl. the view switch itself */}
       <div className="nc-ribbon">
         <div className="nc-rb-cell">
           <span className="nc-rb-lab">Title</span>
           <input className="nc-rb-input" value={st.title} onChange={(e) => setSt((p) => ({ ...p, title: e.target.value }))} placeholder="Write prompt title…" />
+        </div>
+        <div className="nc-rb-cell">
+          <span className="nc-rb-lab">View</span>
+          <div className="ce-seg nc-viewseg" role="group" aria-label="Editor view">
+            <button type="button" className={view === "doc" ? "active" : ""} title="Doc view — edit your prompt like a document" onClick={() => switchView("doc")}><Icon name="filetext" size={12} stroke={2.2} /> Doc</button>
+            <button type="button" className={view === "node" ? "active" : ""} title="Node view — the full prompt graph on a canvas" onClick={() => switchView("node")}><Icon name="grid" size={12} stroke={2.2} /> Nodes</button>
+          </div>
         </div>
         <div className="nc-rb-cell">
           <span className="nc-rb-lab">Prompt type</span>
@@ -1434,7 +1858,31 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             options={NC_RATIOS.map((r) => ({ value: r, label: r }))}
             onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
         </div>
+        <div className="nc-rb-cell" style={{ opacity: st.mode === "premium" ? 1 : 0.35, transition: "opacity .15s" }}>
+          <span className="nc-rb-lab">Price · render</span>
+          <div className="nc-rb-price" title={st.mode === "premium" ? "What a buyer pays you per render" : "Price applies in Premium mode only"}>
+            <span>$</span>
+            <input type="number" step={0.01} min={0} value={st.price} disabled={st.mode !== "premium"}
+              onChange={(e) => setSt((p) => ({ ...p, price: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+          </div>
+        </div>
       </div>
+
+      {/* doc-style editing view (shares st with the canvas 1:1) */}
+      {view === "doc" && (
+        <DocView api={{
+          st, texts, refs, outs, cons: st.cons, curSig, liveTokNames, liveRefCount, pubNames,
+          colorForTok, palOf, perImage, canGenerate, pickedOuts, releaseMin, canRelease,
+          modelAccept: modelLimits.accept,
+          onBodyChange, pushHist, addText, patchText, setTextKind, renameText, deleteNodeId,
+          addRefsFromFiles, onRefFiles, toggleRefUserInput, setRefMax,
+          spawnOutput, togglePick, release, openLightbox,
+          setModel: (id) => setSt((p) => ({ ...p, models: [id] })),
+          setRatio: (v) => setSt((p) => ({ ...p, ratio: v })),
+          setQuality: (v) => setSt((p) => ({ ...p, quality: v })),
+          onToast, switchView,
+        }} />
+      )}
 
       {/* context menu */}
       {ctx && (
@@ -1448,7 +1896,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         <div className="nc-marquee" style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }} />
       )}
 
-      {tipOpen ? (
+      {view !== "node" ? null : tipOpen ? (
         <div className="nc-help">
           <button className="nc-help-x" onClick={() => setTipOpen(false)} title="Hide tip" aria-label="Hide tip">‹</button>
           <b>Tip:</b> right-click the canvas to add nodes · drag images onto the prompt · press <b>Delete</b> on a colored token to remove its variable.
@@ -1549,6 +1997,109 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           </div>
         );
       })(), portalRoot)}
+
+      {/* In-place variable editor — anchored beside the clicked chip (left when
+          space allows, right otherwise; clamped to the viewport → responsive).
+          SAME UI as the input node card on the canvas: rename, Text/Checkbox
+          toggle, value, "Checked by default", "Publicly visible". Both edit the
+          same node state, so the card on the left mirrors every change live. */}
+      {tokEdit && portalRoot && createPortal((() => {
+        const t = st.nodes.find((n) => n.type === "text" && n.name === tokEdit.name);
+        if (!t) return null;
+        const c = colorForTok("[" + tokEdit.name + "]");
+        const W = 260;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const left = tokEdit.rect.left - W - 10 >= 8
+          ? tokEdit.rect.left - W - 10
+          : Math.max(8, Math.min(tokEdit.rect.right + 10, vw - W - 8));
+        const top = Math.max(8, Math.min(tokEdit.rect.top - 10, vh - 230));
+        return (
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 1394 }} onPointerDown={() => setTokEdit(null)} />
+            <div
+              style={{
+                position: "fixed", left, top, width: W, zIndex: 1395,
+                background: "var(--enki-paper-2)", border: "1px solid " + c.border,
+                borderRadius: 12, boxShadow: "0 14px 36px rgba(0,0,0,0.28)", padding: "10px 12px",
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") setTokEdit(null); }}
+            >
+              {/* head — same as the node card: colored dot + renameable name */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: c.bg, boxShadow: "inset 0 0 0 1px " + c.border, flexShrink: 0 }} />
+                <EditName
+                  className="nc-ntitle"
+                  value={t.name || ""}
+                  onChange={(v) => {
+                    const clean = v.replace(/[[\]\n]/g, "");
+                    if (!clean) return;
+                    renameText(t.id, clean);
+                    setTokEdit((prev) => (prev ? { ...prev, name: clean } : prev));
+                  }}
+                  placeholder={t.name}
+                  title={`Double-click to change the name of "${t.name}"`}
+                />
+              </div>
+              {/* body — identical controls to the canvas card */}
+              <div className="nc-vtoggle">
+                <button className={t.kind === "text" ? "active" : ""} title="Text — the user types their own words" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "text", value: n.value === "on" || n.value === "off" || n.value === "Yes" ? (n.str || "") : n.value } : n)) }))}>Text</button>
+                <button className={t.kind === "bool" ? "active" : ""} title="Checkbox — the user just toggles this detail on or off (no typing)" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, kind: "bool", str: n.str && n.str.trim() ? n.str : n.value, value: n.value === "off" ? "off" : "on", pub: false } : n)) }))}>Checkbox</button>
+              </div>
+              {t.kind === "text" ? (
+                <textarea autoFocus className="nc-vin nc-varea" placeholder={"Default value · e.g. " + t.name} value={t.value} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
+              ) : (
+                <>
+                  <textarea autoFocus className="nc-vin nc-varea" placeholder={"Prompt added when checked · e.g. " + t.name} value={t.str || ""} onChange={(e) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, str: e.target.value } : n)) }))} onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
+                  <label className="nc-chk" title="Default state of the checkbox the user will see" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, value: n.value === "on" || n.value === "Yes" ? "off" : "on" } : n)) }))}>
+                    <span className={"nc-chk-box" + (t.value === "on" || t.value === "Yes" ? " on" : "")}>{(t.value === "on" || t.value === "Yes") && <Icon name="check" size={11} stroke={3} />}</span> Checked by default
+                  </label>
+                </>
+              )}
+              {/* Only TEXT variables can be public — checkbox vars are helper vars. */}
+              {t.kind === "text" && <label className="nc-chk" onClick={() => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === t.id ? { ...n, pub: !n.pub } : n)) }))}>
+                <span className={"nc-chk-box" + (t.pub ? " on" : "")}>{t.pub && <Icon name="check" size={11} stroke={3} />}</span> Publicly visible (user input)
+              </label>}
+            </div>
+          </>
+        );
+      })(), portalRoot)}
+
+      {closeConfirm && portalRoot && createPortal(
+        <div className="ek-modal-scrim" onClick={() => setCloseConfirm(false)} style={{ zIndex: 1400 }}>
+          <div className="ek-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="ek-modal-head">
+              <span className="ek-sheet-bolt"><Icon name="sparkles" size={17} stroke={2} /></span>
+              <span className="ek-modal-title">Keep your work?</span>
+              <button className="ek-modal-x" onClick={() => setCloseConfirm(false)}><Icon name="x" size={17} stroke={2} /></button>
+            </div>
+            <div className="ek-modal-body">
+              <p style={{ fontSize: 13.5, color: "var(--enki-ink-3)", lineHeight: 1.55, marginBottom: 18 }}>
+                You have unsaved changes in this prompt. Save them as a draft in your browser —
+                it&apos;ll be right here next time — or throw them away.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button className="ek-btn" style={{ minHeight: 44 }} onClick={saveDraftAndClose}>
+                  <Icon name="check" size={15} stroke={2} /> Save draft & leave
+                </button>
+                <button
+                  onClick={discardAndClose}
+                  style={{ minHeight: 44, borderRadius: 10, border: "1px solid var(--enki-rule)", background: "transparent", color: "#e0392b", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Discard changes
+                </button>
+                <button
+                  onClick={() => setCloseConfirm(false)}
+                  style={{ minHeight: 36, border: "none", background: "transparent", color: "var(--enki-ink-3)", fontSize: 12.5, cursor: "pointer" }}
+                >
+                  Keep editing
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        portalRoot
+      )}
     </div>
   );
 }

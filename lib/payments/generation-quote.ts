@@ -17,11 +17,18 @@ import {
   usdToMicro,
   type GenerationSplit,
 } from "@/lib/payments/generation-pricing";
+import {
+  applyRuleToSplit,
+  resolvePricingRule,
+  type AppliedRule,
+} from "@/lib/payments/pricing-rules";
 
 export interface QuoteInput {
   promptId: string;
   modelFamily: string;
   resolution?: "2K" | "4K";
+  /** requireAuth's userId (wallet or users.id) — enables DB pricing rules. */
+  buyer?: string;
 }
 
 export type QuoteResult =
@@ -30,17 +37,21 @@ export type QuoteResult =
       /** null for free prompts — the split then has no artist leg. */
       artistWallet: string | null;
       split: GenerationSplit;
+      /** DB pricing rule that discounted this quote, if any. */
+      appliedRule: AppliedRule | null;
     }
   | { ok: false; status: 400 | 404 | 422 | 500; error: string };
 
 export async function computeQuote(
   supabase: SupabaseClient,
-  { promptId, modelFamily, resolution }: QuoteInput,
+  { promptId, modelFamily, resolution, buyer }: QuoteInput,
 ): Promise<QuoteResult> {
   // 1. Prompt price comes from the DB — never from the client.
+  //    Live schema (verified 2026-07-12): prompts has creator_id +
+  //    price_usd_cents — NOT user_id/price as older code assumed.
   const { data: prompt, error: promptError } = await supabase
     .from("prompts")
-    .select("id, price, user_id, prompt_type, is_free_showcase")
+    .select("id, price_usd_cents, creator_id, prompt_type, is_free_showcase")
     .eq("id", promptId)
     .maybeSingle();
   if (promptError) {
@@ -55,9 +66,8 @@ export async function computeQuote(
     prompt.prompt_type === "showcase" ||
     prompt.prompt_type === "free-prompt" ||
     prompt.is_free_showcase === true;
-  const artistPriceMicro = isFree
-    ? 0
-    : usdToMicro(typeof prompt.price === "number" ? prompt.price : 0);
+  const priceCents = typeof prompt.price_usd_cents === "number" ? prompt.price_usd_cents : 0;
+  const artistPriceMicro = isFree ? 0 : usdToMicro(priceCents / 100);
 
   // 2. Model cost comes from server-side pricing — never from the client.
   let modelCostMicro: number;
@@ -71,23 +81,28 @@ export async function computeQuote(
   }
 
   // 3. Artist payout wallet comes from the DB — never from the client.
+  //    Live schema fix (2026-07-12): users.wallet_address does NOT exist —
+  //    the creator's payout wallet is their newest live Solana entry in
+  //    user_wallets (payments run on Solana only).
   //    Paid prompts without a configured artist wallet cannot be quoted:
   //    the split has nowhere to send the artist share.
   let artistWallet: string | null = null;
   if (artistPriceMicro > 0) {
-    if (!prompt.user_id) {
+    if (!prompt.creator_id) {
       return { ok: false, status: 422, error: "Prompt has no associated creator" };
     }
-    const { data: creator, error: creatorError } = await supabase
-      .from("users")
-      .select("wallet_address")
-      .eq("id", prompt.user_id)
-      .maybeSingle();
+    const { data: wallets, error: creatorError } = await supabase
+      .from("user_wallets")
+      .select("address")
+      .eq("user_id", prompt.creator_id)
+      .eq("chain_family", "solana")
+      .is("removed_at", null)
+      .limit(1);
     if (creatorError) {
-      console.error("[payments/quote] creator lookup failed:", creatorError.message);
+      console.error("[payments/quote] creator wallet lookup failed:", creatorError.message);
       return { ok: false, status: 500, error: "Failed to load creator" };
     }
-    artistWallet = creator?.wallet_address ?? null;
+    artistWallet = wallets?.[0]?.address ?? null;
     if (!artistWallet || artistWallet === "legacy-unbound") {
       return {
         ok: false,
@@ -111,9 +126,15 @@ export async function computeQuote(
     }
   }
 
-  return {
-    ok: true,
-    artistWallet,
-    split: computeGenerationSplit(artistPriceMicro, modelCostMicro),
-  };
+  let split = computeGenerationSplit(artistPriceMicro, modelCostMicro);
+
+  // 4. DB pricing rules (discount campaigns) — best match, never touches the
+  //    artist share. Applied here so quote and intent can't disagree.
+  let appliedRule: AppliedRule | null = null;
+  if (buyer) {
+    appliedRule = await resolvePricingRule(supabase, { buyerWalletOrId: buyer, modelFamily, promptId });
+    if (appliedRule) split = applyRuleToSplit(split, appliedRule);
+  }
+
+  return { ok: true, artistWallet, split, appliedRule };
 }

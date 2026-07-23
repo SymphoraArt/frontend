@@ -10,7 +10,11 @@
     "hooks/**/*",
     "lib/**/*",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-turbo/types/**/*.ts",
+    ".next-turbo/dev/types/**/*.ts",
+    ".next-wp/types/**/*.ts",
+    ".next-wp/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

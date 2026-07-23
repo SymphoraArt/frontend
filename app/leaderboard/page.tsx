@@ -1,166 +1,301 @@
 "use client";
-import { useState } from "react";
 
-type LbTab = "generations" | "earnings";
+/* Hall of Fame — the "Enki Leaderboard" design on real data: editorial top-3
+   cards (best-prompt image, sparkline, delta), a dense table for ranks 4+,
+   Generations/Earnings tabs and period pills. No mock content: sparklines and
+   deltas come from real 14-day buckets, images from the prompt's showcase. */
 
-const MOCK_GENERATIONS = [
-  { rank: 1, handle: "@pixel_sage",    avatar: "PS", gens: 14820, change: +340, badge: "👑", bestPrompt: "A photograph of [subject] at [location], cinematic lighting, 8k resolution" },
-  { rank: 2, handle: "@lune_lab",      avatar: "LL", gens: 11203, change: +120, badge: "🥈", bestPrompt: "Macro photography of [insect] on a [flower] leaf, morning dew, f/2.8" },
-  { rank: 3, handle: "@driftwood",     avatar: "DW", gens: 9870,  change: -55,  badge: "🥉", bestPrompt: "Cyberpunk cityscape with [vehicle] flying past neon signs, raining" },
-  { rank: 4, handle: "@nxrthx",        avatar: "NX", gens: 7654,  change: +88,  badge: "" },
-  { rank: 5, handle: "@solarpunk_io",  avatar: "SP", gens: 5430,  change: +12,  badge: "" },
-  { rank: 6, handle: "@artnomad",      avatar: "AN", gens: 4210,  change: -30,  badge: "" },
-  { rank: 7, handle: "@mossglow",      avatar: "MG", gens: 3880,  change: +55,  badge: "" },
-  { rank: 8, handle: "@raven_frames",  avatar: "RF", gens: 2990,  change: 0,    badge: "" },
-  { rank: 9, handle: "@terra_vis",     avatar: "TV", gens: 2100,  change: -12,  badge: "" },
-  { rank: 10, handle: "@coldvoid",     avatar: "CV", gens: 1870,  change: +5,   badge: "" },
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { sessionAuthHeaders } from "@/lib/session-headers";
+
+type Metric = "generations" | "earnings";
+type Row = {
+  rank: number;
+  handle: string;
+  value: number;
+  unit: "gen" | "usd";
+  bestPromptId: string | null;
+  bestPromptTitle: string | null;
+  image: string | null;
+  spark: number[] | null;
+  delta: number | null;
+  sub: number | null; // earnings: distinct prompts sold
+};
+
+const PERIODS: { label: string; key: string }[] = [
+  { label: "This week", key: "week" },
+  { label: "This month", key: "month" },
+  { label: "All time", key: "all" },
 ];
 
-const MOCK_EARNINGS = [
-  { rank: 1, handle: "@pixel_sage",    avatar: "PS", earned: "$4,320", prompts: 12, change: +210, badge: "👑", bestPrompt: "A photograph of [subject] at [location], cinematic lighting, 8k resolution" },
-  { rank: 2, handle: "@solarpunk_io",  avatar: "SP", earned: "$3,180", prompts: 8,  change: +80,  badge: "🥈", bestPrompt: "Vintage polaroid of [subject] posing in [outfit], warm tones, light leaks" },
-  { rank: 3, handle: "@mossglow",      avatar: "MG", earned: "$2,450", prompts: 5,  change: -40,  badge: "🥉", bestPrompt: "Minimalist logo design for [company], [color] gradient, clean vector art" },
-  { rank: 4, handle: "@lune_lab",      avatar: "LL", earned: "$1,920", prompts: 9,  change: +120, badge: "" },
-  { rank: 5, handle: "@artnomad",      avatar: "AN", earned: "$1,340", prompts: 4,  change: +30,  badge: "" },
-  { rank: 6, handle: "@driftwood",     avatar: "DW", earned: "$890",   prompts: 7,  change: -15,  badge: "" },
-  { rank: 7, handle: "@nxrthx",        avatar: "NX", earned: "$740",   prompts: 3,  change: +60,  badge: "" },
-  { rank: 8, handle: "@raven_frames",  avatar: "RF", earned: "$510",   prompts: 2,  change: 0,    badge: "" },
-  { rank: 9, handle: "@terra_vis",     avatar: "TV", earned: "$320",   prompts: 6,  change: -8,   badge: "" },
-  { rank: 10, handle: "@coldvoid",     avatar: "CV", earned: "$190",   prompts: 1,  change: +5,   badge: "" },
-];
+const GREEN = "#1f8a5b", RED = "#e0584f";
+const SPARK_UP = "#9AD4B0", SPARK_DOWN = "#E8A0A0";
+const MONO = "var(--font-mono), monospace";
+const SERIF = "var(--font-serif), Georgia, serif";
 
-const PERIODS = ["This week", "This month", "All time"];
+const initials = (h: string) => h.replace(/^@/, "").slice(0, 2).toUpperCase();
+const fmtVal = (r: Row) =>
+  r.unit === "usd" ? `$${r.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}` : r.value.toLocaleString("en-US");
+const fmtDelta = (r: Row) => {
+  if (r.delta === null) return "—";
+  const n = r.unit === "usd" ? Math.round(Math.abs(r.delta) / 100) : Math.abs(r.delta);
+  const v = r.unit === "usd" ? `$${n.toLocaleString("en-US")}` : n.toLocaleString("en-US");
+  return r.delta > 0 ? `↑ +${v}` : r.delta < 0 ? `↓ ${v}` : "—";
+};
+const deltaInk = (r: Row) => (r.delta === null || r.delta === 0 ? "var(--enki-ink-3)" : r.delta > 0 ? GREEN : RED);
+
+/** Real series → polyline points; flat baseline when everything is zero. */
+const sparkPoints = (vals: number[] | null, w: number, h: number) => {
+  if (!vals || vals.length < 2) return null;
+  const max = Math.max(...vals, 1);
+  return vals
+    .map((v, i) => `${((i / (vals.length - 1)) * w).toFixed(1)},${((1 - v / max) * (h - 3) + 1.5).toFixed(1)}`)
+    .join(" ");
+};
+
+const mono = (size: number, color?: string, extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: MONO, fontSize: size, ...(color ? { color } : null), ...extra,
+});
+const headCell = (extra?: React.CSSProperties): React.CSSProperties =>
+  mono(8.5, "var(--enki-ink-3)", { letterSpacing: "0.12em", textTransform: "uppercase", ...extra });
 
 export default function LeaderboardPage() {
-  const [tab, setTab] = useState<LbTab>("generations");
-  const [period, setPeriod] = useState("This week");
+  const router = useRouter();
+  const [metric, setMetric] = useState<Metric>("generations");
+  const [period, setPeriod] = useState("week");
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [me, setMe] = useState<string | null>(null);
 
-  const rows = tab === "generations" ? MOCK_GENERATIONS : MOCK_EARNINGS;
+  useEffect(() => {
+    let dead = false;
+    setRows(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/leaderboard?metric=${metric}&period=${period}`, { headers: sessionAuthHeaders() });
+        const data = res.ok ? await res.json() : { rows: [] };
+        if (!dead) setRows(data.rows ?? []);
+      } catch {
+        if (!dead) setRows([]);
+      }
+    })();
+    return () => { dead = true; };
+  }, [metric, period]);
+
+  // Own handle → the "you" chip. Signed-out visitors simply get no chip.
+  useEffect(() => {
+    const headers = sessionAuthHeaders();
+    if (Object.keys(headers).length === 0) return;
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/users/handle", { headers });
+        if (!res.ok) return;
+        const d = (await res.json()) as { handle?: string | null };
+        if (!dead && d.handle) setMe(d.handle);
+      } catch { /* no chip */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+
+  const openPrompt = (id: string | null) => { if (id) router.push(`/generator/${id}`); };
+
+  const isGens = metric === "generations";
+  const periodLabel = (PERIODS.find((p) => p.key === period)?.label ?? "This week").toLowerCase();
+  const podium = rows && rows.length >= 3 ? rows.slice(0, 3) : [];
+  const listRows = rows ? (podium.length ? rows.slice(3) : rows) : [];
 
   return (
-    <div style={{ minHeight: "100%", background: "transparent", fontFamily: "var(--font-outfit),'Outfit',sans-serif", paddingTop: 8 }}>
-      {/* Hero */}
-      <div style={{ padding: "48px 48px 0", maxWidth: 900, margin: "0 auto" }}>
-        <p style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "2px", color: "var(--enki-ink-3)", margin: "0 0 10px" }}>COMMUNITY</p>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 52, fontWeight: 900, color: "var(--enki-ink)", margin: "0 0 6px", lineHeight: 1.1 }}>
-          Leaderboard.
-        </h1>
-        <p style={{ fontSize: 15, color: "var(--enki-ink-3)", marginBottom: 36 }}>Top creators and earners on Enki Art.</p>
-
-        {/* Tab + Period row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <div style={{ display: "flex", border: "1px solid #e0ddd5", borderRadius: 8, overflow: "hidden" }}>
-            {(["generations", "earnings"] as LbTab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                padding: "8px 24px", border: "none", cursor: "pointer", fontSize: 12,
-                fontFamily: "monospace", letterSpacing: "0.5px", textTransform: "uppercase",
-                background: tab === t ? "var(--enki-ink)" : "var(--enki-paper-2)",
-                color: tab === t ? "var(--enki-paper-2)" : "var(--enki-ink-3)",
-                borderRight: t === "generations" ? "1px solid #e0ddd5" : "none",
+    <div style={{ maxWidth: 880, margin: "0 auto", padding: "34px 28px 60px" }}>
+      {/* ── header: title + tabs + periods (no eyebrow) ── */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+        <div>
+          <h1 style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 44, fontWeight: 400, margin: "0 0 4px", lineHeight: 1.05, color: "var(--enki-ink)" }}>
+            Hall of Fame.
+          </h1>
+          <p style={{ fontSize: 13.5, color: "var(--enki-ink-3)", margin: 0 }}>
+            {isGens ? `Who got rendered the most ${periodLabel}.` : `Who earned the most from their prompts ${periodLabel}.`}
+          </p>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          <div style={{ display: "inline-flex", background: "color-mix(in oklab, var(--enki-ink) 7%, transparent)", borderRadius: 8, padding: 2 }}>
+            {(["generations", "earnings"] as Metric[]).map((t) => (
+              <button key={t} onClick={() => setMetric(t)} style={{
+                height: 26, padding: "0 14px", border: "none", borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer",
+                background: metric === t ? "var(--enki-ember)" : "transparent",
+                color: metric === t ? "#fff" : "var(--enki-ink-2)",
                 transition: "all 0.15s",
               }}>
-                {t === "generations" ? "⚡ Generations" : "💰 Earnings"}
+                {t === "generations" ? "Generations" : "Earnings"}
               </button>
             ))}
           </div>
-
-          <div style={{ display: "flex", gap: 6 }}>
-            {PERIODS.map(p => (
-              <button key={p} onClick={() => setPeriod(p)} style={{
-                padding: "6px 14px", fontSize: 12, borderRadius: 20,
-                border: "1px solid " + (period === p ? "var(--enki-ink)" : "var(--enki-rule)"),
-                background: period === p ? "var(--enki-ink)" : "var(--enki-paper-2)",
-                color: period === p ? "var(--enki-paper-2)" : "#666",
-                cursor: "pointer", transition: "all 0.15s",
+          <div style={{ display: "inline-flex", gap: 4 }}>
+            {PERIODS.map((p) => (
+              <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+                padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer",
+                border: "1px solid " + (period === p.key ? "var(--enki-ink)" : "var(--enki-rule)"),
+                background: period === p.key ? "var(--enki-ink)" : "transparent",
+                color: period === p.key ? "var(--enki-paper)" : "var(--enki-ink-3)",
+                transition: "all 0.15s",
               }}>
-                {p}
+                {p.label}
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* Top 3 podium */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 32, alignItems: "flex-end" }}>
-          {[rows[1], rows[0], rows[2]].map((row, i) => {
-            const heights = [120, 160, 100];
-            const isFirst = i === 1;
-            return (
-              <div key={row.rank} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                {/* Avatar */}
-                <div style={{ width: isFirst ? 60 : 48, height: isFirst ? 60 : 48, borderRadius: "50%", background: isFirst ? "var(--enki-ink)" : "var(--enki-rule)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isFirst ? 18 : 14, fontWeight: 700, color: isFirst ? "var(--enki-paper-2)" : "var(--enki-ink-2)", fontFamily: "monospace", boxShadow: isFirst ? "0 4px 20px rgba(0,0,0,0.2)" : "none" }}>
-                  {row.avatar}
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--enki-ink)" }}>{row.handle}</span>
-                <span style={{ fontSize: 11, color: "var(--enki-ink-3)" }}>{tab === "generations" ? `${(row as typeof MOCK_GENERATIONS[0]).gens.toLocaleString()} gen` : (row as typeof MOCK_EARNINGS[0]).earned}</span>
-                {/* Podium bar */}
-                <div style={{ width: "100%", height: heights[i], background: isFirst ? "var(--enki-ink)" : "var(--enki-rule)", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10 }}>
-                  <span style={{ fontSize: isFirst ? 22 : 18 }}>{row.badge || `#${row.rank}`}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Full table */}
-        <div style={{ background: "var(--enki-paper-2)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 60 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--enki-rule)" }}>
-                {["RANK", "CREATOR", tab === "generations" ? "GENERATIONS" : "EARNED", tab === "earnings" ? "PROMPTS" : null, "CHANGE"].filter(Boolean).map(h => (
-                  <th key={h!} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontFamily: "monospace", letterSpacing: "0.8px", color: "var(--enki-ink-3)", fontWeight: 600 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => {
-                const isTop3 = row.rank <= 3;
-                const change = row.change;
-                return (
-                  <tr key={row.rank} style={{ borderBottom: "1px solid #f9fafb", background: isTop3 ? "var(--enki-paper-2)" : "var(--enki-paper-2)", transition: "background 0.1s" }}>
-                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontWeight: 700, fontSize: 15, color: isTop3 ? "var(--enki-ink)" : "var(--enki-ink-3)" }}>
-                      {row.badge || `#${row.rank}`}
-                    </td>
-                    <td style={{ padding: "14px 20px" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <a href={`/profile/${row.handle.replace('@', '')}`} style={{ fontSize: 14, fontWeight: isTop3 ? 700 : 500, color: "var(--enki-ink)", textDecoration: "none", width: "fit-content" }} onMouseOver={e => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={e => e.currentTarget.style.textDecoration = 'none'}>
-                          {row.handle}
-                        </a>
-                        {isTop3 && (row as any).bestPrompt && (
-                          <div style={{ marginTop: 6, padding: "10px 12px", background: "var(--enki-paper-2)", borderRadius: 8, border: "1px solid #e5e7eb", maxWidth: 320 }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--enki-ink-3)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Best Prompt</div>
-                            <div style={{ fontSize: 12, color: "var(--enki-ink-2)", marginBottom: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
-                              {(row as any).bestPrompt}
-                            </div>
-                            <a href={`/editor?prompt=${encodeURIComponent((row as any).bestPrompt)}`} style={{ display: "inline-flex", background: "var(--enki-ink)", border: "none", padding: "4px 10px", fontSize: 11, color: "var(--enki-paper-2)", fontWeight: 600, borderRadius: 6, cursor: "pointer", textDecoration: "none" }}>
-                              Use this prompt →
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ padding: "14px 20px", fontFamily: "monospace", fontSize: 14, fontWeight: 600, color: "var(--enki-ink)" }}>
-                      {tab === "generations" ? (row as typeof MOCK_GENERATIONS[0]).gens.toLocaleString() : (row as typeof MOCK_EARNINGS[0]).earned}
-                    </td>
-                    {tab === "earnings" && (
-                      <td style={{ padding: "14px 20px", fontSize: 13, color: "var(--enki-ink-3)" }}>
-                        {(row as typeof MOCK_EARNINGS[0]).prompts} prompts
-                      </td>
-                    )}
-                    <td style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 12, fontFamily: "monospace", color: change > 0 ? "#16a34a" : change < 0 ? "#dc2626" : "var(--enki-ink-3)" }}>
-                        {change > 0 ? `↑ +${change}` : change < 0 ? `↓ ${change}` : "—"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div style={{ padding: 16, textAlign: "center", background: "var(--enki-paper-2)", borderTop: "1px solid var(--enki-rule)" }}>
-            <p style={{ fontSize: 12, color: "var(--enki-ink-3)", margin: 0 }}>Leaderboard is togglable per-user in Settings → Profile → Show leaderboard</p>
           </div>
         </div>
       </div>
+
+      {rows === null ? (
+        <div style={{ padding: "60px 0", textAlign: "center", color: "var(--enki-ink-3)", fontSize: 13 }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding: "72px 0", textAlign: "center", maxWidth: 460, margin: "0 auto" }}>
+          <div style={{ fontFamily: SERIF, fontSize: 24, fontStyle: "italic", color: "var(--enki-ink-2)" }}>No rankings yet.</div>
+          <p style={{ fontSize: 14, color: "var(--enki-ink-3)", marginTop: 8 }}>
+            Be the first to climb the board — publish a prompt and let people generate with it.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* ── top 3: editorial cards (#1 centered + lifted) ── */}
+          {podium.length === 3 && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr 1fr", gap: 10, alignItems: "stretch", marginBottom: 26 }}>
+              {podium.map((r, i) => {
+                const first = i === 0;
+                return (
+                  <div key={r.rank} style={{
+                    order: [2, 1, 3][i],
+                    position: "relative", display: "flex", flexDirection: "column", gap: 8,
+                    background: "var(--enki-paper)",
+                    border: first ? "1.5px solid var(--enki-ember)" : "1px solid var(--enki-rule)",
+                    borderRadius: 14, padding: "14px 14px 12px",
+                    boxShadow: first ? "0 12px 30px rgba(var(--ember-rgb), 0.16)" : "0 1px 3px rgba(0,0,0,0.06)",
+                    marginTop: first ? 0 : 10,
+                  }}>
+                    <span style={{
+                      position: "absolute", top: -12, left: 12, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700,
+                      fontSize: 34, lineHeight: 1, color: first ? "var(--enki-ember)" : "var(--enki-ink-3)",
+                      textShadow: "0 1px 0 var(--enki-paper), 0 2px 8px rgba(0,0,0,0.12)",
+                    }}>
+                      No.{r.rank}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 10 }}>
+                      <span style={{
+                        width: first ? 42 : 34, height: first ? 42 : 34, borderRadius: "50%", flexShrink: 0,
+                        background: first ? "var(--cta-bg)" : "var(--enki-paper-3)",
+                        color: first ? "var(--cta-ink)" : "var(--enki-ink-2)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: MONO, fontSize: 12, fontWeight: 700,
+                        boxShadow: first ? "0 4px 14px rgba(0,0,0,0.3)" : "none",
+                      }}>
+                        {initials(r.handle)}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          @{r.handle}
+                        </span>
+                        <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                          <span style={mono(16, "var(--enki-ink)", { fontWeight: 700 })}>{fmtVal(r)}</span>
+                          <span style={mono(10, deltaInk(r))}>{fmtDelta(r)}</span>
+                        </span>
+                      </span>
+                    </div>
+                    {r.spark && (
+                      <svg viewBox="0 0 120 26" preserveAspectRatio="none" style={{ width: "100%", height: 26, display: "block" }}>
+                        <polyline points={sparkPoints(r.spark, 120, 26) ?? ""} fill="none"
+                          stroke={first ? "var(--enki-ember)" : "var(--enki-ink-3)"} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                    <div style={{ borderTop: "1px dashed var(--enki-rule-2, var(--enki-rule))", paddingTop: 8 }}>
+                      <span style={headCell({ display: "block", fontSize: 7.5, marginBottom: 5 })}>Best prompt</span>
+                      {r.bestPromptTitle ? (
+                        <button onClick={() => openPrompt(r.bestPromptId)} title={`Open “${r.bestPromptTitle}”`}
+                          style={{ display: "block", width: "100%", border: "none", background: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
+                          <span style={{ display: "block", width: "100%", aspectRatio: "16/9", border: "1px solid var(--enki-rule-2, var(--enki-rule))", borderRadius: 10, overflow: "hidden", background: "var(--enki-paper-3)" }}>
+                            {r.image && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.image} alt={r.bestPromptTitle} loading="lazy"
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            )}
+                          </span>
+                          <span style={{ display: "block", marginTop: 6, fontFamily: SERIF, fontSize: 13.5, lineHeight: 1.3, color: "var(--enki-ink)" }}>
+                            {r.bestPromptTitle}
+                          </span>
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "var(--enki-ink-3)", fontStyle: "italic" }}>—</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── ranks 4+ (or everyone when there's no full podium) ── */}
+          {listRows.length > 0 && (
+            <div style={{ background: "var(--enki-paper)", border: "1px solid var(--enki-rule)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 110px 84px 90px 70px", gap: 8, alignItems: "center", padding: "8px 14px", borderBottom: "1px solid var(--enki-rule-2, var(--enki-rule))" }}>
+                <span style={headCell()}>Rank</span>
+                <span style={headCell()}>Creator</span>
+                <span style={headCell({ textAlign: "right" })}>{isGens ? "Renders" : "Earned"}</span>
+                <span style={headCell({ textAlign: "right" })}>{isGens ? "" : "Prompts"}</span>
+                <span style={headCell()}>Trend</span>
+                <span />
+              </div>
+              {listRows.map((r) => {
+                const you = me !== null && r.handle === me;
+                return (
+                  <div key={r.rank} style={{
+                    display: "grid", gridTemplateColumns: "44px 1fr 110px 84px 90px 70px", gap: 8, alignItems: "center",
+                    padding: "7px 14px", borderBottom: "1px solid var(--enki-rule-2, var(--enki-rule))",
+                    background: you ? "rgba(var(--ember-rgb), 0.07)" : "transparent",
+                  }}>
+                    <span style={mono(12, "var(--enki-ink-3)", { fontWeight: 700 })}>#{r.rank}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{
+                        width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                        background: you ? "var(--cta-bg)" : "var(--enki-paper-3)",
+                        color: you ? "var(--cta-ink)" : "var(--enki-ink-2)",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: MONO, fontSize: 9, fontWeight: 700,
+                      }}>
+                        {initials(r.handle)}
+                      </span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        @{r.handle}
+                      </span>
+                      {you && (
+                        <span style={mono(9, "var(--enki-ink-3)", { background: "color-mix(in oklab, var(--enki-ink) 5%, transparent)", borderRadius: 4, padding: "1px 5px", flexShrink: 0 })}>
+                          you
+                        </span>
+                      )}
+                    </span>
+                    <span style={mono(12.5, "var(--enki-ink)", { fontWeight: 700, textAlign: "right" })}>{fmtVal(r)}</span>
+                    <span style={mono(10.5, "var(--enki-ink-3)", { textAlign: "right" })}>
+                      {isGens ? "" : `${r.sub ?? 0} prompt${(r.sub ?? 0) === 1 ? "" : "s"}`}
+                    </span>
+                    {r.spark ? (
+                      <svg viewBox="0 0 90 20" preserveAspectRatio="none" style={{ width: 90, height: 20, display: "block" }}>
+                        <polyline points={sparkPoints(r.spark, 90, 20) ?? ""} fill="none"
+                          stroke={(r.delta ?? 0) >= 0 ? SPARK_UP : SPARK_DOWN} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ) : <span />}
+                    <span style={mono(10.5, deltaInk(r), { textAlign: "right" })}>{fmtDelta(r)}</span>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", background: "var(--enki-paper-2)", flexWrap: "wrap" }}>
+                <span style={headCell({ fontSize: 9 })}>Visibility</span>
+                <span style={{ fontSize: 11, color: "var(--enki-ink-3)" }}>You can hide yourself from this list in Settings → Profile.</span>
+                <button onClick={() => router.push("/editor")} style={{ marginLeft: "auto", border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--enki-ember)" }}>
+                  Climb the board — create a prompt →
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

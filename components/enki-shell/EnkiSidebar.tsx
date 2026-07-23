@@ -12,6 +12,9 @@ export interface NavItem {
   badge?: number;
 }
 
+/* Sidebar shows at most 10 characters of the name — the row stays tidy. */
+const clip10 = (s: string) => (s.length > 10 ? s.slice(0, 10) + "…" : s);
+
 const THEME_OPTS: { id: ThemeId; name: string; sw: string }[] = [
   { id: "light", name: "Bright", sw: "linear-gradient(135deg,#faf8f4,#e8e2d6)" },
   { id: "dark", name: "Dark", sw: "linear-gradient(135deg,#0a1825,#16303f)" },
@@ -27,19 +30,21 @@ interface SidebarProps {
   onCreate2: () => void;
   nodeActive?: boolean;
   onRefer: () => void;
-  account: { name: string; handle: string; initials: string };
+  onFeedback?: () => void;
+  account: { name: string; handle: string; initials: string; avatarUrl?: string | null };
   onToggleCollapse: () => void;
   collapsed: boolean;
   balance: number;
   onProfile: () => void;
   onTopUp: () => void;
+  onLogoff?: () => void;
   theme: ThemeId;
   setTheme: (t: ThemeId) => void;
 }
 
 export default function EnkiSidebar({
-  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer,
-  account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, theme, setTheme,
+  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer, onFeedback,
+  account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, onLogoff, theme, setTheme,
 }: SidebarProps) {
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
@@ -75,30 +80,6 @@ export default function EnkiSidebar({
 
       <nav className="ek-nav">
         {nav.map((item) => {
-          if (item.id === "color") {
-            return (
-              <div key="color" ref={colorRef} style={{ position: "relative" }}>
-                <button className={"ek-nav-item" + (colorOpen ? " active" : "")} onClick={() => setColorOpen((o) => !o)} type="button">
-                  <span className="ek-nav-ico"><Icon name="palette" size={23} stroke={colorOpen ? 2.4 : 1.9} /></span>
-                  {!rail && <span className="ek-nav-label">Color Setup</span>}
-                  {!rail && <Icon name="chevronDown" size={15} stroke={2} style={{ transform: colorOpen ? "rotate(180deg)" : "none", color: "var(--enki-ink-3)" }} />}
-                  {rail && <span className="ek-nav-tip">Color Setup</span>}
-                </button>
-                {colorOpen && (
-                  <div className="ek-color-dd" style={{ left: rail ? 70 : 14, top: "100%", marginTop: 4 }}>
-                    <div className="ek-color-dd-h">Color setup</div>
-                    {THEME_OPTS.map((t) => (
-                      <button key={t.id} type="button" className={"ek-color-opt" + (theme === t.id ? " active" : "")} onClick={() => setTheme(t.id)}>
-                        <span className="ek-color-sw" style={{ background: t.sw }} />
-                        {t.name}
-                        {theme === t.id && <span className="ek-color-check"><Icon name="check" size={16} stroke={2.4} /></span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
           return (
             <button key={item.id} className={"ek-nav-item" + (active === item.id ? " active" : "")} onClick={() => onNav(item.id)} type="button">
               <span className="ek-nav-ico"><Icon name={item.icon} size={23} stroke={active === item.id ? 2.4 : 1.9} /></span>
@@ -110,7 +91,29 @@ export default function EnkiSidebar({
         })}
       </nav>
 
-      <button className="ek-create" onClick={onCreate} type="button" title="Create Prompt">
+      {/* ── Earn money: refer + feedback, both pay out ── */}
+      {!rail && (
+        <div className="ek-earn-lab">
+          <span>Earn money</span>
+          <span className="ek-earn-rule" />
+        </div>
+      )}
+      <button className="ek-earn-row" onClick={onRefer} type="button" title="Refer a prompt — earn when it goes live">
+        <Icon name="link" size={18} stroke={1.9} />
+        {!rail && <span className="ek-earn-label">Refer a prompt</span>}
+        {!rail && <span className="ek-earn-chip">$</span>}
+        {rail && <span className="ek-nav-tip">Refer a prompt · earn</span>}
+      </button>
+      {onFeedback && (
+        <button className="ek-earn-row" onClick={onFeedback} type="button" title="Feedback — win $100 if we build your change">
+          <Icon name="message" size={18} stroke={1.9} />
+          {!rail && <span className="ek-earn-label">Feedback</span>}
+          {!rail && <span className="ek-earn-chip">$100</span>}
+          {rail && <span className="ek-nav-tip">Feedback · win $100</span>}
+        </button>
+      )}
+
+      <button className="ek-create" onClick={onCreate} type="button" title="Create Prompt" style={{ marginTop: 12 }}>
         <Icon name="pen" size={20} stroke={2.2} />
         {!rail && <span className="ek-create-label">Create Prompt</span>}
         {rail && <span className="ek-nav-tip">Create Prompt</span>}
@@ -122,26 +125,62 @@ export default function EnkiSidebar({
         {rail && <span className="ek-nav-tip">Node Creator</span>}
       </button>
 
-      <button className="ek-create ek-create2" onClick={onRefer} type="button" title="Refer a prompt — submit a social link for review">
-        <Icon name="link" size={18} stroke={2.2} />
-        {!rail && <span className="ek-create-label">Refer Prompt</span>}
-        {rail && <span className="ek-nav-tip">Refer Prompt</span>}
-      </button>
-
       <div className="ek-side-spacer" />
 
-      <div className="ek-account" role="button" onClick={onProfile} title="View profile">
-        <span className="ek-avatar">{account.initials}</span>
+      <div className="ek-account" role="button" onClick={onProfile} title="View profile" ref={colorRef}>
+        <span className="ek-avatar">
+          {account.avatarUrl
+            ? /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={account.avatarUrl} alt="" />
+            : account.initials}
+        </span>
         {!rail && (
-          <span className="ek-account-info">
-            <span className="ek-account-nrow">
-              <span className="ek-account-nametext">{account.name}</span>
+          <>
+            <span className="ek-account-info">
+              <span className="ek-account-nametext">{clip10(account.name)}</span>
+              <span className="ek-account-handle">@{clip10(account.handle)}</span>
+            </span>
+            {/* money + log off stacked at the far right — long names stay clear */}
+            <span className="ek-account-side">
               <span className="ek-balance" onClick={(e) => { e.stopPropagation(); onTopUp(); }} title="Add funds">
                 <Icon name="dollar" size={11} stroke={2.4} />{balance.toFixed(2)}
               </span>
+              {onLogoff && (
+                <button
+                  className="ek-logoff"
+                  type="button"
+                  title="Log off"
+                  aria-label="Log off"
+                  onClick={(e) => { e.stopPropagation(); onLogoff(); }}
+                >
+                  <Icon name="logout" size={13} stroke={2.2} />
+                </button>
+              )}
             </span>
-            <span className="ek-account-handle">@{account.handle}</span>
-          </span>
+          </>
+        )}
+        {/* 3-dot menu (hover to reveal): the color theme lives here */}
+        <button
+          className={"ek-kebab" + (colorOpen ? " on" : "") + (rail ? " ek-kebab--rail" : "")}
+          type="button"
+          title="Options"
+          aria-haspopup="menu"
+          aria-expanded={colorOpen}
+          onClick={(e) => { e.stopPropagation(); setColorOpen((o) => !o); }}
+        >
+          <Icon name="dots" size={14} stroke={2.2} />
+        </button>
+        {colorOpen && (
+          <div className="ek-color-dd ek-color-dd--up" onClick={(e) => e.stopPropagation()}>
+            <div className="ek-color-dd-h">Color theme</div>
+            {THEME_OPTS.map((t) => (
+              <button key={t.id} type="button" className={"ek-color-opt" + (theme === t.id ? " active" : "")} onClick={() => setTheme(t.id)}>
+                <span className="ek-color-sw" style={{ background: t.sw }} />
+                {t.name}
+                {theme === t.id && <span className="ek-color-check"><Icon name="check" size={16} stroke={2.4} /></span>}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </aside>

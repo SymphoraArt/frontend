@@ -50,7 +50,9 @@
 /* ════════════════ Layout ════════════════ */
 .ek-shell { display: flex; min-height: 100vh; }
 .ek-sidebar {
-  position: fixed; top: 0; left: 0; bottom: 0; z-index: 120;
+  /* Above the right-side panel scrim (z 160): no panel may ever cover the
+     sidebar — especially not the collapse chevron poking out of its edge. */
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 165;
   width: 256px;
   display: flex; flex-direction: column;
   padding: 18px 14px 22px;
@@ -162,13 +164,31 @@
   background: var(--cta-bg); color: var(--cta-ink);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600;
+  overflow: hidden;
 }
-.ek-account-info { min-width: 0; flex: 1; }
-.ek-account-nrow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ek-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ek-account-info { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.ek-account-side { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.ek-root--rail .ek-account-side { display: none; }
 .ek-account-nametext { font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ek-root--rail .ek-account-info, .ek-root--rail .ek-account-more { display: none; }
 .ek-account-handle { font-size: 12px; color: var(--enki-ink-3); font-family: var(--font-mono), monospace; }
 .ek-account-more { margin-left: auto; color: var(--enki-ink-3); }
+/* 3-dot options menu on the profile row — appears on hover, opens upward */
+.ek-account { position: relative; }
+.ek-kebab { position: absolute; top: -8px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--enki-rule); border-radius: 50%; background: var(--enki-paper); color: var(--enki-ink-3); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+.ek-account:hover .ek-kebab, .ek-kebab.on { opacity: 1; }
+.ek-kebab:hover, .ek-kebab.on { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+.ek-kebab--rail { top: -10px; right: -4px; width: 20px; height: 20px; }
+.ek-color-dd--up { bottom: calc(100% + 8px); right: 0; left: auto; }
+/* ── Earn money section (refer + feedback) ── */
+.ek-earn-lab { display: flex; align-items: center; gap: 6px; margin: 12px 8px 2px; }
+.ek-earn-lab span:first-child { font-family: var(--font-mono), monospace; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-earn-rule { flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-earn-row { position: relative; display: flex; align-items: center; gap: 13px; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--enki-ink); font-size: 13.5px; width: 100%; text-align: left; cursor: pointer; }
+.ek-earn-row:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-earn-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-earn-chip { font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.1); border: 1px solid rgba(var(--ember-rgb), 0.4); border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
 
 /* ── balance pill (in account row) ── */
 .ek-balance {
@@ -179,6 +199,64 @@
 }
 .ek-balance:hover { background: color-mix(in oklab, var(--enki-ember) 26%, transparent); }
 .ek-root--rail .ek-balance { display: none; }
+
+/* ── thin red "no recovery" banner across the very top ── */
+.ek-recovery-banner {
+  position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 300;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 44px 0 14px;
+  background: #b3271e; color: #fff;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ek-recovery-banner-msg {
+  border: none; background: none; color: #fff; cursor: pointer;
+  font: inherit; text-decoration: underline; text-underline-offset: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0;
+}
+.ek-recovery-banner-msg:hover { opacity: 0.85; }
+.ek-recovery-banner-x {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.16); color: #fff;
+}
+.ek-recovery-banner-x:hover { background: rgba(255, 255, 255, 0.3); }
+/* The banner pushes EVERY fixed layer down 30px so nothing hides behind it. */
+.ek-with-banner .ek-sidebar { top: 30px; }
+.ek-with-banner .ek-topbar { top: 30px; }
+.ek-with-banner .ek-panel-scrim { top: 30px; }
+.ek-with-banner .ek-main .enki-catbar { top: 86px; }    /* 30 banner + 56 topbar */
+.ek-with-banner .ek-main > .enki { padding-top: 142px; } /* 112 + 30 */
+.ek-with-banner .nc { top: 30px; }                       /* node editor + its absolute toolbar/ribbon */
+
+/* ── small viewports: compress the sidebar so nothing ever overlaps ── */
+@media (max-height: 800px) {
+  .ek-sidebar { padding-top: 10px; padding-bottom: 12px; }
+  .ek-nav { gap: 1px; }
+  .ek-nav-item { height: 40px; }
+  .ek-create { height: 42px; margin-top: 10px; font-size: 14px; }
+  .ek-account { margin-top: 8px; }
+  .ek-avatar { width: 34px; height: 34px; }
+}
+@media (max-height: 640px) {
+  /* Last resort: the nav list scrolls instead of stacking over the footer. */
+  .ek-nav { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+  .ek-nav::-webkit-scrollbar { display: none; }
+  .ek-nav-item { height: 34px; }
+  .ek-create { height: 36px; margin-top: 6px; }
+}
+.ek-create, .ek-account { flex-shrink: 0; }
+
+/* ── log off button (in account row) ── */
+.ek-logoff {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--enki-rule); background: transparent; color: var(--enki-ink-3);
+  cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ek-logoff:hover { color: #e0584f; border-color: rgba(224, 88, 79, 0.5); background: rgba(224, 88, 79, 0.1); }
+.ek-root--rail .ek-logoff { display: none; }
 
 /* ── color setup dropdown ── */
 .ek-color-dd { position: absolute; z-index: 140; width: 158px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28); padding: 6px; animation: ek-dd-in 0.16s ease; }
@@ -263,12 +341,29 @@
 .ek-panel-scrim { position: fixed; top: 0; bottom: 0; right: 0; left: var(--ek-sw); z-index: 160; background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; justify-content: flex-end; animation: ek-fade 0.16s ease; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
 .ek-panel { width: min(480px, 100%); height: 100%; background: var(--enki-paper); border-left: 1px solid var(--enki-rule); box-shadow: -24px 0 70px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; animation: ek-fade 0.18s ease; }
 /* full view (e.g. Profile): fills the whole main area, no dim/slide */
-.ek-panel-scrim--full { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ek-panel-scrim--full {
+  background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+  /* No fade-in: full panels must cover INSTANTLY. The 0.16s ek-fade let the
+     home feed flash through when switching out of Create Prompt 2 (the node
+     editor unmounts in the same paint, but the panel spent 160ms at opacity 0). */
+  animation: none;
+}
 .ek-panel--full { width: 100%; max-width: none; border-left: none; box-shadow: none; animation: none; }
 .ek-panel-head { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 16px 0 22px; border-bottom: 1px solid var(--enki-rule); flex-shrink: 0; background: var(--header-bg); }
 .ek-panel-title { font-family: var(--font-serif), Georgia, serif; font-size: 21px; color: var(--enki-ink); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ek-panel-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ek-panel-x:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.ek-panel { position: relative; }
+.ek-panel-x--float { position: absolute; top: 14px; right: 18px; z-index: 30; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
+
+/* ── unified panel headline (the landing "Expert-crafted AI Art" serif) ── */
+.ek-panel-hero { padding: 44px 40px 6px; }
+.ek-panel-hero h1 {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+  font-weight: 400; font-size: clamp(34px, 5vw, 52px); line-height: 1.08;
+  margin: 0; color: var(--enki-ink);
+}
+.ek-panel-hero p { margin: 10px 0 0; font-size: 14px; line-height: 1.55; color: var(--enki-ink-3); max-width: 560px; }
 .ek-panel-body { flex: 1; overflow-y: auto; }
 .ek-panel-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--enki-ink-3); text-align: center; padding: 40px; }
 /* tame full-page layouts reused inside the panel */
@@ -284,3 +379,55 @@
 /* Hide the floating "Generate · new image" quick-create pill while the node
    editor (Create Prompt 2) is open — it has its own Generate dock. */
 .ek-app.ek-node-open .ek-generate-launcher { display: none !important; }
+
+/* ════════════════ Messages (DMs) ════════════════ */
+/* fills the panel from the left — no centering gap, no stray side borders */
+.ek-msg-root { display: flex; height: 100%; min-height: 480px; background: var(--enki-paper); }
+.ek-msg-side { width: 284px; flex-shrink: 0; border-right: 1px solid var(--enki-rule); display: flex; flex-direction: column; min-height: 0; }
+.ek-msg-side-head { padding: 18px 16px 10px; flex-shrink: 0; }
+.ek-msg-title { font-family: var(--font-serif), Georgia, serif; font-size: 30px; font-weight: 400; margin: 0 0 12px; line-height: 1; color: var(--enki-ink); }
+.ek-msg-search { display: flex; align-items: center; gap: 7px; height: 32px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2); padding: 0 11px; color: var(--enki-ink-3); transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.14); }
+.ek-msg-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 12px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-msg-search input::placeholder { color: var(--enki-ink-3); }
+.ek-msg-convs { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ek-msg-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; border-radius: 12px; background: transparent; text-align: left; width: 100%; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-row:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-row.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-row-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row-time { margin-left: auto; font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--enki-ink-3); flex-shrink: 0; }
+.ek-msg-row-prev { flex: 1; min-width: 0; font-size: 11.5px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row.unread .ek-msg-row-name { font-weight: 700; }
+.ek-msg-row.unread .ek-msg-row-prev { color: var(--enki-ink); font-weight: 600; }
+.ek-msg-pill { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--enki-ember); color: #fff; font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ek-msg-lab { padding: 10px 10px 4px; font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-msg-thread { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--enki-paper-2); }
+.ek-msg-thead { display: flex; align-items: center; gap: 10px; padding: 10px 64px 10px 16px; border-bottom: 1px solid var(--enki-rule); background: var(--enki-paper); flex-shrink: 0; }
+.ek-msg-peer { display: flex; align-items: center; gap: 10px; min-width: 0; border: none; background: none; padding: 2px 6px 2px 2px; border-radius: 10px; text-align: left; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-peer:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 8px; display: flex; flex-direction: column; gap: 8px; }
+.ek-msg-sep { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.ek-msg-sep::before, .ek-msg-sep::after { content: ""; flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-msg-sep span { font-family: var(--font-mono), monospace; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--enki-ink-3); }
+.ek-msg-bubble { display: inline-block; max-width: 100%; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--enki-paper); color: var(--enki-ink); border: 1px solid var(--enki-rule-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ek-msg-item.mine .ek-msg-bubble { border-radius: 14px 14px 4px 14px; background: var(--enki-ink); color: var(--enki-paper); border: none; }
+.ek-msg-img { max-width: 240px; max-height: 220px; border-radius: 12px; border: 1px solid var(--enki-rule); display: block; object-fit: cover; }
+.ek-msg-time { font-family: var(--font-mono), monospace; font-size: 8.5px; color: var(--enki-ink-3); padding: 0 4px; }
+.ek-msg-compose-wrap { flex-shrink: 0; padding: 10px 16px 14px; position: relative; }
+.ek-msg-emoji { position: absolute; bottom: calc(100% - 2px); left: 54px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18); padding: 8px; display: grid; grid-template-columns: repeat(6, 30px); gap: 2px; z-index: 20; animation: ek-pop 0.15s ease; }
+.ek-msg-emoji button { width: 30px; height: 30px; border: none; background: none; border-radius: 7px; font-size: 17px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.ek-msg-emoji button:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-msg-compose { display: flex; align-items: center; gap: 6px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); padding: 5px 6px 5px 8px; transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-compose:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.12); }
+.ek-msg-icon-btn { width: 30px; height: 30px; border: none; border-radius: 50%; background: none; color: var(--enki-ink-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+.ek-msg-icon-btn:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); color: var(--enki-ink); }
+.ek-msg-icon-btn.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-icon-btn:disabled { opacity: 0.5; cursor: default; }
+.ek-msg-compose > input[type="text"] { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 13px; color: var(--enki-ink); padding: 4px 2px; font-family: var(--font-sans), sans-serif; }
+.ek-msg-compose > input[type="text"]::placeholder { color: var(--enki-ink-3); }
+/* Design contract: white glyph + soft ember shadow ALWAYS; only the bg swaps
+   muted-tan (empty draft) <-> ember (armed). */
+.ek-msg-send { width: 32px; height: 32px; border: none; border-radius: 50%; background: color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2)); color: #fff; box-shadow: 0 4px 10px rgba(var(--ember-rgb), 0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background 0.15s; }
+.ek-msg-send.on { background: var(--enki-ember); }
+.ek-msg-send.on:hover { filter: brightness(1.06); }
+@media (max-width: 760px) { .ek-msg-side { width: 230px; } }

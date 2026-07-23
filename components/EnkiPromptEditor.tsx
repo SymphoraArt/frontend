@@ -14,6 +14,7 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useIntentPayment } from "@/hooks/useIntentPayment";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useModelLimits } from "@/hooks/useModelLimits";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
 import EnkiMobileGenerateModal from "./EnkiMobileGenerateModal";
@@ -749,6 +750,14 @@ export default function EnkiPromptEditor() {
     pendingVarSync: false,
   });
 
+  // Per-model reference-image cap from the models table: the user-adjustable
+  // maxImages can never exceed what the selected generator supports.
+  const modelLimits = useModelLimits(models.selected[0] || "nano-banana-pro");
+  useEffect(() => {
+    setUi((p) => (p.maxImages > modelLimits.maxRefs ? { ...p, maxImages: modelLimits.maxRefs } : p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelLimits.maxRefs]);
+
   /* Controls the single-select Category dropdown so it closes on pick. */
   const [catOpen, setCatOpen] = useState(false);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
@@ -1323,6 +1332,40 @@ export default function EnkiPromptEditor() {
     setHistoryVersion((v) => v + 1);
     toast({ title: "New prompt", description: "Cleared the editor — starting fresh." });
   }, [toast]);
+
+  /* ─── ESC → leave the editor ───
+     A neutral ESC (no lightbox/dialog/dropdown open, nothing prevented it)
+     asks save-or-discard when there's content. "Save" simply keeps the
+     already-autosaved localStorage draft and returns home; "Discard" wipes
+     it via handleNewPrompt. */
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
+  const leaveConfirmRef = useRef(false); leaveConfirmRef.current = leaveConfirm;
+  const editorDirtyRef = useRef(false);
+  useEffect(() => {
+    editorDirtyRef.current = !!(
+      promptData.title.trim() || promptData.body.trim() || variables.length || referenceImages.length
+    );
+  }, [promptData, variables, referenceImages]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Capture-phase snapshot: is any overlay open right now? (After the other
+      // handlers run it may already be closed — this ESC belonged to it.)
+      const overlayOpen =
+        leaveConfirmRef.current ||
+        document.body.classList.contains("enk-ref-preview-open") ||
+        !!document.querySelector('[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper], .wp-scope');
+      // Defer the decision so inner handlers (mention dropdown, lightbox…) can
+      // claim the key via preventDefault first.
+      setTimeout(() => {
+        if (overlayOpen || e.defaultPrevented) return;
+        if (!editorDirtyRef.current) { router.push("/home"); return; }
+        setLeaveConfirm(true);
+      }, 0);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [router]);
 
   const addReferenceImage = (file: File) => {
     if (referenceImages.length >= ui.maxImages) {
@@ -5130,6 +5173,31 @@ export default function EnkiPromptEditor() {
           })(),
           document.body
         )}
+
+      {/* ESC → keep the (autosaved) draft, or wipe it and leave. */}
+      <AlertDialog open={leaveConfirm} onOpenChange={setLeaveConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Keep your work?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Save them as a draft in your browser — the editor will
+              look exactly like this when you come back — or throw them away.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setLeaveConfirm(false); handleNewPrompt(); router.push("/home"); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard & leave
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => { setLeaveConfirm(false); router.push("/home"); }}>
+              Save draft & leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </>
   );

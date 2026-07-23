@@ -39,3 +39,36 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Unit tests (lib money math)
         run: npx vitest run
+
+  # Full production build. tsc --noEmit misses a whole class of errors that
+  # only `next build` catches: PageProps violations (a page.tsx default export
+  # taking non-PageProps props), unresolved imports (a missing optional peer
+  # like x402-fetch), and Next's own generated route types. These slipped
+  # through to Vercel before this job existed. Dummy, format-valid env lets the
+  # "collect page data" phase evaluate route modules without throwing on real
+  # secrets — the build makes no network calls, so fake values are enough.
+  # (The cleaner long-term fix is to lazy-read env inside handlers so the build
+  # needs no env at all; until then, keep these in sync with new required env.)
+  build:
+    runs-on: ubuntu-latest
+    env:
+      AUTH_PEPPER: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TEAM_ACCESS_CODE: ci
+      THIRDWEB_SECRET_KEY: ci-dummy
+      NEXT_PUBLIC_THIRDWEB_CLIENT_ID: ci-dummy
+      SERVER_WALLET_ADDRESS: "0x0000000000000000000000000000000000000000"
+      GOOGLE_GEMINI_API_KEY: ci-dummy
+      SUPABASE_URL: https://ci-dummy.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ci-dummy
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy
+      NEXT_PUBLIC_APP_URL: https://ci.enki.gallery
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Production build (next build)
+        run: npm run build

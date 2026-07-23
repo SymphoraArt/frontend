@@ -6,9 +6,12 @@ export async function GET() {
     const supabase = getSupabaseServerClientSafe();
 
     if (supabase) {
+      // select("*") so the per-model limits (max_reference_images,
+      // allowed_filetypes — 2026-07-12-model-limits.sql) ride along once the
+      // migration ran, and their absence before it can't break the query.
       const { data, error } = await supabase
         .from("models")
-        .select("id, name, price, allowed_ratios")
+        .select("*")
         .eq("active", true)
         .order("price", { ascending: true });
 

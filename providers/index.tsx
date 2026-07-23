@@ -8,7 +8,20 @@ import { ThirdwebProvider } from "./ThirdwebProvider";
 import { ThemeProvider } from "./ThemeProvider";
 import { SolanaWalletProvider } from "./SolanaWalletProvider";
 import { TurnkeyProvider } from "./TurnkeyProvider";
+import dynamic from "next/dynamic";
+import { useEmailAuth } from "@/hooks/useEmailAuth";
+
+// The CDP SDK is heavy, so it loads lazily and mounts only while an email
+// session exists — visitors and wallet-only users never download it.
+const CdpRuntime = dynamic(() => import("./CdpProvider"), { ssr: false });
+
+function CdpLauncher() {
+  const { isAuthed } = useEmailAuth();
+  return isAuthed ? <CdpRuntime /> : null;
+}
 import { PaymentConfirmModal } from "@/components/PaymentConfirmModal";
+import { Toaster } from "@/components/ui/toaster";
+import BetaGate from "@/components/BetaGate";
 
 /**
  * Provider hierarchy (outermost first):
@@ -47,9 +60,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <TurnkeyProvider>
             <SolanaWalletProvider>
               <TooltipProvider>
-                {children}
+                {/* Closed-beta wall around EVERY page (public paths excepted). */}
+                <BetaGate>{children}</BetaGate>
                 {/* Mounted once at app root so any payment hook can request confirmation. */}
                 <PaymentConfirmModal />
+                {/* Without this, every toast() (errors included) went nowhere. */}
+                <Toaster />
+                <CdpLauncher />
               </TooltipProvider>
             </SolanaWalletProvider>
           </TurnkeyProvider>

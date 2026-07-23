@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "nfc",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3007"],
-      "port": 3007
+      "name": "nblm",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d D:\\Projects\\angglu_end\\node-based-left-menu && npm run dev -- -p 3009"],
+      "port": 3009
     }
   ]
 }

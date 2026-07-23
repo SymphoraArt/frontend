@@ -14,7 +14,6 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "../providers";
-import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -92,17 +91,30 @@ export const metadata: Metadata = {
     "Enki Art — discover, create, and generate stunning AI art with customizable prompt templates. A creative marketplace powered by Gemini AI.",
   keywords: ["AI art", "image generation", "prompt templates", "Gemini AI", "creative marketplace"],
   authors: [{ name: "Enki Art Team" }],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  // Falls back to the production origin (not localhost) so link previews
+  // resolve to a fetchable absolute image URL even when the env is unset.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://enki.gallery"),
   openGraph: {
     title: "Enki Art",
-    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+    description: "The home base for AI art, turning prompts into IP.",
     type: "website",
     locale: "en_US",
+    url: "/",
+    siteName: "Enki Art",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Enki Art — the home base for AI art, turning prompts into IP.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Enki Art",
-    description: "Discover, create, and generate stunning AI art with customizable prompt templates.",
+    description: "The home base for AI art, turning prompts into IP.",
+    images: ["/og-image.jpg"],
   },
   robots: {
     index: true,
@@ -170,7 +182,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable} ${sora.variable} ${instrumentSerif.variable} ${playfairDisplay.variable} ${outfit.variable} ${cormorantGaramond.variable} ${dmSans.variable} ${fraunces.variable} antialiased`}
       >
         <Providers>
-          <Navbar />
+          {/* The old top-header Navbar is retired (Kev, 2026-07-12): the app
+              uses ONLY the left-side-menu shell (/home) for navigation. */}
           {children}
         </Providers>
       </body>

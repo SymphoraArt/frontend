@@ -5,9 +5,9 @@
  * it into a prompt ("accepted", linked to the creation), and once it sells the
  * referrer earns a 50/50 revenue split with the artist ("earning").
  *
- * Backed by localStorage for now (no referral backend yet). Seeded with a few
- * example rows on first load so the Settings → Referrals table shows every
- * state; real submissions append as "suggested".
+ * Backed by localStorage for now (no referral backend yet). Only real
+ * submissions are stored (they append as "suggested"); rows from the old
+ * example seeding are filtered out on read.
  */
 
 export type ReferralStatus = "suggested" | "accepted" | "earning";
@@ -33,23 +33,15 @@ export function normalizeReferralUrl(u: string): string {
     .replace(/\/+$/, "");   // drop trailing slash
 }
 
-function seed(): Referral[] {
-  return [
-    { id: "seed-1", url: "https://instagram.com/p/Cv9x2Qk", platform: "Instagram", note: "Dreamy riverside golden-hour shot", status: "earning", revenue: 12.4, creationId: "riverside", createdAt: "2026-05-28T10:00:00Z" },
-    { id: "seed-2", url: "https://x.com/artistry/status/1788", platform: "X", note: "Bold editorial terrace scene", status: "accepted", revenue: 0, creationId: "terrace", createdAt: "2026-06-06T14:30:00Z" },
-    { id: "seed-3", url: "https://tiktok.com/@maker/video/772", platform: "TikTok", note: "Neon cyberpunk alley", status: "suggested", revenue: 0, createdAt: "2026-06-13T09:15:00Z" },
-  ];
-}
-
 export function listReferrals(userKey?: string | null): Referral[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(keyFor(userKey));
-    if (raw) return JSON.parse(raw) as Referral[];
+    // Early builds seeded example rows (ids "seed-…") — filter them out so
+    // nobody keeps seeing mock referrals; only real submissions remain.
+    if (raw) return (JSON.parse(raw) as Referral[]).filter((r) => !r.id.startsWith("seed-"));
   } catch { /* ignore */ }
-  const s = seed();
-  try { localStorage.setItem(keyFor(userKey), JSON.stringify(s)); } catch { /* ignore */ }
-  return s;
+  return [];
 }
 
 export function hasReferral(userKey: string | null | undefined, url: string): boolean {

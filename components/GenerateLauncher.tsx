@@ -7,6 +7,8 @@ import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useModelLimits } from "@/hooks/useModelLimits";
+import PromptEngagement from "@/components/PromptEngagement";
 import { addCreation } from "@/lib/creations";
 import EnkiMobileGenerateModal from "@/components/EnkiMobileGenerateModal";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
@@ -18,7 +20,6 @@ const GL_MODELS = [
   { id: "gpt-image-2", name: "GPT-Image-2", price: 0.1 },
 ];
 const GL_RATIOS = ["1:1", "4:5", "3:4", "16:9", "9:16"];
-const MAX_REFERENCE_IMAGES = 20;
 
 /**
  * GenerateLauncher — the unified "Generate" entry point (ported from pr45) that
@@ -56,6 +57,8 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
   const [prompt, setPrompt] = useState("");
   const [valueByToken, setValueByToken] = useState<Record<string, string>>({});
   const [model, setModel] = useState(GL_MODELS[0].id);
+  // Per-model limits (max reference images, allowed filetypes) from the DB.
+  const modelLimits = useModelLimits(model);
   const [ratio, setRatio] = useState("1:1");
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [nftImages, setNftImages] = useState<string[]>([]);
@@ -194,11 +197,22 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
     setList: Dispatch<SetStateAction<string[]>>
   ) => {
     Array.from(files).forEach((file) => {
+      // Per-model allowed filetypes + max reference images (models table).
+      if (modelLimits.filetypes.length && file.type && !modelLimits.filetypes.includes(file.type)) {
+        toast({ title: "File type not supported", description: `${file.name} — this model accepts ${modelLimits.filetypes.map((t) => t.split("/")[1]).join(", ")}.`, variant: "destructive" });
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const url = typeof reader.result === "string" ? reader.result : null;
         if (url) {
-          setList((prev) => (prev.length >= MAX_REFERENCE_IMAGES ? prev : [...prev, url]));
+          setList((prev) => {
+            if (prev.length >= modelLimits.maxRefs) {
+              toast({ title: "Reference limit reached", description: `This model allows up to ${modelLimits.maxRefs} reference images.` });
+              return prev;
+            }
+            return [...prev, url];
+          });
         }
       };
       reader.readAsDataURL(file);
@@ -233,6 +247,9 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
           e.target.value = "";
         }}
       />
+      {/* Ratings & comments for the opened prompt — floats above the modal. */}
+      {open && seedPrompt && <PromptEngagement promptId={String(seedPrompt.id)} />}
+
       <EnkiMobileGenerateModal
         isOpen={open}
         onClose={closeModal}

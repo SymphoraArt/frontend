@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Two-finger horizontal swipes on trackpads must never trigger the browser's
+   back/forward navigation — it hijacked node drags in the editor (the node
+   moved for a moment, then the "go back" bubble appeared instead). */
+html, body { overscroll-behavior-x: none; }
+
 /* ─── Enki Design System ─────────────────────────────── */
 :root {
   --enki-paper: #faf8f4;
