@@ -91,6 +91,7 @@
     "tailwindcss": "^4",
     "thirdweb": "^5.116.1",
     "viem": "^2.48.11",
+    "x402-fetch": "^1.0.0",
     "zod": "^4.3.4"
   },
   "devDependencies": {
