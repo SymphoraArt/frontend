@@ -26,7 +26,6 @@ import {
 } from "@solana/spl-token";
 import type { ChainKey } from "@/lib/payment-config";
 import { PAYMENT_CHAINS } from "@/lib/payment-config";
-import { useTurnkeySolanaSigner } from "@/hooks/useTurnkeySolanaSigner";
 import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { requestPaymentConfirm } from "@/lib/payment-confirm";
 
@@ -76,29 +75,25 @@ export function useSolanaX402Payment() {
   const { connection } = useConnection();
   const { publicKey: adapterPublicKey, signTransaction: adapterSignTransaction } = useWallet();
   const cdp = useCdpSolanaSigner();
-  const turnkey = useTurnkeySolanaSigner();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Priority: the user's own external wallet, then their CDP embedded wallet,
-  // then Turnkey.
+  // The user's own external wallet first, then their CDP embedded wallet.
   //
-  // CDP sits ABOVE Turnkey deliberately. Both let a user without an external
-  // wallet pay, but Turnkey's signer posts to /api/turnkey/sign-transaction —
-  // our server holds a key that can move the user's funds. CDP signs against
-  // the user's own wallet instead, so Enki can no longer sign alone. Turnkey
-  // stays only until the 9 remaining turnkey sessions are migrated; it is not
-  // a fallback we want to keep.
+  // Turnkey used to be the fallback here, but its signer posted to
+  // /api/turnkey/sign-transaction — our server held a key that could move a
+  // user's funds. Both signers below sign against a wallet the user controls,
+  // so Enki can no longer sign alone. (Removing it stranded nobody: every
+  // turnkey session had already expired.)
   const publicKey = useMemo(
-    () => adapterPublicKey ?? cdp.publicKey ?? turnkey.publicKey,
-    [adapterPublicKey, cdp.publicKey, turnkey.publicKey]
+    () => adapterPublicKey ?? cdp.publicKey,
+    [adapterPublicKey, cdp.publicKey]
   );
   const signTransaction = useMemo(() => {
     if (adapterSignTransaction) return adapterSignTransaction;
     if (cdp.isAvailable) return cdp.signTransaction;
-    if (turnkey.isAvailable) return turnkey.signTransaction;
     return null;
-  }, [adapterSignTransaction, cdp.isAvailable, cdp.signTransaction, turnkey.isAvailable, turnkey.signTransaction]);
+  }, [adapterSignTransaction, cdp.isAvailable, cdp.signTransaction]);
 
   /**
    * Send a USDC transfer to the payTo address as specified in the 402 response.
@@ -158,11 +153,12 @@ export function useSolanaX402Payment() {
         throw new Error("Insufficient devnet SOL for transaction fees.");
       }
 
-      // Turnkey email wallets sign server-side with no extension popup. Show an explicit
-      // in-app confirm so the user has a real "approve / cancel" step before USDC moves.
-      // External-wallet users get their wallet's native popup; skip the extra modal there.
-      const isTurnkey = !adapterSignTransaction && turnkey.isAvailable;
-      if (isTurnkey) {
+      // Embedded wallets (CDP) sign without an extension popup, so the user
+      // would otherwise see money move with no approval step at all. Show an
+      // explicit in-app confirm instead. External-wallet users already get
+      // their wallet's native popup — no second modal for them.
+      const usesEmbeddedWallet = !adapterSignTransaction && cdp.isAvailable;
+      if (usesEmbeddedWallet) {
         const confirmed = await requestPaymentConfirm({
           amount: (Number(amount) / 1_000_000).toFixed(2),
           asset: "USDC",
@@ -244,7 +240,7 @@ export function useSolanaX402Payment() {
 
       return encodePaymentHeader(signature, publicKey.toBase58(), req.network);
     },
-    [publicKey, signTransaction, adapterSignTransaction, turnkey.isAvailable, connection]
+    [publicKey, signTransaction, adapterSignTransaction, cdp.isAvailable, connection]
   );
 
   /**
