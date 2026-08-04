@@ -7,7 +7,7 @@ import { getQueryFn } from "@/lib/queryClient";
 import { ThirdwebProvider } from "./ThirdwebProvider";
 import { ThemeProvider } from "./ThemeProvider";
 import { SolanaWalletProvider } from "./SolanaWalletProvider";
-import { TurnkeyProvider } from "./TurnkeyProvider";
+
 import dynamic from "next/dynamic";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
 
@@ -57,7 +57,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <ThirdwebProvider>
-          <TurnkeyProvider>
+
             <SolanaWalletProvider>
               <TooltipProvider>
                 {/* Closed-beta wall around EVERY page (public paths excepted). */}
@@ -69,7 +69,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <CdpLauncher />
               </TooltipProvider>
             </SolanaWalletProvider>
-          </TurnkeyProvider>
+
         </ThirdwebProvider>
       </QueryClientProvider>
     </ThemeProvider>

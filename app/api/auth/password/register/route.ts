@@ -2,7 +2,7 @@
  * POST /api/auth/password/register  { email, password } → { token, expiresAt, email }
  *
  * Creates a bare users row + an Argon2id+pepper credential in
- * password_credentials (isolated from Turnkey and the encrypted-email design),
+ * password_credentials (isolated from the encrypted-email design),
  * then mints a session. The wallet is a Privy non-custodial embedded wallet
  * attached after login — Enki never holds keys.
  */

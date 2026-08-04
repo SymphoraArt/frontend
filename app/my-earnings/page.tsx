@@ -1,5 +1,6 @@
 "use client";
 
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -10,7 +11,7 @@ import { Loader2, TrendingUp, DollarSign, Package, Activity, ExternalLink } from
 import { WalletPickerModal } from "@/components/WalletPickerModal";
 import Link from "next/link";
 import Image from "next/image";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useAuth } from "@/hooks/useAuth";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 
@@ -59,10 +60,10 @@ interface EarningsData {
 export default function MyEarningsPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress, getAuthHeaders: getTurnkeyAuthHeaders } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const { getAuthHeaders: getEvmAuthHeaders } = useAuth();
   const { getAuthHeaders: getSolanaAuthHeaders } = useSolanaAuth();
-  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
+  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null;
   const [data, setData] = useState<EarningsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +80,8 @@ export default function MyEarningsPage() {
         setLoading(true);
         setError(null);
 
-        const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+        const sessionHeaders = sessionAuthHeaders();
+        const authHeaders = (Object.keys(sessionHeaders).length ? sessionHeaders : null) || getSolanaAuthHeaders() || getEvmAuthHeaders();
         if (!authHeaders) throw new Error("Authentication required");
 
         const response = await fetch(`/api/users/${userAddress}/earnings`, {
@@ -149,7 +151,8 @@ export default function MyEarningsPage() {
               setError(null);
               setLoading(true);
               if (userAddress) {
-                const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+                const sessionHeaders = sessionAuthHeaders();
+        const authHeaders = (Object.keys(sessionHeaders).length ? sessionHeaders : null) || getSolanaAuthHeaders() || getEvmAuthHeaders();
                 if (!authHeaders) {
                   setError("Authentication required");
                   setLoading(false);

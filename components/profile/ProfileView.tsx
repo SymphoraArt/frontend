@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import EnkiCard from "@/components/enki/EnkiCard";
@@ -447,7 +447,7 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
 
   const account = useSafeActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   // Session-backed Solana identity: after a page load the wallet ADAPTER is
   // disconnected (autoConnect off) but the signed session lives on — without
   // it this page showed "Guest / not connected" to logged-in wallet users.
@@ -456,7 +456,7 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
     account?.address ??
     (solanaSessionActive ? solanaSessionAddress : null) ??
     solanaPublicKey?.toBase58() ??
-    turnkeyAddress ?? null;
+    cdpAddress ?? null;
   const isAuthed = !!walletAddress;
 
   // The user's name, bio and images live in the DB. The gate check already

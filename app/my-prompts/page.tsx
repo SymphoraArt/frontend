@@ -7,13 +7,13 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 
 export default function MyPromptsPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
-  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
+  const { address: cdpAddress } = useCdpAddress();
+  const authenticated = !!account || solanaConnected || !!cdpAddress;
   const [showWalletPicker, setShowWalletPicker] = useState(false);
 
   if (!authenticated) {

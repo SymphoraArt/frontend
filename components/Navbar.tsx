@@ -34,8 +34,8 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useHoldings } from "@/hooks/useHoldings";
 import { useTheme } from "../providers/ThemeProvider";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 
 interface NavbarProps {
   username?: string;
@@ -92,11 +92,12 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const { disconnect: evmDisconnect } = useDisconnect();
   const { connected: solanaConnected, publicKey: solanaPublicKey, disconnect: solanaDisconnect } = useWallet();
   const { isAuthenticated: solanaSessionActive, walletAddress: solanaSessionAddress, logout: solanaSessionLogout } = useSolanaAuth();
-  const { address: turnkeyAddress, clear: clearTurnkeyAuth } = useTurnkeyEmailAuth();
+  
   const { email: authEmail, isAuthed: emailAuthed, logout: emailLogout } = useEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   // Same key as the billing recipient so the navbar shows the balance that
   // top-ups credit (see BillingPanel / useHoldings).
-  const holdingsAddress = account?.address ?? turnkeyAddress ?? null;
+  const holdingsAddress = account?.address ?? cdpAddress ?? null;
   const { balance: holdings, ready: holdingsReady } = useHoldings(holdingsAddress);
   const { theme, setTheme } = useTheme();
   const [themeReady, setThemeReady] = useState(false);
@@ -108,7 +109,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
   const evmAuthenticated = !!account && walletInfo.isConnected;
   // Solana는 서명까지 끝나야(=session active) 인증으로 본다. 단순 connect 상태로는
   // 인증된 것처럼 표시하지 않는다 (premature-login 버그 방지).
-  const authenticated = evmAuthenticated || solanaSessionActive || !!turnkeyAddress || emailAuthed;
+  const authenticated = evmAuthenticated || solanaSessionActive || !!cdpAddress || emailAuthed;
   const router = useRouter();
   const { toast } = useToast();
   const pathname = usePathname();
@@ -124,7 +125,7 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-  const walletAddress = walletInfo.address ?? solanaSessionAddress ?? turnkeyAddress ?? (solanaSessionActive ? solanaPublicKey?.toBase58() ?? null : null);
+  const walletAddress = walletInfo.address ?? solanaSessionAddress ?? cdpAddress ?? (solanaSessionActive ? solanaPublicKey?.toBase58() ?? null : null);
   // Email session with no wallet attached yet (Dynamic provisions one later).
   const emailOnly = emailAuthed && !walletAddress;
   const avatarLabel = walletAddress
@@ -455,7 +456,6 @@ export default function Navbar({ username = "Artist", onSearch }: NavbarProps) {
                         if (emailAuthed) emailLogout();
                         try {
                           if (emailOnly) { toast({ title: "Signed out" }); return; }
-                          if (turnkeyAddress) { clearTurnkeyAuth(); toast({ title: "Signed out" }); return; }
                           if (solanaConnected || solanaSessionActive) {
                             await solanaSessionLogout().catch(() => {});
                             await solanaDisconnect().catch(() => {});

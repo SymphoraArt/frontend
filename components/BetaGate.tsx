@@ -10,6 +10,7 @@
  * see it on page loads — this client wall plus per-request auth on the APIs is
  * the enforcement pair.
  */
+import { CDP_ADDRESS_EVENT } from "@/lib/cdp-bridge";
 import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -59,11 +60,11 @@ export default function BetaGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const rerun = () => { setAccess("checking"); setTick((t) => t + 1); };
     window.addEventListener("enki-email-auth-changed", rerun);
-    window.addEventListener("turnkey-email-auth-changed", rerun);
+    window.addEventListener(CDP_ADDRESS_EVENT, rerun);
     window.addEventListener("storage", rerun);
     return () => {
       window.removeEventListener("enki-email-auth-changed", rerun);
-      window.removeEventListener("turnkey-email-auth-changed", rerun);
+      window.removeEventListener(CDP_ADDRESS_EVENT, rerun);
       window.removeEventListener("storage", rerun);
     };
   }, []);

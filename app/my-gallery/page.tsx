@@ -11,7 +11,7 @@ import {
   type StoredCreation,
 } from "@/lib/creations";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { usePasskey } from "@/hooks/usePasskey";
 import { Images, Trash2, Wallet, Loader2, ImageOff } from "lucide-react";
 
@@ -31,13 +31,13 @@ type SupabaseGeneration = {
 export default function MyGalleryPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const { stepUp } = usePasskey();
-  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
+  const authenticated = !!account || solanaConnected || !!cdpAddress;
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const userKey = useMemo(
-    () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
-    [account?.address, solanaPublicKey, turnkeyAddress]
+    () => account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null,
+    [account?.address, solanaPublicKey, cdpAddress]
   );
   const [items, setItems] = useState<StoredCreation[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);

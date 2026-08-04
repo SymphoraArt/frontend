@@ -16,7 +16,7 @@
  * The companion pay endpoint (next step) consumes the intent with an atomic
  * quoted→building transition (single conditional UPDATE — see
  * docs/PAYMENT-SECURITY-PATTERNS.md #2), builds the atomic multi-transfer
- * Solana tx server-side, signs it via Turnkey, and broadcasts.
+ * Solana tx server-side; the buyer signs it in their own wallet.
  *
  * Requires migrations/generation_payment_intents.sql to be applied.
  */
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   // buyer_wallet comes from the session, never from the client. NOTE for the
   // pay step: session wallets are stored lowercased (auth_sessions), which is
-  // lossy for base58 — resolve the case-exact address via turnkey_users
+  // lossy for base58 — resolve the case-exact address from user_wallets
   // before building the on-chain transfer.
   const { data: intent, error: insertError } = await supabase
     .from("generation_payment_intents")

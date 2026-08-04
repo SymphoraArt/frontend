@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 import {
@@ -93,10 +93,10 @@ export default function PromptGeneratorView({
   /* Auth */
   const account = useActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const userKey = useMemo(
-    () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
-    [account?.address, solanaPublicKey, turnkeyAddress]
+    () => account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null,
+    [account?.address, solanaPublicKey, cdpAddress]
   );
 
   /* State */

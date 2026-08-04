@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/Navbar";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import {
   fetchGuardianConfig,
@@ -97,14 +97,14 @@ function StatusPill({ tone, children }: { tone: "ok" | "warn" | "muted"; childre
 export default function RecoveryStatusPage() {
   const { publicKey: solanaPublicKey } = useWallet();
   const { walletAddress: solanaSessionAddress, isAuthenticated: solanaSessionActive } = useSolanaAuth();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
 
   const activeOwnerAddress = useMemo<string | null>(() => {
-    if (turnkeyAddress) return turnkeyAddress;
+    if (cdpAddress) return cdpAddress;
     if (solanaSessionActive && solanaSessionAddress) return solanaSessionAddress;
     if (solanaPublicKey) return solanaPublicKey.toBase58();
     return null;
-  }, [turnkeyAddress, solanaSessionActive, solanaSessionAddress, solanaPublicKey]);
+  }, [cdpAddress, solanaSessionActive, solanaSessionAddress, solanaPublicKey]);
 
   const [guardian, setGuardian] = useState<GuardianStatus>({ state: "idle" });
 
@@ -138,7 +138,7 @@ export default function RecoveryStatusPage() {
     <>
       <Navbar />
       <main style={{ maxWidth: 720, margin: "100px auto 80px", padding: "0 20px", fontFamily: "var(--font-sans)" }}>
-      <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "8px 16px" }}>MOCK — this recovery flow is a UI prototype, not wired to Turnkey yet.</div>
+      <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "8px 16px" }}>MOCK — this recovery flow is a UI prototype, not wired up yet.</div>
         <header style={{ marginBottom: 28 }}>
           <p style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "0.2em", color: "rgba(0,0,0,0.5)", margin: 0 }}>
             ACCOUNT &nbsp;/&nbsp; RECOVERY
@@ -155,7 +155,7 @@ export default function RecoveryStatusPage() {
           {activeOwnerAddress ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <Code>{activeOwnerAddress}</Code>
-              {turnkeyAddress ? <StatusPill tone="ok">Turnkey email</StatusPill> : <StatusPill tone="muted">External wallet</StatusPill>}
+              {cdpAddress ? <StatusPill tone="ok">Embedded wallet</StatusPill> : <StatusPill tone="muted">External wallet</StatusPill>}
             </div>
           ) : (
             <p style={{ margin: 0 }}>
@@ -165,14 +165,14 @@ export default function RecoveryStatusPage() {
         </Section>
 
         <Section title="Email recovery">
-          {turnkeyAddress ? (
+          {cdpAddress ? (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <StatusPill tone="ok">Active</StatusPill>
                 <span>Sign in with the same email to recover this wallet on any device.</span>
               </div>
               <p style={{ margin: "8px 0 0", color: "rgba(0,0,0,0.55)", fontSize: 12 }}>
-                Recovery happens via Turnkey OTP. The wallet address is bound to the email at sign-up; subsequent logins resolve to the same Solana address.
+                Recovery happens via email sign-in. The wallet address is bound to the email at sign-up; subsequent logins resolve to the same Solana address.
               </p>
             </>
           ) : (
@@ -242,7 +242,7 @@ export default function RecoveryStatusPage() {
 
         <Section title="Notes">
           <ul style={{ margin: 0, paddingLeft: 18, color: "rgba(0,0,0,0.65)", fontSize: 12, lineHeight: 1.7 }}>
-            <li>Email recovery is wallet-equivalent: the same OTP login restores the same Solana address and Turnkey sub-organization.</li>
+            <li>Email recovery is wallet-equivalent: the same email login restores the same Solana address.</li>
             <li>Guardian recovery requires a guardian to be registered on-chain (instruction <Code>register_guardian</Code>). The recovery transaction (<Code>recover_wallet</Code>) is executed by the guardian, not the user.</li>
             <li>This page is read-only on purpose — write transactions ship in the next iteration once the program client is signer-ready.</li>
           </ul>
