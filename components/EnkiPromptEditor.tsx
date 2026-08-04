@@ -14,6 +14,7 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useIntentPayment } from "@/hooks/useIntentPayment";
 import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { useModelLimits } from "@/hooks/useModelLimits";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
@@ -476,9 +477,13 @@ export default function EnkiPromptEditor() {
   const activeWalletChain = useActiveWalletChain();
   const { connected: solanaAdapterConnected } = useWallet();
   const { address: turnkeyAddress } = useTurnkeyEmailAuth();
-  // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
-  // signing through `/api/turnkey/sign-transaction` instead of the wallet adapter.
-  const solanaConnected = solanaAdapterConnected || !!turnkeyAddress;
+  const cdpSolana = useCdpSolanaSigner();
+  // Anyone who can sign a Solana transaction counts as "Solana connected":
+  // an external adapter, a CDP embedded wallet, or (until those sessions are
+  // migrated) Turnkey. Without the CDP arm here, a CDP user fell through to
+  // the EVM x402 branch below and could not pay at all despite holding a
+  // perfectly good Solana wallet.
+  const solanaConnected = solanaAdapterConnected || cdpSolana.isAvailable || !!turnkeyAddress;
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   // Server-built payments (intent → pay → generate) for Turnkey email users:

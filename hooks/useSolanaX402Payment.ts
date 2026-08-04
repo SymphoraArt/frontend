@@ -27,6 +27,7 @@ import {
 import type { ChainKey } from "@/lib/payment-config";
 import { PAYMENT_CHAINS } from "@/lib/payment-config";
 import { useTurnkeySolanaSigner } from "@/hooks/useTurnkeySolanaSigner";
+import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { requestPaymentConfirm } from "@/lib/payment-confirm";
 
 const EXPECTED_SOLANA_PLATFORM_WALLET = process.env.NEXT_PUBLIC_SOLANA_PLATFORM_WALLET;
@@ -74,21 +75,30 @@ function encodePaymentHeader(signature: string, buyerAddress: string, network: s
 export function useSolanaX402Payment() {
   const { connection } = useConnection();
   const { publicKey: adapterPublicKey, signTransaction: adapterSignTransaction } = useWallet();
+  const cdp = useCdpSolanaSigner();
   const turnkey = useTurnkeySolanaSigner();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Adapter (Phantom/Solflare/etc.) takes priority when present; otherwise fall back to
-  // Turnkey email signer so users without an external wallet can still pay.
+  // Priority: the user's own external wallet, then their CDP embedded wallet,
+  // then Turnkey.
+  //
+  // CDP sits ABOVE Turnkey deliberately. Both let a user without an external
+  // wallet pay, but Turnkey's signer posts to /api/turnkey/sign-transaction —
+  // our server holds a key that can move the user's funds. CDP signs against
+  // the user's own wallet instead, so Enki can no longer sign alone. Turnkey
+  // stays only until the 9 remaining turnkey sessions are migrated; it is not
+  // a fallback we want to keep.
   const publicKey = useMemo(
-    () => adapterPublicKey ?? turnkey.publicKey,
-    [adapterPublicKey, turnkey.publicKey]
+    () => adapterPublicKey ?? cdp.publicKey ?? turnkey.publicKey,
+    [adapterPublicKey, cdp.publicKey, turnkey.publicKey]
   );
   const signTransaction = useMemo(() => {
     if (adapterSignTransaction) return adapterSignTransaction;
+    if (cdp.isAvailable) return cdp.signTransaction;
     if (turnkey.isAvailable) return turnkey.signTransaction;
     return null;
-  }, [adapterSignTransaction, turnkey.isAvailable, turnkey.signTransaction]);
+  }, [adapterSignTransaction, cdp.isAvailable, cdp.signTransaction, turnkey.isAvailable, turnkey.signTransaction]);
 
   /**
    * Send a USDC transfer to the payTo address as specified in the 402 response.
