@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { recordModerationEvent } from "@/lib/moderation-enforcement";
 
 /**
  * Free image generation endpoint (dev/testing)
- * 
+ *
  * Uses Pollinations.ai (free, no API key needed)
  * No payment required, no database needed.
- * 
+ *
+ * UNAUTHENTICATED — and therefore the easiest possible abuse vector: an
+ * attacker needs no account at all. Today it is shielded only by the
+ * private-beta proxy gate; the moment TEAM_ACCESS_CODE is unset at launch it
+ * becomes a fully open image generator. So it gets the same moderation as the
+ * paid path, plus a per-IP rate limit, and violations are attributed by hashed
+ * IP since there is no session to key on.
+ *
  * POST /api/generate-free
  * Body: { prompt: string, aspectRatio?: string, resolution?: string }
  */
@@ -18,9 +28,24 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
+    if (prompt.length > 4000) {
+      return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
+    }
 
+    // No session here, so the limit is per IP.
+    const limit = checkRequestRateLimit(rateLimitKey(request, "generate-free"), 10, 60_000);
+    if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
+
+    const verdict = await moderate({ prompt, surface: "generate-free", signal: request.signal });
+    void recordModerationEvent(verdict, { surface: "generate-free", request, prompt });
+    if (!verdict.allowed) {
+      return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
+    }
+
+    // Never log the prompt itself — this is shared log output, and a blocked
+    // prompt is exactly the text we must not spray around in the clear.
     console.log('🎨 Free generation request:', {
-      prompt: prompt.substring(0, 80) + '...',
+      chars: prompt.length,
       aspectRatio: body.aspectRatio || '1:1',
       resolution: body.resolution || '2K',
     });

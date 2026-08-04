@@ -14,6 +14,8 @@ import { getSupabaseServerClient, getSupabaseServerClientSafe } from "@/lib/supa
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import {
   fulfillGenerationIntent,
   redeemGenerationIntent,
@@ -175,6 +177,19 @@ export async function POST(request: NextRequest) {
     const bracketCount = (prompt.match(/\[/g) || []).length;
     if (bracketCount > 20) {
       return NextResponse.json({ error: "Too many variables" }, { status: 400 });
+    }
+
+    // 3. Content moderation — deliberately the FIRST thing after cheap input
+    // validation and long before any payment step below. A refused prompt must
+    // never be a charged prompt.
+    //
+    // The client only ever learns that it was refused: category, tier, rule ids
+    // and scores stay server-side, otherwise this endpoint becomes an oracle an
+    // attacker can probe to map the filter.
+    const verdict = await moderate({ prompt, surface: "generate-image", signal: request.signal });
+    void recordModerationEvent(verdict, { surface: "generate-image", request, prompt });
+    if (!verdict.allowed) {
+      return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
     }
 
     // 3. Ratio validation (fetched from DB)
