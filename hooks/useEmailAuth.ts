@@ -21,7 +21,7 @@ async function post(path: string, body: unknown) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || "Something went wrong");
-  return data as { token?: string; expiresAt?: string; email?: string };
+  return data as { token?: string; expiresAt?: string; email?: string; banned?: boolean };
 }
 
 export function useEmailAuth() {
@@ -49,7 +49,10 @@ export function useEmailAuth() {
   }, []);
 
   const login = useCallback(async (identifier: string, password: string) => {
-    store(await post("/api/auth/password/login", { identifier, password }));
+    const data = await post("/api/auth/password/login", { identifier, password });
+    store(data);
+    // banned accounts keep exactly one door: status, appeal, funds
+    if (data.banned) window.location.href = "/banned";
   }, []);
 
   const forgot = useCallback(async (e: string) => {

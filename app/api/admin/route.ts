@@ -8,12 +8,18 @@
  *
  * Server-side gate on EVERY request: session → users.role ∈ {admin, mod}.
  * (The client gate in /admin is cosmetic — this check is the real wall.)
- * All tables verified live 2026-07-20 via PostgREST OpenAPI probe.
+ * All tables verified live 2026-07-20 via PostgREST OpenAPI probe; check
+ * constraints verified live 2026-07-21 via probe inserts:
+ *   strikes.severity ∈ {1,2,3} · bans.scope ∈ {full} · appeals.status ∈
+ *   {pending,approved,denied,withdrawn} · appeals.target_type ∈ {strike,ban} ·
+ *   reports.status ∈ {pending,actioned,dismissed,duplicate} · reports.reason ∈
+ *   {spam,copyright,hate,impersonation,other}
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { resolveSessionUserId } from "@/lib/session-user";
-import { decryptString, type EncryptedPayload } from "@/lib/crypto";
+import { decryptString, encryptString, type EncryptedPayload } from "@/lib/crypto";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 type Supabase = ReturnType<typeof getSupabaseServerClient>;
 
@@ -45,18 +51,154 @@ const handleMap = async (supabase: Supabase, ids: string[]): Promise<Map<string,
   return new Map((data ?? []).map((u) => [String(u.id), (u.handle as string) ?? "unnamed"]));
 };
 
+/* ── moderation council (tables from migrations/2026-07-21-moderation-council.sql;
+      every read tolerates the migration not having run yet) ── */
+
+type ProposalRow = Record<string, unknown>;
+type CouncilPayload = {
+  ready: boolean; isOwner: boolean; enabled: boolean; quorum: number; ttlDays: number;
+  members: { handle: string; role: string; hasEmail: boolean }[];
+  myEmail: string | null;
+  proposals: {
+    id: string; kind: string; target: string; targetUserId: string | null; days: number | null;
+    violation: string; proposer: string; status: string; confirms: number; denies: number;
+    myVote: string | null; quorum: number; at: string; expiresAt: string;
+  }[];
+};
+
+async function buildCouncil(supabase: Supabase, userId: string): Promise<CouncilPayload> {
+  const off: CouncilPayload = { ready: false, isOwner: false, enabled: false, quorum: 3, ttlDays: 7, members: [], myEmail: null, proposals: [] };
+  const { data: policy, error } = await supabase.from("moderation_policy")
+    .select("owner_user_id, council_enabled, quorum, proposal_ttl_days").eq("id", 1).maybeSingle();
+  if (error || !policy) return off;
+
+  const nowIso = new Date().toISOString();
+  await supabase.from("mod_proposals").update({ status: "expired", decided_at: nowIso })
+    .eq("status", "pending").lt("expires_at", nowIso);
+
+  const [membersQ, prefsQ, propsQ] = await Promise.all([
+    supabase.from("users").select("id, handle, role").in("role", ["admin", "mod"]).is("deleted_at", null),
+    supabase.from("admin_prefs").select("user_id, notify_email_ct, notify_email_iv, notify_email_tag, notify_email_kid"),
+    supabase.from("mod_proposals").select("*").order("created_at", { ascending: false }).limit(60),
+  ]);
+  const prefs = new Map((prefsQ.data ?? []).map((p) => [String(p.user_id), p]));
+  const props = (propsQ.data ?? []) as ProposalRow[];
+  const ids = props.map((p) => String(p.id));
+  const votes = ids.length
+    ? ((await supabase.from("mod_proposal_votes").select("proposal_id, voter_user_id, vote").in("proposal_id", ids)).data ?? [])
+    : [];
+  const tally = new Map<string, { c: number; d: number; mine: string | null }>();
+  for (const v of votes) {
+    const k = String(v.proposal_id);
+    const t = tally.get(k) ?? { c: 0, d: 0, mine: null };
+    if (v.vote === "confirm") t.c++; else t.d++;
+    if (String(v.voter_user_id) === userId) t.mine = String(v.vote);
+    tally.set(k, t);
+  }
+  const handles = await handleMap(supabase, [
+    ...props.map((p) => (p.target_user_id ? String(p.target_user_id) : "")),
+    ...props.map((p) => String(p.proposed_by)),
+  ]);
+  const my = prefs.get(userId);
+  return {
+    ready: true,
+    isOwner: String(policy.owner_user_id) === userId,
+    enabled: policy.council_enabled === true,
+    quorum: Number(policy.quorum) || 3,
+    ttlDays: Number(policy.proposal_ttl_days) || 7,
+    members: (membersQ.data ?? []).map((m) => ({
+      handle: (m.handle as string) ?? "unnamed",
+      role: String(m.role),
+      hasEmail: !!prefs.get(String(m.id))?.notify_email_ct,
+    })),
+    myEmail: my ? tryDecrypt(my.notify_email_ct, my.notify_email_iv, my.notify_email_tag, my.notify_email_kid, [userId, undefined]) : null,
+    proposals: props.map((p) => {
+      const t = tally.get(String(p.id)) ?? { c: 0, d: 0, mine: null };
+      return {
+        id: String(p.id), kind: String(p.kind),
+        target: p.target_user_id ? "@" + (handles.get(String(p.target_user_id)) ?? "unknown") : "IP " + String(p.target_ip_hash).slice(0, 10) + "…",
+        targetUserId: p.target_user_id ? String(p.target_user_id) : null,
+        days: (p.days as number | null) ?? null,
+        violation: String(p.violation ?? ""),
+        proposer: handles.get(String(p.proposed_by)) ?? "unknown",
+        status: String(p.status), confirms: t.c, denies: t.d, myVote: t.mine,
+        quorum: Number(p.quorum), at: String(p.created_at), expiresAt: String(p.expires_at),
+      };
+    }),
+  };
+}
+
+/** Newest hashed login IP for a user (sessions are keyed by user id or wallet). */
+async function lastKnownIpHash(supabase: Supabase, targetUserId: string): Promise<string | null> {
+  const { data: wallets } = await supabase.from("user_wallets").select("address").eq("user_id", targetUserId);
+  const keys = [targetUserId, ...(wallets ?? []).map((w) => String(w.address))];
+  const { data } = await supabase.from("auth_sessions")
+    .select("ip_hash").in("wallet_address", keys).not("ip_hash", "is", null)
+    .order("created_at", { ascending: false }).limit(1);
+  return (data?.[0]?.ip_hash as string) ?? null;
+}
+
+/** Quorum reached → the proposal's action lands in bans/ip_bans. */
+async function executeProposal(supabase: Supabase, p: ProposalRow, now: string): Promise<{ message?: string } | null> {
+  const reason = `Council: ${String(p.violation)}`.slice(0, 200);
+  if (p.kind === "ip_ban") {
+    const { error } = await supabase.from("ip_bans").upsert({
+      ip_hash: String(p.target_ip_hash), reason, issued_by: String(p.proposed_by), proposal_id: String(p.id),
+    }, { onConflict: "ip_hash", ignoreDuplicates: true });
+    if (error) return error;
+  } else {
+    const { data: active } = await supabase.from("bans")
+      .select("id").eq("user_id", String(p.target_user_id)).is("lifted_at", null).limit(1);
+    if (active?.length) {
+      if (p.kind === "ban_perm") {
+        const { error } = await supabase.from("bans").update({ expires_at: null }).eq("id", active[0].id);
+        if (error) return error;
+      } // ban_temp on an already-banned user: nothing to stack
+    } else {
+      const { error } = await supabase.from("bans").insert({
+        user_id: String(p.target_user_id), issued_by: String(p.proposed_by), scope: "full", reason,
+        expires_at: p.kind === "ban_perm" ? null : new Date(Date.now() + Number(p.days ?? 7) * 86400_000).toISOString(),
+      });
+      if (error) return error;
+    }
+  }
+  const { error } = await supabase.from("mod_proposals")
+    .update({ status: "approved", decided_at: now, executed_at: now }).eq("id", String(p.id));
+  return error ?? null;
+}
+
+/** Email every council member with a saved notify address (except the proposer). */
+async function notifyCouncil(supabase: Supabase, proposerId: string, p: { kind: string; days: number | null; violation: string; targetHandle: string; quorum: number }) {
+  const { data: proposer } = await supabase.from("users").select("handle").eq("id", proposerId).maybeSingle();
+  const label = p.kind === "ip_ban" ? "indefinite IP ban" : p.kind === "ban_perm" ? "permanent ban" : `${p.days ?? 7}-day ban`;
+  const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_ORIGIN || "";
+  await notifyAdmins(supabase, {
+    exceptUserId: proposerId,
+    subject: `[Enki Admin] Council vote: ${label} for @${p.targetHandle}`,
+    text: [
+      `@${(proposer?.handle as string) ?? "an admin"} proposes a ${label} against @${p.targetHandle}.`,
+      "",
+      `Violation: ${p.violation}`,
+      "",
+      `Confirm or deny in the admin panel (Council tab)${origin ? `: ${origin}/admin` : "."}`,
+      `The action executes at ${p.quorum} confirmations.`,
+    ].join("\n"),
+  });
+}
+
 export async function GET(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   const gate = await requireAdmin(supabase, req);
   if (gate instanceof NextResponse) return gate;
+  const { userId } = gate;
 
-  const [imp, rep, fb, fr, hu, st, ba, ap, rec] = await Promise.all([
+  const [imp, rep, fb, fr, hu, st, ba, ap, rec, council] = await Promise.all([
     supabase.from("hunt_submissions")
       .select("id, hunter_user_id, source_url, suggested_title, suggested_tags, submitted_at")
       .eq("status", "pending").order("submitted_at", { ascending: false }).limit(100),
     supabase.from("reports")
       .select("id, reporter_user_id, target_type, target_uuid, reason, details, severity, status, created_at")
-      .in("status", ["open", "pending"]).order("created_at", { ascending: false }).limit(100),
+      .eq("status", "pending").order("created_at", { ascending: false }).limit(100),
     supabase.from("feedback_submissions")
       .select("id, user_id, submitter_name, submitter_email_ct, submitter_email_iv, submitter_email_tag, submitter_email_kid, description, category, severity, payout_cents, paid_at, created_at")
       .order("created_at", { ascending: false }).limit(100),
@@ -78,6 +220,7 @@ export async function GET(req: NextRequest) {
     supabase.from("recovery_requests")
       .select("id, user_id, claimed_handle, claimed_wallet, contact_email_ct, contact_email_iv, contact_email_tag, contact_email_kid, explanation_ct, explanation_iv, explanation_tag, explanation_kid, layer, status, rejection_reason, created_at")
       .order("created_at", { ascending: false }).limit(50),
+    buildCouncil(supabase, userId),
   ]);
 
   // attachments per feedback + evidence per recovery request
@@ -202,6 +345,7 @@ export async function GET(req: NextRequest) {
       status: (r.status as string) ?? "pending",
       at: r.created_at,
     })),
+    council,
   });
 }
 
@@ -214,6 +358,9 @@ export async function POST(req: NextRequest) {
   let body: {
     resource?: string; action?: string; id?: string; ids?: string[];
     reason?: string; name?: string; address?: string; type?: string; notes?: string; status?: string;
+    userId?: string; severity?: number; days?: number; permanent?: boolean;
+    handle?: string; kind?: string; violation?: string; vote?: string;
+    email?: string; enabled?: boolean; quorum?: number; ttlDays?: number;
   };
   try {
     body = await req.json();
@@ -246,9 +393,41 @@ export async function POST(req: NextRequest) {
   if (body.resource === "reports" && body.id) {
     if (body.action === "resolve" || body.action === "dismiss") {
       const { error } = await supabase.from("reports")
-        .update({ status: body.action === "resolve" ? "resolved" : "dismissed", decided_by: userId, decided_at: now })
+        .update({ status: body.action === "resolve" ? "actioned" : "dismissed", decided_by: userId, decided_at: now })
         .eq("id", body.id);
       return error ? fail(error, body.action) : NextResponse.json({ ok: true });
+    }
+    if (body.action === "strike" || body.action === "delist") {
+      const { data: rep } = await supabase.from("reports")
+        .select("target_type, target_uuid, reason, status").eq("id", body.id).maybeSingle();
+      if (!rep || rep.status !== "pending") {
+        return NextResponse.json({ error: "Report not found or already decided" }, { status: 400 });
+      }
+      if (body.action === "delist") {
+        if (rep.target_type !== "prompt") return NextResponse.json({ error: "Only prompt reports can be delisted" }, { status: 400 });
+        const { error } = await supabase.from("prompts")
+          .update({ is_listed: false, delisted_at: now }).eq("id", rep.target_uuid);
+        if (error) return fail(error, "delist the prompt");
+      } else {
+        // strike goes to the reported user; for prompt reports that's the creator
+        let targetUserId = String(rep.target_uuid);
+        if (rep.target_type === "prompt") {
+          const { data: p } = await supabase.from("prompts").select("creator_id").eq("id", rep.target_uuid).maybeSingle();
+          if (!p) return NextResponse.json({ error: "Prompt no longer exists — dismiss the report instead" }, { status: 400 });
+          targetUserId = String(p.creator_id);
+        }
+        const severity = [1, 2, 3].includes(Number(body.severity)) ? Number(body.severity) : 1;
+        const { error } = await supabase.from("strikes").insert({
+          user_id: targetUserId, issued_by: userId, severity,
+          reason: `Report: ${rep.reason}`,
+          related_report_id: body.id, related_target_type: rep.target_type, related_target_uuid: rep.target_uuid,
+        });
+        if (error) return fail(error, "issue the strike");
+      }
+      const { error } = await supabase.from("reports")
+        .update({ status: "actioned", decided_by: userId, decided_at: now })
+        .eq("id", body.id).eq("status", "pending");
+      return error ? fail(error, "close the report") : NextResponse.json({ ok: true });
     }
   }
 
@@ -289,6 +468,181 @@ export async function POST(req: NextRequest) {
       .update({ revoked_at: now, revoked_by: userId, revoke_reason: "Revoked from the admin panel" })
       .eq("id", body.id).is("revoked_at", null);
     return error ? fail(error, "revoke the strike") : NextResponse.json({ ok: true });
+  }
+
+  // ── bans (scope 'full' is the only live-allowed value) ──
+  if (body.resource === "bans" && (body.userId || body.handle)) {
+    let targetId = body.userId ?? null;
+    if (!targetId) {
+      const { data } = await supabase.from("users")
+        .select("id").eq("handle", String(body.handle).replace(/^@/, "").trim()).maybeSingle();
+      if (!data) return NextResponse.json({ error: "User not found" }, { status: 400 });
+      targetId = String(data.id);
+    }
+    if (body.action === "ban") {
+      // council mode routes every ban through a proposal instead
+      const { data: pol } = await supabase.from("moderation_policy")
+        .select("council_enabled").eq("id", 1).maybeSingle();
+      if (pol?.council_enabled === true) {
+        return NextResponse.json({ error: "Council mode is on — propose the ban in the Council tab instead" }, { status: 409 });
+      }
+      const permanent = body.permanent === true;
+      const days = Number.isInteger(body.days) && body.days! >= 1 && body.days! <= 365 ? body.days! : null;
+      if (!permanent && !days) return NextResponse.json({ error: "days (1–365) or permanent required" }, { status: 400 });
+      const { data: active } = await supabase.from("bans")
+        .select("id").eq("user_id", targetId).is("lifted_at", null).limit(1);
+      if (active?.length) {
+        if (!permanent) return NextResponse.json({ error: "Already banned" }, { status: 400 });
+        // escalate the active ban instead of stacking a second one
+        const { error } = await supabase.from("bans").update({ expires_at: null }).eq("id", active[0].id);
+        return error ? fail(error, "make the ban permanent") : NextResponse.json({ ok: true });
+      }
+      const { error } = await supabase.from("bans").insert({
+        user_id: targetId, issued_by: userId, scope: "full",
+        reason: (body.reason ?? "Banned from the admin panel").slice(0, 200),
+        expires_at: permanent ? null : new Date(Date.now() + days! * 86400_000).toISOString(),
+      });
+      return error ? fail(error, "ban the user") : NextResponse.json({ ok: true });
+    }
+    if (body.action === "lift") {
+      const { error } = await supabase.from("bans")
+        .update({ lifted_at: now, lifted_by: userId, lifted_reason: "Reinstated from the admin panel" })
+        .eq("user_id", targetId).is("lifted_at", null);
+      return error ? fail(error, "reinstate the user") : NextResponse.json({ ok: true });
+    }
+  }
+
+  // ── appeals ──
+  if (body.resource === "appeals" && body.id && (body.action === "approve" || body.action === "deny")) {
+    const { data: ap } = await supabase.from("appeals")
+      .select("target_type, target_uuid, status").eq("id", body.id).maybeSingle();
+    if (!ap || ap.status !== "pending") {
+      return NextResponse.json({ error: "Appeal not found or already decided" }, { status: 400 });
+    }
+    const approve = body.action === "approve";
+    const { error } = await supabase.from("appeals")
+      .update({ status: approve ? "approved" : "denied", decided_by: userId, decided_at: now })
+      .eq("id", body.id).eq("status", "pending");
+    if (error) return fail(error, "decide the appeal");
+    if (approve) {
+      // approving undoes the appealed strike/ban
+      const { error: undo } = ap.target_type === "strike"
+        ? await supabase.from("strikes")
+            .update({ revoked_at: now, revoked_by: userId, revoke_reason: "Appeal approved" })
+            .eq("id", ap.target_uuid).is("revoked_at", null)
+        : await supabase.from("bans")
+            .update({ lifted_at: now, lifted_by: userId, lifted_reason: "Appeal approved" })
+            .eq("id", ap.target_uuid).is("lifted_at", null);
+      if (undo) return fail(undo, `undo the appealed ${ap.target_type}`);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── my admin prefs: council notification email ──
+  if (body.resource === "prefs" && body.action === "setEmail") {
+    const email = (body.email ?? "").trim().toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return NextResponse.json({ error: "That doesn't look like an email address" }, { status: 400 });
+    }
+    if (!email) {
+      const { error } = await supabase.from("admin_prefs").delete().eq("user_id", userId);
+      return error ? fail(error, "clear the email") : NextResponse.json({ ok: true });
+    }
+    const enc = encryptString(email, userId);
+    const { error } = await supabase.from("admin_prefs").upsert({
+      user_id: userId, notify_email_ct: enc.encrypted, notify_email_iv: enc.iv,
+      notify_email_tag: enc.authTag, notify_email_kid: enc.kid ?? null, updated_at: now,
+    }, { onConflict: "user_id" });
+    return error ? fail(error, "save the email") : NextResponse.json({ ok: true });
+  }
+
+  // ── moderation policy (owner only) ──
+  if (body.resource === "policy" && body.action === "set") {
+    const { data: pol } = await supabase.from("moderation_policy").select("owner_user_id").eq("id", 1).maybeSingle();
+    if (!pol) return NextResponse.json({ error: "Council isn't set up yet — run the moderation-council migration first" }, { status: 400 });
+    if (String(pol.owner_user_id) !== userId) return NextResponse.json({ error: "Owner only" }, { status: 403 });
+    const quorum = Number(body.quorum), ttl = Number(body.ttlDays);
+    if (!Number.isInteger(quorum) || quorum < 1 || quorum > 20) return NextResponse.json({ error: "Quorum must be 1–20" }, { status: 400 });
+    if (!Number.isInteger(ttl) || ttl < 1 || ttl > 30) return NextResponse.json({ error: "Expiry must be 1–30 days" }, { status: 400 });
+    const { error } = await supabase.from("moderation_policy")
+      .update({ council_enabled: body.enabled === true, quorum, proposal_ttl_days: ttl, updated_at: now })
+      .eq("id", 1);
+    return error ? fail(error, "save the policy") : NextResponse.json({ ok: true });
+  }
+
+  // ── council proposals ──
+  if (body.resource === "council" && body.action === "propose") {
+    const kind = String(body.kind ?? "");
+    if (!["ban_temp", "ban_perm", "ip_ban"].includes(kind)) return NextResponse.json({ error: "Unknown action kind" }, { status: 400 });
+    const violation = (body.violation ?? "").trim().slice(0, 300);
+    if (!violation) return NextResponse.json({ error: "Name the violation — the council votes on it" }, { status: 400 });
+    const { data: pol } = await supabase.from("moderation_policy")
+      .select("council_enabled, quorum, proposal_ttl_days").eq("id", 1).maybeSingle();
+    if (!pol) return NextResponse.json({ error: "Council isn't set up yet — run the moderation-council migration first" }, { status: 400 });
+
+    let target: { id: string; handle: string } | null = null;
+    const lookup = body.userId
+      ? supabase.from("users").select("id, handle").eq("id", body.userId).maybeSingle()
+      : supabase.from("users").select("id, handle").eq("handle", String(body.handle ?? "").replace(/^@/, "").trim()).maybeSingle();
+    const { data: u } = await lookup;
+    if (u) target = { id: String(u.id), handle: (u.handle as string) ?? "unnamed" };
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 400 });
+
+    let ipHash: string | null = null;
+    if (kind === "ip_ban") {
+      ipHash = await lastKnownIpHash(supabase, target.id);
+      if (!ipHash) return NextResponse.json({ error: "No login IP on record for this user yet" }, { status: 400 });
+    }
+    const days = kind === "ban_temp"
+      ? (Number.isInteger(body.days) && body.days! >= 1 && body.days! <= 365 ? body.days! : 7)
+      : null;
+    // council off → quorum 1: the proposer's own confirm executes immediately
+    const quorum = pol.council_enabled === true ? Number(pol.quorum) : 1;
+    const { data: prop, error } = await supabase.from("mod_proposals").insert({
+      kind, target_user_id: target.id, target_ip_hash: ipHash, days, violation,
+      proposed_by: userId, quorum,
+      expires_at: new Date(Date.now() + Number(pol.proposal_ttl_days) * 86400_000).toISOString(),
+    }).select("*").single();
+    if (error || !prop) return fail(error, "create the proposal");
+    await supabase.from("mod_proposal_votes").insert({ proposal_id: prop.id, voter_user_id: userId, vote: "confirm" });
+    if (quorum <= 1) {
+      const execErr = await executeProposal(supabase, prop as ProposalRow, now);
+      return execErr ? fail(execErr, "execute the action") : NextResponse.json({ ok: true, executed: true });
+    }
+    await notifyCouncil(supabase, userId, { kind, days, violation, targetHandle: target.handle, quorum });
+    return NextResponse.json({ ok: true, executed: false });
+  }
+
+  if (body.resource === "council" && body.action === "vote" && body.id) {
+    const vote = body.vote === "confirm" ? "confirm" : body.vote === "deny" ? "deny" : null;
+    if (!vote) return NextResponse.json({ error: "vote must be confirm or deny" }, { status: 400 });
+    const { data: prop } = await supabase.from("mod_proposals").select("*").eq("id", body.id).maybeSingle();
+    if (!prop || prop.status !== "pending") return NextResponse.json({ error: "Proposal not found or already decided" }, { status: 400 });
+    if (new Date(String(prop.expires_at)).getTime() < Date.now()) {
+      await supabase.from("mod_proposals").update({ status: "expired", decided_at: now }).eq("id", body.id);
+      return NextResponse.json({ error: "Proposal expired" }, { status: 400 });
+    }
+    const { error: vErr } = await supabase.from("mod_proposal_votes").upsert({
+      proposal_id: body.id, voter_user_id: userId, vote, voted_at: now,
+    }, { onConflict: "proposal_id,voter_user_id" });
+    if (vErr) return fail(vErr, "record the vote");
+    const [{ data: votes }, { count: memberCount }] = await Promise.all([
+      supabase.from("mod_proposal_votes").select("vote").eq("proposal_id", body.id),
+      supabase.from("users").select("id", { count: "exact", head: true }).in("role", ["admin", "mod"]).is("deleted_at", null),
+    ]);
+    const confirms = (votes ?? []).filter((v) => v.vote === "confirm").length;
+    const denies = (votes ?? []).length - confirms;
+    const quorum = Number(prop.quorum);
+    if (confirms >= quorum) {
+      const execErr = await executeProposal(supabase, prop as ProposalRow, now);
+      return execErr ? fail(execErr, "execute the approved action") : NextResponse.json({ ok: true, status: "approved", confirms, denies });
+    }
+    // denied once quorum is mathematically out of reach
+    if (denies >= Math.max(1, (memberCount ?? 0) - quorum + 1)) {
+      const { error } = await supabase.from("mod_proposals").update({ status: "denied", decided_at: now }).eq("id", body.id);
+      return error ? fail(error, "deny the proposal") : NextResponse.json({ ok: true, status: "denied", confirms, denies });
+    }
+    return NextResponse.json({ ok: true, status: "pending", confirms, denies });
   }
 
   // ── recovery requests ──

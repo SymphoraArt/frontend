@@ -77,11 +77,13 @@ async function createSessionFromSignedMessage(params: {
     if (sessionRes.status === 403 || err.notWhitelisted) e.notWhitelisted = true;
     throw e;
   }
-  const { sessionToken, expiresAt } = await sessionRes.json() as { sessionToken: string; expiresAt: string };
+  const { sessionToken, expiresAt, banned } = await sessionRes.json() as { sessionToken: string; expiresAt: string; banned?: boolean };
 
   const stored: StoredSession = { walletAddress, sessionToken, expiresAt };
   localStorage.setItem(SOLANA_AUTH_KEY, JSON.stringify(stored));
   window.dispatchEvent(new Event(SOLANA_AUTH_EVENT));
+  // banned accounts keep exactly one door: status, appeal, funds
+  if (banned) window.location.href = "/banned";
   return stored;
 }
 
