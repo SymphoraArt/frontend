@@ -1,77 +1,61 @@
-import crypto from 'crypto';
+/**
+ * Prompt encryption — now a thin shim over lib/crypto's keyring.
+ *
+ * This file used to hold a second, independent AES implementation with its own
+ * PROMPT_ENCRYPTION_KEY. Same algorithm as lib/crypto, different key, and no
+ * key id written alongside the ciphertext — which meant that key could never
+ * be rotated without making every prompt permanently unreadable.
+ *
+ * Everything now encrypts under the one keyring. Prompts written before the
+ * merge still decrypt: they carry no kid, so lib/crypto tries every key it
+ * has, and PROMPT_ENCRYPTION_KEY stays on the ring as a decrypt-only entry for
+ * as long as it is configured. Remove that env var once no unlabelled prompt
+ * rows remain.
+ *
+ * The exported shape is unchanged so the five call sites did not have to move;
+ * `kid` is added, and writers should persist it into the matching _kid column
+ * that the live schema already provides.
+ */
+import {
+  encryptString,
+  decryptString,
+  generateEncryptionKey as newKey,
+  type EncryptedPayload,
+} from "@/lib/crypto";
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
-const REQUIRED_KEY_LENGTH = 32;
-
-let cachedKey: Buffer | null = null;
-
-function getEncryptionKey(): Buffer {
-  if (cachedKey) return cachedKey;
-  
-  const key = process.env.PROMPT_ENCRYPTION_KEY;
-  if (!key) {
-    throw new Error('PROMPT_ENCRYPTION_KEY environment variable is not set. Generate one using generateEncryptionKey()');
-  }
-  
-  const keyBuffer = Buffer.from(key, 'base64');
-  if (keyBuffer.length !== REQUIRED_KEY_LENGTH) {
-    throw new Error(`PROMPT_ENCRYPTION_KEY must be exactly ${REQUIRED_KEY_LENGTH} bytes when decoded from base64. Current length: ${keyBuffer.length} bytes`);
-  }
-  
-  cachedKey = keyBuffer;
-  return cachedKey;
+export interface EncryptedData {
+  encryptedContent: string;
+  iv: string;
+  authTag: string;
+  /** Which key made this. Persist it — rotation depends on it. */
+  kid?: string;
 }
 
 export function isEncryptionConfigured(): boolean {
   try {
-    getEncryptionKey();
+    // Cheapest honest probe: if the keyring cannot be built, this throws.
+    encryptString("");
     return true;
   } catch {
     return false;
   }
 }
 
-export interface EncryptedData {
-  encryptedContent: string;
-  iv: string;
-  authTag: string;
-}
-
 export function encryptPrompt(plaintext: string): EncryptedData {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
-  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  
-  const authTag = cipher.getAuthTag();
-  
-  return {
-    encryptedContent: encrypted,
-    iv: iv.toString('base64'),
-    authTag: authTag.toString('base64')
-  };
+  const p = encryptString(plaintext);
+  return { encryptedContent: p.encrypted, iv: p.iv, authTag: p.authTag, kid: p.kid };
 }
 
 export function decryptPrompt(encryptedData: EncryptedData): string {
-  const key = getEncryptionKey();
-  const iv = Buffer.from(encryptedData.iv, 'base64');
-  const authTag = Buffer.from(encryptedData.authTag, 'base64');
-  const encryptedContent = Buffer.from(encryptedData.encryptedContent, 'base64');
-  
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-  
-  let decrypted = decipher.update(encryptedContent);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  
-  return decrypted.toString('utf8');
+  const payload: EncryptedPayload = {
+    encrypted: encryptedData.encryptedContent,
+    iv: encryptedData.iv,
+    authTag: encryptedData.authTag,
+    kid: encryptedData.kid,
+  };
+  return decryptString(payload);
 }
 
 export function generateEncryptionKey(): string {
-  return crypto.randomBytes(32).toString('base64');
+  return newKey();
 }
