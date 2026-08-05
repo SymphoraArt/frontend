@@ -17,8 +17,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 /**
  * Deposit Crypto — for wallet users who already hold USDC and want to send it
  * to their own address directly. Adding money with a card lives in the
- * Payment panel's "Add money & cash out" section (Coinbase ramp); the old
- * Stripe/PayPal "Add Funds" section was removed as a duplicate of it.
+ * Payment panel's "Add money & cash out" section (Coinbase ramp).
  */
 export default function BillingPanel() {
   const account = useActiveAccount();
@@ -88,60 +87,6 @@ export default function BillingPanel() {
       toast({ title: "Copy failed", description: "Select and copy it manually.", variant: "destructive" });
     }
   };
-  // Success popup shown after a redirect-based payment (PayPal) returns.
-  const [success, setSuccess] = useState<{ amount: number; balance: number | null } | null>(null);
-
-  // Finalize redirect-based payments (PayPal) when Stripe sends the user back
-  // with the PaymentIntent in the query string. Kept even though the Add
-  // Funds UI is gone, so in-flight payments still get credited on return.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const status = params.get("redirect_status");
-    const intentId = params.get("payment_intent");
-    if (status === "succeeded" && intentId) {
-      (async () => {
-        try {
-          const res = await fetch("/api/billing/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentIntentId: intentId, address: recipient }),
-          });
-          const data = await res.json();
-          if (!res.ok || typeof data.balance !== "number") {
-            toast({
-              title: "Couldn't update balance",
-              description: data?.error || "Payment captured, but crediting failed. Check server logs.",
-              variant: "destructive",
-            });
-          } else {
-            refreshHoldings();
-            setSuccess({
-              amount: typeof data.amount === "number" ? data.amount : 0,
-              balance: data.balance,
-            });
-            if (data.fundError) {
-              toast({
-                title: "Balance added — funding pending",
-                description: "Your credit is saved; making it spendable for generation is still processing.",
-              });
-            }
-          }
-        } catch {
-          toast({ title: "Payment received", description: "Your balance will update shortly." });
-        } finally {
-          // Strip the Stripe params so a refresh doesn't re-trigger.
-          const url = new URL(window.location.href);
-          ["redirect_status", "payment_intent", "payment_intent_client_secret"].forEach((k) =>
-            url.searchParams.delete(k)
-          );
-          window.history.replaceState({}, "", url.toString());
-        }
-      })();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const copyAddress = async () => {
     if (!recipient) return;
     try {
@@ -268,34 +213,6 @@ export default function BillingPanel() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Success popup (after PayPal / redirect return) ── */}
-      {success && (
-        <div className="set-pay-overlay" onClick={() => setSuccess(null)}>
-          <div className="set-pay-card set-pay-card--fiat" onClick={(e) => e.stopPropagation()}>
-            <button className="set-pay-close" onClick={() => setSuccess(null)} aria-label="Close">
-              <X size={16} />
-            </button>
-            <div className="set-fiat-success">
-              <div className="set-fiat-success-icon"><CheckCircle2 size={40} /></div>
-              <div className="set-fiat-success-title">
-                {success.amount > 0 ? `$${success.amount.toFixed(2)} added` : "Balance loaded"}
-              </div>
-              {success.balance !== null && (
-                <div className="set-fiat-success-sub">New balance ${success.balance.toFixed(2)}</div>
-              )}
-              <button
-                type="button"
-                className="set-btn set-btn-dark"
-                style={{ width: "100%", justifyContent: "center", marginTop: 6 }}
-                onClick={() => setSuccess(null)}
-              >
-                Done
-              </button>
-            </div>
           </div>
         </div>
       )}
