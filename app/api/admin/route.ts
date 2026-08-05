@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
   if (gate instanceof NextResponse) return gate;
   const { userId } = gate;
 
-  const [imp, rep, fb, fr, hu, st, ba, ap, rec, council] = await Promise.all([
+  const [imp, rep, fb, fr, hu, st, ba, ap, rec, council, automod] = await Promise.all([
     supabase.from("hunt_submissions")
       .select("id, hunter_user_id, source_url, suggested_title, suggested_tags, submitted_at")
       .eq("status", "pending").order("submitted_at", { ascending: false }).limit(100),
@@ -221,6 +221,13 @@ export async function GET(req: NextRequest) {
       .select("id, user_id, claimed_handle, claimed_wallet, contact_email_ct, contact_email_iv, contact_email_tag, contact_email_kid, explanation_ct, explanation_iv, explanation_tag, explanation_kid, layer, status, rejection_reason, created_at")
       .order("created_at", { ascending: false }).limit(50),
     buildCouncil(supabase, userId),
+    // Blocks only. Passes are recorded too (they are the control group for
+    // tuning thresholds) but there is nothing for a moderator to do with
+    // them, and at generation volume they would bury the real cases.
+    supabase.from("automod_events")
+      .select("id, user_id, surface, severity, tier, category, matched_rules, scores, prompt_hash, evidence_ct, evidence_iv, evidence_tag, evidence_kid, review_state, created_at")
+      .eq("decision", "block")
+      .order("created_at", { ascending: false }).limit(150),
   ]);
 
   // attachments per feedback + evidence per recovery request
@@ -250,6 +257,9 @@ export async function GET(req: NextRequest) {
     ...(rep.data ?? []).map((r) => String(r.reporter_user_id)),
     ...(rep.data ?? []).filter((r) => r.target_type !== "prompt").map((r) => String(r.target_uuid)),
     ...strikeUsers, ...banUsers, ...appealUsers,
+    // automod events carry a user only when the request had a session;
+    // /api/generate-free has none, so those rows stay attributed by IP hash.
+    ...(automod.data ?? []).filter((r) => r.user_id).map((r) => String(r.user_id)),
   ]);
   const promptTargets = (rep.data ?? []).filter((r) => r.target_type === "prompt").map((r) => String(r.target_uuid));
   const promptTitles = new Map<string, string>();
@@ -332,6 +342,29 @@ export async function GET(req: NextRequest) {
       note: row.strikes[0]?.reason ?? banByUser.get(row.userId)?.reason ?? null,
       appeal: appealByUser.get(row.userId) ?? null,
     })),
+    automod: (automod.data ?? []).map((r) => {
+      const scores = (r.scores as Record<string, number> | null) ?? null;
+      // The single number a moderator needs: what the classifier was most
+      // sure about. Everything else is in `scores` if they open the row.
+      const worst = scores
+        ? Object.entries(scores).sort((a, b) => b[1] - a[1])[0] ?? null
+        : null;
+      return {
+        id: String(r.id),
+        handle: r.user_id ? (handles.get(String(r.user_id)) ?? "unknown") : null,
+        surface: (r.surface as string) ?? "?",
+        severity: (r.severity as string) ?? "log",
+        tier: (r.tier as number | null) ?? null,
+        category: (r.category as string) ?? null,
+        rules: Array.isArray(r.matched_rules) ? (r.matched_rules as string[]) : [],
+        topScore: worst ? { name: worst[0], value: worst[1] } : null,
+        // The blocked prompt itself. Encrypted at rest; a moderator judging a
+        // block has to be able to read what was actually written.
+        prompt: tryDecrypt(r.evidence_ct, r.evidence_iv, r.evidence_tag, r.evidence_kid, [undefined]),
+        state: (r.review_state as string) ?? "none",
+        at: r.created_at,
+      };
+    }),
     recovery: (rec.data ?? []).map((r) => ({
       id: String(r.id),
       handle: (r.claimed_handle as string) ?? "unknown",
@@ -463,6 +496,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── strikes ──
+  // No automod write action on purpose (Kev, 2026-08-05): the panel shows the
+  // filter's record, and every change to it happens in Supabase directly. That
+  // keeps the one surface reachable from the internet read-only, so a stolen
+  // admin session can read the evidence but never touch it.
+
   if (body.resource === "strikes" && body.action === "revoke" && body.id) {
     const { error } = await supabase.from("strikes")
       .update({ revoked_at: now, revoked_by: userId, revoke_reason: "Revoked from the admin panel" })

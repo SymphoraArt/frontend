@@ -23,10 +23,11 @@ type StrikeRow = { userId: string; handle: string; strikes: { id: string; reason
 type Rec = { id: string; handle: string; wallet: string | null; contact: string | null; explanation: string | null; evidence: { kind: string; matched: boolean | null }[]; status: string; at: string };
 type Proposal = { id: string; kind: string; target: string; targetUserId: string | null; days: number | null; violation: string; proposer: string; status: string; confirms: number; denies: number; myVote: string | null; quorum: number; at: string; expiresAt: string };
 type Council = { ready: boolean; isOwner: boolean; enabled: boolean; quorum: number; ttlDays: number; members: { handle: string; role: string; hasEmail: boolean }[]; myEmail: string | null; proposals: Proposal[] };
-type AdminData = { imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[]; council: Council };
+type Automod = { id: string; handle: string | null; surface: string; severity: string; tier: number | null; category: string | null; rules: string[]; topScore: { name: string; value: number } | null; prompt: string | null; state: string; at: string };
+type AdminData = { imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[]; council: Council; automod: Automod[] };
 const COUNCIL_OFF: Council = { ready: false, isOwner: false, enabled: false, quorum: 3, ttlDays: 7, members: [], myEmail: null, proposals: [] };
 
-type Tab = "imports" | "reports" | "feedback" | "friends" | "hunters" | "strikes" | "council" | "recovery" | "settings";
+type Tab = "imports" | "reports" | "feedback" | "friends" | "hunters" | "strikes" | "automod" | "council" | "recovery" | "settings";
 const REJECT_REASONS = ["Duplicate", "Low quality", "Not a prompt", "Spam", "Policy violation", "Other"];
 
 /* ── the admin sidebar's own palette: inverted warm dark, theme-independent ── */
@@ -90,6 +91,7 @@ const TABS: { id: Tab; label: string; icon: string; sub: string; search: boolean
   { id: "friends", label: "Friends (whitelist)", icon: "key", sub: "Wallets and collections with early or elevated access.", search: false },
   { id: "hunters", label: "Hunter trust", icon: "target", sub: "Importers ranked by how often their finds get approved.", search: false },
   { id: "strikes", label: "Strikes & bans", icon: "zap", sub: "Users with active strikes, bans, and open appeals.", search: false },
+  { id: "automod", label: "Auto-filter log", icon: "filetext", sub: "Every prompt the filter blocked, with the reason and the score. Read-only — this record is evidence; edit it in Supabase.", search: true },
   { id: "council", label: "Council", icon: "hand", sub: "Ban decisions the admin council votes on — quorum executes automatically.", search: false },
   { id: "recovery", label: "Recovery requests", icon: "lifebuoy", sub: "People who lost every sign-in method. Click a row to check their evidence.", search: true },
   { id: "settings", label: "Admin settings", icon: "settings", sub: "Your notification email — and, for the owner, the council policy.", search: false },
@@ -124,6 +126,7 @@ export default function AdminPage() {
   const [delPending, setDelPending] = useState<Friend | null>(null);
   const [appealOpen, setAppealOpen] = useState<string | null>(null);
   const [repStrikeId, setRepStrikeId] = useState<string | null>(null);
+  const [amOpen, setAmOpen] = useState<string | null>(null);
   const [repSev, setRepSev] = useState("1");
   const [cpHandle, setCpHandle] = useState(""); const [cpKind, setCpKind] = useState("ban_temp:7");
   const [cpViolation, setCpViolation] = useState("");
@@ -203,6 +206,9 @@ export default function AdminPage() {
     friends: 0,
     hunters: 0,
     strikes: data?.strikes.filter((s) => s.appeal).length ?? 0,
+    // Only the never-looked-at ones nag. A block that has been judged is
+    // history, not a task.
+    automod: data?.automod.filter((a) => a.state === "pending").length ?? 0,
     council: data?.council?.proposals.filter((p) => p.status === "pending").length ?? 0,
     recovery: data?.recovery.filter((r) => r.status === "pending").length ?? 0,
     settings: 0,
@@ -239,10 +245,18 @@ export default function AdminPage() {
     );
   }
 
-  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [], council: COUNCIL_OFF };
+  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [], council: COUNCIL_OFF, automod: [] };
   const c = d.council ?? COUNCIL_OFF;
   const filteredImports = d.imports.filter((r) => !q || r.name.toLowerCase().includes(q) || r.hunter.toLowerCase().includes(q));
   const filteredFeedback = d.feedback.filter((r) => !q || r.name.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q) || r.desc.toLowerCase().includes(q));
+  // Searching the prompt text matters most here: it is how you find every
+  // block by one offender, or every block that shares a phrasing.
+  const filteredAutomod = d.automod.filter((r) => !q
+    || (r.category ?? "").toLowerCase().includes(q)
+    || (r.handle ?? "").toLowerCase().includes(q)
+    || r.surface.toLowerCase().includes(q)
+    || r.rules.some((x) => x.toLowerCase().includes(q))
+    || (r.prompt ?? "").toLowerCase().includes(q));
   const filteredRecovery = d.recovery.filter((r) => !q || r.handle.toLowerCase().includes(q) || (r.contact ?? "").toLowerCase().includes(q));
 
   const stats: { label: string; value: number; dot: string; go: Tab }[] = [
@@ -660,6 +674,60 @@ export default function AdminPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* ── AUTO-FILTER LOG (read-only: this record is evidence) ── */}
+              {tab === "automod" && (
+                <div style={cardStyle}>
+                  {filteredAutomod.length === 0 && (
+                    <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: "var(--enki-ink-3)" }}>
+                      {d.automod.length === 0 ? "The filter hasn't blocked anything ✓" : "Nothing matches that search."}
+                    </div>
+                  )}
+                  {filteredAutomod.map((r) => (
+                    <div key={r.id}>
+                      <div
+                        style={{ ...rowStyle, cursor: "pointer" }}
+                        onClick={() => setAmOpen(amOpen === r.id ? null : r.id)}
+                      >
+                        <span style={{ width: 30, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: r.severity === "review" ? "#b33a3a" : "var(--enki-ink-3)" }}>
+                          {r.tier === 1 ? "1" : r.tier === 2 ? "2" : "—"}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 14, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {r.category ?? "blocked"}
+                        </span>
+                        <Badge pal={r.severity === "review" ? PILL.red : PILL.amber} label={r.severity} />
+                        <span style={{ width: 96, fontFamily: MONO, fontSize: 10, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {r.topScore ? `${r.topScore.name.split("/").pop()} ${r.topScore.value.toFixed(2)}` : r.rules[0] ?? "—"}
+                        </span>
+                        <span style={{ width: 76, fontFamily: MONO, fontSize: 9.5, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {r.handle ? "@" + r.handle : "anon"}
+                        </span>
+                        <span style={{ width: 58, fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)", overflow: "hidden" }}>{r.surface.replace("generate-", "")}</span>
+                        <span style={{ width: 40, textAlign: "right", fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)" }}>{timeAgo(r.at)}</span>
+                        {r.state === "pending" && <Badge pal={PILL.amber} label="unreviewed" />}
+                      </div>
+                      {amOpen === r.id && (
+                        <div style={{ padding: "12px 18px 16px", borderBottom: "1px solid var(--enki-rule)", background: "var(--enki-paper-2)" }}>
+                          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--enki-ink-3)", marginBottom: 6 }}>
+                            Blocked prompt
+                          </div>
+                          <div style={{ fontFamily: SERIF, fontSize: 13.5, lineHeight: 1.5, color: "var(--enki-ink)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {r.prompt ?? <em style={{ color: "var(--enki-ink-3)" }}>Not readable — encrypted with a key this server no longer holds.</em>}
+                          </div>
+                          {r.rules.length > 0 && (
+                            <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 10, color: "var(--enki-ink-2)" }}>
+                              rules: {r.rules.join(", ")}
+                            </div>
+                          )}
+                          <div style={{ marginTop: 10, fontSize: 11, color: "var(--enki-ink-3)" }}>
+                            Read-only. This row is evidence and cannot be changed or deleted from here — use Supabase.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
