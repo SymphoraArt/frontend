@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useIsSignedIn, useAuthenticateWithJWT, useSolanaAddress, useEvmAddress, useExportSolanaAccount } from "@coinbase/cdp-hooks";
+import { useIsSignedIn, useAuthenticateWithJWT, useSolanaAddress, useEvmAddress, useExportSolanaAccount, useSignSolanaTransaction } from "@coinbase/cdp-hooks";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { sessionAuthHeaders } from "@/lib/session-headers";
-import { setCdpSolanaAddress, CDP_EXPORT_REQUEST, CDP_EXPORT_RESULT } from "@/lib/cdp-bridge";
+import {
+  setCdpSolanaAddress,
+  CDP_EXPORT_REQUEST,
+  CDP_EXPORT_RESULT,
+  CDP_SIGN_REQUEST,
+  CDP_SIGN_RESULT,
+} from "@/lib/cdp-bridge";
 
 /**
  * Bridges our email+password session to CDP. Renders nothing — provisions the
@@ -25,6 +31,7 @@ export function CdpWalletBridge() {
   const { solanaAddress } = useSolanaAddress();
   const { evmAddress } = useEvmAddress();
   const { exportSolanaAccount } = useExportSolanaAccount();
+  const { signSolanaTransaction } = useSignSolanaTransaction();
   const signingIn = useRef(false);
   const attachedFor = useRef<string | null>(null);
 
@@ -51,6 +58,29 @@ export function CdpWalletBridge() {
     window.addEventListener(CDP_EXPORT_REQUEST, onRequest);
     return () => window.removeEventListener(CDP_EXPORT_REQUEST, onRequest);
   }, [solanaAddress, exportSolanaAccount]);
+
+  // Payments: sign here, inside the provider, and hand the result back out.
+  // The signing hook exists only in this tree, so the payment flow asks for a
+  // signature by event instead of calling the hook where there is no provider.
+  useEffect(() => {
+    const onRequest = async (e: Event) => {
+      const req = (e as CustomEvent).detail as { id: string; transaction: string };
+      let detail: { id: string; signedTransaction?: string; error?: string };
+      try {
+        if (!solanaAddress) throw new Error("Wallet isn't ready yet");
+        const { signedTransaction } = await signSolanaTransaction({
+          solanaAccount: solanaAddress,
+          transaction: req.transaction,
+        });
+        detail = { id: req.id, signedTransaction };
+      } catch (err) {
+        detail = { id: req.id, error: err instanceof Error ? err.message : "Signing failed" };
+      }
+      window.dispatchEvent(new CustomEvent(CDP_SIGN_RESULT, { detail }));
+    };
+    window.addEventListener(CDP_SIGN_REQUEST, onRequest);
+    return () => window.removeEventListener(CDP_SIGN_REQUEST, onRequest);
+  }, [solanaAddress, signSolanaTransaction]);
 
   // 1) our session → CDP session (silent)
   useEffect(() => {

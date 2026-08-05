@@ -22,10 +22,20 @@
  * the self-custody work. This module is written so that a `local` signer can
  * slot in beside it under the same interface, which is also how additional
  * networks will be added later.
+ *
+ * ── Why this goes through lib/cdp-bridge ──────────────────────────────────
+ * It must NOT call @coinbase/cdp-hooks directly. The CDP provider is mounted
+ * lazily and only for signed-in users, while this hook is reached from the
+ * editor, which renders whether or not that provider exists — calling a CDP
+ * hook there throws "useCDP must be used within a CDPHooksProvider" and takes
+ * the whole editor down. The bridge is plain module state plus window events,
+ * so it is safe to call anywhere; the actual signing happens in
+ * CdpWalletBridge, which does live inside the provider.
  */
 import { useCallback, useMemo } from "react";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
-import { useSignSolanaTransaction, useSolanaAddress, useIsSignedIn } from "@coinbase/cdp-hooks";
+import { requestCdpSign } from "@/lib/cdp-bridge";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 
 export interface CdpSolanaSigner {
   isAvailable: boolean;
@@ -49,9 +59,10 @@ function fromBase64(b64: string): Uint8Array {
 }
 
 export function useCdpSolanaSigner(): CdpSolanaSigner {
-  const { isSignedIn } = useIsSignedIn();
-  const { solanaAddress } = useSolanaAddress();
-  const { signSolanaTransaction } = useSignSolanaTransaction();
+  // An address is only ever published while the CDP runtime is mounted and
+  // signed in, so its presence is the availability signal — no separate
+  // isSignedIn read (which would need the provider) is necessary.
+  const { address: solanaAddress } = useCdpAddress();
 
   const publicKey = useMemo(() => {
     if (!solanaAddress) return null;
@@ -72,12 +83,9 @@ export function useCdpSolanaSigner(): CdpSolanaSigner {
       // shipped SDK — cdp-core forwards `transaction` verbatim to the API and
       // does not deserialise or rebuild it, so foreign partial signatures are
       // not dropped the way some peer SDKs drop them.
-      const result = await signSolanaTransaction({
-        solanaAccount: solanaAddress,
-        transaction: toBase64(tx.serialize()),
-      });
+      const signedB64 = await requestCdpSign(toBase64(tx.serialize()));
 
-      const signed = VersionedTransaction.deserialize(fromBase64(result.signedTransaction));
+      const signed = VersionedTransaction.deserialize(fromBase64(signedB64));
 
       // Fail loudly rather than broadcasting a transaction that lost the fee
       // payer's signature — a half-signed tx would be rejected on-chain with a
@@ -88,11 +96,11 @@ export function useCdpSolanaSigner(): CdpSolanaSigner {
       }
       return signed as T;
     },
-    [solanaAddress, signSolanaTransaction],
+    [solanaAddress],
   );
 
   return {
-    isAvailable: Boolean(isSignedIn && solanaAddress),
+    isAvailable: Boolean(solanaAddress),
     publicKey,
     walletAddress: solanaAddress ?? null,
     signTransaction,
