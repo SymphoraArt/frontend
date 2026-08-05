@@ -20,8 +20,8 @@
     "node_modules",
     "build",
     "dist",
-    "**/*.test.ts",
-    "backend/scripts/**/*",
+    
+    "backend/__tests__/**/*","backend/scripts/**/*",
     "backend/app.ts",
     "backend/routes.ts",
     "backend/index-dev.ts",
