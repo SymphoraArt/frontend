@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import type { ChainKey } from "@/shared/payment-config";
 import { isSolanaChain } from "@/shared/payment-config";
@@ -187,7 +187,10 @@ export async function POST(request: NextRequest) {
     // and scores stay server-side, otherwise this endpoint becomes an oracle an
     // attacker can probe to map the filter.
     const verdict = await moderate({ prompt, surface: "generate-image", signal: request.signal });
-    void recordModerationEvent(verdict, { surface: "generate-image", request, prompt });
+    // after() and not a bare void: on a block this route returns immediately,
+    // and a floating promise can be frozen with the lambda before the insert
+    // lands — losing exactly the events we most want recorded.
+    after(recordModerationEvent(verdict, { surface: "generate-image", request, prompt }));
     if (!verdict.allowed) {
       return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
     }

@@ -5,6 +5,10 @@
  * and decides what (if anything) happens to the account. Keeping them apart is
  * what lets the decision engine be unit-tested without mocking Supabase.
  *
+ * Every decision is written, allow and block alike — automod_events is the
+ * evaluation dataset, not just an incident log. Only blocks carry the prompt
+ * (encrypted); passes carry scores and a hash.
+ *
  * Enforcement policy (Kev, 2026-08-04):
  *   Blocking is cheap — it costs a user one attempt.
  *   Banning is expensive — it costs them their account and us a customer.
@@ -37,10 +41,18 @@ export async function recordModerationEvent(
   verdict: ModerationVerdict,
   ctx: RecordContext,
 ): Promise<void> {
-  // Nothing to record for a clean pass. Blocked prompts and degraded checks are
-  // worth keeping: the first is evidence, the second tells us the AI tier was
-  // down when we let something through.
-  if (verdict.allowed && !verdict.tier2Degraded) return;
+  // EVERY decision is recorded, clean passes included (Kev, 2026-08-05).
+  //
+  // Blocks alone cannot be evaluated: a threshold is only meaningful against
+  // the distribution of the scores that fell *below* it. Without the passes we
+  // could see that MINORS_REVIEW = 0.3 fired 12 times, but never that it sat
+  // just above a cluster of 0.28s — so we could never tell whether it is too
+  // tight or too loose. The passes are the control group.
+  //
+  // What a pass does NOT carry is the prompt text (see the evidence block
+  // below): scores and a hash make it analysable, ciphertext for every
+  // generation would make this table an archive of everything anyone ever
+  // wrote — a liability with no analytical payoff.
 
   try {
     const supabase = getSupabaseServerClientSafe();
@@ -76,7 +88,12 @@ export async function recordModerationEvent(
       decision: verdict.allowed ? "allow" : "block",
       severity: verdict.enforcement === "none" ? "log" : verdict.enforcement,
       tier: verdict.tier,
-      category: verdict.category,
+      // A degraded pass and a clean tier-1-only pass are otherwise identical
+      // rows (tier null, scores null), which would silently inflate the "AI
+      // saw it and was fine with it" bucket with prompts the AI never saw.
+      // Marked in `category` rather than a new column: a degraded verdict
+      // carries no category of its own, so nothing is lost.
+      category: verdict.tier2Degraded ? "tier2_degraded" : verdict.category,
       matched_rules: verdict.matchedRules.length ? verdict.matchedRules : null,
       scores: verdict.scores,
       prompt_hash: verdict.promptHash,

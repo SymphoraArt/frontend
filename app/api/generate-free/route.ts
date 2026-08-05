@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
 
     const verdict = await moderate({ prompt, surface: "generate-free", signal: request.signal });
-    void recordModerationEvent(verdict, { surface: "generate-free", request, prompt });
+    after(recordModerationEvent(verdict, { surface: "generate-free", request, prompt }));
     if (!verdict.allowed) {
       return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
     }
