@@ -32,22 +32,36 @@ export async function GET(req: Request) {
       return createErrorResponse('userId or userKey is required', 400);
     }
 
-    // generations.user_id is a UUID column (verified live 2026-07-14). Galleries
-    // pass a base58/0x WALLET ADDRESS, which can't cast to uuid — querying it
-    // raises 22P02 (a 500). So a non-UUID caller gets an empty result, not a
-    // crash. (The table is currently empty and this whole route is out of sync
-    // with the live schema — a real fix means resolving wallet→user uuid; that
-    // belongs to angglu's generations refactor, flagged separately.)
+    const supabase = getSupabaseServerClient();
+
+    // Galleries pass a WALLET ADDRESS, the tables key on a user uuid. This used
+    // to give up and return an empty list for every wallet caller — which is
+    // why the gallery looked empty even when images existed. Resolve it.
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-    if (!isUuid) {
+    let ownerId = isUuid ? userId : null;
+    if (!ownerId) {
+      const { data: walletRow } = await supabase
+        .from("user_wallets")
+        .select("user_id")
+        // addresses are stored lowercased; base58 is case-sensitive, so compare
+        // case-insensitively rather than missing every Solana wallet.
+        .ilike("address", userId)
+        .is("removed_at", null)
+        .maybeSingle();
+      ownerId = (walletRow?.user_id as string) ?? null;
+    }
+    if (!ownerId) {
       return createSuccessResponse({ generations: [], total: 0, limit, offset });
     }
 
-    const supabase = getSupabaseServerClient();
+    // Images live in generated_images, not generations: the latter holds the
+    // generation record (encrypted prompt, prompt_id NOT NULL) and has no image
+    // column at all. Reading `generations` here is what made uploads invisible.
     const { data, error, count } = await supabase
-      .from("generations")
-      .select("*", { count: 'exact' })
-      .eq("user_id", userId)
+      .from("generated_images")
+      .select("id, storage_url, thumbnail_url, description, is_uploaded, created_at", { count: 'exact' })
+      .eq("user_id", ownerId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -56,8 +70,20 @@ export async function GET(req: Request) {
       return createErrorResponse('Failed to fetch generations', 500, error.message);
     }
 
+    // Keep the shape the galleries already consume (image_url / prompt /
+    // isUploaded) so this is a server-side fix with no client changes.
+    const generations = (Array.isArray(data) ? data : []).map((row) => ({
+      id: row.id,
+      image_url: row.storage_url,
+      image_urls: row.storage_url ? [row.storage_url] : [],
+      thumbnail_url: row.thumbnail_url ?? null,
+      prompt: row.description ?? "",
+      isUploaded: row.is_uploaded === true,
+      created_at: row.created_at,
+    }));
+
     return createSuccessResponse({
-      generations: Array.isArray(data) ? data : [],
+      generations,
       total: count || 0,
       limit,
       offset
