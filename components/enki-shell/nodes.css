@@ -496,8 +496,13 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd{position:absolute;inset:0;display:flex;background:var(--enki-paper-2);animation:nc-pm-in .14s ease;}
 /* Google-Docs feel: a strip of desk shows between the settings ribbon and the
    page, and the page hugs the left menu instead of centering. */
-.ncd-desk{flex:1;min-width:0;overflow-y:auto;padding:72px 4px 10px 14px;}
-.ncd-wrap{position:relative;display:flex;gap:6px;justify-content:flex-start;align-items:flex-start;margin:0;}
+/* Column so the page below can claim the leftover height instead of computing
+   it from 100vh. overflow-y stays as a safety valve for very short windows. */
+.ncd-desk{flex:1;min-width:0;overflow-y:auto;padding:72px 4px 10px 14px;display:flex;flex-direction:column;}
+/* flex:1 + min-height:0 → the wrap is exactly the desk's remaining height.
+   align-items stays flex-start so the variables column keeps hugging its
+   content; only the page itself stretches (align-self below). */
+.ncd-wrap{position:relative;display:flex;gap:6px;justify-content:flex-start;align-items:flex-start;margin:0;flex:1 1 auto;min-height:0;}
 /* dashed chip→card connector curves (solid + stronger for the open card) */
 .ncd-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible;}
 .ncd-lines path{fill:none;stroke-width:1.5;stroke-dasharray:5 4;opacity:.85;}
@@ -508,7 +513,7 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-lever--edge{min-height:0;border-radius:0;}
 /* the paper page — fills the frame height; the TEXT scrolls inside it, so the
    foot (and its Generate) sits level with the results release bar */
-.ncd-page{position:relative;min-width:320px;display:flex;flex-direction:column;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.07),0 10px 28px rgba(0,0,0,.08);padding:22px 22px 10px;height:calc(100vh - 82px);min-height:420px;}
+.ncd-page{position:relative;min-width:320px;display:flex;flex-direction:column;background:var(--enki-paper);border:1px solid var(--enki-rule);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.07),0 10px 28px rgba(0,0,0,.08);padding:22px 22px 10px;align-self:stretch;min-height:260px;}
 .ncd-tascroll{flex:1;min-height:0;overflow-y:auto;}
 .ncd-pbox{position:relative;min-height:100%;}
 .ncd-pov,.ncd-pta{font-family:var(--font-serif),Georgia,serif;font-size:16.5px;line-height:1.7;color:var(--enki-ink);white-space:pre-wrap;word-break:break-word;}
