@@ -1,5 +1,6 @@
 "use client";
 
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import { useEffect, useState } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, DollarSign, ShoppingBag, FileText, ImageIcon, TrendingUp, Eye, Plus } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useAuth } from "@/hooks/useAuth";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 
@@ -44,11 +45,11 @@ interface DashboardData {
 export default function DashboardPage() {
   const account = useActiveAccount();
   const { connected: solanaConnected, publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress, getAuthHeaders: getTurnkeyAuthHeaders } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const { getAuthHeaders: getEvmAuthHeaders } = useAuth();
   const { getAuthHeaders: getSolanaAuthHeaders } = useSolanaAuth();
-  const authenticated = !!account || solanaConnected || !!turnkeyAddress;
-  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null;
+  const authenticated = !!account || solanaConnected || !!cdpAddress;
+  const userAddress = account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
@@ -63,7 +64,8 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        const authHeaders = getTurnkeyAuthHeaders() || getSolanaAuthHeaders() || getEvmAuthHeaders();
+        const sessionHeaders = sessionAuthHeaders();
+        const authHeaders = (Object.keys(sessionHeaders).length ? sessionHeaders : null) || getSolanaAuthHeaders() || getEvmAuthHeaders();
         if (!authHeaders) throw new Error("Authentication required");
 
         // Fetch earnings

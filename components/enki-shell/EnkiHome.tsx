@@ -6,8 +6,8 @@ import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useHoldings } from "@/hooks/useHoldings";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useBetaAccess } from "@/components/BetaGate";
 import UsernameOnboard from "./UsernameOnboard";
@@ -72,11 +72,12 @@ export default function EnkiHome() {
   const { theme, setTheme } = useTheme();
 
   const account = useSafeActiveAccount();
-  const { address: turnkeyAddress, clear: turnkeyClear } = useTurnkeyEmailAuth();
+  
   const { isAuthed: emailAuthed, email, logout: emailLogout } = useEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const { isAuthenticated: solanaAuthed, walletAddress: solanaAddress, logout: solanaLogout } = useSolanaAuth();
   const { connected: adapterConnected, disconnect: adapterDisconnect } = useWallet();
-  const walletAddress = account?.address ?? turnkeyAddress ?? (solanaAuthed ? solanaAddress : null);
+  const walletAddress = account?.address ?? cdpAddress ?? (solanaAuthed ? solanaAddress : null);
   const { balance } = useHoldings(walletAddress);
 
   // Access + username come from the root BetaGate (it already verified the
@@ -159,7 +160,6 @@ export default function EnkiHome() {
     try {
       await solanaLogout(); // deletes the server session, then local storage
       emailLogout();
-      turnkeyClear();
       if (adapterConnected) await adapterDisconnect().catch(() => {});
     } finally {
       window.location.href = "/"; // hard reload → landing, all client state reset

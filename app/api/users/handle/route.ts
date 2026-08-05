@@ -58,6 +58,10 @@ export async function GET(req: NextRequest) {
     // on prompts.creator_id — cheap with an index, never drifts.
     const promptCount = wantStats ? (countRes.count ?? 0) : null;
     return NextResponse.json({
+      // The caller's own id. Not a secret to them, and the recovery file needs
+      // it: it is the mapping our database holds, so a user who keeps it can be
+      // re-linked to their wallet even if that database is lost.
+      id: userId,
       handle: row.handle ?? null,
       role: row.role ?? "user",
       bio: row.bio ?? null,

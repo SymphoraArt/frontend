@@ -3,7 +3,7 @@ import { ChevronUp, PenSquare, Sparkles, Plus, X, GripVertical, Settings2, Info,
 import { useRouter } from "next/navigation";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 
@@ -21,10 +21,10 @@ export default function EnkiQuickCreate() {
   const { toast } = useToast();
   const account = useActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const userKey = useMemo(
-    () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
-    [account?.address, solanaPublicKey, turnkeyAddress]
+    () => account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null,
+    [account?.address, solanaPublicKey, cdpAddress]
   );
 
   const [open, setOpen] = useState(false);

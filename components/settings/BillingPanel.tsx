@@ -6,7 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Copy, Check, QrCode, X, Wallet, ArrowDownToLine, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +23,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 export default function BillingPanel() {
   const account = useActiveAccount();
   const { connected: solanaConnected } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   // Session-backed Solana identity: the adapter is disconnected after a page
   // load (autoConnect off) but the signed session persists — without it,
   // logged-in wallet users saw no deposit section.
@@ -31,21 +31,16 @@ export default function BillingPanel() {
   const { toast } = useToast();
 
   // Email users get a CDP embedded wallet — its address arrives via the
-  // bridge (the CDP provider tree lives outside this component).
+  // bridge (the CDP provider tree lives outside this component), which is
+  // what useCdpAddress above already subscribes to.
   const { isAuthed: emailAuthed, email } = useEmailAuth();
-  const [cdpAddress, setCdpAddress] = useState<string | null>(getCdpSolanaAddress());
-  useEffect(() => {
-    const sync = () => setCdpAddress(getCdpSolanaAddress());
-    window.addEventListener(CDP_ADDRESS_EVENT, sync);
-    return () => window.removeEventListener(CDP_ADDRESS_EVENT, sync);
-  }, []);
 
   const walletLogin = Boolean(account?.address) || solanaConnected || solanaSessionActive || (emailAuthed && !!cdpAddress);
   const recipient =
     account?.address ??
     (solanaSessionActive ? solanaSessionAddress : null) ??
     cdpAddress ??
-    turnkeyAddress ??
+    cdpAddress ??
     null;
 
   const [depositOpen, setDepositOpen] = useState(false);

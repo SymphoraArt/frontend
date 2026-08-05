@@ -12,8 +12,8 @@ import { PAYMENT_CHAINS } from "@/shared/payment-config";
 import { addCreation, getUserKeyFromAccount } from "@/lib/creations";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
-import { useIntentPayment } from "@/hooks/useIntentPayment";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
+import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { useModelLimits } from "@/hooks/useModelLimits";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
@@ -475,16 +475,19 @@ export default function EnkiPromptEditor() {
      payment will actually go through right now. */
   const activeWalletChain = useActiveWalletChain();
   const { connected: solanaAdapterConnected } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
-  // Treat Turnkey email users as Solana-paying users — useSolanaX402Payment routes their
-  // signing through `/api/turnkey/sign-transaction` instead of the wallet adapter.
-  const solanaConnected = solanaAdapterConnected || !!turnkeyAddress;
+  const { address: cdpAddress } = useCdpAddress();
+  const cdpSolana = useCdpSolanaSigner();
+  // Anyone who can sign a Solana transaction counts as "Solana connected":
+  // an external adapter, a CDP embedded wallet, or (until those sessions are
+  // migrated) Turnkey. Without the CDP arm here, a CDP user fell through to
+  // the EVM x402 branch below and could not pay at all despite holding a
+  // perfectly good Solana wallet.
+  const solanaConnected = solanaAdapterConnected || cdpSolana.isAvailable || !!cdpAddress;
   const { generateImage: generateImageWithPayment, isPending: isPaymentPending } = useX402PaymentProduction();
   const { generateImage: generateImageWithSolana, isPending: isSolanaPaymentPending } = useSolanaX402Payment();
   // Server-built payments (intent → pay → generate) for Turnkey email users:
   // no SOL needed, Enki pays the network fee. Kicks in once the prompt is
   // saved (an intent needs the DB prompt row for pricing).
-  const { generateWithIntent, isPending: isIntentPaymentPending } = useIntentPayment();
   const { chainKey: bestChain } = useBestPaymentChain();
   const [selectedChain] = useState<ChainKey>(bestChain || "base-sepolia");
   /* Human-readable name of the network the user is paying on right
@@ -768,7 +771,7 @@ export default function EnkiPromptEditor() {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const walletConnected = Boolean(account?.address) || solanaConnected;
-  const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending || isIntentPaymentPending;
+  const isGeneratingPaymentPending = isPaymentPending || isSolanaPaymentPending;
 
   useEffect(() => {
     const handleResize = () => setIsMobileViewport(window.innerWidth <= 768);
@@ -2531,25 +2534,13 @@ export default function EnkiPromptEditor() {
         }
         data = await res.json() as { imageUrl: string; provider?: string; usedGemini?: boolean };
       } else {
-        // Turnkey-only users with a saved prompt take the server-built path
-        // (intent → pay → generate): no SOL needed, Enki pays the network
-        // fee. A connected external adapter keeps precedence (the user
-        // chose that wallet to pay with); unsaved drafts and external
-        // wallets keep the x402 flows.
-        data = turnkeyAddress && !solanaAdapterConnected && ui.currentPromptId
-          ? await generateWithIntent({
-              promptId: ui.currentPromptId,
-              modelFamily: models.selected[0] || "nano-banana-pro",
-              resolution: "2K",
-              prompt: previewText,
-              // Gemini accepts a fixed ratio set; map the editor's extra
-              // ratios to their nearest neighbour ("Any ratio" → server
-              // default 1:1).
-              aspectRatio: INTENT_API_RATIOS[ratios.selected],
-              // Per-card resume slot: batch pays one intent per card, concurrently.
-              slotId: versionId,
-            }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
-          : solanaConnected
+        // The server-built path (intent → pay → generate) is gone with Turnkey:
+        // it only ever worked because the server could sign for the buyer.
+        // Everyone now signs their own transaction — external wallet or CDP
+        // embedded wallet — through the x402 flow. Rebuilding the server-built
+        // route on client signing is separate work; the migration that pins the
+        // transaction message for it is already in place.
+        data = solanaConnected
           ? await generateImageWithSolana({
               prompt: previewText,
               resolution: "2K",

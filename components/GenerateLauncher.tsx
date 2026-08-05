@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useToast } from "@/hooks/use-toast";
 import { useModelLimits } from "@/hooks/useModelLimits";
 import PromptEngagement from "@/components/PromptEngagement";
@@ -46,10 +46,10 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
   const { toast } = useToast();
   const account = useActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   const userKey = useMemo(
-    () => account?.address ?? solanaPublicKey?.toBase58() ?? turnkeyAddress ?? null,
-    [account?.address, solanaPublicKey, turnkeyAddress]
+    () => account?.address ?? solanaPublicKey?.toBase58() ?? cdpAddress ?? null,
+    [account?.address, solanaPublicKey, cdpAddress]
   );
 
   const [open, setOpen] = useState(false);

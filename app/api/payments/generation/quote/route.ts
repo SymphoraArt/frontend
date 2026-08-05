@@ -18,9 +18,9 @@
  *
  * This endpoint is read-only. The companion confirm endpoint (next step)
  * will persist a payment intent (see migrations/generation_payment_intents.sql),
- * build the atomic two-transfer Solana tx server-side, sign it via Turnkey,
+ * build the atomic two-transfer Solana tx server-side; the buyer signs it
  * and broadcast — replacing the client-built x402 flow and retiring
- * /api/turnkey/sign-transaction from the payment path.
+ * in their own wallet.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

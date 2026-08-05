@@ -160,14 +160,12 @@ async function resolveCreatorId(
     .maybeSingle();
   if (walletRow?.user_id) return walletRow.user_id;
 
-  const { data: tkUser } = await supabase
-    .from("turnkey_users")
-    .select("wallet_address")
-    .ilike("wallet_address", session.wallet_address)
-    .maybeSingle();
+  // Previously looked the address up in turnkey_users to carry its casing over.
+  // Turnkey is gone, and the lookup above already covers every wallet we know
+  // about, so an unknown address just gets a bare user row.
   const { data: created, error: createError } = await supabase
     .from("users")
-    .insert(tkUser?.wallet_address ? { wallet_address: tkUser.wallet_address } : {})
+    .insert({})
     .select("id")
     .single();
   if (createError || !created?.id) {

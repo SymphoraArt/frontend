@@ -5,7 +5,7 @@ import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, ChevronDown, Copy, Loader2 } from "lucide-react";
 
-import { useTurnkeyEmailAuth } from "@/hooks/useTurnkeyAuth";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useSolanaAuth } from "@/hooks/useSolanaAuth";
 import { useHoldings } from "@/hooks/useHoldings";
 import { useToast } from "@/hooks/use-toast";
@@ -40,7 +40,7 @@ const RAMPS: { id: RampProvider; name: string; logo: string; logoBg: string; buy
 export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolean } = {}) {
   const account = useActiveAccount();
   const { publicKey: solanaPublicKey } = useWallet();
-  const { address: turnkeyAddress } = useTurnkeyEmailAuth();
+  const { address: cdpAddress } = useCdpAddress();
   // Session-backed Solana identity: after a reload the wallet ADAPTER is
   // disconnected (autoConnect off) but the signed session lives on — without
   // this, wallet users saw "Sign in to see it" although they're logged in.
@@ -51,7 +51,7 @@ export default function PaymentPanel({ focusRamp = false }: { focusRamp?: boolea
     account?.address ??
     (solanaSessionActive ? solanaSessionAddress : null) ??
     solanaPublicKey?.toBase58() ??
-    turnkeyAddress ??
+    cdpAddress ??
     null;
   const { balance, ready } = useHoldings(address);
 

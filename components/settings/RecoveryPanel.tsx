@@ -9,6 +9,9 @@ import { useToast } from "@/hooks/use-toast";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import { refreshRecoveryStatus } from "@/hooks/useRecoveryStatus";
 import SettingsSection from "@/components/settings/SettingsSection";
+import { useCdpAddress } from "@/hooks/useCdpAddress";
+import { requestCdpKeyExport } from "@/lib/cdp-bridge";
+import { buildRecoveryFile, downloadRecoveryFile, openRecoveryFile } from "@/lib/recovery-file";
 
 type GuardianKind = "wallet" | "email" | "authenticator" | "phone";
 type AddType = GuardianKind;
@@ -64,7 +67,56 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
   const [addValue, setAddValue] = useState("");
   const [addBusy, setAddBusy] = useState(false);
 
+  // ── Recovery file ────────────────────────────────────────────────────────
+  // Built and encrypted in the browser, handed straight to the download
+  // manager. It is never uploaded and never mailed — a private key in transit
+  // is a private key someone can intercept.
+  const { address: cdpAddress } = useCdpAddress();
+  const [filePw, setFilePw] = useState("");
+  const [filePw2, setFilePw2] = useState("");
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileErr, setFileErr] = useState<string | null>(null);
+  const [fileDone, setFileDone] = useState(false);
+
   const authed = Object.keys(sessionAuthHeaders()).length > 0;
+
+  const makeRecoveryFile = async () => {
+    setFileErr(null);
+    if (filePw.length < 10) { setFileErr("Use at least 10 characters — this guards your wallet."); return; }
+    if (filePw !== filePw2) { setFileErr("The two passphrases don't match."); return; }
+    setFileBusy(true);
+    try {
+      // The user's own id: it is the mapping our database holds, so keeping it
+      // in the file means we can re-link the account even if that database is
+      // lost. Not a secret to its owner.
+      const meRes = await fetch("/api/users/handle", { headers: sessionAuthHeaders() });
+      const me = meRes.ok ? ((await meRes.json()) as { id?: string }) : {};
+      if (!me.id) throw new Error("Could not confirm who you are — try signing in again.");
+
+      const privateKey = await requestCdpKeyExport();
+      const file = await buildRecoveryFile({
+        privateKey,
+        address: cdpAddress ?? "",
+        userId: me.id,
+        passphrase: filePw,
+      });
+
+      // Read it back before handing it over: nobody should walk away with a
+      // backup that turns out to be unreadable.
+      const check = await openRecoveryFile(file, filePw);
+      if (check !== privateKey) throw new Error("The file failed its own check — nothing was saved.");
+
+      downloadRecoveryFile(file);
+      setFileDone(true);
+      setFilePw("");
+      setFilePw2("");
+      toast({ title: "Recovery file saved", description: "Keep it somewhere safe and offline." });
+    } catch (e) {
+      setFileErr(e instanceof Error ? e.message : "Could not create the file");
+    } finally {
+      setFileBusy(false);
+    }
+  };
 
   const loadPasskeys = useCallback(async () => {
     try {
@@ -485,6 +537,77 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
 
       </SettingsSection>
       </div>
+
+      {/* ── 03 · Recovery file — the parachute ── */}
+      <SettingsSection num="03" title="Recovery file">
+        <div className="set-section-desc" style={{ paddingBottom: 14 }}>
+          Guardians and 2FA get you back into <em>this</em> account. A recovery file is different:
+          it holds your wallet key itself, so you can reach your money with any Solana wallet —
+          even if you lose access here, or if Enki disappears entirely. Download it once, keep it
+          offline. It is created on your device and never sent anywhere.
+        </div>
+
+        {!cdpAddress ? (
+          <div className="set-list-item">
+            <div className="set-item-content">
+              <div className="set-item-title">No embedded wallet yet</div>
+              <div className="set-item-sub">
+                Sign in with email and your wallet is created automatically — then this file becomes available.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: "0 24px 20px" }}>
+            <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
+              <div>
+                <label className="set-item-sub" htmlFor="rf-pw">Choose a passphrase</label>
+                <input
+                  id="rf-pw"
+                  type="password"
+                  autoComplete="new-password"
+                  value={filePw}
+                  onChange={(e) => { setFilePw(e.target.value); setFileErr(null); }}
+                  placeholder="At least 10 characters"
+                  style={{ height: 34, fontSize: 13, padding: "0 10px", border: "1px solid var(--enki-rule)", borderRadius: 6, background: "transparent", color: "var(--enki-ink)", outline: "none", width: "100%" }}
+                />
+              </div>
+              <div>
+                <label className="set-item-sub" htmlFor="rf-pw2">Repeat it</label>
+                <input
+                  id="rf-pw2"
+                  type="password"
+                  autoComplete="new-password"
+                  value={filePw2}
+                  onChange={(e) => { setFilePw2(e.target.value); setFileErr(null); }}
+                  style={{ height: 34, fontSize: 13, padding: "0 10px", border: "1px solid var(--enki-rule)", borderRadius: 6, background: "transparent", color: "var(--enki-ink)", outline: "none", width: "100%" }}
+                />
+              </div>
+
+              {fileErr && <div className="set-item-sub" style={{ color: "#b3271e" }}>{fileErr}</div>}
+
+              <button
+                className="set-btn set-btn-dark"
+                onClick={() => void makeRecoveryFile()}
+                disabled={fileBusy || !filePw || !filePw2}
+                style={{ justifySelf: "start" }}
+              >
+                {fileBusy ? <Loader2 size={14} className="set-spin" /> : "Download recovery file"}
+              </button>
+
+              {fileDone && (
+                <div className="set-item-sub" style={{ display: "flex", gap: 6, alignItems: "center", color: "#1f8a5b" }}>
+                  <CheckCircle2 size={14} /> Saved. Store it offline — a copy on the same laptop protects you from very little.
+                </div>
+              )}
+
+              <div className="set-item-sub" style={{ marginTop: 4 }}>
+                Forgetting this passphrase is not a lockout — you keep signing in as usual.
+                You would only lose the file, and can make a new one any time.
+              </div>
+            </div>
+          </div>
+        )}
+      </SettingsSection>
 
       {/* ── Remove guardian: are you sure? ── */}
       {removeAsk && (
