@@ -15,18 +15,34 @@ export interface ModelLimits {
   filetypes: string[];
   /** value for <input accept> */
   accept: string;
+  /**
+   * Ratios this generator actually accepts. Every generator takes a different
+   * set, so the list belongs in the database next to the model, not in a
+   * constant in the UI — offering a ratio the provider rejects fails the call
+   * AFTER the payment has settled.
+   */
+  ratios: string[];
 }
+
+/**
+ * The intersection every current provider supports — offered only while a
+ * model has no list of its own. Deliberately narrow: a ratio offered here and
+ * rejected by the provider fails the call after the payment has settled.
+ */
+export const FALLBACK_RATIOS = ["1:1", "16:9", "9:16"];
 
 const DEFAULTS: ModelLimits = {
   maxRefs: 14,
   filetypes: ["image/png", "image/jpeg", "image/webp"],
   accept: "image/png,image/jpeg,image/webp",
+  ratios: FALLBACK_RATIOS,
 };
 
 interface ModelRow {
   name?: string;
   max_reference_images?: number;
   allowed_filetypes?: string[];
+  allowed_ratios?: string[];
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -62,6 +78,10 @@ export function limitsFor(rows: ModelRow[], model: string | null | undefined): M
     maxRefs: typeof row.max_reference_images === "number" ? row.max_reference_images : DEFAULTS.maxRefs,
     filetypes,
     accept: filetypes.join(","),
+    ratios:
+      Array.isArray(row.allowed_ratios) && row.allowed_ratios.length > 0
+        ? row.allowed_ratios
+        : DEFAULTS.ratios,
   };
 }
 
