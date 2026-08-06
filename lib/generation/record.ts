@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptString } from "@/lib/crypto";
 import type { ResolvedModel, Route } from "@/lib/generation/models";
+import type { StoredReference } from "@/lib/generation/reference-images";
 
 /**
  * Write down what produced an image, in enough detail to run it again.
@@ -46,8 +47,11 @@ export interface GenerationRecord {
   generationMs: number | null;
   /** The editor's node graph, WITHOUT image bytes. */
   workflow: Record<string, unknown> | null;
-  /** Blob URLs of the images fed in, in prompt order. */
-  referenceImageUrls?: string[];
+  /**
+   * The images fed in, in prompt order. A null keeps the position — "@Image 2"
+   * has to keep meaning the second one even if the second failed to store.
+   */
+  references?: (StoredReference | null)[];
   transactionHash?: string | null;
   chainKey?: string | null;
   amountPaidCents?: number | null;
@@ -149,11 +153,23 @@ export async function recordGeneration(
     }
     const generationId = data.id as string;
 
-    // The inputs, in prompt order — "@Image 2" refers to sequence_index 1.
-    const refs = (rec.referenceImageUrls ?? []).filter(Boolean);
-    if (refs.length) {
+    // The inputs, in prompt order — "@Image 2" refers to sequence_index 1, so
+    // the index comes from the ORIGINAL position and never from a filtered
+    // array. A reference that failed to store simply has no row.
+    const rows = (rec.references ?? [])
+      .map((ref, i) => (ref ? { ...ref, sequence_index: i } : null))
+      .filter((r): r is StoredReference & { sequence_index: number } => r !== null);
+
+    if (rows.length) {
       const { error: refErr } = await supabase.from("generation_reference_images").insert(
-        refs.map((url, i) => ({ generation_id: generationId, sequence_index: i, storage_url: url })),
+        rows.map((r) => ({
+          generation_id: generationId,
+          sequence_index: r.sequence_index,
+          storage_url: r.url,
+          mime_type: r.mimeType,
+          bytes: r.bytes,
+          content_hash: r.contentHash,
+        })),
       );
       if (refErr) console.warn("[generation] could not record references:", refErr.message);
     }

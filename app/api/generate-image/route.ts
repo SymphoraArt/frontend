@@ -20,6 +20,8 @@ import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, routeFor } from "@/lib/generation/models";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
+import { storeReferenceImages } from "@/lib/generation/reference-images";
+import { stripWorkflowImages } from "@/lib/generation/workflow";
 import {
   fulfillGenerationIntent,
   redeemGenerationIntent,
@@ -43,6 +45,8 @@ type GenerateImageBody = {
   boost?: boolean;
   /** Data URLs or bare base64. Capped server-side by the model's own limit. */
   referenceImages?: string[];
+  /** The editor node graph. Image bytes inside it are extracted server-side. */
+  workflow?: unknown;
   ratio?: string;
   // Server-built payments: id of a confirmed generation_payment_intents row.
   // When present, the x402 header flow is skipped entirely.
@@ -804,6 +808,10 @@ export async function POST(request: NextRequest) {
           format?: string | null;
         } | undefined;
         const dims = m?.resolution?.split("x") ?? [];
+        // Bytes out of the graph before it is stored: the editor embeds
+        // references as data URLs, and its own draft save already breaks on
+        // the 5MB cap because of it.
+        const stripped = stripWorkflowImages(body.workflow ?? {});
         after(
           recordGeneration(recSupabase, {
             userId: recUserId,
@@ -831,7 +839,14 @@ export async function POST(request: NextRequest) {
                   }
                 : null,
             generationMs: geminiResult.generationTime ?? null,
-            workflow: null,
+            workflow: stripped.workflow,
+            // Uploaded once and referenced, rather than inlined into the
+            // workflow blob: the same reference across twenty generations is
+            // one object and twenty rows, not twenty copies of the base64.
+            references: await storeReferenceImages(
+              stripped.images.length ? stripped.images : (body.referenceImages ?? []),
+              recUserId,
+            ),
             transactionHash: isSolanaPayment
               ? ((paymentResult.metadata as { solanaTxSignature?: string })?.solanaTxSignature ?? null)
               : null,
