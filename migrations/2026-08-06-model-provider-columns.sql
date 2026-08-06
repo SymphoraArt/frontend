@@ -19,20 +19,29 @@
 
 ALTER TABLE models ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE models ADD COLUMN IF NOT EXISTS provider_model text;
+ALTER TABLE models ADD COLUMN IF NOT EXISTS wavespeed_model text;
 
 COMMENT ON COLUMN models.provider IS
-  'Which API to call: gemini | openai | wavespeed.';
+  'Which API the BOOST route calls: gemini | openai | wavespeed.';
 COMMENT ON COLUMN models.provider_model IS
-  'The provider''s own model id, e.g. gemini-3-pro-image-preview. Null falls '
-  'back to the slug map in lib/generation/models.ts.';
+  'The provider''s own model id for the BOOST (direct) route, e.g. '
+  'gemini-3-pro-image-preview. Null falls back to lib/generation/models.ts.';
+COMMENT ON COLUMN models.wavespeed_model IS
+  'WaveSpeed model id for the NORMAL route, e.g. '
+  'google/nano-banana-pro/text-to-image. Null means this model has no '
+  'WaveSpeed host, so boost is a no-op and both routes go direct.';
 
 -- Nano Banana Pro IS gemini-3-pro-image-preview. Measured 2026-08-06 against
 -- the live API: it honours imageSize (1K 1024x1024 0.71MB, 2K 2048x2048
 -- 3.00MB, 4K 4096x4096 8.77MB, all JPEG). gemini-2.5-flash-image — plain
 -- "Nano Banana" — ignores imageSize entirely and always returns 1024x1024.
+-- Both routes run the SAME model; only the host differs. Measured on one
+-- prompt, 2026-08-06: WaveSpeed 1K 73.1s / 2K 78.1s / 4K 77.0s against direct
+-- 1K 19.2s / 2K 28.5s / 4K 38.8s. Boost buys time, not quality.
 UPDATE models
 SET provider = 'gemini',
-    provider_model = 'gemini-3-pro-image-preview'
+    provider_model = 'gemini-3-pro-image-preview',
+    wavespeed_model = 'google/nano-banana-pro/text-to-image'
 WHERE name ILIKE 'nano banana pro%';
 
 -- GPT-Image-2 has no code path yet; recording the target so the row is honest
@@ -43,4 +52,4 @@ SET provider = 'openai',
 WHERE name ILIKE 'gpt%image%2';
 
 -- Check:
---   SELECT name, provider, provider_model, allowed_ratios FROM models;
+--   SELECT name, provider, provider_model, wavespeed_model, allowed_ratios FROM models;
