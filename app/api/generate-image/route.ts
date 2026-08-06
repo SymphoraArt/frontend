@@ -19,6 +19,7 @@ import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/ra
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, routeFor } from "@/lib/generation/models";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
+import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
 import {
   fulfillGenerationIntent,
   redeemGenerationIntent,
@@ -784,13 +785,69 @@ export async function POST(request: NextRequest) {
       await fulfillGenerationIntent(consumedIntent.supabase, consumedIntent.id);
     }
 
+    // Write the generation down. after() rather than await: the record must
+    // not delay the image the user is waiting on, and a floating promise can be
+    // frozen with the lambda before the insert lands.
+    //
+    // Nothing recorded a generation before this — POST /api/generations wrote
+    // columns that do not exist and its callers swallowed the failure, so every
+    // generation vanished when the tab closed.
+    {
+      const recSupabase = getSupabaseServerClientSafe();
+      const recUserId = await resolveRecordingUserId(recSupabase, request);
+      if (recSupabase && recUserId) {
+        // The Grok branch returns a metadata object with only `model`, so read
+        // the measured fields defensively rather than assuming the Gemini shape.
+        const m = geminiResult.metadata as {
+          resolution?: string | null;
+          bytes?: number | null;
+          format?: string | null;
+        } | undefined;
+        const dims = m?.resolution?.split("x") ?? [];
+        after(
+          recordGeneration(recSupabase, {
+            userId: recUserId,
+            promptId: null,
+            finalPrompt: prompt,
+            // What actually reached the model, not what the user typed: the
+            // rewrite runs at temperature 0.7, so replaying the original
+            // produces a different request every time.
+            effectivePrompt: enhancedPrompt,
+            variableValues: {},
+            model: preflightModel,
+            route: preflightRoute,
+            boost: !!body.boost,
+            aspectRatio: body.aspectRatio || body.ratio || null,
+            resolution: paidResolution || body.resolution || null,
+            // Only Pollinations exposes one, and it currently discards it.
+            seed: null,
+            output:
+              dims.length === 2 && m?.bytes
+                ? {
+                    width: Number(dims[0]) || 0,
+                    height: Number(dims[1]) || 0,
+                    bytes: m.bytes,
+                    format: m.format ?? '',
+                  }
+                : null,
+            generationMs: geminiResult.generationTime ?? null,
+            workflow: null,
+            transactionHash: isSolanaPayment
+              ? ((paymentResult.metadata as { solanaTxSignature?: string })?.solanaTxSignature ?? null)
+              : null,
+            chainKey: chain,
+          }),
+        );
+      }
+    }
+
     // Return image with payment metadata and headers
     return NextResponse.json(
       {
         imageUrl,
         prompt: enhancedPrompt,
-        provider: "gemini",
-        model: geminiResult.metadata?.model || 'gemini-3-pro-image-preview',
+        provider: preflightRoute.provider,
+        model: geminiResult.metadata?.model || preflightRoute.providerModel,
         usedGemini,
         geminiTokens: usedGemini ? geminiTokens : undefined,
         generationTime: geminiResult.generationTime,
