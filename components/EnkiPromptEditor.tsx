@@ -1670,6 +1670,13 @@ export default function EnkiPromptEditor() {
     [ratios.available],
   );
 
+  // "Any ratio" is a UI choice, not a provider value — it means "don't ask for
+  // one". It used to be sent verbatim, and since it is the DEFAULT selection,
+  // Gemini's validator rejected it: the paid path failed unless the user
+  // happened to change the ratio. Sending undefined lets the server apply its
+  // own default instead.
+  const ratioForApi = ratios.selected === "Any ratio" ? undefined : ratios.selected;
+
   const toggleModel = (modelId: string) => {
     setModels(prev => {
       const isSelected = prev.selected.includes(modelId);
@@ -2525,7 +2532,7 @@ export default function EnkiPromptEditor() {
           body: JSON.stringify({
             prompt: previewText,
             resolution: "2K",
-            aspectRatio: ratios.selected,
+            aspectRatio: ratioForApi,
             referenceImages: cardRefs.length ? cardRefs : undefined,
           }),
         });
@@ -2548,7 +2555,7 @@ export default function EnkiPromptEditor() {
               chain: "solana-devnet",
             }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
           : await generateImageWithPayment(
-              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
+              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratioForApi },
               selectedChain
             ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
       }
