@@ -15,6 +15,7 @@ import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { useModelLimits, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
+import BoostToggle, { BOOST_MULTIPLIER } from "@/components/generation/BoostToggle";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
 import EnkiMobileGenerateModal from "./EnkiMobileGenerateModal";
@@ -589,6 +590,9 @@ export default function EnkiPromptEditor() {
     selected: []
   });
 
+  // Boost: same model on a priority host. Sent with every generation so the
+  // server can pick the route; the price follows in the quote.
+  const [boost, setBoost] = useState(false);
   const [ratios, setRatios] = useState<{ available: string[], selected: string }>({
     available: [],
     selected: "Any ratio"
@@ -2533,6 +2537,7 @@ export default function EnkiPromptEditor() {
             prompt: previewText,
             resolution: "2K",
             aspectRatio: ratioForApi,
+            boost,
             referenceImages: cardRefs.length ? cardRefs : undefined,
           }),
         });
@@ -2555,7 +2560,7 @@ export default function EnkiPromptEditor() {
               chain: "solana-devnet",
             }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
           : await generateImageWithPayment(
-              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratioForApi },
+              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratioForApi, boost },
               selectedChain
             ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
       }
@@ -3617,6 +3622,21 @@ export default function EnkiPromptEditor() {
               ))}
             </div>
             <p className="enk-hint-text">Buyer picks the ratio at render time.</p>
+            </div>
+
+            <div className="enk-divider" />
+
+            {/* Boost — same model, priority host, faster. Sits with the other
+                generation settings rather than beside the button, because it
+                changes what the generation IS, not just when it starts. */}
+            <div className="enk-label">SPEED</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <BoostToggle boost={boost} onChange={setBoost} />
+              <p className="enk-hint-text" style={{ margin: 0 }}>
+                {boost
+                  ? `Priority provider · about 3x faster · ${BOOST_MULTIPLIER}x the price`
+                  : "Standard queue. Turn on Boost for a priority provider."}
+              </p>
             </div>
 
             <div className="enk-divider" />

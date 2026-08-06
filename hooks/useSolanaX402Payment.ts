@@ -318,6 +318,8 @@ export function useSolanaX402Payment() {
       prompt: string;
       aspectRatio?: string;
       resolution?: string;
+      modelIds?: string[];
+      boost?: boolean;
       chain?: "solana" | "solana-devnet";
     }) => {
       const chain = params.chain ?? "solana-devnet";
@@ -325,10 +327,16 @@ export function useSolanaX402Payment() {
       return fetchWithSolanaPayment<{ imageUrl: string; prompt: string }>(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Rebuild the body field by field, so anything the caller adds must be
+        // added here too. modelIds and boost were being silently dropped on
+        // this path: the model selection and the priority route never reached
+        // the server, while the price was quoted as if they had.
         body: JSON.stringify({
           prompt: params.prompt,
           aspectRatio: params.aspectRatio ?? "1:1",
           resolution: params.resolution ?? "2K",
+          modelIds: params.modelIds,
+          boost: params.boost,
         }),
       });
     },

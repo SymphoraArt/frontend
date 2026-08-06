@@ -2169,3 +2169,44 @@
     padding-left: 18px;
   }
 }
+
+/* ── Boost toggle ─────────────────────────────────────────────────────────
+   One control, used by every generation surface (quick create, prompt
+   editor, node editor, image UI). Deliberately quiet when off: boost is an
+   upsell, and an upsell that shouts is a nuisance. Ember only once it is on,
+   so the state is unmistakable next to the price it changes. */
+.enki-boost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper-2);
+  color: var(--enki-ink-3);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
+  flex-shrink: 0;
+}
+.enki-boost:hover:not(:disabled) {
+  color: var(--enki-ink);
+  border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule));
+}
+.enki-boost--on {
+  color: var(--enki-ember);
+  border-color: color-mix(in oklab, var(--enki-ember) 60%, transparent);
+  background: color-mix(in oklab, var(--enki-ember) 12%, transparent);
+}
+.enki-boost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.enki-boost:focus-visible {
+  outline: 2px solid var(--enki-ember);
+  outline-offset: 2px;
+}

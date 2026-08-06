@@ -54,6 +54,11 @@ export interface ImageGenerationSettings {
   referenceImage?: string;
   modelIds?: string[];
   ratio?: string;
+  /**
+   * Run the same model on a priority host: faster, dearer, identical image.
+   * The server picks the route from this — see lib/generation/models.ts.
+   */
+  boost?: boolean;
 }
 
 /**

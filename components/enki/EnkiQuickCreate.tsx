@@ -6,6 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
+import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 
 const QC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", cost: 0.04 },
@@ -37,6 +38,7 @@ export default function EnkiQuickCreate() {
   const [ratio, setRatio] = useState("1:1");
   const [resolution, setResolution] = useState("2K");
   const [qty, setQty] = useState(1);
+  const [boost, setBoost] = useState(false);
 
   // Image Selection Mode: 'upload' | 'nft'
   const [imgMode, setImgMode] = useState<"upload" | "nft">("upload");
@@ -56,7 +58,7 @@ export default function EnkiQuickCreate() {
       const res = await fetch("/api/generate-free", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: final.trim(), aspectRatio: ratio, resolution }),
+        body: JSON.stringify({ prompt: final.trim(), aspectRatio: ratio, resolution, boost }),
       });
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
@@ -178,7 +180,9 @@ export default function EnkiQuickCreate() {
     }
   }, []);
 
-  const totalCost = (QC_MODELS.find(m => m.id === model)?.cost || 0) * qty;
+  // Boost runs the same model on a priority host — faster, dearer, identical
+  // image. The price has to move with it or the toggle is a lie.
+  const totalCost = boostedCost((QC_MODELS.find(m => m.id === model)?.cost || 0) * qty, boost);
 
   return (
     <div className={`enki-qc ${open ? "is-open" : ""}`}>
@@ -308,6 +312,7 @@ export default function EnkiQuickCreate() {
                   </div>
                 </div>
 
+                <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
                 <button
                   className="enki-qc-generate-btn-v3"
                   onClick={generate}
