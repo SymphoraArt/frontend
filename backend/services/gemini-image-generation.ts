@@ -146,7 +146,11 @@ export async function generateImagesWithGemini(
           metadata: {
             model,
             aspectRatio: request.aspectRatio || '1:1',
-            resolution: request.imageSize || '1K',
+            // Blocked before any image existed, so there is nothing to measure.
+            resolution: null,
+            requestedSize: request.imageSize ?? null,
+            bytes: null,
+            format: null,
             finishReason,
             safetyRatings
           }
@@ -174,7 +178,11 @@ export async function generateImagesWithGemini(
     }
 
     const generationTime = Date.now() - startTime;
-    console.log(`[Gemini] Generation completed in ${generationTime}ms`);
+    const measured = readImageDimensions(imageBuffers[0]);
+    console.log(
+      `[Gemini] Generation completed in ${generationTime}ms` +
+      (measured ? ` — ${measured.width}x${measured.height} ${measured.format}, ${imageBuffers[0].length} bytes` : ''),
+    );
 
     return {
       success: true,
@@ -183,7 +191,13 @@ export async function generateImagesWithGemini(
       metadata: {
         model,
         aspectRatio: request.aspectRatio || '1:1',
-        resolution: request.imageSize || '1K',
+        // Measured from the bytes we actually received, not echoed back from
+        // the request. imageSize is only honoured by gemini-3-pro-image, so
+        // echoing it recorded "2K" for 1024x1024 images on every other model.
+        resolution: measured ? `${measured.width}x${measured.height}` : null,
+        requestedSize: request.imageSize ?? null,
+        bytes: imageBuffers[0]?.length ?? null,
+        format: measured?.format ?? null,
         finishReason,
         safetyRatings
       }
@@ -308,6 +322,43 @@ export async function generateMultipleImagesWithGemini(
 /**
  * Validates image generation request
  */
+/**
+ * Real pixel dimensions, read straight from the container header.
+ *
+ * Deliberately not sharp: this runs on every generation, and sharp is only an
+ * optional transitive of Next — a dependency this hot path should not acquire
+ * for twenty bytes of header. PNG carries width/height in the IHDR chunk at a
+ * fixed offset; JPEG needs a walk to the first Start-Of-Frame marker.
+ */
+export function readImageDimensions(
+  buf: Buffer | undefined,
+): { width: number; height: number; format: 'png' | 'jpeg' } | null {
+  if (!buf || buf.length < 24) return null;
+
+  // PNG: 8-byte signature, then the IHDR chunk with width/height at 16..24.
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), format: 'png' };
+  }
+
+  // JPEG: walk the segments to the first SOF, which holds the frame size.
+  if (buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      // Any SOFn except DHT (c4), JPG (c8) and DAC (cc) carries the size.
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7), format: 'jpeg' };
+      }
+      // Standalone markers carry no length field; everything else does.
+      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9) || marker === 0x01) { i += 2; continue; }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+
+  return null;
+}
+
 function validateRequest(request: ImageGenerationRequest): { valid: boolean; error?: string } {
   if (!request.prompt || request.prompt.trim().length === 0) {
     return { valid: false, error: 'Prompt is required and cannot be empty' };

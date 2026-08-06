@@ -30,7 +30,19 @@ export interface ImageGenerationResult {
   metadata?: {
     model: string;
     aspectRatio: string;
-    resolution: string;
+    /**
+     * What actually came back — "2048x2048", measured from the image itself.
+     * This used to echo the REQUESTED size, so a record could claim 2K for an
+     * image the model never rendered at 2K. Null when the bytes could not be
+     * read.
+     */
+    resolution: string | null;
+    /** What we asked for, kept separately so the two can be compared. */
+    requestedSize?: string | null;
+    /** Actual byte length of the first image. */
+    bytes?: number | null;
+    /** Actual container format, "png" or "jpeg". */
+    format?: string | null;
     finishReason?: string;
     safetyRatings?: any[];
   };
