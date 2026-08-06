@@ -1,0 +1,68 @@
+/**
+ * Hard cap on calls to metered providers, for throwaway probes and benchmarks.
+ *
+ * Import this FIRST in any script that might reach a paid API:
+ *
+ *   import "./scripts/metered-guard.mjs";
+ *   // then run with:  METERED_BUDGET=3 node __bench-whatever.mjs
+ *
+ * It patches globalThis.fetch, so it also covers SDKs that call out on their
+ * own (@google/genai and the OpenAI client both use fetch underneath) — the
+ * script does not get to decide what counts.
+ *
+ * ── Why it counts EVERY request, including ones expected to fail ──────────
+ * On 2026-08-06 a probe sent deliberately invalid values to WaveSpeed on the
+ * assumption that an invalid request is rejected before anything is billed.
+ * That held for an invalid *value* and not for an unknown *field*: WaveSpeed
+ * ignored the unknown field, accepted the request, and started a real
+ * generation. The assumption was the defect.
+ *
+ * So there is no "free probe" category here. A request to a metered host
+ * counts the moment it is made, because whether it bills is the provider's
+ * decision and not something this side can know in advance.
+ */
+
+const METERED_HOSTS = [
+  "generativelanguage.googleapis.com", // Gemini
+  "api.wavespeed.ai",
+  "api.openai.com",
+  "api.x.ai",                          // Grok
+  "image.pollinations.ai",             // free today, metered tomorrow
+];
+
+const raw = process.env.METERED_BUDGET;
+const BUDGET = Number(raw);
+
+if (raw === undefined || !Number.isInteger(BUDGET) || BUDGET < 0) {
+  throw new Error(
+    "metered-guard: set METERED_BUDGET to the number of paid calls Kev approved.\n" +
+    "  e.g.  METERED_BUDGET=3 node __bench-x.mjs\n" +
+    "Approval is per run and stated in advance: provider, count, purpose.",
+  );
+}
+
+const nativeFetch = globalThis.fetch;
+let used = 0;
+
+globalThis.fetch = async function guardedFetch(input, init) {
+  const url = typeof input === "string" ? input : (input?.url ?? String(input));
+  let host = "";
+  try { host = new URL(url).host; } catch { /* relative — cannot be a provider */ }
+
+  const metered = METERED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  if (!metered) return nativeFetch(input, init);
+
+  if (used >= BUDGET) {
+    throw new Error(
+      `metered-guard: refusing call ${used + 1} to ${host} — budget is ${BUDGET}. ` +
+      `Ask Kev before raising it.`,
+    );
+  }
+  used += 1;
+  console.log(`[metered] ${used}/${BUDGET} → ${host}`);
+  return nativeFetch(input, init);
+};
+
+process.on("exit", () => {
+  if (used > 0) console.log(`[metered] run finished: ${used} of ${BUDGET} approved calls used`);
+});

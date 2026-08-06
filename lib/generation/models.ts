@@ -14,19 +14,38 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type Provider = "gemini" | "openai" | "wavespeed";
+
+export interface Route {
+  provider: Provider;
+  /** The provider's own model id, e.g. "gemini-3-pro-image-preview". */
+  providerModel: string;
+}
+
 export interface ResolvedModel {
   /** Row id in `models`, when it came from the database. */
   id: string | null;
   /** Display name, e.g. "Nano Banana Pro". */
   name: string;
-  /** Which API to call. */
-  provider: "gemini" | "openai" | "wavespeed";
-  /** The provider's own model id, e.g. "gemini-3-pro-image-preview". */
-  providerModel: string;
+  /**
+   * The same model can be reached two ways, and that is the product:
+   *   normal — WaveSpeed, cheaper, ~73-78s
+   *   boost  — the vendor directly, dearer, ~19-39s
+   * Boost picks WHERE the model runs, never WHICH model runs, so the picture
+   * a user gets is the same either way. Measured 2026-08-06 on the same
+   * prompt; where a model has no WaveSpeed host, both routes are the same.
+   */
+  normal: Route;
+  boost: Route;
   allowedRatios: string[];
   maxRefs: number;
-  /** True when the provider model honours a size/resolution request. */
+  /** True when the model honours a size/resolution request. */
   supportsResolution: boolean;
+}
+
+/** The route to use for this request. */
+export function routeFor(model: ResolvedModel, boost: boolean | undefined): Route {
+  return boost ? model.boost : model.normal;
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -36,21 +55,35 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
  * gemini-3-pro-image-preview honours imageSize (1K 1024², 2K 2048², 4K 4096²);
  * gemini-2.5-flash-image ignores it and always returns 1024².
  */
-const BY_SLUG: Record<string, Pick<ResolvedModel, "provider" | "providerModel" | "supportsResolution">> = {
-  "nano-banana-pro": { provider: "gemini", providerModel: "gemini-3-pro-image-preview", supportsResolution: true },
-  "nano-banana": { provider: "gemini", providerModel: "gemini-2.5-flash-image", supportsResolution: false },
-  "gpt-image-2": { provider: "openai", providerModel: "gpt-image-2", supportsResolution: true },
+const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supportsResolution">> = {
+  "nano-banana-pro": {
+    normal: { provider: "wavespeed", providerModel: "google/nano-banana-pro/text-to-image" },
+    boost: { provider: "gemini", providerModel: "gemini-3-pro-image-preview" },
+    supportsResolution: true,
+  },
+  "nano-banana": {
+    // gemini-2.5-flash-image ignores imageSize entirely — measured, it always
+    // returns 1024x1024 — so it must never be charged by resolution.
+    normal: { provider: "gemini", providerModel: "gemini-2.5-flash-image" },
+    boost: { provider: "gemini", providerModel: "gemini-2.5-flash-image" },
+    supportsResolution: false,
+  },
+  "gpt-image-2": {
+    // No WaveSpeed host and no OpenAI code path yet; both routes name the
+    // target so the row is honest rather than silently running Gemini.
+    normal: { provider: "openai", providerModel: "gpt-image-2" },
+    boost: { provider: "openai", providerModel: "gpt-image-2" },
+    supportsResolution: true,
+  },
 };
 
 /** What we fall back to when nothing is selected or the lookup fails. */
 export const DEFAULT_MODEL: ResolvedModel = {
   id: null,
   name: "Nano Banana Pro",
-  provider: "gemini",
-  providerModel: "gemini-3-pro-image-preview",
+  ...BY_SLUG["nano-banana-pro"],
   allowedRatios: ["1:1", "16:9", "9:16"],
   maxRefs: 3,
-  supportsResolution: true,
 };
 
 interface ModelRow {
@@ -58,24 +91,37 @@ interface ModelRow {
   name?: string;
   provider?: string | null;
   provider_model?: string | null;
+  wavespeed_model?: string | null;
   allowed_ratios?: string[] | null;
   max_reference_images?: number | null;
 }
 
 function fromRow(row: ModelRow): ResolvedModel {
-  const bridge = BY_SLUG[slug(row.name ?? "")];
-  const providerModel = row.provider_model || bridge?.providerModel || DEFAULT_MODEL.providerModel;
+  const bridge = BY_SLUG[slug(row.name ?? "")] ?? BY_SLUG["nano-banana-pro"];
+
+  // The boost route is the vendor-direct one; provider/provider_model in the
+  // database describe it. The normal route is the WaveSpeed host, named by
+  // wavespeed_model. A model with no WaveSpeed host falls back to the same
+  // route for both, so boost is simply a no-op rather than an error.
+  const boost: Route = {
+    provider: (row.provider as Provider) || bridge.boost.provider,
+    providerModel: row.provider_model || bridge.boost.providerModel,
+  };
+  const normal: Route = row.wavespeed_model
+    ? { provider: "wavespeed", providerModel: row.wavespeed_model }
+    : bridge.normal;
+
   return {
     id: row.id ?? null,
     name: row.name ?? DEFAULT_MODEL.name,
-    provider: (row.provider as ResolvedModel["provider"]) || bridge?.provider || "gemini",
-    providerModel,
+    normal,
+    boost,
     allowedRatios: row.allowed_ratios?.length ? row.allowed_ratios : DEFAULT_MODEL.allowedRatios,
     maxRefs: typeof row.max_reference_images === "number" ? row.max_reference_images : DEFAULT_MODEL.maxRefs,
-    // Derived from the provider model, never from the row: whether a model
-    // honours a resolution is a fact about that model, and a stale column
-    // would make us charge for a size the model silently ignores.
-    supportsResolution: bridge?.supportsResolution ?? providerModel.includes("gemini-3-pro"),
+    // Derived from the model, never from a column: whether a model honours a
+    // resolution is a fact about that model, and a stale column would make us
+    // charge for a size the model silently ignores.
+    supportsResolution: bridge.supportsResolution,
   };
 }
 
@@ -97,7 +143,9 @@ export async function resolveModel(
       supabase.from("models").select(cols).in("id", modelIds).eq("active", true);
 
     let rows: ModelRow[];
-    const withProvider = await pick("id, name, provider, provider_model, allowed_ratios, max_reference_images");
+    const withProvider = await pick(
+      "id, name, provider, provider_model, wavespeed_model, allowed_ratios, max_reference_images",
+    );
     if (withProvider.error) {
       const legacy = await pick("id, name, allowed_ratios, max_reference_images");
       rows = (legacy.data ?? []) as unknown as ModelRow[];

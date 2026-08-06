@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
+import { generateImagesWithWaveSpeed } from "@/backend/services/wavespeed-image-generation";
 import type { ChainKey } from "@/shared/payment-config";
 import { isSolanaChain } from "@/shared/payment-config";
 import {
@@ -15,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
-import { resolveModel } from "@/lib/generation/models";
+import { resolveModel, routeFor } from "@/lib/generation/models";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import {
   fulfillGenerationIntent,
@@ -36,6 +37,8 @@ type GenerateImageBody = {
   resolution?: string;
   useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
   modelIds?: string[];
+  /** Spend more to run the same model directly instead of via WaveSpeed. */
+  boost?: boolean;
   /** Data URLs or bare base64. Capped server-side by the model's own limit. */
   referenceImages?: string[];
   ratio?: string;
@@ -661,9 +664,10 @@ export async function POST(request: NextRequest) {
       // generation, so the choice in the UI changed nothing while the price
       // was charged per selection.
       const chosen = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
-      const geminiRequest = generateImagesWithGemini({
+      const route = routeFor(chosen, body.boost);
+      const shared = {
         prompt: enhancedPrompt,
-        modelVersion: chosen.providerModel,
+        modelVersion: route.providerModel,
         aspectRatio: (body.aspectRatio || body.ratio || "1:1") as ImageGenerationRequest["aspectRatio"],
         // Only sent to models that honour it. Asking gemini-2.5-flash-image for
         // 2K silently returns 1024² — and we would still have charged for 2K.
@@ -675,7 +679,16 @@ export async function POST(request: NextRequest) {
         // dropped before the request was built.
         referenceImages: body.referenceImages?.slice(0, chosen.maxRefs),
         numImages: 1,
-      });
+      };
+
+      // Boost picks WHERE the model runs, never which model. WaveSpeed hosts
+      // the same Nano Banana Pro at ~73-78s; going direct costs more and takes
+      // ~19-39s. Same picture either way — the user is buying time.
+      const geminiRequest =
+        route.provider === "wavespeed"
+          ? generateImagesWithWaveSpeed(shared)
+          : generateImagesWithGemini(shared);
+
       geminiResult = paidUpfront
         ? await withTimeout(
             geminiRequest,
