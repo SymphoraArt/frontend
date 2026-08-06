@@ -222,6 +222,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 3b. Refuse a provider we cannot actually call — BEFORE any payment step.
+    //
+    // The generation branch below picks WaveSpeed or Gemini. A model routed to
+    // any other provider used to fall through to Gemini carrying that
+    // provider's model id, which Gemini rejects with an opaque error after the
+    // money has moved. GPT-Image-2 is exactly that case today: its row is
+    // honest about pointing at OpenAI, and there is no OpenAI path yet.
+    const preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
+    const preflightRoute = routeFor(preflightModel, body.boost);
+    if (preflightRoute.provider !== "gemini" && preflightRoute.provider !== "wavespeed") {
+      return NextResponse.json(
+        { error: `${preflightModel.name} is not available yet.` },
+        { status: 501 },
+      );
+    }
+
     // 4. Rate limiting (Placeholder)
     // TODO: Implement rate limiting (e.g., using @upstash/ratelimit or express-rate-limit)
     // max 10 generations per user per minute
@@ -663,8 +679,10 @@ export async function POST(request: NextRequest) {
       // Without this the service fell back to gemini-2.5-flash-image for every
       // generation, so the choice in the UI changed nothing while the price
       // was charged per selection.
-      const chosen = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
-      const route = routeFor(chosen, body.boost);
+      // Resolved once, in the pre-payment guard above — a second lookup could
+      // disagree with the one the refusal was based on.
+      const chosen = preflightModel;
+      const route = preflightRoute;
       const shared = {
         prompt: enhancedPrompt,
         modelVersion: route.providerModel,
