@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type Provider = "gemini" | "openai" | "wavespeed";
+export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations";
 
 export interface Route {
   provider: Provider;
@@ -89,6 +89,16 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     // target so the row is honest rather than silently running Gemini.
     normal: { provider: "openai", providerModel: "gpt-image-2" },
     boost: { provider: "openai", providerModel: "gpt-image-2" },
+    supportsResolution: true,
+  },
+  "flux-free": {
+    // The free generator is a provider like any other (Kev, 2026-08-06), not a
+    // branch in the code. No faster host exists, so boost is the same route
+    // and hasBoost() reports false — the button never appears for it.
+    normal: { provider: "pollinations", providerModel: "flux" },
+    boost: { provider: "pollinations", providerModel: "flux" },
+    // Pollinations maps a ratio to width/height itself and its "resolution"
+    // only picks the base edge, so a size request is honoured in spirit.
     supportsResolution: true,
   },
 };

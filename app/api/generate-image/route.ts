@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import { generateImagesWithWaveSpeed } from "@/backend/services/wavespeed-image-generation";
+import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
 import type { ChainKey } from "@/shared/payment-config";
 import { isSolanaChain } from "@/shared/payment-config";
 import {
@@ -231,7 +232,8 @@ export async function POST(request: NextRequest) {
     // honest about pointing at OpenAI, and there is no OpenAI path yet.
     const preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
     const preflightRoute = routeFor(preflightModel, body.boost);
-    if (preflightRoute.provider !== "gemini" && preflightRoute.provider !== "wavespeed") {
+    const IMPLEMENTED: readonly string[] = ["gemini", "wavespeed", "pollinations"];
+    if (!IMPLEMENTED.includes(preflightRoute.provider)) {
       return NextResponse.json(
         { error: `${preflightModel.name} is not available yet.` },
         { status: 501 },
@@ -702,10 +704,21 @@ export async function POST(request: NextRequest) {
       // Boost picks WHERE the model runs, never which model. WaveSpeed hosts
       // the same Nano Banana Pro at ~73-78s; going direct costs more and takes
       // ~19-39s. Same picture either way — the user is buying time.
+      //
+      // One switch over the resolved provider, so adding a host is a case here
+      // and a row in model_providers — not a new branch scattered through the
+      // request flow, which is how the free path ended up special-cased in its
+      // own route with no price, no ratio list and no reference limit.
       const geminiRequest =
         route.provider === "wavespeed"
           ? generateImagesWithWaveSpeed(shared)
-          : generateImagesWithGemini(shared);
+          : route.provider === "pollinations"
+            ? generateImageWithPollinations(
+                shared.prompt,
+                shared.aspectRatio ?? "1:1",
+                (paidResolution || body.resolution || "2K") as string,
+              )
+            : generateImagesWithGemini(shared);
 
       geminiResult = paidUpfront
         ? await withTimeout(
