@@ -111,11 +111,17 @@ export interface CatalogueEntry {
   name: string;
   /** USD per image. 0 is the free tier. */
   price: number;
+  /**
+   * Whether the model takes a low|medium|high quality tier of its own. Only
+   * the gpt-image family does — offering the control anywhere else would put a
+   * setting in front of the user that changes nothing.
+   */
+  supportsQuality: boolean;
 }
 
 /** Kept for the window before /api/models answers, and if it never does. */
 export const FALLBACK_CATALOGUE: CatalogueEntry[] = [
-  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
+  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04, supportsQuality: false },
 ];
 
 export function useModelCatalogue(): CatalogueEntry[] {
@@ -139,6 +145,10 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
       // A missing price is 0 and therefore free — never a guessed number,
       // because a guessed price is one a user might be charged.
       price: typeof r.price === "number" ? r.price : 0,
+      // Kept in step with BY_SLUG in lib/generation/models.ts, which is what
+      // the server enforces. The client only decides whether to SHOW the
+      // control; the server decides whether to send the value.
+      supportsQuality: /gpt.?image/i.test(String(r.name)),
     }));
   return out.length ? out : FALLBACK_CATALOGUE;
 }

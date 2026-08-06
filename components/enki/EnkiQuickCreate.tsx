@@ -7,6 +7,7 @@ import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
+import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 
 const QC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", cost: 0.04 },
@@ -39,6 +40,7 @@ export default function EnkiQuickCreate() {
   const [resolution, setResolution] = useState("2K");
   const [qty, setQty] = useState(1);
   const [boost, setBoost] = useState(false);
+  const [quality, setQuality] = useState<Quality>("medium");
 
   // Image Selection Mode: 'upload' | 'nft'
   const [imgMode, setImgMode] = useState<"upload" | "nft">("upload");
@@ -58,7 +60,7 @@ export default function EnkiQuickCreate() {
       const res = await fetch("/api/generate-free", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: final.trim(), aspectRatio: ratio, resolution, boost }),
+        body: JSON.stringify({ prompt: final.trim(), aspectRatio: ratio, resolution, boost, quality }),
       });
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
@@ -182,6 +184,8 @@ export default function EnkiQuickCreate() {
 
   // Boost runs the same model on a priority host — faster, dearer, identical
   // image. The price has to move with it or the toggle is a lie.
+  // Only gpt-image takes a quality tier; elsewhere the control stays hidden.
+  const qcSupportsQuality = /gpt.?image/i.test(model);
   const totalCost = boostedCost((QC_MODELS.find(m => m.id === model)?.cost || 0) * qty, boost);
 
   return (
@@ -312,6 +316,7 @@ export default function EnkiQuickCreate() {
                   </div>
                 </div>
 
+                <QualitySelect value={quality} onChange={setQuality} available={qcSupportsQuality} disabled={generating} />
                 <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
                 <button
                   className="enki-qc-generate-btn-v3"

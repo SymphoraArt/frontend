@@ -107,7 +107,10 @@ export async function generateImagesWithOpenAI(
 
   const model = request.modelVersion || 'gpt-image-2';
   const size = sizeFor(request.aspectRatio, request.imageSize);
-  const quality = TIER_QUALITY[request.imageSize ?? '2K'] ?? 'medium';
+  // The user's choice wins. Deriving it from the resolution tier was a guess:
+  // size and quality are separate parameters here, and quality is the one that
+  // moves the price by a factor of 35.
+  const quality = request.quality ?? TIER_QUALITY[request.imageSize ?? '2K'] ?? 'medium';
 
   try {
     const res = await fetch(ENDPOINT, {

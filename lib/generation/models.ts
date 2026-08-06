@@ -41,6 +41,13 @@ export interface ResolvedModel {
   maxRefs: number;
   /** True when the model honours a size/resolution request. */
   supportsResolution: boolean;
+  /**
+   * True when the model takes a low|medium|high quality tier as its OWN
+   * parameter. Only the gpt-image family does — on both hosts. For Gemini the
+   * concept does not exist, and offering a control that changes nothing is the
+   * kind of lie this file was written to remove.
+   */
+  supportsQuality: boolean;
 }
 
 /** The route to use for this request. */
@@ -71,11 +78,12 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
  * gemini-3-pro-image-preview honours imageSize (1K 1024², 2K 2048², 4K 4096²);
  * gemini-2.5-flash-image ignores it and always returns 1024².
  */
-const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supportsResolution">> = {
+const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supportsResolution" | "supportsQuality">> = {
   "nano-banana-pro": {
     normal: { provider: "wavespeed", providerModel: "google/nano-banana-pro/text-to-image" },
     boost: { provider: "gemini", providerModel: "gemini-3-pro-image-preview" },
     supportsResolution: true,
+    supportsQuality: false,
   },
   "nano-banana": {
     // gemini-2.5-flash-image ignores imageSize entirely — measured, it always
@@ -83,6 +91,7 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     normal: { provider: "gemini", providerModel: "gemini-2.5-flash-image" },
     boost: { provider: "gemini", providerModel: "gemini-2.5-flash-image" },
     supportsResolution: false,
+    supportsQuality: false,
   },
   "gpt-image-2": {
     // Same trade as Nano Banana Pro: WaveSpeed hosts it cheaper and slower,
@@ -92,6 +101,9 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     // OpenAI takes pixels rather than a tier; the service converts, so the
     // resolution the user picks really does change the image.
     supportsResolution: true,
+    // low | medium | high, accepted by BOTH hosts — verified live 2026-08-06.
+    // It is also the real price lever: ~/usr/bin/bash.006 / /usr/bin/bash.053 / /usr/bin/bash.211 at 1024².
+    supportsQuality: true,
   },
   "flux-free": {
     // The free generator is a provider like any other (Kev, 2026-08-06), not a
@@ -102,6 +114,7 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     // Pollinations maps a ratio to width/height itself and its "resolution"
     // only picks the base edge, so a size request is honoured in spirit.
     supportsResolution: true,
+    supportsQuality: false,
   },
 };
 
@@ -172,6 +185,7 @@ function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
     // resolution is a fact about that model, and a stale column would make us
     // charge for a size the model silently ignores.
     supportsResolution: bridge.supportsResolution,
+    supportsQuality: bridge.supportsQuality,
   };
 }
 

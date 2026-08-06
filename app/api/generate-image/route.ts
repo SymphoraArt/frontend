@@ -47,6 +47,8 @@ type GenerateImageBody = {
   boost?: boolean;
   /** Data URLs or bare base64. Capped server-side by the model's own limit. */
   referenceImages?: string[];
+  /** low | medium | high, for models that take it. Ignored by the rest. */
+  quality?: "low" | "medium" | "high";
   /** The editor node graph. Image bytes inside it are extracted server-side. */
   workflow?: unknown;
   ratio?: string;
@@ -738,6 +740,10 @@ export async function POST(request: NextRequest) {
         // Reference images reached the model for the first time here: they were
         // uploaded, counted against the per-model cap and stored, and then
         // dropped before the request was built.
+        // Sent only where it means something. Passing it to a model that
+        // ignores it would put a setting in front of the user that changes
+        // nothing — and here it is the setting that moves the price most.
+        quality: chosen.supportsQuality ? body.quality : undefined,
         referenceImages: body.referenceImages?.slice(0, chosen.maxRefs),
         numImages: 1,
       };

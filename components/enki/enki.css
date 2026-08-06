@@ -2210,3 +2210,43 @@
   outline: 2px solid var(--enki-ember);
   outline-offset: 2px;
 }
+
+/* ── Quality select ───────────────────────────────────────────────────────
+   Sits beside the boost toggle and matches its shape, because they are the
+   same kind of thing: a per-generation setting that changes the price. Quiet
+   by default — quality is a choice, not a promotion. */
+.enki-quality {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper-2);
+  color: var(--enki-ink-3);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.14s, border-color 0.14s;
+  flex-shrink: 0;
+}
+.enki-quality:hover {
+  color: var(--enki-ink);
+  border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule));
+}
+.enki-quality select {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: inherit;
+  outline: none;
+  padding: 0 2px 0 0;
+}
+.enki-quality select:disabled { cursor: not-allowed; }
+.enki-quality:focus-within {
+  outline: 2px solid var(--enki-ember);
+  outline-offset: 2px;
+}

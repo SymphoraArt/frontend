@@ -19,6 +19,12 @@ export interface ImageGenerationRequest {
   imageSize?: '1K' | '2K' | '4K';
   safetySettings?: any[];
   /**
+   * low | medium | high, for models that take it as their own parameter (the
+   * gpt-image family, on both hosts). Ignored elsewhere rather than faked:
+   * Gemini has no such concept.
+   */
+  quality?: "low" | "medium" | "high";
+  /**
    * Reference images for image-guided generation. Each entry is a data URL
    * ("data:image/png;base64,…") or a bare base64 payload; they go to Gemini as
    * inlineData parts beside the text prompt. Verified live 2026-08-06: the

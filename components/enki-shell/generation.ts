@@ -51,9 +51,10 @@ export async function generateWithModel(opts: {
   resolution?: string;
   model: CatalogueModel | null;
   boost?: boolean;
+  quality?: "low" | "medium" | "high";
   workflow?: unknown;
 }): Promise<{ url: string } | { error: string }> {
-  const { prompt, aspectRatio = "1:1", resolution = "2K", model, boost, workflow } = opts;
+  const { prompt, aspectRatio = "1:1", resolution = "2K", model, boost, quality, workflow } = opts;
   const isFree = !model || model.price <= 0;
   const endpoint = isFree ? "/api/generate-free" : "/api/generate-image";
 
@@ -66,7 +67,7 @@ export async function generateWithModel(opts: {
         aspectRatio,
         resolution,
         workflow,
-        ...(isFree ? {} : { modelIds: [model!.id], boost: !!boost }),
+        ...(isFree ? {} : { modelIds: [model!.id], boost: !!boost, quality }),
       }),
     });
 

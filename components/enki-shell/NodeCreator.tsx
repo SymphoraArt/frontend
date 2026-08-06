@@ -5,6 +5,7 @@
    Nano Banana Pro generation (Puter.js) + best-effort DB persistence. */
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
+import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue } from "@/hooks/useModelLimits";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -303,6 +304,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const [boost, setBoost] = useState(false);
   const boostRef = useRef(boost);
   boostRef.current = boost;
+  // Only gpt-image takes this; the control hides itself for everything else.
+  const [quality, setQuality] = useState<Quality>("medium");
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  const supportsQuality =
+    catalogue.find((m) => m.id === st.models[0])?.supportsQuality ?? false;
   const mockModeRef = useRef(false); mockModeRef.current = mockMode;
   // canvas tool: "select" (left = marquee, right = pan) or "hand" (left = pan)
   const [tool, setTool] = useState<"select" | "hand">("select");
@@ -1014,6 +1021,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       resolution: stRef.current.quality || "2K",
       model: picked,
       boost: boostRef.current,
+      quality: qualityRef.current,
       workflow: buildExportJSON(),
     });
 
@@ -1833,6 +1841,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         </div>
         <div className="nc-gp-gen" style={{ marginBottom: 6 }}>
           <BoostToggle boost={boost} onChange={setBoost} />
+          <QualitySelect value={quality} onChange={setQuality} available={supportsQuality} />
         </div>
         <div className="nc-gp-gen">
           <button className="nc-gp-btn" onClick={() => runGenerate(true)} title="Autofill variables & generate"><Icon name="wand" size={12} stroke={2} /> Autofill</button>

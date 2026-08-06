@@ -59,6 +59,8 @@ export interface ImageGenerationSettings {
    * The server picks the route from this — see lib/generation/models.ts.
    */
   boost?: boolean;
+  /** low | medium | high, for models that take it. */
+  quality?: "low" | "medium" | "high";
 }
 
 /**

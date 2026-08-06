@@ -60,6 +60,9 @@ export async function generateImagesWithWaveSpeed(
     };
     if (request.aspectRatio) input.aspect_ratio = request.aspectRatio;
     if (request.imageSize) input.resolution = RESOLUTION_MAP[request.imageSize] ?? '1k';
+    // Accepted by WaveSpeed's gpt-image-2 with exactly OpenAI's three values —
+    // verified live. Models that do not know the field ignore it.
+    if (request.quality) input.quality = request.quality;
 
     const submit = await fetch(`${API_BASE}/${model}`, {
       method: 'POST',
