@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
 import { generateImagesWithWaveSpeed } from "@/backend/services/wavespeed-image-generation";
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
+import { generateImagesWithOpenAI } from "@/backend/services/openai-image-generation";
 import type { ChainKey } from "@/shared/payment-config";
 import { isSolanaChain } from "@/shared/payment-config";
 import {
@@ -21,6 +22,7 @@ import { resolveModel, routeFor } from "@/lib/generation/models";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
 import { storeReferenceImages } from "@/lib/generation/reference-images";
+import { acquireSlot, releaseSlot } from "@/lib/generation/concurrency";
 import { stripWorkflowImages } from "@/lib/generation/workflow";
 import {
   fulfillGenerationIntent,
@@ -171,6 +173,18 @@ export async function POST(request: NextRequest) {
     }
   };
 
+  // Held for the length of the generation. Declared out here so EVERY exit —
+  // success, provider failure, the catch-all — gives it back: a leaked slot
+  // locks the user out until it expires, which is the failure a concurrency
+  // cap must not introduce.
+  let heldSlot: { supabase: SupabaseClient | null; id: string } | null = null;
+  const releaseHeldSlot = async () => {
+    if (heldSlot) {
+      await releaseSlot(heldSlot.supabase, heldSlot.id);
+      heldSlot = null;
+    }
+  };
+
   try {
     const body = (await request.json()) as GenerateImageBody;
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -237,11 +251,29 @@ export async function POST(request: NextRequest) {
     // honest about pointing at OpenAI, and there is no OpenAI path yet.
     const preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
     const preflightRoute = routeFor(preflightModel, body.boost);
-    const IMPLEMENTED: readonly string[] = ["gemini", "wavespeed", "pollinations"];
+    const IMPLEMENTED: readonly string[] = ["gemini", "wavespeed", "pollinations", "openai"];
     if (!IMPLEMENTED.includes(preflightRoute.provider)) {
       return NextResponse.json(
         { error: `${preflightModel.name} is not available yet.` },
         { status: 501 },
+      );
+    }
+
+    // 3c. Concurrency cap — before any payment step, so a refused request is
+    // never a charged one. Unlimited unless an admin sets a number.
+    const slotSupabase = getSupabaseServerClientSafe();
+    const slotUserId = await resolveRecordingUserId(slotSupabase, request);
+    const slot = await acquireSlot(slotSupabase, slotUserId);
+    if (slot.slotId) heldSlot = { supabase: slotSupabase, id: slot.slotId };
+    if (!slot.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            `You already have ${slot.limit} generation${slot.limit === 1 ? "" : "s"} running. ` +
+            `Wait for one to finish.`,
+          retryable: true,
+        },
+        { status: 429 },
       );
     }
 
@@ -647,6 +679,8 @@ export async function POST(request: NextRequest) {
         const errTxt = await xaiResponse.text();
         console.error('❌ Grok image generation failed:', errTxt);
         await releaseIfConsumed();
+    await releaseHeldSlot();
+      await releaseHeldSlot();
         return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
       }
 
@@ -655,6 +689,8 @@ export async function POST(request: NextRequest) {
 
       if (!grokUrl) {
         await releaseIfConsumed();
+    await releaseHeldSlot();
+      await releaseHeldSlot();
         return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
       }
 
@@ -717,6 +753,8 @@ export async function POST(request: NextRequest) {
       const geminiRequest =
         route.provider === "wavespeed"
           ? generateImagesWithWaveSpeed(shared)
+          : route.provider === "openai"
+            ? generateImagesWithOpenAI(shared)
           : route.provider === "pollinations"
             ? generateImageWithPollinations(
                 shared.prompt,
@@ -735,6 +773,8 @@ export async function POST(request: NextRequest) {
 
       if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
         await releaseIfConsumed();
+    await releaseHeldSlot();
+      await releaseHeldSlot();
         return NextResponse.json(
           { error: geminiResult.error || 'Gemini image generation failed', retryable: geminiResult.retryable ?? true },
           { status: 500 }
@@ -745,6 +785,8 @@ export async function POST(request: NextRequest) {
     const generatedImageBuffer = geminiResult.imageBuffers?.[0];
     if (!generatedImageBuffer) {
       await releaseIfConsumed();
+    await releaseHeldSlot();
+      await releaseHeldSlot();
       return NextResponse.json({ error: 'No generated image buffer returned', retryable: true }, { status: 500 });
     }
 
@@ -857,6 +899,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await releaseHeldSlot();
+
     // Return image with payment metadata and headers
     return NextResponse.json(
       {
@@ -890,5 +934,12 @@ export async function POST(request: NextRequest) {
     console.error("Generate image error:", message);
     await releaseIfConsumed();
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    // Unavoidable, because the early returns between taking the slot and
+    // answering are the ones that matter: a 402 is the NORMAL path — the
+    // client gets it, pays, and retries — and a slot leaked there would refuse
+    // the retry it just paid for. releaseHeldSlot() nulls its own reference,
+    // so the explicit calls on the success and failure paths stay correct.
+    await releaseHeldSlot();
   }
 }

@@ -24,7 +24,8 @@ type Rec = { id: string; handle: string; wallet: string | null; contact: string 
 type Proposal = { id: string; kind: string; target: string; targetUserId: string | null; days: number | null; violation: string; proposer: string; status: string; confirms: number; denies: number; myVote: string | null; quorum: number; at: string; expiresAt: string };
 type Council = { ready: boolean; isOwner: boolean; enabled: boolean; quorum: number; ttlDays: number; members: { handle: string; role: string; hasEmail: boolean }[]; myEmail: string | null; proposals: Proposal[] };
 type Automod = { id: string; handle: string | null; surface: string; severity: string; tier: number | null; category: string | null; rules: string[]; topScore: { name: string; value: number } | null; prompt: string | null; state: string; at: string };
-type AdminData = { imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[]; council: Council; automod: Automod[] };
+type GenPolicy = { maxConcurrentPerUser: number | null; canEdit: boolean };
+type AdminData = { generation: GenPolicy; imports: Imp[]; reports: Rep[]; feedback: Fb[]; friends: Friend[]; hunters: Hunter[]; strikes: StrikeRow[]; recovery: Rec[]; council: Council; automod: Automod[] };
 const COUNCIL_OFF: Council = { ready: false, isOwner: false, enabled: false, quorum: 3, ttlDays: 7, members: [], myEmail: null, proposals: [] };
 
 type Tab = "imports" | "reports" | "feedback" | "friends" | "hunters" | "strikes" | "automod" | "council" | "recovery" | "settings";
@@ -127,6 +128,8 @@ export default function AdminPage() {
   const [appealOpen, setAppealOpen] = useState<string | null>(null);
   const [repStrikeId, setRepStrikeId] = useState<string | null>(null);
   const [amOpen, setAmOpen] = useState<string | null>(null);
+  // Empty string IS unlimited here, mirroring the null in the database.
+  const [genLimit, setGenLimit] = useState<string>("");
   const [repSev, setRepSev] = useState("1");
   const [cpHandle, setCpHandle] = useState(""); const [cpKind, setCpKind] = useState("ban_temp:7");
   const [cpViolation, setCpViolation] = useState("");
@@ -178,6 +181,13 @@ export default function AdminPage() {
     setPolQuorum(String(c.quorum));
     setPolTtl(String(c.ttlDays));
   }, [data?.council]);
+
+  // null (unlimited) becomes an empty field, which is what the input means.
+  useEffect(() => {
+    const g = data?.generation;
+    if (!g) return;
+    setGenLimit(g.maxConcurrentPerUser === null ? "" : String(g.maxConcurrentPerUser));
+  }, [data?.generation]);
 
   const post = async (payload: Record<string, unknown>, okMsg: string, apply: (d: AdminData) => AdminData) => {
     try {
@@ -245,7 +255,7 @@ export default function AdminPage() {
     );
   }
 
-  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [], council: COUNCIL_OFF, automod: [] };
+  const d: AdminData = data ?? { imports: [], reports: [], feedback: [], friends: [], hunters: [], strikes: [], recovery: [], council: COUNCIL_OFF, automod: [], generation: { maxConcurrentPerUser: null, canEdit: false } };
   const c = d.council ?? COUNCIL_OFF;
   const filteredImports = d.imports.filter((r) => !q || r.name.toLowerCase().includes(q) || r.hunter.toLowerCase().includes(q));
   const filteredFeedback = d.feedback.filter((r) => !q || r.name.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q) || r.desc.toLowerCase().includes(q));
@@ -864,6 +874,38 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <>
+                  {/* Generation throttle — visible to mods, editable by admins.
+                      Slowing the product for everyone is not a moderation call. */}
+                  <div style={{ ...cardStyle, padding: "14px 16px", marginBottom: 10, maxWidth: 560 }}>
+                    <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 17, color: "var(--enki-ink)", marginBottom: 4 }}>Generation limit.</div>
+                    <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "var(--enki-ink-3)", lineHeight: 1.55 }}>
+                      How many generations one user may have running at the same time. Empty means
+                      unlimited, which is how it ships. {d.generation.canEdit
+                        ? "Takes effect immediately — no deploy."
+                        : "Admins only — you can see it, but not change it."}
+                    </p>
+                    <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                      <input
+                        type="number" min={1} max={100} placeholder="unlimited"
+                        value={genLimit}
+                        disabled={!d.generation.canEdit}
+                        onChange={(e) => setGenLimit(e.target.value)}
+                        style={{ width: 120, height: 30, border: "1px solid var(--enki-rule)", borderRadius: 8, background: "var(--enki-paper-2)", color: "var(--enki-ink)", fontSize: 11.5, padding: "0 9px", fontFamily: MONO, outline: "none", opacity: d.generation.canEdit ? 1 : 0.5 }}
+                      />
+                      {d.generation.canEdit && (
+                        <Pill kind="green" label="Save" onClick={() => {
+                          const raw = genLimit.trim();
+                          const value = raw === "" ? null : Number(raw);
+                          void post(
+                            { resource: "generation", action: "setConcurrency", maxConcurrentPerUser: value },
+                            value === null ? "Generation limit removed — unlimited." : `Limit set to ${value} at a time.`,
+                            (cur) => ({ ...cur, generation: { ...cur.generation, maxConcurrentPerUser: value } }),
+                          );
+                        }} />
+                      )}
+                    </div>
+                  </div>
+
                   <div style={{ ...cardStyle, padding: "14px 16px", marginBottom: 10, maxWidth: 560 }}>
                     <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 17, color: "var(--enki-ink)", marginBottom: 4 }}>Council notifications.</div>
                     <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "var(--enki-ink-3)", lineHeight: 1.55 }}>

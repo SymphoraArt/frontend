@@ -23,7 +23,13 @@ import { notifyAdmins } from "@/lib/admin-notify";
 
 type Supabase = ReturnType<typeof getSupabaseServerClient>;
 
-async function requireAdmin(supabase: Supabase, req: NextRequest): Promise<{ userId: string } | NextResponse> {
+// The role comes back too: mods and admins share this panel, but not every
+// control in it. Throttling generation is an admin decision — a mod moderates
+// content, and must not be able to slow the product down for everyone.
+async function requireAdmin(
+  supabase: Supabase,
+  req: NextRequest,
+): Promise<{ userId: string; role: string } | NextResponse> {
   const userId = await resolveSessionUserId(supabase, req.headers.get("X-Session-Token"));
   if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { data } = await supabase.from("users").select("role").eq("id", userId).maybeSingle();
@@ -31,7 +37,7 @@ async function requireAdmin(supabase: Supabase, req: NextRequest): Promise<{ use
   if (role !== "admin" && role !== "mod") {
     return NextResponse.json({ error: "Admins only" }, { status: 403 });
   }
-  return { userId };
+  return { userId, role };
 }
 
 /** Tolerant field decrypt: encrypted columns may use no AAD or an id AAD. */
@@ -190,9 +196,9 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   const gate = await requireAdmin(supabase, req);
   if (gate instanceof NextResponse) return gate;
-  const { userId } = gate;
+  const { userId, role } = gate;
 
-  const [imp, rep, fb, fr, hu, st, ba, ap, rec, council, automod] = await Promise.all([
+  const [imp, rep, fb, fr, hu, st, ba, ap, rec, council, genPolicy, automod] = await Promise.all([
     supabase.from("hunt_submissions")
       .select("id, hunter_user_id, source_url, suggested_title, suggested_tags, submitted_at")
       .eq("status", "pending").order("submitted_at", { ascending: false }).limit(100),
@@ -221,6 +227,7 @@ export async function GET(req: NextRequest) {
       .select("id, user_id, claimed_handle, claimed_wallet, contact_email_ct, contact_email_iv, contact_email_tag, contact_email_kid, explanation_ct, explanation_iv, explanation_tag, explanation_kid, layer, status, rejection_reason, created_at")
       .order("created_at", { ascending: false }).limit(50),
     buildCouncil(supabase, userId),
+    supabase.from("generation_policy").select("max_concurrent_per_user").eq("id", 1).maybeSingle(),
     // Blocks only. Passes are recorded too (they are the control group for
     // tuning thresholds) but there is nothing for a moderator to do with
     // them, and at generation volume they would bury the real cases.
@@ -342,6 +349,12 @@ export async function GET(req: NextRequest) {
       note: row.strikes[0]?.reason ?? banByUser.get(row.userId)?.reason ?? null,
       appeal: appealByUser.get(row.userId) ?? null,
     })),
+    generation: {
+      // Null is unlimited, and the UI must say so rather than showing a 0.
+      maxConcurrentPerUser: (genPolicy.data?.max_concurrent_per_user as number | null) ?? null,
+      // Mods see the number; only an admin may change it.
+      canEdit: role === "admin",
+    },
     automod: (automod.data ?? []).map((r) => {
       const scores = (r.scores as Record<string, number> | null) ?? null;
       // The single number a moderator needs: what the classifier was most
@@ -386,12 +399,13 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseServerClient();
   const gate = await requireAdmin(supabase, req);
   if (gate instanceof NextResponse) return gate;
-  const { userId } = gate;
+  const { userId, role } = gate;
 
   let body: {
     resource?: string; action?: string; id?: string; ids?: string[];
     reason?: string; name?: string; address?: string; type?: string; notes?: string; status?: string;
     userId?: string; severity?: number; days?: number; permanent?: boolean;
+    maxConcurrentPerUser?: number | null;
     handle?: string; kind?: string; violation?: string; vote?: string;
     email?: string; enabled?: boolean; quorum?: number; ttlDays?: number;
   };
@@ -500,6 +514,26 @@ export async function POST(req: NextRequest) {
   // filter's record, and every change to it happens in Supabase directly. That
   // keeps the one surface reachable from the internet read-only, so a stolen
   // admin session can read the evidence but never touch it.
+
+  // Generation throttle — ADMIN ONLY. A mod moderates content; slowing the
+  // whole product down for every user is not a moderation decision, and the
+  // client-side hiding of this control is cosmetic. This is the real wall.
+  if (body.resource === "generation" && body.action === "setConcurrency") {
+    if (role !== "admin") {
+      return NextResponse.json({ error: "Admins only" }, { status: 403 });
+    }
+    const raw = body.maxConcurrentPerUser;
+    // null is unlimited and must stay expressible — it is the default, and a
+    // huge number would look like a limit while behaving like none.
+    const value = raw === null || raw === undefined ? null : Number(raw);
+    if (value !== null && (!Number.isInteger(value) || value < 1 || value > 100)) {
+      return NextResponse.json({ error: "Use a whole number from 1 to 100, or leave it empty for unlimited" }, { status: 400 });
+    }
+    const { error } = await supabase
+      .from("generation_policy")
+      .upsert({ id: 1, max_concurrent_per_user: value, updated_at: now, updated_by: userId });
+    return error ? fail(error, "save the generation limit") : NextResponse.json({ ok: true, maxConcurrentPerUser: value });
+  }
 
   if (body.resource === "strikes" && body.action === "revoke" && body.id) {
     const { error } = await supabase.from("strikes")

@@ -85,10 +85,12 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     supportsResolution: false,
   },
   "gpt-image-2": {
-    // No WaveSpeed host and no OpenAI code path yet; both routes name the
-    // target so the row is honest rather than silently running Gemini.
-    normal: { provider: "openai", providerModel: "gpt-image-2" },
+    // Same trade as Nano Banana Pro: WaveSpeed hosts it cheaper and slower,
+    // OpenAI direct is the boost. Path verified live 2026-08-06.
+    normal: { provider: "wavespeed", providerModel: "openai/gpt-image-2/text-to-image" },
     boost: { provider: "openai", providerModel: "gpt-image-2" },
+    // OpenAI takes pixels rather than a tier; the service converts, so the
+    // resolution the user picks really does change the image.
     supportsResolution: true,
   },
   "flux-free": {
