@@ -103,20 +103,25 @@ export async function generateImagesWithGemini(
     console.log(`[Gemini] Generating image with model: ${model}`);
     console.log(`[Gemini] Prompt: ${request.prompt.substring(0, 100)}...`);
 
-    // 5. Generate image
-    // Contents must be an array with role and parts structure
+    // 5. Build the parts: the text prompt, then any reference images as
+    // inlineData. `data` must be BARE base64 — leaving the "data:...;base64,"
+    // prefix on it returns a 400 from the API (mutation-tested against the
+    // live endpoint, 2026-08-06). Never set inlineData.displayName: the SDK
+    // throws on it for the Gemini API.
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+      { text: request.prompt },
+    ];
+    for (const ref of request.referenceImages ?? []) {
+      const parsed = parseImageInput(ref);
+      if (parsed) parts.push({ inlineData: parsed });
+    }
+    const refCount = parts.length - 1;
+    if (refCount > 0) console.log(`[Gemini] Using ${refCount} reference image(s)`);
+
+    // 6. Generate image
     const response = await client.models.generateContent({
       model,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: request.prompt
-            }
-          ]
-        }
-      ],
+      contents: [{ role: "user", parts }],
       config
     });
 
@@ -322,6 +327,20 @@ export async function generateMultipleImagesWithGemini(
 /**
  * Validates image generation request
  */
+/**
+ * Turns a reference image into Gemini's inlineData shape.
+ * Accepts a data URL or a bare base64 payload; returns null for junk.
+ */
+export function parseImageInput(input: string): { mimeType: string; data: string } | null {
+  if (!input || typeof input !== "string") return null;
+  // [\s\S] rather than the `s` (dotAll) flag — the build target rejects es2018
+  // regex flags, which broke a Vercel build once already.
+  const match = input.match(/^data:([\s\S]+?);base64,([\s\S]*)$/);
+  if (match) return match[2] ? { mimeType: match[1], data: match[2] } : null;
+  const data = input.trim();
+  return data ? { mimeType: "image/png", data } : null;
+}
+
 /**
  * Real pixel dimensions, read straight from the container header.
  *

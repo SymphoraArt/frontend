@@ -18,6 +18,13 @@ export interface ImageGenerationRequest {
   modelVersion?: string;
   imageSize?: '1K' | '2K' | '4K';
   safetySettings?: any[];
+  /**
+   * Reference images for image-guided generation. Each entry is a data URL
+   * ("data:image/png;base64,…") or a bare base64 payload; they go to Gemini as
+   * inlineData parts beside the text prompt. Verified live 2026-08-06: the
+   * aspect ratio is still honoured when references are present.
+   */
+  referenceImages?: string[];
 }
 
 export interface ImageGenerationResult {

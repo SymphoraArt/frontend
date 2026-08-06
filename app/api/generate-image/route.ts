@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { resolveModel } from "@/lib/generation/models";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import {
   fulfillGenerationIntent,
@@ -35,6 +36,8 @@ type GenerateImageBody = {
   resolution?: string;
   useUptoPayment?: boolean; // Enable upto payment scheme for dynamic pricing
   modelIds?: string[];
+  /** Data URLs or bare base64. Capped server-side by the model's own limit. */
+  referenceImages?: string[];
   ratio?: string;
   // Server-built payments: id of a confirmed generation_payment_intents row.
   // When present, the x402 header flow is skipped entirely.
@@ -653,11 +656,24 @@ export async function POST(request: NextRequest) {
       };
     } else {
       console.log('🎨 XAI_API_KEY not set, generating image with Gemini...');
+      // The model the user actually picked, resolved to a provider model id.
+      // Without this the service fell back to gemini-2.5-flash-image for every
+      // generation, so the choice in the UI changed nothing while the price
+      // was charged per selection.
+      const chosen = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
       const geminiRequest = generateImagesWithGemini({
         prompt: enhancedPrompt,
+        modelVersion: chosen.providerModel,
         aspectRatio: (body.aspectRatio || body.ratio || "1:1") as ImageGenerationRequest["aspectRatio"],
-        // The paid resolution from the intent row wins over the request body.
-        imageSize: (paidResolution || body.resolution || "2K") as ImageGenerationRequest["imageSize"],
+        // Only sent to models that honour it. Asking gemini-2.5-flash-image for
+        // 2K silently returns 1024² — and we would still have charged for 2K.
+        imageSize: chosen.supportsResolution
+          ? ((paidResolution || body.resolution || "2K") as ImageGenerationRequest["imageSize"])
+          : undefined,
+        // Reference images reached the model for the first time here: they were
+        // uploaded, counted against the per-model cap and stored, and then
+        // dropped before the request was built.
+        referenceImages: body.referenceImages?.slice(0, chosen.maxRefs),
         numImages: 1,
       });
       geminiResult = paidUpfront
