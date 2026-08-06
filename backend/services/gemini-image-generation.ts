@@ -317,7 +317,11 @@ function validateRequest(request: ImageGenerationRequest): { valid: boolean; err
     return { valid: false, error: 'Prompt is too long (max 5000 characters)' };
   }
 
-  const validAspectRatios = ['1:1', '16:9', '9:16', '4:3', '3:4'];
+  // Kept in step with ImageGenerationRequest['aspectRatio'] in ./types.ts.
+  // Verified by real calls against gemini-2.5-flash-image (2026-08-06): all ten
+  // are accepted. The previous five-entry list rejected 4:5, which the live
+  // models table offers users — a 400 we inflicted on ourselves after payment.
+  const validAspectRatios = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
   if (request.aspectRatio && !validAspectRatios.includes(request.aspectRatio)) {
     return {
       valid: false,
