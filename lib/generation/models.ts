@@ -86,30 +86,52 @@ export const DEFAULT_MODEL: ResolvedModel = {
   maxRefs: 3,
 };
 
+/** A row of model_providers with its provider embedded. */
+interface LinkRow {
+  role?: string | null;
+  provider_model?: string | null;
+  active?: boolean | null;
+  providers?: { key?: string | null; audience?: string | null; active?: boolean | null } | null;
+}
+
 interface ModelRow {
   id?: string;
   name?: string;
-  provider?: string | null;
-  provider_model?: string | null;
-  wavespeed_model?: string | null;
   allowed_ratios?: string[] | null;
   max_reference_images?: number | null;
+  model_providers?: LinkRow[] | null;
 }
 
-function fromRow(row: ModelRow): ResolvedModel {
-  const bridge = BY_SLUG[slug(row.name ?? "")] ?? BY_SLUG["nano-banana-pro"];
+/** Who the caller is allowed to be routed to. */
+export type Audience = "public" | "enterprise" | "internal";
 
-  // The boost route is the vendor-direct one; provider/provider_model in the
-  // database describe it. The normal route is the WaveSpeed host, named by
-  // wavespeed_model. A model with no WaveSpeed host falls back to the same
-  // route for both, so boost is simply a no-op rather than an error.
-  const boost: Route = {
-    provider: (row.provider as Provider) || bridge.boost.provider,
-    providerModel: row.provider_model || bridge.boost.providerModel,
-  };
-  const normal: Route = row.wavespeed_model
-    ? { provider: "wavespeed", providerModel: row.wavespeed_model }
-    : bridge.normal;
+function linkToRoute(link: LinkRow | undefined, audience: Audience): Route | null {
+  if (!link || link.active === false) return null;
+  const p = link.providers;
+  if (!p?.key || p.active === false) return null;
+  // An enterprise-only host must stay invisible to a normal account even when
+  // a model lists it — otherwise the routing quietly grants access the
+  // customer never bought.
+  const want = (p.audience as Audience) ?? "public";
+  if (want !== "public" && want !== audience) return null;
+  if (!link.provider_model) return null;
+  return { provider: p.key as Provider, providerModel: link.provider_model };
+}
+
+function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
+  const bridge = BY_SLUG[slug(row.name ?? "")] ?? BY_SLUG["nano-banana-pro"];
+  const links = row.model_providers ?? [];
+
+  // The database is the truth once the providers migration has run; the slug
+  // bridge only covers the window before that.
+  const normal =
+    linkToRoute(links.find((l) => l.role === "normal"), audience) ?? bridge.normal;
+  // No boost row means this model simply has no faster host. Falling back to
+  // `normal` makes boost a no-op instead of an error, and instead of silently
+  // routing somewhere the row never named.
+  const boost =
+    linkToRoute(links.find((l) => l.role === "boost"), audience) ??
+    (row.model_providers?.length ? normal : bridge.boost);
 
   return {
     id: row.id ?? null,
@@ -133,32 +155,38 @@ function fromRow(row: ModelRow): ResolvedModel {
 export async function resolveModel(
   supabase: SupabaseClient | null,
   modelIds: string[] | undefined,
+  audience: Audience = "public",
 ): Promise<ResolvedModel> {
   if (!supabase || !modelIds?.length) return DEFAULT_MODEL;
   try {
-    // Ask for the provider columns first; fall back to the columns that exist
-    // today if the migration has not run. Selecting a missing column fails the
-    // whole query, so this cannot be one hopeful select.
     const pick = (cols: string) =>
       supabase.from("models").select(cols).in("id", modelIds).eq("active", true);
 
+    // Embed the provider links. Asking for a relation that does not exist
+    // fails the whole query, so the fallback is a plain select — that is the
+    // window before the providers migration has run, where the slug bridge in
+    // fromRow() takes over.
     let rows: ModelRow[];
-    const withProvider = await pick(
-      "id, name, provider, provider_model, wavespeed_model, allowed_ratios, max_reference_images",
+    const joined = await pick(
+      "id, name, allowed_ratios, max_reference_images, " +
+      "model_providers(role, provider_model, active, providers(key, audience, active))",
     );
-    if (withProvider.error) {
-      const legacy = await pick("id, name, allowed_ratios, max_reference_images");
-      rows = (legacy.data ?? []) as unknown as ModelRow[];
+    if (joined.error) {
+      const flat = await pick("id, name, allowed_ratios, max_reference_images");
+      rows = (flat.data ?? []) as unknown as ModelRow[];
     } else {
-      rows = (withProvider.data ?? []) as unknown as ModelRow[];
+      rows = (joined.data ?? []) as unknown as ModelRow[];
     }
     // Preserve the user's order rather than the database's.
     for (const wanted of modelIds) {
       const row = rows.find((r) => r.id === wanted);
-      if (row) return fromRow(row);
+      if (row) return fromRow(row, audience);
     }
-    return rows.length ? fromRow(rows[0]) : DEFAULT_MODEL;
+    return rows.length ? fromRow(rows[0], audience) : DEFAULT_MODEL;
   } catch {
     return DEFAULT_MODEL;
   }
 }
+
+/** Exposed for tests: the pure row -> route mapping, without a database. */
+export const __testing__ = { fromRow, linkToRoute };
