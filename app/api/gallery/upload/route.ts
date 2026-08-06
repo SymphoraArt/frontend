@@ -120,34 +120,44 @@ export async function POST(req: NextRequest) {
     console.log(`📤 Uploading image for user ${userId}...`);
     const imageUrl = await uploadToBlob(file, userId);
 
-    // Prepare generation data
+    // An upload belongs in generated_images, not generations.
+    //
+    // This used to insert into `generations` with final_prompt / status /
+    // image_urls / payment_verified — none of which exist on that table any
+    // more, so every upload failed with PGRST204. The live split is:
+    //   generations      the generation record; prompt_id and the encrypted
+    //                    prompt envelope are NOT NULL, so an upload (no prompt,
+    //                    no generation) cannot be represented there at all
+    //   generated_images the actual images, with generation_id optional and an
+    //                    is_uploaded flag for exactly this case
+    // Verified against the live schema before writing.
     const nowIso = new Date().toISOString();
-    const generationData: any = {
+    const generationData: Record<string, unknown> = {
       user_id: userId,
-      prompt_id: null, // No prompt ID for uploaded images
-      final_prompt: sanitizedPrompt || null,
-      variable_values: [],
-      settings: {
-        origin: 'uploaded',
-        uploadedAt: nowIso,
-        ...(sanitizedMetadata ? { metadata: JSON.parse(sanitizedMetadata) } : {})
-      },
-      transaction_hash: null,
-      payment_verified: true, // Uploads are free
-      amount_paid: null,
-      status: 'uploaded',
-      image_urls: [imageUrl],
-      completed_at: nowIso,
+      generation_id: null,   // nothing generated it — the user brought it
+      prompt_id: null,
+      sequence_index: 0,
+      storage_provider: 'vercel_blob',
+      storage_url: imageUrl,
+      mime_type: file.type || 'image/png',
+      is_uploaded: true,
+      is_watermarked: false,
+      visibility: 'private',
+      accepted: true,
+      file_size_bytes: file.size ?? null,
+      // The caption the user typed. Kept as the image's own description rather
+      // than as a prompt: it never produced anything.
+      description: sanitizedPrompt || null,
+      title: sanitizedMetadata ? (JSON.parse(sanitizedMetadata)?.title ?? null) : null,
       created_at: nowIso,
-      updated_at: nowIso
     };
 
     // Store in database
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
-      .from('generations')
+      .from('generated_images')
       .insert([generationData])
-      .select('id, user_id, status, image_urls, created_at')
+      .select('id, user_id, storage_url, created_at')
       .single();
 
     if (error) {

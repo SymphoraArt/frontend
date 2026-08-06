@@ -105,7 +105,62 @@ export async function recordModerationEvent(
       // and forgotten unless a pattern shows up in the numbers.
       review_state: verdict.enforcement === "review" ? "pending" : "none",
     });
+
+    if (userId) await maybeAutoBan(supabase, userId, verdict);
   } catch {
     /* recording is best-effort by design */
   }
+}
+
+/**
+ * The one case severe enough to act on without waiting for a human.
+ *
+ * The trigger is deliberately narrow — ONLY the AI classifier's
+ * `sexual/minors` score at >= 0.9, never the word list. That split is the whole
+ * lesson of the earlier audit: the word list matched "nude girl statue,
+ * classical marble" and would have permanently banned a paying artist, because
+ * it reads letters. The classifier reads meaning, and at 0.9 on that specific
+ * category there is no benign reading left.
+ *
+ * Anything below stays with a human. An automated ban is appealable through the
+ * normal /banned flow like any other.
+ */
+const AUTO_BAN_MINORS_SCORE = 0.9;
+
+async function maybeAutoBan(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServerClientSafe>>,
+  userId: string,
+  verdict: ModerationVerdict,
+): Promise<void> {
+  const minors = verdict.scores?.["sexual/minors"] ?? 0;
+  if (verdict.tier !== 2 || minors < AUTO_BAN_MINORS_SCORE) return;
+
+  // bans.issued_by is NOT NULL: the schema assumes a human signs off. An
+  // automated ban is issued in the name of the moderation owner, who is
+  // accountable for it and can lift it — rather than inventing a robot
+  // identity that nobody answers for.
+  const { data: policy } = await supabase
+    .from("moderation_policy")
+    .select("owner_user_id")
+    .eq("id", 1)
+    .maybeSingle();
+  const issuedBy = policy?.owner_user_id as string | undefined;
+  if (!issuedBy) return; // no owner configured — leave it to human review
+
+  // Never stack a second ban on someone already banned.
+  const { data: existing } = await supabase
+    .from("bans")
+    .select("id")
+    .eq("user_id", userId)
+    .is("lifted_at", null)
+    .limit(1);
+  if (existing?.length) return;
+
+  await supabase.from("bans").insert({
+    user_id: userId,
+    issued_by: issuedBy,
+    scope: "full",
+    reason: `Automated: sexual/minors ${minors.toFixed(2)} (automod ${verdict.promptHash.slice(0, 12)})`,
+  });
+  console.warn("[automod] auto-ban issued", { userId, minors });
 }
