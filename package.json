@@ -79,6 +79,7 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.69.0",
     "recharts": "^3.8.1",
+    "sharp": "^0.34.5",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4",
     "thirdweb": "^5.116.1",

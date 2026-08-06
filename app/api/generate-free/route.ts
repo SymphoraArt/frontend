@@ -19,6 +19,7 @@ import { recordModerationEvent } from "@/lib/moderation-enforcement";
  *
  * POST /api/generate-free
  * Body: { prompt: string, aspectRatio?: string, resolution?: string }
+ * Reference images are refused here — the free model is text-only.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,20 @@ export async function POST(request: NextRequest) {
     }
     if (prompt.length > 4000) {
       return NextResponse.json({ error: "Prompt too long" }, { status: 400 });
+    }
+
+    // Reference images cannot work here and must not look as if they do.
+    //
+    // The free path is Pollinations, which is text-to-image only — there is no
+    // image input to give them to. The editor was posting them anyway and this
+    // route was reading nothing: a user attached fourteen references, watched a
+    // generation succeed, and got a picture that had never seen one of them.
+    // Say so instead.
+    if (Array.isArray(body?.referenceImages) && body.referenceImages.some(Boolean)) {
+      return NextResponse.json(
+        { error: "Reference images need a paid generation — the free model is text-only." },
+        { status: 422 },
+      );
     }
 
     // No session here, so the limit is per IP.

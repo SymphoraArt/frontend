@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { createErrorResponse, createSuccessResponse } from "../../../middleware/validation";
+import { tryMakeDerivatives } from "@/lib/imageDerivatives";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -69,6 +70,26 @@ async function uploadToBlob(file: File, userId: string): Promise<string> {
 }
 
 /**
+ * Store one derivative. Returns null rather than throwing: a missing preview
+ * degrades the gallery, a failed upload loses the user's image.
+ */
+async function putDerivative(filename: string, buffer: Buffer): Promise<string | null> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
+  try {
+    const { put } = await import("@vercel/blob");
+    const { url } = await put(filename, buffer, {
+      access: "public",
+      contentType: "image/webp",
+      addRandomSuffix: false,
+    });
+    return url;
+  } catch (error) {
+    console.warn("⚠️ derivative upload failed:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
  * Sanitizes user input string
  */
 function sanitizeString(input: string | null | undefined, maxLength: number = 1000): string {
@@ -120,6 +141,27 @@ export async function POST(req: NextRequest) {
     console.log(`📤 Uploading image for user ${userId}...`);
     const imageUrl = await uploadToBlob(file, userId);
 
+    // Preview + thumbnail. Without them the grid loads originals — measured
+    // 2026-08-06 against the real providers, 3.0 MB for a 2K image and up to
+    // 21.1 MB at 4K. Best-effort on purpose: a failed derivative must cost us
+    // the smaller renditions, never the upload the user is waiting on.
+    const original = Buffer.from(await file.arrayBuffer());
+    const derived = await tryMakeDerivatives(original);
+    let previewUrl: string | null = null;
+    let thumbnailUrl: string | null = null;
+    if (derived) {
+      const base = `gallery/${userId}/${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      [previewUrl, thumbnailUrl] = await Promise.all([
+        putDerivative(`${base}_preview.webp`, derived.preview.buffer),
+        putDerivative(`${base}_thumb.webp`, derived.thumb.buffer),
+      ]);
+      console.log(
+        `🖼️ derivatives: preview ${(derived.preview.bytes / 1024).toFixed(0)}KB, ` +
+        `thumb ${(derived.thumb.bytes / 1024).toFixed(0)}KB, ` +
+        `original ${(original.length / 1048576).toFixed(2)}MB`,
+      );
+    }
+
     // An upload belongs in generated_images, not generations.
     //
     // This used to insert into `generations` with final_prompt / status /
@@ -139,6 +181,10 @@ export async function POST(req: NextRequest) {
       sequence_index: 0,
       storage_provider: 'vercel_blob',
       storage_url: imageUrl,
+      preview_url: previewUrl,
+      thumbnail_url: thumbnailUrl,
+      width: derived?.width ?? null,
+      height: derived?.height ?? null,
       mime_type: file.type || 'image/png',
       is_uploaded: true,
       is_watermarked: false,
