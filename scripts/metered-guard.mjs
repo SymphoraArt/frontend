@@ -28,6 +28,12 @@ const METERED_HOSTS = [
   "api.openai.com",
   "api.x.ai",                          // Grok
   "image.pollinations.ai",             // free today, metered tomorrow
+  // AceData: x402 settles USDC per call, so the request IS the payment.
+  // Listed per host rather than as the bare domain — a bare "acedata.cloud"
+  // also swallows platform2.cdn.acedata.cloud, and spending budget on
+  // downloading the image you just paid for starves the run that follows.
+  "api.acedata.cloud",
+  "x402.acedata.cloud",
 ];
 
 const raw = process.env.METERED_BUDGET;
