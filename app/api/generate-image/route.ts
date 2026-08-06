@@ -779,8 +779,7 @@ export async function POST(request: NextRequest) {
 
       if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
         await releaseIfConsumed();
-    await releaseHeldSlot();
-      await releaseHeldSlot();
+        await releaseHeldSlot();
         return NextResponse.json(
           { error: geminiResult.error || 'Gemini image generation failed', retryable: geminiResult.retryable ?? true },
           { status: 500 }
