@@ -1,0 +1,104 @@
+/**
+ * The Solana side of generation payments: which chain, which connection, and
+ * the one keypair that signs everything Enki signs.
+ *
+ * Chain resolution matches lib/usdc-balance.ts exactly, so a balance is always
+ * read from the chain a payment settles on. Nothing here is a request
+ * parameter — a client that could pick the chain could pick devnet and pay in
+ * play money.
+ *
+ * ── The fee payer ───────────────────────────────────────────────────────
+ * Enki pays every fee (Terms of Use, Section 4). That is not generosity: our
+ * buyers onboard through Coinbase Onramp and hold USDC, not SOL, so a fee
+ * pushed onto them does not get collected — it surfaces as a generation that
+ * fails for a reason they cannot act on. At ~0.13 cents per generation the
+ * alternative costs more in lost checkouts than it saves.
+ *
+ * The same keypair is the NONCE AUTHORITY, and that part is structural rather
+ * than economic: voiding an authorisation whose buyer has closed the tab is
+ * only possible if we can act on the nonce alone. Hand that authority to the
+ * buyer and abandoned authorisations could never be flushed.
+ */
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import bs58 from "bs58";
+import { PAYMENT_CHAINS, isSolanaChain, type ChainKey } from "@/shared/payment-config";
+
+export function solanaChain(): { rpcUrl: string; usdc: string } {
+  const key = (process.env.SOLANA_PAYMENT_CHAIN ??
+    process.env.SOLANA_FUND_CHAIN ??
+    "solana-devnet") as ChainKey;
+  if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key)) {
+    throw new Error(`Not a Solana chain key: ${key}`);
+  }
+  return PAYMENT_CHAINS[key] as { rpcUrl: string; usdc: string };
+}
+
+export function usdcMint(): PublicKey {
+  return new PublicKey(solanaChain().usdc);
+}
+
+/**
+ * "confirmed" rather than "finalized": a confirmed payment is one the cluster
+ * has agreed on, and waiting the extra ~13s for finality would sit in the
+ * user's checkout for no gain we can act on.
+ */
+export function solanaConnection(): Connection {
+  return new Connection(process.env.SOLANA_RPC_URL || solanaChain().rpcUrl, "confirmed");
+}
+
+let cachedFeePayer: Keypair | null = null;
+
+/**
+ * The fee payer and nonce authority.
+ *
+ * Accepts base58 or a solana-keygen JSON array, the same two shapes
+ * SOLANA_TREASURY_SECRET_KEY documents. Errors deliberately say only that
+ * parsing failed: a message quoting the value, its length, or its prefix would
+ * put key material into a log line, which is exactly the incident SECRETS.md
+ * exists to prevent.
+ */
+export function feePayerKeypair(): Keypair {
+  if (cachedFeePayer) return cachedFeePayer;
+
+  const raw = process.env.SOLANA_FEE_PAYER_SECRET_KEY?.trim();
+  if (!raw) throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is not set");
+
+  let bytes: Uint8Array;
+  try {
+    bytes = raw.startsWith("[") ? Uint8Array.from(JSON.parse(raw)) : bs58.decode(raw);
+  } catch {
+    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is neither base58 nor a JSON byte array");
+  }
+  if (bytes.length !== 64) {
+    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is not a 64-byte secret key");
+  }
+
+  cachedFeePayer = Keypair.fromSecretKey(bytes);
+  return cachedFeePayer;
+}
+
+/** Tests and key rotation. */
+export function resetFeePayerCache(): void {
+  cachedFeePayer = null;
+}
+
+/**
+ * Below this the fee payer can no longer front a nonce account, and every
+ * generation stops. One nonce rent (0.00144768) plus an ATA rent (0.00203928)
+ * plus fees is roughly 0.0036 SOL per in-flight generation, so this is about
+ * 50 of them — enough warning to top up, not so much that it cries wolf.
+ */
+export const FEE_PAYER_LOW_LAMPORTS = 200_000_000; // 0.2 SOL
+
+/**
+ * Whether the fee payer can still work. Returns the balance so a caller can
+ * log or alert on the number rather than just the verdict — an empty fee payer
+ * halts ALL generations, and finding that out from a customer complaint is the
+ * failure mode worth spending an RPC call to avoid.
+ */
+export async function feePayerBalance(
+  connection: Connection,
+): Promise<{ lamports: number; low: boolean }> {
+  const lamports = await connection.getBalance(feePayerKeypair().publicKey);
+  return { lamports, low: lamports < FEE_PAYER_LOW_LAMPORTS };
+}
