@@ -13,7 +13,78 @@
 
 import { addCreation } from "@/lib/creations";
 
+/**
+ * ── What this file used to claim, and what it did ───────────────────────
+ * `generateNanoBanana()` posted to /api/generate-free, which is Pollinations
+ * running flux. So the node editor offered "Nano Banana Pro", showed a price,
+ * put "Pay & Gen" on the button — and generated free flux, charged nothing,
+ * and ignored the model entirely. Three claims, none of them true.
+ *
+ * The function is now named for what it does, and generateWithModel() below
+ * routes by the model the user actually picked.
+ */
 export const NANO_BANANA_MODEL = "gemini-3-pro-image-preview";
+
+/** A model as the catalogue describes it — /api/models, never a constant. */
+export interface CatalogueModel {
+  id: string;
+  name: string;
+  /** USD per image. 0 means the free tier. */
+  price: number;
+}
+
+/**
+ * Generate with the model the user chose.
+ *
+ * A free model goes to /api/generate-free; anything else goes to the paid
+ * route with its id, so the server resolves the provider from the catalogue
+ * like every other surface. The editor no longer decides which model runs by
+ * accident.
+ *
+ * Returns the image URL, or an { error } the caller can show — a paid
+ * generation without a settled payment must say so rather than quietly
+ * handing back a free picture from a different model.
+ */
+export async function generateWithModel(opts: {
+  prompt: string;
+  aspectRatio?: string;
+  resolution?: string;
+  model: CatalogueModel | null;
+  boost?: boolean;
+  workflow?: unknown;
+}): Promise<{ url: string } | { error: string }> {
+  const { prompt, aspectRatio = "1:1", resolution = "2K", model, boost, workflow } = opts;
+  const isFree = !model || model.price <= 0;
+  const endpoint = isFree ? "/api/generate-free" : "/api/generate-image";
+
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        aspectRatio,
+        resolution,
+        workflow,
+        ...(isFree ? {} : { modelIds: [model!.id], boost: !!boost }),
+      }),
+    });
+
+    if (res.status === 402) {
+      return { error: "This model needs a paid generation — top up your balance first." };
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { error: body.error || `Generation failed (${res.status})` };
+    }
+    const data = await res.json();
+    return typeof data?.imageUrl === "string"
+      ? { url: data.imageUrl }
+      : { error: "No image returned" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Generation failed" };
+  }
+}
 
 /**
  * Generate a single image for the node creator via the project's own

@@ -39,6 +39,8 @@ const DEFAULTS: ModelLimits = {
 };
 
 interface ModelRow {
+  id?: string;
+  price?: number;
   name?: string;
   max_reference_images?: number;
   allowed_filetypes?: string[];
@@ -93,4 +95,50 @@ export function useModelLimits(model: string | null | undefined): ModelLimits {
     return () => { dead = true; };
   }, [model]);
   return limits;
+}
+
+/**
+ * The generator catalogue, as the database describes it.
+ *
+ * Shares the module-level cache above, so a page that already asked for limits
+ * pays nothing for this. The node editor used to carry its own hardcoded
+ * NC_MODELS with invented prices and a "Seedance 2" that exists in no table —
+ * which is how a user could pick a model, see a price, and get something else
+ * for free.
+ */
+export interface CatalogueEntry {
+  id: string;
+  name: string;
+  /** USD per image. 0 is the free tier. */
+  price: number;
+}
+
+/** Kept for the window before /api/models answers, and if it never does. */
+export const FALLBACK_CATALOGUE: CatalogueEntry[] = [
+  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
+];
+
+export function useModelCatalogue(): CatalogueEntry[] {
+  const [rows, setRows] = useState<CatalogueEntry[]>(() =>
+    cache ? toCatalogue(cache.rows) : FALLBACK_CATALOGUE,
+  );
+  useEffect(() => {
+    let dead = false;
+    loadModels().then((r) => { if (!dead) setRows(toCatalogue(r)); });
+    return () => { dead = true; };
+  }, []);
+  return rows;
+}
+
+function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
+  const out = rows
+    .filter((r) => r.id && r.name)
+    .map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      // A missing price is 0 and therefore free — never a guessed number,
+      // because a guessed price is one a user might be charged.
+      price: typeof r.price === "number" ? r.price : 0,
+    }));
+  return out.length ? out : FALLBACK_CATALOGUE;
 }

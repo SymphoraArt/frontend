@@ -10,8 +10,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
+import { useModelCatalogue } from "@/hooks/useModelLimits";
 import {
-  EditName, NcSelect, NC_MODELS, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
+  EditName, NcSelect, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
 } from "./NodeCreator";
 
@@ -78,6 +79,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
     st, texts, refs, outs, cons, curSig, liveTokNames, liveRefCount, pubNames,
     colorForTok, palOf, perImage, canGenerate, pickedOuts, releaseMin, canRelease,
   } = api;
+  // Same catalogue the node view uses, from /api/models — never a constant,
+  // so the two views cannot drift into offering different models or prices.
+  const catalogue = useModelCatalogue();
 
   // Which variable card is open in the rail (token incl. brackets), and the
   // floating "+ Add variable" pill (page-relative position + selection range).
@@ -556,7 +560,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
               </div>
               <div className="ncd-genopts">
                 <NcSelect value={st.models[0]} width={176} title="Model used for this prompt"
-                  options={NC_MODELS.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
+                  options={catalogue.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
                 {/* ratio + quality share the row; together they line up with the
                     model dropdown's right border */}

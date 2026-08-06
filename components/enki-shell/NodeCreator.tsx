@@ -5,19 +5,23 @@
    Nano Banana Pro generation (Puter.js) + best-effort DB persistence. */
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
+import { useModelCatalogue } from "@/hooks/useModelLimits";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
 import { Icon } from "./icons";
-import { generateNanoBanana, persistCreation, placeholderArt } from "./generation";
+import { generateWithModel, persistCreation, placeholderArt } from "./generation";
 import { useModelLimits } from "@/hooks/useModelLimits";
 import DocView from "./DocView";
 
 /* ── constants ── */
+/**
+ * Fallback only — the real list comes from /api/models, so a generator is a
+ * row and not a deploy. This constant used to BE the catalogue, with invented
+ * prices and a "Seedance 2" that exists nowhere in the database.
+ */
 export const NC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
-  { id: "gpt-image-2", name: "GPT Image 2", price: 0.06 },
-  { id: "seedance-2", name: "Seedance 2", price: 0.08 },
 ];
 export const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
 const CATEGORIES = ["Portrait", "Character", "Cinematic", "Architecture", "Abstract", "Product", "Minimal", "Editorial"];
@@ -287,9 +291,18 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const refUploadRef = useRef<HTMLInputElement>(null); // hidden picker for multi reference upload
   // mock-up mode: Generate fills outputs with instant placeholder art (no API)
   // so the whole flow — groups, lightbox, release — can be demoed offline.
+  // The real generator list, from the database. NC_MODELS is only the window
+  // before /api/models answers.
+  const catalogue = useModelCatalogue();
+  // Refs, because finalizeOutput is a useCallback: reading these from the
+  // render scope would pin it to whatever the catalogue was on first paint.
+  const catalogueRef = useRef(catalogue);
+  catalogueRef.current = catalogue;
   const [mockMode, setMockMode] = useState(false);
   // Same model on a priority host — faster, dearer, identical image.
   const [boost, setBoost] = useState(false);
+  const boostRef = useRef(boost);
+  boostRef.current = boost;
   const mockModeRef = useRef(false); mockModeRef.current = mockMode;
   // canvas tool: "select" (left = marquee, right = pan) or "hand" (left = pan)
   const [tool, setTool] = useState<"select" | "hand">("select");
@@ -986,14 +999,33 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === oid ? { ...n, img: mock, status: "ready" } : n)) }));
       return;
     }
-    // The graph goes with the request, so the generation can be re-run later.
-    // buildExportJSON() reads from refs, so it is safe to call here without
-    // making this callback depend on a render-scoped value. The server pulls
-    // the image bytes and the authored text out of it before storing.
-    let url = await generateNanoBanana(promptText, ratio, buildExportJSON());
+    // Routed by the model the user actually picked. This used to call the free
+    // endpoint unconditionally, so "Nano Banana Pro" and a displayed price
+    // produced free flux from a different model.
+    //
+    // The graph goes with the request so the generation can be re-run later;
+    // buildExportJSON() reads from refs, so calling it here needs no extra
+    // dependency. The server pulls the image bytes and the authored text out
+    // of it before storing.
+    const picked = catalogueRef.current.find((m) => m.id === stRef.current.models[0]) ?? null;
+    const outcome = await generateWithModel({
+      prompt: promptText,
+      aspectRatio: ratio,
+      resolution: stRef.current.quality || "2K",
+      model: picked,
+      boost: boostRef.current,
+      workflow: buildExportJSON(),
+    });
+
+    let url = "url" in outcome ? outcome.url : null;
     if (!url) {
       url = placeholderArt("fallback" + oid, "4:5");
-      if (!failedOnce.current) { failedOnce.current = true; onToast("Generation failed — showing a placeholder. Is the dev server reachable?"); }
+      // The real reason, not a generic one: "top up your balance" and "the dev
+      // server is unreachable" need different actions from the user.
+      if (!failedOnce.current) {
+        failedOnce.current = true;
+        onToast("error" in outcome ? outcome.error : "Generation failed — showing a placeholder.");
+      }
     } else {
       persistCreation({ prompt: promptText, imageUrl: url, model: stRef.current.models[0], title: stRef.current.title, userKey });
     }
@@ -1197,7 +1229,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   /* ── pricing ── */
   const qualityMult = NC_QUALITY_MULT[st.quality] ?? 1;
-  const perImage = (st.models.reduce((s, id) => s + (NC_MODELS.find((m) => m.id === id)?.price || 0), 0) || 0.04) * qualityMult;
+  // Priced from the catalogue, so what is shown is what the server will
+  // charge. It used to come from a constant with invented numbers.
+  const perImage = st.models.reduce((sum, id) => sum + (catalogue.find((m) => m.id === id)?.price ?? 0), 0) * qualityMult;
   const imgCount = st.genCount;
   const cost = perImage * imgCount;
   const pickedOuts = outs.filter((o) => o.picked && o.img); // images marked for public release (always one group)
@@ -1469,14 +1503,14 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </button>
               <div className={"nc-pm" + (modelFlipUp ? " nc-pm--up" : "")} onPointerDown={(e) => e.stopPropagation()}>
                 <button ref={modelTrigRef} className={"nc-pm-trigger" + (modelOpen ? " open" : "")} title="Model used for this prompt — price shown is the production cost"
-                  onClick={(e) => { e.stopPropagation(); if (!modelOpen) { const r = modelTrigRef.current?.getBoundingClientRect(); const ph = NC_MODELS.length * 38 + 16; if (r) setModelFlipUp(window.innerHeight - r.bottom < ph + 14 && r.top > ph + 14); } setModelOpen((o) => !o); }}>
-                  <span className="nc-pm-name">{(NC_MODELS.find((m) => m.id === st.models[0]) || NC_MODELS[0]).name}</span>
-                  <span className="nc-pm-price">${(NC_MODELS.find((m) => m.id === st.models[0]) || NC_MODELS[0]).price.toFixed(2)}</span>
+                  onClick={(e) => { e.stopPropagation(); if (!modelOpen) { const r = modelTrigRef.current?.getBoundingClientRect(); const ph = catalogue.length * 38 + 16; if (r) setModelFlipUp(window.innerHeight - r.bottom < ph + 14 && r.top > ph + 14); } setModelOpen((o) => !o); }}>
+                  <span className="nc-pm-name">{(catalogue.find((m) => m.id === st.models[0]) || catalogue[0])?.name ?? "—"}</span>
+                  <span className="nc-pm-price">${((catalogue.find((m) => m.id === st.models[0]) || catalogue[0])?.price ?? 0).toFixed(2)}</span>
                   <Icon name="chevronDown" size={13} stroke={2.4} className="nc-pm-chev" />
                 </button>
                 {modelOpen && (
                   <div className="nc-pm-panel" role="listbox">
-                    {NC_MODELS.map((m) => (
+                    {catalogue.map((m) => (
                       <button key={m.id} role="option" aria-selected={m.id === st.models[0]}
                         className={"nc-pm-opt" + (m.id === st.models[0] ? " on" : "")}
                         onClick={() => { setSt((p) => ({ ...p, models: [m.id] })); setModelOpen(false); }}>
