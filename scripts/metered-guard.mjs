@@ -49,7 +49,10 @@ if (raw === undefined || !Number.isInteger(BUDGET) || BUDGET < 0) {
  * balance, not anything on this side.
  */
 const COUNT_FIELDS = ["num_images", "numImages", "n", "count", "batch_size", "num_outputs", "samples"];
-const MAX_IMAGES = Number(process.env.METERED_MAX_IMAGES ?? 1);
+
+/** Kev's standing allowance, 2026-08-06: 3 images per request unless he says
+ *  otherwise. Anything above needs his explicit go, per run. */
+const MAX_IMAGES = Number(process.env.METERED_MAX_IMAGES ?? 3);
 
 function requestedImages(init) {
   const body = init?.body;
