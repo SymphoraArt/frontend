@@ -44,6 +44,15 @@ export interface GenerationRecord {
   seed: number | null;
   /** Measured from the returned bytes — never echoed from the request. */
   output: { width: number; height: number; bytes: number; format: string } | null;
+  /**
+   * Where the image ended up. Written into generated_images, which is what the
+   * gallery reads — without it a paid image exists in blob storage and in
+   * generations, and the user can never find it again.
+   */
+  imageUrl?: string | null;
+  previewUrl?: string | null;
+  thumbnailUrl?: string | null;
+  mimeType?: string | null;
   generationMs: number | null;
   /** The editor node graph — structure only, no image bytes and no text. */
   workflow: Record<string, unknown> | null;
@@ -181,6 +190,35 @@ export async function recordGeneration(
         })),
       );
       if (refErr) console.warn("[generation] could not record references:", refErr.message);
+    }
+
+    // The image itself. generations records what PRODUCED it; generated_images
+    // is what the gallery reads, and nothing was ever writing a row there for a
+    // generation — so a delivered image was invisible to its owner. "Ordered
+    // means delivered" (Kev, 2026-08-06) is a durability requirement, and this
+    // is where it is met.
+    if (rec.imageUrl) {
+      const { error: imgErr } = await supabase.from("generated_images").insert({
+        user_id: rec.userId,
+        generation_id: generationId,
+        prompt_id: promptId,
+        sequence_index: 0,
+        storage_provider: "vercel_blob",
+        storage_url: rec.imageUrl,
+        preview_url: rec.previewUrl ?? null,
+        thumbnail_url: rec.thumbnailUrl ?? null,
+        width: rec.output?.width ?? null,
+        height: rec.output?.height ?? null,
+        file_size_bytes: rec.output?.bytes ?? null,
+        mime_type: rec.mimeType ?? (rec.output?.format ? `image/${rec.output.format}` : "image/png"),
+        // Generated, not uploaded — the flag the gallery filters on, and the
+        // one chk_upload_consistency checks against generation_id.
+        is_uploaded: false,
+        is_watermarked: false,
+        visibility: "private",
+        accepted: true,
+      });
+      if (imgErr) console.warn("[generation] could not record the image:", imgErr.message);
     }
 
     return generationId;

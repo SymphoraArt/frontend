@@ -885,6 +885,7 @@ export async function POST(request: NextRequest) {
                     format: m.format ?? '',
                   }
                 : null,
+            imageUrl,
             generationMs: geminiResult.generationTime ?? null,
             workflow: stripped.workflow,
             workflowTexts: stripped.texts,
