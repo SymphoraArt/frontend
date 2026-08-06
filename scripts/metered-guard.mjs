@@ -41,6 +41,33 @@ if (raw === undefined || !Number.isInteger(BUDGET) || BUDGET < 0) {
   );
 }
 
+/**
+ * Fields that mean "generate this many images". One request asking for 999 is
+ * ONE call and would sail past a budget of 1 — counting requests is not
+ * counting money. On 2026-08-06 exactly that was sent to WaveSpeed as a
+ * deliberately-invalid value; the only thing that refused it was the account
+ * balance, not anything on this side.
+ */
+const COUNT_FIELDS = ["num_images", "numImages", "n", "count", "batch_size", "num_outputs", "samples"];
+const MAX_IMAGES = Number(process.env.METERED_MAX_IMAGES ?? 1);
+
+function requestedImages(init) {
+  const body = init?.body;
+  if (typeof body !== "string") return 1;
+  let parsed;
+  try { parsed = JSON.parse(body); } catch { return 1; }
+  let most = 1;
+  const walk = (node, depth) => {
+    if (!node || typeof node !== "object" || depth > 4) return;
+    for (const [k, v] of Object.entries(node)) {
+      if (COUNT_FIELDS.includes(k) && typeof v === "number") most = Math.max(most, v);
+      else if (typeof v === "object") walk(v, depth + 1);
+    }
+  };
+  walk(parsed, 0);
+  return most;
+}
+
 const nativeFetch = globalThis.fetch;
 let used = 0;
 
@@ -52,6 +79,17 @@ globalThis.fetch = async function guardedFetch(input, init) {
   const metered = METERED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
   if (!metered) return nativeFetch(input, init);
 
+  // Check the batch size BEFORE the budget: a single oversized request is the
+  // expensive failure, and it must be refused even when budget remains.
+  const images = requestedImages(init);
+  if (images > MAX_IMAGES) {
+    throw new Error(
+      `metered-guard: refusing a request for ${images} images to ${host} — the cap is ` +
+      `${MAX_IMAGES}. One request can bill for hundreds; counting requests is not ` +
+      `counting money. Raise METERED_MAX_IMAGES only with Kev's explicit go.`,
+    );
+  }
+
   if (used >= BUDGET) {
     throw new Error(
       `metered-guard: refusing call ${used + 1} to ${host} — budget is ${BUDGET}. ` +
@@ -59,7 +97,7 @@ globalThis.fetch = async function guardedFetch(input, init) {
     );
   }
   used += 1;
-  console.log(`[metered] ${used}/${BUDGET} → ${host}`);
+  console.log(`[metered] ${used}/${BUDGET} → ${host} (${images} image${images === 1 ? "" : "s"})`);
   return nativeFetch(input, init);
 };
 
