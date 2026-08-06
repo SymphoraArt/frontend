@@ -4,6 +4,7 @@
    Ported from the design bundle (enki/nodecreator.jsx) and wired to real, free
    Nano Banana Pro generation (Puter.js) + best-effort DB persistence. */
 
+import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
@@ -287,6 +288,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   // mock-up mode: Generate fills outputs with instant placeholder art (no API)
   // so the whole flow — groups, lightbox, release — can be demoed offline.
   const [mockMode, setMockMode] = useState(false);
+  // Same model on a priority host — faster, dearer, identical image.
+  const [boost, setBoost] = useState(false);
   const mockModeRef = useRef(false); mockModeRef.current = mockMode;
   // canvas tool: "select" (left = marquee, right = pan) or "hand" (left = pan)
   const [tool, setTool] = useState<"select" | "hand">("select");
@@ -1788,7 +1791,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       {view === "node" && <div className="nc-gp" role="dialog">
         <div className="nc-gp-row">
           <span className="nc-gp-lab">{imgCount} image{imgCount > 1 ? "s" : ""}</span>
-          <span className="nc-gp-cost">${cost.toFixed(2)}</span>
+          <span className="nc-gp-cost">${boostedCost(cost, boost).toFixed(2)}</span>
+        </div>
+        <div className="nc-gp-gen" style={{ marginBottom: 6 }}>
+          <BoostToggle boost={boost} onChange={setBoost} />
         </div>
         <div className="nc-gp-gen">
           <button className="nc-gp-btn" onClick={() => runGenerate(true)} title="Autofill variables & generate"><Icon name="wand" size={12} stroke={2} /> Autofill</button>

@@ -54,6 +54,8 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
 
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // Same model on a priority host — faster, dearer, identical image.
+  const [boost, setBoost] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [valueByToken, setValueByToken] = useState<Record<string, string>>({});
   const [model, setModel] = useState(GL_MODELS[0].id);
@@ -155,6 +157,10 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
           prompt: final.trim(),
           aspectRatio: ratio,
           resolution: "2K",
+          boost,
+          // These were collected in the UI and then never sent. The server
+          // caps them by the model's own limit.
+          referenceImages: [...referenceImages, ...nftImages].filter(Boolean),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -283,6 +289,8 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
         onRemoveNFT={(i) => setNftImages((prev) => prev.filter((_, idx) => idx !== i))}
         onReorderNFTs={(from, to) => setNftImages((prev) => reorder(prev, from, to))}
         generateLabel={generating ? "Generating…" : "Generate"}
+        boost={boost}
+        onBoostChange={setBoost}
         hideReleaseTab
         balance={null}
         resultImages={results}

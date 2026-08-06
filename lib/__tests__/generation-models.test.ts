@@ -89,3 +89,27 @@ describe("model → route resolution", () => {
     expect(m.allowedRatios).toEqual(["1:1"]);
   });
 });
+
+describe("hasBoost", () => {
+  it("is true only when the boost route really differs", async () => {
+    const { hasBoost } = await import("@/lib/generation/models");
+
+    const twoHosts = fromRow(
+      { ...NANO, model_providers: [link("normal", "wavespeed", "google/nano-banana-pro/text-to-image"), link("boost", "gemini", "gemini-3-pro-image-preview")] },
+      "public",
+    );
+    expect(hasBoost(twoHosts)).toBe(true);
+
+    // No boost row: routes collapse, so the button must not be offered.
+    const oneHost = fromRow({ ...NANO, model_providers: [link("normal", "openai", "gpt-image-2")] }, "public");
+    expect(hasBoost(oneHost)).toBe(false);
+
+    // Enterprise boost hidden from a public caller — no boost for them either,
+    // which is the point: the UI must not advertise what it cannot deliver.
+    const gated = fromRow(
+      { ...NANO, model_providers: [link("normal", "wavespeed", "x"), link("boost", "gemini", "y", { audience: "enterprise" })] },
+      "public",
+    );
+    expect(hasBoost(gated)).toBe(false);
+  });
+});

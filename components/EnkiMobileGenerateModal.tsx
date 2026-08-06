@@ -1,3 +1,4 @@
+import BoostToggle from "@/components/generation/BoostToggle";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Sparkles, Plus, ImageIcon, Ratio, Maximize2, Copy, Settings, FileText, CheckCircle2 } from "lucide-react";
 import { getVariableColors } from "../lib/variableColors";
@@ -152,6 +153,9 @@ interface EnkiMobileGenerateModalProps {
   onRemoveNFT?: (index: number) => void;
   onReorderNFTs?: (from: number, to: number) => void;
   generateLabel?: string;
+  /** Boost: same model on a priority host. Omit onBoostChange to hide it. */
+  boost?: boolean;
+  onBoostChange?: (next: boolean) => void;
   /* Freshly generated images to surface ABOVE the sheet (newest first). */
   resultImages?: string[];
   isGenerating?: boolean;
@@ -278,6 +282,8 @@ export default function EnkiMobileGenerateModal({
   onRemoveNFT,
   onReorderNFTs,
   generateLabel,
+  boost,
+  onBoostChange,
   resultImages,
   isGenerating = false,
   requiredVariations,
@@ -1343,6 +1349,9 @@ export default function EnkiMobileGenerateModal({
                   </button>
                 )}
               </div>
+              {onBoostChange && (
+                <BoostToggle boost={!!boost} onChange={onBoostChange} disabled={isGenerating} />
+              )}
               <button className="mobile-modal-generate-btn" onClick={onGenerate} disabled={isGenerating}>
                 <Sparkles size={13} style={{ fill: "white" }} />
                 {generateLabel || "Generate"}

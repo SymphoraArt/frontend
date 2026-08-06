@@ -48,6 +48,22 @@ export function routeFor(model: ResolvedModel, boost: boolean | undefined): Rout
   return boost ? model.boost : model.normal;
 }
 
+/**
+ * Does boost actually do anything for this model?
+ *
+ * Derived, never stored. A column saying "has boost" would be a second truth
+ * next to the model_providers rows, and two truths drift: someone deletes the
+ * boost row and the flag still says yes, so the UI offers a paid speed-up that
+ * changes nothing. The rows ARE the answer — a boost route that differs from
+ * the normal one is exactly what "has boost" means.
+ */
+export function hasBoost(model: ResolvedModel): boolean {
+  return (
+    model.boost.provider !== model.normal.provider ||
+    model.boost.providerModel !== model.normal.providerModel
+  );
+}
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 /**

@@ -25,6 +25,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import "./prompt-generator.css";
+import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -107,6 +108,8 @@ export default function PromptGeneratorView({
   const [refs, setRefs] = useState<string[]>([]);
   const [fav, setFav] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // Same model on a priority host — faster, dearer, identical image.
+  const [boost, setBoost] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -334,6 +337,7 @@ export default function PromptGeneratorView({
               encryptedPrompt: final,
               variableValues: Object.entries(vars).map(([k, v]) => ({ variableName: k, value: v })),
               settings: { aspectRatio: aspect, resolution, referenceImageCount: refs.length },
+              boost,
             }),
           });
           if (postRes.ok) {
@@ -596,10 +600,11 @@ export default function PromptGeneratorView({
         </div>
 
         {/* ── Sticky footer: Generate button ── */}
-        <div className="pgv-sidebar-footer">
-          <button className="pgv-generate-btn" onClick={generate} disabled={generating}>
+        <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
+          <button className="pgv-generate-btn" onClick={generate} disabled={generating} style={{ flex: 1 }}>
             {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
-            Generate / ${price.toFixed(2)}
+            Generate / ${boostedCost(price, boost).toFixed(2)}
           </button>
         </div>
       </aside>
