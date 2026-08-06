@@ -3,6 +3,12 @@ import { generateImageWithPollinations } from "@/backend/services/pollinations-i
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
+import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
+import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
+import { resolveModelByName } from "@/lib/generation/models";
+import { stripWorkflowImages } from "@/lib/generation/workflow";
+import { storeReferenceImages } from "@/lib/generation/reference-images";
+import { readImageDimensions } from "@/backend/services/gemini-image-generation";
 
 /**
  * Free image generation endpoint (dev/testing)
@@ -18,7 +24,7 @@ import { recordModerationEvent } from "@/lib/moderation-enforcement";
  * IP since there is no session to key on.
  *
  * POST /api/generate-free
- * Body: { prompt: string, aspectRatio?: string, resolution?: string }
+ * Body: { prompt, aspectRatio?, resolution?, workflow? }
  * Reference images are refused here — the free model is text-only.
  */
 export async function POST(request: NextRequest) {
@@ -85,6 +91,52 @@ export async function POST(request: NextRequest) {
     const imageUrl = `data:image/png;base64,${base64}`;
 
     console.log(`✅ Image generated successfully in ${result.generationTime}ms`);
+
+    // Free does not mean unrecorded. The node editor generates through here,
+    // so without this its graphs would be lost exactly like every generation
+    // was before the recorder existed. Signed-out callers are not recorded —
+    // there is nobody to show the row back to.
+    {
+      const supabase = getSupabaseServerClientSafe();
+      const recUserId = await resolveRecordingUserId(supabase, request);
+      if (supabase && recUserId) {
+        const stripped = stripWorkflowImages(body?.workflow ?? {});
+        const model = await resolveModelByName(supabase, "Flux (free)");
+        const dims = readImageDimensions(result.imageBuffers[0]);
+        after(
+          recordGeneration(supabase, {
+            userId: recUserId,
+            promptId: null,
+            finalPrompt: prompt,
+            // Pollinations rewrites the prompt itself (`enhance=true`) and
+            // never returns the result, so the best we can honestly record is
+            // what we sent.
+            effectivePrompt: prompt,
+            variableValues: {},
+            model,
+            route: model.normal,
+            boost: false,
+            aspectRatio: body.aspectRatio || "1:1",
+            resolution: body.resolution || "2K",
+            // The service generates one and throws it away — the only seed in
+            // the whole stack, and it never reaches us.
+            seed: null,
+            output: dims
+              ? {
+                  width: dims.width,
+                  height: dims.height,
+                  bytes: result.imageBuffers[0].length,
+                  format: dims.format,
+                }
+              : null,
+            generationMs: result.generationTime ?? null,
+            workflow: stripped.workflow,
+            workflowTexts: stripped.texts,
+            references: await storeReferenceImages(stripped.images, recUserId),
+          }),
+        );
+      }
+    }
 
     return NextResponse.json({
       imageUrl,

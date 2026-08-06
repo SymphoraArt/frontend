@@ -174,6 +174,34 @@ function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
 }
 
 /**
+ * Look a model up by display name. For routes that know WHICH model they run
+ * but never receive an id — the free path is hard-wired to Flux and has no
+ * model picker, yet its generations still belong in the same catalogue.
+ */
+export async function resolveModelByName(
+  supabase: SupabaseClient | null,
+  name: string,
+  audience: Audience = "public",
+): Promise<ResolvedModel> {
+  if (!supabase) return DEFAULT_MODEL;
+  try {
+    const { data, error } = await supabase
+      .from("models")
+      .select(
+        "id, name, allowed_ratios, max_reference_images, " +
+        "model_providers(role, provider_model, active, providers(key, audience, active))",
+      )
+      .ilike("name", name)
+      .eq("active", true)
+      .limit(1);
+    if (error || !data?.length) return DEFAULT_MODEL;
+    return fromRow(data[0] as unknown as ModelRow, audience);
+  } catch {
+    return DEFAULT_MODEL;
+  }
+}
+
+/**
  * Resolve the user's selection. Takes the FIRST id that resolves — multi-select
  * exists in the editor for prompt authoring (which models a prompt is meant
  * for), while a single generation runs on exactly one model.

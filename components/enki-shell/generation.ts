@@ -25,12 +25,23 @@ export const NANO_BANANA_MODEL = "gemini-3-pro-image-preview";
  * `/api/generate-image` once a balance / x402 payment flow is wired for the
  * editor — that endpoint is payment-gated by design.
  */
-export async function generateNanoBanana(prompt: string, aspectRatio = "1:1"): Promise<string | null> {
+export async function generateNanoBanana(
+  prompt: string,
+  aspectRatio = "1:1",
+  /**
+   * The node graph that produced this prompt, from buildExportJSON(). Sent so
+   * the generation can be re-run later: the server pulls the image bytes and
+   * the authored text out of it, stores the structure as jsonb and the text
+   * encrypted (lib/generation/workflow.ts). Without it a generation records
+   * what came out but not how it was built.
+   */
+  workflow?: unknown,
+): Promise<string | null> {
   try {
     const res = await fetch("/api/generate-free", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, aspectRatio }),
+      body: JSON.stringify({ prompt, aspectRatio, workflow }),
     });
     if (!res.ok) { console.warn("[node-creator] generation failed:", res.status); return null; }
     const data = await res.json();

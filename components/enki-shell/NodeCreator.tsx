@@ -986,7 +986,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === oid ? { ...n, img: mock, status: "ready" } : n)) }));
       return;
     }
-    let url = await generateNanoBanana(promptText, ratio);
+    // The graph goes with the request, so the generation can be re-run later.
+    // buildExportJSON() reads from refs, so it is safe to call here without
+    // making this callback depend on a render-scoped value. The server pulls
+    // the image bytes and the authored text out of it before storing.
+    let url = await generateNanoBanana(promptText, ratio, buildExportJSON());
     if (!url) {
       url = placeholderArt("fallback" + oid, "4:5");
       if (!failedOnce.current) { failedOnce.current = true; onToast("Generation failed — showing a placeholder. Is the dev server reachable?"); }
