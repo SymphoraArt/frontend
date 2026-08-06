@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useRef, useEffect, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
-import { useModelLimits } from "@/hooks/useModelLimits";
+import { useModelLimits, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
 import EnkiMobileGenerateModal from "./EnkiMobileGenerateModal";
@@ -245,18 +245,11 @@ interface EditorDraft {
   currentPromptId?: string | null;
 }
 
-// Gemini's accepted aspect ratios; editor-only ratios map to their nearest
-// neighbour, "Any ratio" stays undefined so the server defaults to 1:1.
-const INTENT_API_RATIOS: Record<string, string | undefined> = {
-  "1:1": "1:1",
-  "16:9": "16:9",
-  "9:16": "9:16",
-  "4:3": "4:3",
-  "3:4": "3:4",
-  "4:5": "3:4",
-  "3:2": "4:3",
-  "21:9": "16:9",
-};
+// (A translation table mapping editor-only ratios to their nearest provider
+// ratio used to live here. It was never referenced — nothing translated — so
+// picking 4:5, 3:2 or 21:9 sent an unsupported ratio straight to the provider.
+// The fix is upstream: the editor now only offers what models.allowed_ratios
+// says the selected generator takes, so there is nothing left to translate.)
 
 function buildFullToken(inner: string): string {
   return `[${inner}]`;
@@ -1667,7 +1660,22 @@ export default function EnkiPromptEditor() {
     }
   }, [models.selected, models.available]);
 
-  const allPossibleRatios = ["Any ratio", "1:1", "4:5", "3:2", "16:9", "9:16", "21:9"];
+  // Every generator accepts a different set, so the list comes from the models
+  // table (models.allowed_ratios), narrowed to the selected models by the Ratio
+  // Sync effect above. It used to be a constant here that offered 4:5, 3:2 and
+  // 21:9 — none of which the provider accepts, so picking one failed the
+  // generation AFTER the payment had settled.
+  const offeredRatios = useMemo(
+    () => ["Any ratio", ...(ratios.available.length > 0 ? ratios.available : FALLBACK_RATIOS)],
+    [ratios.available],
+  );
+
+  // "Any ratio" is a UI choice, not a provider value — it means "don't ask for
+  // one". It used to be sent verbatim, and since it is the DEFAULT selection,
+  // Gemini's validator rejected it: the paid path failed unless the user
+  // happened to change the ratio. Sending undefined lets the server apply its
+  // own default instead.
+  const ratioForApi = ratios.selected === "Any ratio" ? undefined : ratios.selected;
 
   const toggleModel = (modelId: string) => {
     setModels(prev => {
@@ -2524,7 +2532,7 @@ export default function EnkiPromptEditor() {
           body: JSON.stringify({
             prompt: previewText,
             resolution: "2K",
-            aspectRatio: ratios.selected,
+            aspectRatio: ratioForApi,
             referenceImages: cardRefs.length ? cardRefs : undefined,
           }),
         });
@@ -2547,7 +2555,7 @@ export default function EnkiPromptEditor() {
               chain: "solana-devnet",
             }) as { imageUrl: string; provider?: string; usedGemini?: boolean }
           : await generateImageWithPayment(
-              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratios.selected },
+              { prompt: previewText, resolution: "2K", modelIds: models.selected, ratio: ratioForApi },
               selectedChain
             ) as { imageUrl: string; provider?: string; usedGemini?: boolean };
       }
@@ -3597,7 +3605,7 @@ export default function EnkiPromptEditor() {
             <div ref={setSettingsSectionRef("ratio")} className={settingsSectionClass("ratio", false)}>
             <div className="enk-label">PREFERRED RATIO</div>
             <div className="enk-ratio-group">
-              {allPossibleRatios.map((ratio) => (
+              {offeredRatios.map((ratio) => (
                   <button
                     key={ratio}
                     type="button"
