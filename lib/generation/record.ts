@@ -45,8 +45,14 @@ export interface GenerationRecord {
   /** Measured from the returned bytes — never echoed from the request. */
   output: { width: number; height: number; bytes: number; format: string } | null;
   generationMs: number | null;
-  /** The editor's node graph, WITHOUT image bytes. */
+  /** The editor node graph — structure only, no image bytes and no text. */
   workflow: Record<string, unknown> | null;
+  /**
+   * The strings pulled out of that graph. Encrypted here, never stored in the
+   * jsonb: the prompt would otherwise sit in clear two columns from
+   * final_prompt_ct and make that encryption decoration.
+   */
+  workflowTexts?: string[];
   /**
    * The images fed in, in prompt order. A null keeps the position — "@Image 2"
    * has to keep meaning the second one even if the second failed to store.
@@ -140,6 +146,9 @@ export async function recordGeneration(
         output_format: rec.output?.format ?? null,
         generation_ms: rec.generationMs,
         workflow: rec.workflow,
+        ...(rec.workflowTexts?.length
+          ? envelope("workflow_text", JSON.stringify(rec.workflowTexts))
+          : {}),
         transaction_hash: rec.transactionHash ?? null,
         chain_key: rec.chainKey ?? null,
         amount_paid_cents: rec.amountPaidCents ?? null,

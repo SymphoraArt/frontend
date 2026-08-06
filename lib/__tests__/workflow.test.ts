@@ -59,14 +59,16 @@ describe("stripWorkflowImages", () => {
     expect(nodes[2].image).toEqual({ $ref: 1 });
   });
 
-  it("keeps the rest of the graph byte-for-byte", () => {
-    const { workflow } = stripWorkflowImages(graph());
+  it("keeps the STRUCTURE intact while the authored text leaves", () => {
+    const { workflow, texts } = stripWorkflowImages(graph());
     const w = workflow as Record<string, any>;
     expect(w.format).toBe("enki-prompt-graph");
     expect(w.settings).toEqual({ models: ["nano-banana-pro"], ratio: "16:9", quality: "2K" });
-    expect(w.prompt).toBe("a brass astrolabe");
     expect(w.nodes[0]).toEqual({ id: "n1", type: "EnkiPrompt", pos: [0, 0] });
     expect(w.v).toBe(1);
+    // The prompt is a marker here and the text lives encrypted elsewhere.
+    expect(w.prompt).toEqual({ $text: expect.any(Number) });
+    expect(texts).toContain("a brass astrolabe");
   });
 
   it("does not mistake ordinary text for an image", () => {
@@ -101,5 +103,73 @@ describe("stripWorkflowImages", () => {
       nodes: { image?: unknown }[];
     };
     expect(restored.nodes[2].image).toBeNull();
+  });
+});
+
+/**
+ * The graph must never hand a database dump what final_prompt_ct is encrypted
+ * to protect. These check the SERIALISED blob for the actual strings — a
+ * shape-only check would pass while the prompt sat in clear.
+ */
+describe("no authored text survives in the stored graph", () => {
+  const SECRET = "a weathered brass astrolabe, cinematic, my secret style recipe";
+
+  it("pulls the prompt out of the graph entirely", () => {
+    const { workflow, texts } = stripWorkflowImages({
+      format: "enki-prompt-graph",
+      title: "My private title",
+      prompt: SECRET,
+      nodes: [{ id: "n1", type: "EnkiPrompt", userInput: "hidden user text" }],
+    });
+    const blob = JSON.stringify(workflow);
+
+    expect(blob).not.toContain(SECRET);
+    expect(blob).not.toContain("astrolabe");
+    expect(blob).not.toContain("My private title");
+    expect(blob).not.toContain("hidden user text");
+
+    expect(texts).toContain(SECRET);
+    expect(texts).toContain("My private title");
+    expect(texts).toContain("hidden user text");
+  });
+
+  it("keeps structure readable, so the row stays queryable", () => {
+    const { workflow } = stripWorkflowImages({
+      format: "enki-prompt-graph",
+      prompt: SECRET,
+      settings: { ratio: "16:9", quality: "2K", mode: "doc" },
+      nodes: [{ id: "n1", type: "EnkiReferenceImage", pos: [10, 20], index: 3 }],
+    });
+    const w = workflow as Record<string, any>;
+
+    expect(w.format).toBe("enki-prompt-graph");
+    expect(w.settings.ratio).toBe("16:9");
+    expect(w.settings.quality).toBe("2K");
+    expect(w.nodes[0].id).toBe("n1");
+    expect(w.nodes[0].type).toBe("EnkiReferenceImage");
+    expect(w.nodes[0].pos).toEqual([10, 20]);
+    expect(w.nodes[0].index).toBe(3);
+  });
+
+  it("fails closed: a field nobody allowlisted is encrypted, not leaked", () => {
+    // The day the editor adds a new text field, it must not appear in clear.
+    const { workflow, texts } = stripWorkflowImages({
+      nodes: [{ id: "n1", type: "X", someNewCaptionField: "leaked?" }],
+    });
+    expect(JSON.stringify(workflow)).not.toContain("leaked?");
+    expect(texts).toContain("leaked?");
+  });
+
+  it("round-trips text back into place", () => {
+    const { workflow, texts } = stripWorkflowImages({ prompt: SECRET, nodes: [] });
+    const restored = restoreWorkflowImages(workflow, [], texts) as { prompt: string };
+    expect(restored.prompt).toBe(SECRET);
+  });
+
+  it("stores a repeated string once", () => {
+    const { texts } = stripWorkflowImages({
+      nodes: [{ str: "same" }, { str: "same" }, { str: "other" }],
+    });
+    expect(texts).toEqual(["same", "other"]);
   });
 });

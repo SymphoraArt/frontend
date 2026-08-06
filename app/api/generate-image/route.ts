@@ -840,6 +840,7 @@ export async function POST(request: NextRequest) {
                 : null,
             generationMs: geminiResult.generationTime ?? null,
             workflow: stripped.workflow,
+            workflowTexts: stripped.texts,
             // Uploaded once and referenced, rather than inlined into the
             // workflow blob: the same reference across twenty generations is
             // one object and twenty rows, not twenty copies of the base64.
