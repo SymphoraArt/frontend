@@ -5,7 +5,17 @@
    moved for a moment, then the "go back" bubble appeared instead). */
 html, body { overscroll-behavior-x: none; }
 
-/* ─── Enki Design System ─────────────────────────────── */
+/* ─── Enki Design System ─────────────────────────────────────────────────
+   The UNSCOPED copy of the tokens: what a component gets when it is not
+   inside .ek-app or .enki. Those two scoped copies (components/enki-shell/
+   enki-shell.css and components/enki/enki.css) must carry the SAME values —
+   lib/__tests__/enki-theme-tokens.test.ts fails the build if they diverge.
+
+   They used to. This block declared a neutral shadcn dark (#0a0a0a paper,
+   #f1f1f3 ink, #c96838 ember) while the scoped copies declared Enki's blue
+   slate (#0a1825 / #e4edf1 / #cba24a), and it had no purple block at all.
+   Every component outside those two containers therefore rendered in a theme
+   the rest of the app abandoned, and never turned purple. */
 :root {
   --enki-paper: #faf8f4;
   --enki-paper-2: #f3efe7;
@@ -16,21 +26,39 @@ html, body { overscroll-behavior-x: none; }
   --enki-rule: #d8d2c5;
   --enki-rule-2: #ebe5d8;
   --enki-ember: #c96838;
+  --enki-turq: #0d9488;
+  --enki-danger: #b3271e;
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
   --font-serif: var(--font-instrument-serif), 'Georgia', serif;
 }
 
 .dark {
-  --enki-paper: #0a0a0a;
-  --enki-paper-2: #17171a;
-  --enki-paper-3: #1a1a1f;
-  --enki-ink: #f1f1f3;
-  --enki-ink-2: #a3a3a3;
-  --enki-ink-3: #737373;
-  --enki-rule: #27272b;
-  --enki-rule-2: #3f3f46;
-  --enki-ember: #c96838;
+  --enki-paper: #0a1825;
+  --enki-paper-2: #102433;
+  --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1;
+  --enki-ink-2: #97aebb;
+  --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849;
+  --enki-rule-2: #2a4658;
+  --enki-ember: #cba24a;
+  --enki-turq: #2dd4bf;
+  --enki-danger: #e0584f;
+}
+
+.dark.theme-purple {
+  --enki-paper: #140e1f;
+  --enki-paper-2: #1c1330;
+  --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5;
+  --enki-ink-2: #a99fc0;
+  --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442;
+  --enki-rule-2: #3d3154;
+  --enki-ember: #a855f7;
+  --enki-turq: #2dd4bf;
+  --enki-danger: #e0584f;
 }
 
 /* ConnectWallet Button - Theme-aware styling */

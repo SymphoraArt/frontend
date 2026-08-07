@@ -115,4 +115,7 @@ alter table providers
 comment on column providers.x402_endpoint is
   'Base URL that answers HTTP 402 with a price. Set = this provider can be price-refreshed and liveness-probed for free.';
 
-update providers set x402_endpoint = 'https://x402.acedata.cloud' where key = 'acedata';
+-- No provider is given an endpoint here. The column is the mechanism; which
+-- hosts get one is a separate decision, and the only x402 platform measured so
+-- far (AceData) is on hold until its commercial-use terms are answered in
+-- writing. An UPDATE per provider is all it takes once that is settled.

@@ -87,6 +87,52 @@ describe("enki theme tokens", () => {
   // than slow: measured 19s on a loaded machine against vitest's 5s default.
   // An explicit budget, and each file read ONCE instead of twice — a test that
   // goes red depending on disk contention teaches people to ignore red.
+  /**
+   * The same tokens are declared in three files, and for a while they
+   * disagreed: globals.css carried a neutral shadcn dark (#0a0a0a paper,
+   * #f1f1f3 ink) while both scoped copies carried Enki's blue slate
+   * (#0a1825 / #e4edf1), and globals.css had no purple block at all. Every
+   * component outside .ek-app and .enki rendered in an abandoned theme and
+   * never turned purple, and nothing said so.
+   *
+   * Consolidating them was the fix; this is what keeps them consolidated.
+   */
+  describe("the three declaration sites agree", () => {
+    const SITES = {
+      "enki-shell.css": { file: "components/enki-shell/enki-shell.css", sel: { light: ".ek-app", dark: ".dark .ek-app", purple: ".dark.theme-purple .ek-app" } },
+      "enki.css": { file: "components/enki/enki.css", sel: { light: ".enki", dark: ".dark .enki", purple: ".dark.theme-purple .enki" } },
+      "globals.css": { file: "app/globals.css", sel: { light: ":root", dark: ".dark", purple: ".dark.theme-purple" } },
+    } as const;
+
+    const read = (file: string, selector: string): Record<string, string> => {
+      const src = readFileSync(join(ROOT, file), "utf8");
+      const re = new RegExp(`(?:^|\\n)${selector.replace(/[.\\]/g, "\\$&")}\\s*\\{([\\s\\S]*?)\\n\\}`);
+      const block = src.match(re);
+      if (!block) throw new Error(`no "${selector}" rule in ${file}`);
+      return Object.fromEntries(
+        [...block[1].matchAll(/--(enki-[a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8})/g)].map((m) => [m[1], m[2].toLowerCase()]),
+      );
+    };
+
+    for (const theme of ["light", "dark", "purple"] as const) {
+      it(`declares the same ${theme} values everywhere it is declared`, () => {
+        const perSite = Object.entries(SITES).map(([name, s]) => [name, read(s.file, s.sel[theme])] as const);
+        // Guard against a vacuous pass: a selector that stopped matching would
+        // yield {} and agree with everything.
+        for (const [name, t] of perSite) expect(Object.keys(t).length, name).toBeGreaterThanOrEqual(9);
+
+        const [, canonical] = perSite[0];
+        for (const [name, t] of perSite.slice(1)) {
+          for (const [token, value] of Object.entries(t)) {
+            // Only tokens a site actually declares are compared — a file is
+            // allowed to carry fewer, never a different value for the same one.
+            expect(`${name} ${token} = ${value}`).toBe(`${name} ${token} = ${canonical[token] ?? value}`);
+          }
+        }
+      });
+    }
+  });
+
   it("every page that mounts .ek-app loads the stylesheet defining it", () => {
     // `"ek-app"` is the class literal; `".ek-app"` (querySelector) is not a mount.
     const mounts = tsxFiles(join(ROOT, "app"))
