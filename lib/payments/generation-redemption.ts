@@ -19,8 +19,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A consumed-but-unfulfilled claim older than this is provably dead: the
-// generate route's function budget (maxDuration 120s) has long expired.
-const STALE_CLAIM_MS = 3 * 60_000;
+// generate route's function budget (maxDuration 300s) and the concurrency
+// slot TTL (330s) have both expired. Below that, this releases the claim of a
+// generation that is still running — which either lets the same payment buy a
+// second image or hands over the first one unpaid.
+const STALE_CLAIM_MS = 360_000;
 
 export type RedemptionResult =
   | { ok: true; resolution: string; modelFamily: string }

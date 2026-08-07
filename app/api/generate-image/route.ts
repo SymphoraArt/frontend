@@ -39,7 +39,21 @@ import {
 // slow day, and the failure lands AFTER the buyer has authorised payment.
 export const maxDuration = 300;
 
-const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
+// Four budgets that MUST stay in this order, or a generation that is still
+// running gets treated as dead by something downstream:
+//
+//   240s  this timeout      give up in-process, with time left to upload,
+//                           record and answer inside the platform budget
+//   300s  maxDuration       the platform kills the function here
+//   330s  SLOT_TTL_MS       (lib/generation/concurrency.ts) a killed function
+//                           must not free its slot before it is truly gone
+//   360s  STALE_CLAIM_MS    (lib/payments/generation-redemption.ts) a claim is
+//                           only "provably dead" once every step above is
+//
+// Raising maxDuration alone inverts it: at 300s the slot expires at 150s and
+// the claim is released at 180s while the generation is still legitimately
+// running — the concurrency cap silently breaks and a live payment is undone.
+const SOLANA_GENERATION_TIMEOUT_MS = 240_000;
 
 type GenerateImageBody = {
   prompt?: string;

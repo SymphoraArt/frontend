@@ -21,8 +21,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * no database function needed.
  */
 
-/** Above the route's maxDuration of 120s, so a killed function frees its own. */
-const SLOT_TTL_MS = 150_000;
+/**
+ * Above the route's maxDuration (300s), so a killed function frees its own
+ * slot and never before. Below it, a generation still running loses its slot
+ * to the next request and the admin's concurrency cap is silently breached.
+ * Kept in step with the budget ladder documented in app/api/generate-image.
+ */
+const SLOT_TTL_MS = 330_000;
 
 export interface SlotResult {
   /** Null when the request may proceed without a slot (unlimited policy). */
