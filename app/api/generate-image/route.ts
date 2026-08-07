@@ -713,8 +713,7 @@ export async function POST(request: NextRequest) {
         const errTxt = await xaiResponse.text();
         console.error('❌ Grok image generation failed:', errTxt);
         await releaseIfConsumed();
-    await releaseHeldSlot();
-      await releaseHeldSlot();
+        await releaseHeldSlot();
         return NextResponse.json({ error: 'Grok Image generation failed', retryable: true }, { status: 500 });
       }
 
@@ -723,8 +722,7 @@ export async function POST(request: NextRequest) {
 
       if (!grokUrl) {
         await releaseIfConsumed();
-    await releaseHeldSlot();
-      await releaseHeldSlot();
+        await releaseHeldSlot();
         return NextResponse.json({ error: 'No image URL returned from Grok', retryable: true }, { status: 500 });
       }
 
