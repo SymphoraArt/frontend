@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import crypto from "crypto";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { recordModerationEvent } from "@/lib/moderation-enforcement";
 
 type VariableType =
   | "text"
@@ -263,6 +265,29 @@ export async function POST(req: Request) {
       public_prompt_text: body.content.slice(0, 220),
       updated_at: nowIso,
     };
+
+    // Moderation. This route had none: a listed prompt is the one piece of
+    // user text we hand to a model on someone else's behalf AND show publicly
+    // (public_prompt_text is the first 220 characters, verbatim), so it is the
+    // most consequential thing on the platform to leave unfiltered.
+    //
+    // Before BOTH branches. Gating only the insert would leave editing an
+    // existing listing as the way round it — create something harmless, then
+    // change it.
+    //
+    // The full content is checked, not just the public excerpt: encryption at
+    // rest protects the artist's work from a database dump, it does not make
+    // the prompt safe to run.
+    const moderatedText = [body.title, body.content, ...(Array.isArray(tags) ? tags : [])]
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .join("\n");
+    if (moderatedText) {
+      const verdict = await moderate({ prompt: moderatedText, surface: "upload", signal: req.signal });
+      after(recordModerationEvent(verdict, { surface: "upload", request: req, prompt: moderatedText }));
+      if (!verdict.allowed) {
+        return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
+      }
+    }
 
     let promptId: string;
 

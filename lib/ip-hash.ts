@@ -1,9 +1,13 @@
 import { createHmac } from "crypto";
-import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** First client IP from the proxy headers (dev/localhost: ::1 or null). */
-export function getClientIp(req: NextRequest): string | null {
+/**
+ * Only the headers are read, so the parameter is typed by what is used rather
+ * than by NextRequest. Route handlers that take a plain `Request` — several
+ * do — could otherwise not report a moderation event at all.
+ */
+export function getClientIp(req: { headers: { get(name: string): string | null } }): string | null {
   const fwd = req.headers.get("x-forwarded-for");
   return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || null;
 }

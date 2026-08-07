@@ -17,7 +17,6 @@
  * the council, through the existing `bans` table — which is also why
  * bans.issued_by is NOT NULL: the schema already assumes a human signs off.
  */
-import type { NextRequest } from "next/server";
 import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
 import { resolveSessionUserId } from "@/lib/session-user";
 import { getClientIp, hashIp } from "@/lib/ip-hash";
@@ -26,8 +25,13 @@ import type { ModerationVerdict } from "@/lib/moderation";
 
 export interface RecordContext {
   surface: string;
-  /** The request — the session token and client IP are read off it here. */
-  request: NextRequest;
+  /**
+   * The request — the session token and client IP are read off it here, and
+   * nothing else is. Typed by that rather than as NextRequest so handlers
+   * taking a plain `Request` can still record their verdicts; a route that
+   * cannot report is a route that silently stops being evidence.
+   */
+  request: { headers: { get(name: string): string | null } };
   /** The prompt itself; stored encrypted, never in clear. */
   prompt: string;
 }

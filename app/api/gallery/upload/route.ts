@@ -1,7 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, after } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { createErrorResponse, createSuccessResponse } from "../../../middleware/validation";
 import { tryMakeDerivatives } from "@/lib/imageDerivatives";
+import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { recordModerationEvent } from "@/lib/moderation-enforcement";
+
+/**
+ * The metadata field is client-supplied text. `JSON.parse` on it threw
+ * straight out of the handler for anything malformed — a 500 for a typo, and
+ * an upload already written to blob storage with no row to point at it.
+ */
+function safeJson(raw: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -137,6 +153,32 @@ export async function POST(req: NextRequest) {
     const sanitizedPrompt = sanitizeString(prompt, 2000);
     const sanitizedMetadata = metadata ? sanitizeString(metadata, 5000) : null;
 
+    // Moderation. This route had NONE: generate-image and generate-free both
+    // gate on it, so an upload was the one way into the gallery that no filter
+    // watched — and it is the easier one, because the attacker brings the
+    // image and only has to get the text past us.
+    //
+    // Runs BEFORE the blob upload on purpose: a refused caption must not leave
+    // a file paid for and stored, and a refusal after the upload would mean
+    // deleting something we had already written.
+    //
+    // The title travels with the caption. It is displayed in the same places
+    // and moderating one while ignoring the other just moves the payload one
+    // field across.
+    const rawTitle = sanitizedMetadata ? safeJson(sanitizedMetadata)?.title : null;
+    const title = typeof rawTitle === "string" ? rawTitle : null;
+    const moderatedText = [sanitizedPrompt, title].filter(Boolean).join("\n");
+    if (moderatedText) {
+      const verdict = await moderate({ prompt: moderatedText, surface: "upload", signal: req.signal });
+      // after() rather than a bare void: on a block this route returns at once,
+      // and a floating promise can be frozen with the lambda before the insert
+      // lands — losing exactly the events worth keeping.
+      after(recordModerationEvent(verdict, { surface: "upload", request: req, prompt: moderatedText }));
+      if (!verdict.allowed) {
+        return createErrorResponse(CLIENT_BLOCK_MESSAGE, 422);
+      }
+    }
+
     // Upload image to blob storage
     console.log(`📤 Uploading image for user ${userId}...`);
     const imageUrl = await uploadToBlob(file, userId);
@@ -194,7 +236,9 @@ export async function POST(req: NextRequest) {
       // The caption the user typed. Kept as the image's own description rather
       // than as a prompt: it never produced anything.
       description: sanitizedPrompt || null,
-      title: sanitizedMetadata ? (JSON.parse(sanitizedMetadata)?.title ?? null) : null,
+      // Parsed once, above, where it is also moderated — parsing it twice
+      // risked the two disagreeing about what the title actually is.
+      title,
       created_at: nowIso,
     };
 
