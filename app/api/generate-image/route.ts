@@ -18,7 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
-import { resolveModel, routeFor } from "@/lib/generation/models";
+import { resolveModel, chooseRoute } from "@/lib/generation/models";
+import { reportSuccess, reportFailure } from "@/lib/generation/provider-health";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
 import { storeReferenceImages } from "@/lib/generation/reference-images";
@@ -33,7 +34,10 @@ import {
 // Above the 90s provider timeout: the in-process timeout (and the intent
 // release it triggers) must fire BEFORE the platform kills the function,
 // otherwise a paid, consumed intent is stranded with no release.
-export const maxDuration = 120;
+// WaveSpeed's nano-banana-pro measured 73-78s and AceData's gpt-image-2 at
+// 3840x2160 took 63s — both inside 120s, but with no room for a retry or a
+// slow day, and the failure lands AFTER the buyer has authorised payment.
+export const maxDuration = 300;
 
 const SOLANA_GENERATION_TIMEOUT_MS = 90_000;
 
@@ -252,7 +256,21 @@ export async function POST(request: NextRequest) {
     // money has moved. GPT-Image-2 is exactly that case today: its row is
     // honest about pointing at OpenAI, and there is no OpenAI path yet.
     const preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
-    const preflightRoute = routeFor(preflightModel, body.boost);
+    // Chosen HERE and nowhere else, because the quote below carries the price
+    // of a specific host: quoting AceData and then generating on WaveSpeed
+    // would charge the wrong amount. This also skips hosts whose breaker is
+    // open, so an outage costs a fallback rather than a failed payment.
+    const preflightRoute = await chooseRoute(
+      getSupabaseServerClientSafe(),
+      preflightModel,
+      {
+        boost: body.boost,
+        quality: preflightModel.supportsQuality ? body.quality : null,
+        resolution: preflightModel.supportsResolution
+          ? (body.resolution ?? null)
+          : null,
+      },
+    );
     const IMPLEMENTED: readonly string[] = ["gemini", "wavespeed", "pollinations", "openai"];
     if (!IMPLEMENTED.includes(preflightRoute.provider)) {
       return NextResponse.json(
@@ -778,6 +796,19 @@ export async function POST(request: NextRequest) {
         : await geminiRequest;
 
       if (!geminiResult.success || !geminiResult.imageBuffers?.length) {
+        // Tell the breaker. It classifies: a refused prompt says nothing about
+        // the host and never counts, while a dead key or an empty balance
+        // takes every route of that provider out at once.
+        if (route.modelProviderId && route.providerId) {
+          after(
+            reportFailure(
+              getSupabaseServerClient(),
+              route.modelProviderId,
+              route.providerId,
+              geminiResult.error || "generation failed",
+            ),
+          );
+        }
         await releaseIfConsumed();
         await releaseHeldSlot();
         return NextResponse.json(
@@ -785,12 +816,17 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+
+      // A delivered image resets the count, so three unrelated blips spread
+      // over a week never add up to an outage.
+      if (route.modelProviderId && route.providerId) {
+        after(reportSuccess(getSupabaseServerClient(), route.modelProviderId, route.providerId));
+      }
     }
 
     const generatedImageBuffer = geminiResult.imageBuffers?.[0];
     if (!generatedImageBuffer) {
       await releaseIfConsumed();
-    await releaseHeldSlot();
       await releaseHeldSlot();
       return NextResponse.json({ error: 'No generated image buffer returned', retryable: true }, { status: 500 });
     }

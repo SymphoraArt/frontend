@@ -13,13 +13,23 @@
  * existed; it is not the source of truth.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { eligibleRoutes, pickRoute, type RouteLink, type RouteCandidate } from "@/lib/generation/routing";
+import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-health";
 
-export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations";
+export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
 export interface Route {
   provider: Provider;
   /** The provider's own model id, e.g. "gemini-3-pro-image-preview". */
   providerModel: string;
+  /**
+   * The model_providers row this came from, and its provider. Carried so the
+   * circuit breaker can be told which ROUTE succeeded or failed — health is
+   * per route, because an aggregator hosts each model on a different upstream
+   * and they fail independently.
+   */
+  modelProviderId?: string;
+  providerId?: string;
 }
 
 export interface ResolvedModel {
@@ -39,6 +49,12 @@ export interface ResolvedModel {
   boost: Route;
   allowedRatios: string[];
   maxRefs: number;
+  /**
+   * Every model_providers row for this model, unfiltered. chooseRoute() walks
+   * them per request; normal/boost above stay as the settings-independent
+   * answer everything else already depends on.
+   */
+  links?: unknown[];
   /** True when the model honours a size/resolution request. */
   supportsResolution: boolean;
   /**
@@ -102,7 +118,9 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     // resolution the user picks really does change the image.
     supportsResolution: true,
     // low | medium | high, accepted by BOTH hosts — verified live 2026-08-06.
-    // It is also the real price lever: ~/usr/bin/bash.006 / /usr/bin/bash.053 / /usr/bin/bash.211 at 1024².
+    // It is also the real price lever on OpenAI: roughly 0.006 / 0.053 / 0.211
+    // USD at 1024², a 35x spread. AceData is the exception — measured
+    // 2026-08-06, quality changes neither its price nor its output there.
     supportsQuality: true,
   },
   "flux-free": {
@@ -129,10 +147,19 @@ export const DEFAULT_MODEL: ResolvedModel = {
 
 /** A row of model_providers with its provider embedded. */
 interface LinkRow {
+  id?: string | null;
   role?: string | null;
   provider_model?: string | null;
   active?: boolean | null;
-  providers?: { key?: string | null; audience?: string | null; active?: boolean | null } | null;
+  priority?: number | null;
+  applies_when?: Record<string, string[]> | null;
+  provider_id?: string | null;
+  providers?: {
+    id?: string | null;
+    key?: string | null;
+    audience?: string | null;
+    active?: boolean | null;
+  } | null;
 }
 
 interface ModelRow {
@@ -156,7 +183,12 @@ function linkToRoute(link: LinkRow | undefined, audience: Audience): Route | nul
   const want = (p.audience as Audience) ?? "public";
   if (want !== "public" && want !== audience) return null;
   if (!link.provider_model) return null;
-  return { provider: p.key as Provider, providerModel: link.provider_model };
+  return {
+    provider: p.key as Provider,
+    providerModel: link.provider_model,
+    modelProviderId: link.id ?? undefined,
+    providerId: link.provider_id ?? p.id ?? undefined,
+  };
 }
 
 function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
@@ -179,6 +211,10 @@ function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
     name: row.name ?? DEFAULT_MODEL.name,
     normal,
     boost,
+    // The raw rows travel with the model because the ORDERED choice cannot be
+    // made here: which route is cheapest depends on the quality and resolution
+    // of the request, which fromRow never sees.
+    links,
     allowedRatios: row.allowed_ratios?.length ? row.allowed_ratios : DEFAULT_MODEL.allowedRatios,
     maxRefs: typeof row.max_reference_images === "number" ? row.max_reference_images : DEFAULT_MODEL.maxRefs,
     // Derived from the model, never from a column: whether a model honours a
@@ -205,7 +241,7 @@ export async function resolveModelByName(
       .from("models")
       .select(
         "id, name, allowed_ratios, max_reference_images, " +
-        "model_providers(role, provider_model, active, providers(key, audience, active))",
+        "model_providers(id, role, provider_model, active, priority, applies_when, provider_id, providers(id, key, audience, active))",
       )
       .ilike("name", name)
       .eq("active", true)
@@ -239,7 +275,7 @@ export async function resolveModel(
     let rows: ModelRow[];
     const joined = await pick(
       "id, name, allowed_ratios, max_reference_images, " +
-      "model_providers(role, provider_model, active, providers(key, audience, active))",
+      "model_providers(id, role, provider_model, active, priority, applies_when, provider_id, providers(id, key, audience, active))",
     );
     if (joined.error) {
       const flat = await pick("id, name, allowed_ratios, max_reference_images");
@@ -260,3 +296,61 @@ export async function resolveModel(
 
 /** Exposed for tests: the pure row -> route mapping, without a database. */
 export const __testing__ = { fromRow, linkToRoute };
+
+/**
+ * The route this request should actually run on: cheapest first, skipping
+ * hosts whose breaker is open, probing one that is due.
+ *
+ * routeFor() above still answers the settings-independent question everything
+ * else asks. This is the one the generation itself uses, because which host is
+ * cheapest depends on the quality and resolution being requested — AceData's
+ * flat gpt-image-2 price loses at 1K and wins from 2K up.
+ *
+ * Falls back to routeFor() whenever the ordered list cannot be built: no
+ * priority columns yet, no matching row, everything down. Delivering the image
+ * matters more than delivering it cheaply.
+ */
+export async function chooseRoute(
+  supabase: SupabaseClient | null,
+  model: ResolvedModel,
+  opts: { boost?: boolean; quality?: string | null; resolution?: string | null },
+  audience: Audience = "public",
+): Promise<Route> {
+  const fallback = routeFor(model, opts.boost);
+  const links = (model.links ?? []) as RouteLink[];
+  if (!supabase || links.length === 0) return fallback;
+
+  const candidates = eligibleRoutes(
+    links,
+    { quality: opts.quality, resolution: opts.resolution },
+    opts.boost ? "boost" : "normal",
+    audience,
+  );
+  if (candidates.length === 0) return fallback;
+
+  const health = await loadHealth(
+    supabase,
+    candidates.map((c) => c.id).filter(Boolean),
+  );
+  const now = Date.now();
+  const { chosen, probe } = pickRoute(candidates, (id) =>
+    breakerVerdict(health.get(id) ?? null, now),
+  );
+
+  // A route that is due a probe gets one before we spend more of the buyer's
+  // money elsewhere: the x402 quote is free and takes about 200ms, so asking
+  // is cheaper than assuming it is still down.
+  for (const c of probe) {
+    const alive = await runProbe(supabase, c.id, c.providerId, c.providerKey, c.providerModel);
+    if (alive) return toRoute(c);
+  }
+
+  return chosen ? toRoute(chosen) : fallback;
+}
+
+const toRoute = (c: RouteCandidate): Route => ({
+  provider: c.providerKey as Provider,
+  providerModel: c.providerModel,
+  modelProviderId: c.id,
+  providerId: c.providerId,
+});
