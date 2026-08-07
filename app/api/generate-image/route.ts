@@ -42,7 +42,7 @@ export const maxDuration = 300;
 // Four budgets that MUST stay in this order, or a generation that is still
 // running gets treated as dead by something downstream:
 //
-//   240s  this timeout      give up in-process, with time left to upload,
+//   285s  this timeout      give up in-process, with time left to upload,
 //                           record and answer inside the platform budget
 //   300s  maxDuration       the platform kills the function here
 //   330s  SLOT_TTL_MS       (lib/generation/concurrency.ts) a killed function
@@ -53,7 +53,17 @@ export const maxDuration = 300;
 // Raising maxDuration alone inverts it: at 300s the slot expires at 150s and
 // the claim is released at 180s while the generation is still legitimately
 // running — the concurrency cap silently breaks and a live payment is undone.
-const SOLANA_GENERATION_TIMEOUT_MS = 240_000;
+// 15s of headroom, not a round guess. Measured 2026-08-07 on the largest real
+// output we have (3840x2160, 13.92 MB PNG from bench-output/): the sharp
+// derivatives cost 250ms. The rest of the headroom is for moving roughly 14 MB
+// down from the provider and 14 MB up into blob storage, which cannot be
+// measured from a dev machine — hence 15s rather than 1s.
+//
+// Raising it further buys nothing: the slowest generation ever measured here
+// is 78.1s (WaveSpeed nano-banana-pro at 2K), so this bound is never what ends
+// a real request. It only decides how long a HUNG one makes the user wait
+// before it can answer with something they can act on.
+const SOLANA_GENERATION_TIMEOUT_MS = 285_000;
 
 type GenerateImageBody = {
   prompt?: string;
@@ -686,7 +696,20 @@ export async function POST(request: NextRequest) {
     // call so a hung generation can't strand an already-paid request.
     const paidUpfront = isSolanaPayment || !!consumedIntent;
 
-    if (xaiKey) {
+    // Gated on the RESOLVED ROUTE, not on the key alone. As `if (xaiKey)` this
+    // hijacked every generation the moment XAI_API_KEY appeared in the
+    // environment: the buyer picked and paid for Nano Banana Pro at 4K with
+    // reference images, and got grok-imagine-image instead — past the
+    // preflight, the resolution, the quality tier and the breaker. Exactly the
+    // bug lib/generation/models.ts exists to prevent, sitting in a branch that
+    // ran before the provider switch.
+    //
+    // No provider row has the key "xai" and it is absent from IMPLEMENTED, so
+    // this is now unreachable rather than merely unset. Reaching it needs a
+    // providers row, which is the same gate every other host passes through.
+    // (xAI's real intended use here is workflow variable generation — a text
+    // call, not this.)
+    if (xaiKey && (preflightRoute.provider as string) === "xai") {
       console.log('🎨 Generating image with Grok...');
 
       const xaiRequest = fetch("https://api.x.ai/v1/images/generations", {

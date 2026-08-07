@@ -6,7 +6,7 @@ Design note, 2026-08-07. Not implemented — nothing in this document has been b
 
 > **Applied 2026-08-07.** Recommendation A has been carried out in full: the
 > route now exports `maxDuration = 300` and all three dependent budgets moved
-> with it (240 / 300 / 330 / 360). The paragraph below describes the state that
+> with it (285 / 300 / 330 / 360). The paragraph below describes the state that
 > prompted the change and is kept for the reasoning, not as a current reading.
 >
 > Raising `maxDuration` alone — which is what happened first — inverted the
@@ -141,15 +141,20 @@ Raise `maxDuration` to **300** — the default and the ceiling on every plan, so
 safe without knowing which one we are on — and fix the cap that is supposed to
 protect payments:
 
-- `SOLANA_GENERATION_TIMEOUT_MS` 90 → **240**, matching the WaveSpeed adapter's own
-  `MAX_POLL_MS` so the two stop disagreeing about when a call is dead.
+- `SOLANA_GENERATION_TIMEOUT_MS` 90 → **285**, i.e. the platform kill minus the
+  headroom the tail of the request actually needs. Measured 2026-08-07 on the
+  largest real output (3840x2160, 13.92 MB): sharp derivatives cost 250ms; the
+  remaining ~15s covers moving ~14 MB down from the provider and ~14 MB up into
+  blob storage, which cannot be measured from a dev machine. It sits ABOVE the
+  WaveSpeed adapter's own 240s `MAX_POLL_MS`, so that adapter still gives up
+  first and returns its own error rather than being cut off mid-poll.
 - Apply that cap on **every paid path**, not just `paidUpfront`. The EVM x402 branch
   settles and then generates with no cap at all; it is the only place money can be
   taken with no release path, and it is a one-line condition.
 - `SLOT_TTL_MS` 150 → **330** and `STALE_CLAIM_MS` 180 → **360**, both of which exist
   only to sit above the kill.
 
-Ordering is the whole point and must hold: **240 (in-process) < 300 (platform) < 330
+Ordering is the whole point and must hold: **285 (in-process) < 300 (platform) < 330
 (slot) < 360 (stale claim)**. A Vercel kill skips `finally`, so the intent release has
 to fire from inside the process — that is why the in-process cap exists and why it
 must stay strictly below `maxDuration`. 60s of headroom inside the 300 covers the
@@ -158,7 +163,7 @@ rewrite, the upload and the record, and absorbs a 127s two-provider fallback cha
 Five numbers, one condition, no new surface, one clean revert. B and D cost a public
 endpoint, signature verification, an idempotency story and a permanent second code
 path to solve a problem a number already solves. Revisit when one call genuinely
-exceeds ~240s — video, or batch `n > 1`.
+exceeds ~285s — video, or batch `n > 1`.
 
 Explicitly not fixed: 80 seconds of blank spinner. That is a UI change (stream
 progress, which also keeps the connection warm), and it should be its own commit.
