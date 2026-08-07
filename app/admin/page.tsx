@@ -9,6 +9,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/enki-shell/icons";
+/* The page below is styled with `.ek-app` + --enki-* — but this route never
+   pulled in the stylesheet that defines them (only /home imports it, via
+   EnkiHome). The tokens then fell back to the stale globals.css copy, which
+   has no `.dark.theme-purple` block at all: the panel stayed neutral black
+   with an orange accent while the rest of the app went violet. */
+import "@/components/enki-shell/enki-shell.css";
 import { useBetaAccess } from "@/components/BetaGate";
 import { useTheme } from "../../providers/ThemeProvider";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -34,7 +40,7 @@ const REJECT_REASONS = ["Duplicate", "Low quality", "Not a prompt", "Spam", "Pol
 /* ── the admin sidebar's own palette: inverted warm dark, theme-independent ── */
 const SB = {
   bg: "#1a1715", ink: "#f0ece3", muted: "#8a8377", nav: "#b9b2a4", navOn: "#faf8f4",
-  emberText: "#f0b799", emberHover: "#ffd9c2",
+  ember: "#c96838", emberText: "#f0b799", emberHover: "#ffd9c2",
 };
 const MONO = "var(--font-mono), monospace";
 const SERIF = "var(--font-serif), Georgia, serif";
@@ -66,7 +72,7 @@ const rowStyle: React.CSSProperties = { display: "flex", alignItems: "center", g
 
 function Pill({ kind, label, onClick, title }: { kind: keyof typeof PILL | "plain"; label: string; onClick?: () => void; title?: string }) {
   const c = kind === "plain"
-    ? { bg: "var(--enki-paper)", ink: "var(--enki-ink-2)", border: "var(--enki-rule)" }
+    ? { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)", border: "var(--enki-rule-2)" }
     : PILL[kind];
   return (
     <button onClick={onClick} title={title} style={{
@@ -240,7 +246,7 @@ export default function AdminPage() {
     return (
       <div className="ek-app" style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "var(--enki-paper)" }}>
         <div style={{ maxWidth: 380, textAlign: "center", border: "1px solid var(--enki-rule-2, var(--enki-rule))", borderRadius: 16, background: "var(--enki-paper)", padding: "34px 30px" }}>
-          <span style={{ color: "#b33a3a", display: "inline-block", marginBottom: 10 }}>
+          <span style={{ color: "var(--enki-danger)", display: "inline-block", marginBottom: 10 }}>
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><path d="m14.5 9.5-5 5" /><path d="m9.5 9.5 5 5" /></svg>
           </span>
           <h1 style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 26, fontWeight: 400, margin: "0 0 8px", color: "var(--enki-ink)" }}>Admins only.</h1>
@@ -271,11 +277,11 @@ export default function AdminPage() {
 
   const stats: { label: string; value: number; dot: string; go: Tab }[] = [
     { label: "Pending imports", value: d.imports.length, dot: "var(--enki-ember)", go: "imports" },
-    { label: "Open reports", value: d.reports.length, dot: "#b33a3a", go: "reports" },
-    { label: "Unpaid feedback", value: d.feedback.filter((f) => !f.paid).length, dot: "#6E4A1E", go: "feedback" },
-    { label: "Active strikes", value: d.strikes.reduce((n, s) => n + s.strikes.length, 0), dot: "#8B2E2E", go: "strikes" },
-    { label: "Open appeals", value: d.strikes.filter((s) => s.appeal).length, dot: "#4A2E6E", go: "strikes" },
-    { label: "Recovery pending", value: d.recovery.filter((r) => r.status === "pending").length, dot: "#1E4A6E", go: "recovery" },
+    { label: "Open reports", value: d.reports.length, dot: "var(--enki-danger)", go: "reports" },
+    { label: "Unpaid feedback", value: d.feedback.filter((f) => !f.paid).length, dot: "var(--enki-ember)", go: "feedback" },
+    { label: "Active strikes", value: d.strikes.reduce((n, s) => n + s.strikes.length, 0), dot: "var(--enki-danger)", go: "strikes" },
+    { label: "Open appeals", value: d.strikes.filter((s) => s.appeal).length, dot: "var(--enki-turq)", go: "strikes" },
+    { label: "Recovery pending", value: d.recovery.filter((r) => r.status === "pending").length, dot: "var(--enki-turq)", go: "recovery" },
   ];
 
   const initials = ((profile?.handle || handle || "?") as string).slice(0, 2).toUpperCase();
@@ -315,8 +321,11 @@ export default function AdminPage() {
             <button key={t.id} className={"adm-nav" + (tab === t.id ? " on" : "")} onClick={() => { setTab(t.id); setQuery(""); }}>
               <Icon name={t.icon} size={16} stroke={1.9} />
               <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</span>
+              {/* The count badge keeps the sidebar's own ember. --enki-ember now
+                  follows the theme (gold / violet) and would clash with the fixed
+                  warm accents right beside it. */}
               {counts[t.id] > 0 && (
-                <span style={{ minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: "var(--enki-ember, #c96838)", color: "#fff", fontFamily: MONO, fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: SB.ember, color: SB.navOn, fontFamily: MONO, fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {counts[t.id]}
                 </span>
               )}
@@ -424,7 +433,7 @@ export default function AdminPage() {
                         </span>
                         <span style={{ width: 88, fontFamily: MONO, fontSize: 10.5, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis" }}>@{r.hunter}</span>
                         <span style={{ flex: 0.9, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                          {r.tags.map((t) => <span key={t} style={{ fontFamily: MONO, fontSize: 8.5, color: "var(--enki-ink-3)", background: "var(--enki-paper-2)", borderRadius: 4, padding: "2px 6px" }}>{t}</span>)}
+                          {r.tags.map((t) => <span key={t} style={{ fontFamily: MONO, fontSize: 8.5, color: "var(--enki-ink-2)", background: "var(--enki-paper-2)", borderRadius: 4, padding: "2px 6px" }}>{t}</span>)}
                         </span>
                         <span style={{ width: 52, textAlign: "right", fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)" }}>{timeAgo(r.at)}</span>
                         {impRejectId === r.id ? (
@@ -456,7 +465,7 @@ export default function AdminPage() {
                   {d.reports.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: "var(--enki-ink-3)" }}>No open reports ✓</div>}
                   {d.reports.map((r) => (
                     <div key={r.id} style={rowStyle}>
-                      <span style={{ width: 30, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: typeof r.severity === "number" && r.severity >= 3 ? "#b33a3a" : "var(--enki-ink)" }}>!</span>
+                      <span style={{ width: 30, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: typeof r.severity === "number" && r.severity >= 3 ? "var(--enki-danger)" : "var(--enki-ink)" }}>!</span>
                       <span style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 14, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.details ?? undefined}>{r.target}</span>
                       <Badge pal={r.type === "prompt" ? PILL.blue : PILL.amber} label={r.type} />
                       <span style={{ width: 90, fontSize: 11, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.reason}</span>
@@ -506,7 +515,7 @@ export default function AdminPage() {
                         )}
                       </div>
                       {fbOpen === r.id && (
-                        <div style={{ padding: "2px 0 12px 10px", borderLeft: "3px solid #e8c89a", margin: "0 0 8px 4px" }}>
+                        <div style={{ padding: "2px 0 12px 10px", borderLeft: `3px solid ${PILL.amber.border}`, margin: "0 0 8px 4px" }}>
                           <p style={{ margin: 0, fontSize: 12, color: "var(--enki-ink-2)", lineHeight: 1.65, maxWidth: 640 }}>{r.desc}</p>
                         </div>
                       )}
@@ -563,7 +572,7 @@ export default function AdminPage() {
                         <span style={{ width: 140, fontSize: 12.5, fontWeight: 600, color: "var(--enki-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                         <span style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 10.5, color: "var(--enki-ink-2)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.address}</span>
                         <Badge pal={PILL.blue} label={r.type} />
-                        <Badge pal={{ bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" }} label={r.chain} />
+                        <Badge pal={{ bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)" }} label={r.chain} />
                         <span style={{ flex: 1, fontSize: 11, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes ?? "—"}</span>
                         <Pill kind="red" label="Delete" onClick={() => setDelPending(r)} />
                       </div>
@@ -578,7 +587,7 @@ export default function AdminPage() {
                   {d.hunters.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: "var(--enki-ink-3)" }}>No hunter activity yet.</div>}
                   {d.hunters.map((r) => {
                     const score = r.total > 0 ? Math.round((r.approved / r.total) * 100) : 0;
-                    const col = score >= 80 ? "#1f8a5b" : score >= 50 ? "#b8860b" : "#b33a3a";
+                    const col = score >= 80 ? "var(--enki-turq)" : score >= 50 ? "var(--enki-ember)" : "var(--enki-danger)";
                     return (
                       <div key={r.handle} style={{ ...rowStyle, gap: 12, padding: "10px 0" }}>
                         <span style={{ width: 110, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: "var(--enki-ink)" }}>@{r.handle}</span>
@@ -607,10 +616,10 @@ export default function AdminPage() {
                         <div style={rowStyle}>
                           <span style={{ width: 116, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: "var(--enki-ink)", overflow: "hidden", textOverflow: "ellipsis" }}>@{r.handle}</span>
                           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            {[0, 1, 2].map((i) => <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: i < Math.min(n, 3) ? "#b33a3a" : "var(--enki-rule-2, var(--enki-rule))" }} />)}
+                            {[0, 1, 2].map((i) => <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: i < Math.min(n, 3) ? "var(--enki-danger)" : "var(--enki-rule-2, var(--enki-rule))" }} />)}
                             <span style={{ fontFamily: MONO, fontSize: 9, color: "var(--enki-ink-3)", marginLeft: 2 }}>{n}/3</span>
                           </span>
-                          <Badge pal={r.banned ? PILL.red : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" } as { bg: string; ink: string }} label={r.permanent ? "permbanned" : r.banned ? "banned" : "active"} />
+                          <Badge pal={r.banned ? PILL.red : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)" } as { bg: string; ink: string }} label={r.permanent ? "permbanned" : r.banned ? "banned" : "active"} />
                           <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--enki-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.note ?? "—"}</span>
                           {r.appeal && (
                             <button onClick={() => setAppealOpen((v) => (v === r.userId ? null : r.userId))} style={{ padding: "3px 9px", borderRadius: 999, border: `1px solid ${PILL.purple.border}`, background: PILL.purple.bg, color: PILL.purple.ink, fontSize: 9.5, fontWeight: 600, cursor: "pointer" }}>
@@ -701,7 +710,7 @@ export default function AdminPage() {
                         style={{ ...rowStyle, cursor: "pointer" }}
                         onClick={() => setAmOpen(amOpen === r.id ? null : r.id)}
                       >
-                        <span style={{ width: 30, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: r.severity === "review" ? "#b33a3a" : "var(--enki-ink-3)" }}>
+                        <span style={{ width: 30, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: r.severity === "review" ? "var(--enki-danger)" : "var(--enki-ink-3)" }}>
                           {r.tier === 1 ? "1" : r.tier === 2 ? "2" : "—"}
                         </span>
                         <span style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 14, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -781,7 +790,7 @@ export default function AdminPage() {
                       const statusPal =
                         p.status === "approved" ? PILL.green
                         : p.status === "denied" ? PILL.red
-                        : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" } as { bg: string; ink: string };
+                        : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)" } as { bg: string; ink: string };
                       return (
                         <div key={p.id} style={rowStyle}>
                           <Badge pal={p.kind === "ban_temp" ? PILL.amber : PILL.red} label={kindLabel} />
@@ -824,7 +833,7 @@ export default function AdminPage() {
                       r.status === "approved" ? PILL.green
                       : r.status === "rejected" ? PILL.red
                       : r.status === "needs_info" ? PILL.amber
-                      : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" } as { bg: string; ink: string };
+                      : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)" } as { bg: string; ink: string };
                     return (
                       <div key={r.id}>
                         <div style={{ ...rowStyle, cursor: "pointer" }} onClick={() => setRecOpen((v) => (v === r.id ? null : r.id))}>
@@ -835,7 +844,7 @@ export default function AdminPage() {
                               ? <Badge pal={PILL.red} label="minimal evidence" />
                               : r.evidence.map((e, i) => (
                                   <Badge key={i}
-                                    pal={e.kind.toLowerCase().includes("zkp") ? PILL.purple : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-3)" } as { bg: string; ink: string }}
+                                    pal={e.kind.toLowerCase().includes("zkp") ? PILL.purple : { bg: "var(--enki-paper-2)", ink: "var(--enki-ink-2)" } as { bg: string; ink: string }}
                                     label={e.kind + (e.matched ? " ✓" : "")} />
                                 ))}
                           </span>
@@ -945,7 +954,7 @@ export default function AdminPage() {
                         })()} />
                       </div>
                       {Number(polQuorum) > c.members.length && (
-                        <p style={{ margin: "0 0 8px", fontSize: 11, color: "#8B2E2E" }}>
+                        <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--enki-danger)" }}>
                           Quorum is larger than the council ({c.members.length} member{c.members.length === 1 ? "" : "s"}) — no proposal can pass until more admins exist.
                         </p>
                       )}
@@ -987,7 +996,7 @@ export default function AdminPage() {
       )}
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", zIndex: 400, background: "#1a1715", color: "#fff", fontSize: 12.5, padding: "9px 16px", borderRadius: 999, boxShadow: "0 10px 30px rgba(0,0,0,0.3)", animation: "adm-toast .2s ease", whiteSpace: "nowrap" }}>
+        <div style={{ position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)", zIndex: 400, background: "var(--enki-ink)", color: "var(--enki-paper)", fontSize: 12.5, padding: "9px 16px", borderRadius: 999, boxShadow: "0 10px 30px rgba(0,0,0,0.3)", animation: "adm-toast .2s ease", whiteSpace: "nowrap" }}>
           {toast}
         </div>
       )}

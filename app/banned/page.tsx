@@ -5,6 +5,9 @@
    and the funds truth: a ban locks the marketplace, never the wallet. */
 
 import { useEffect, useState } from "react";
+/* Defines `.ek-app` and the --enki-* tokens this page paints with — without it
+   they fall back to the globals.css copy, which has no purple variant. */
+import "@/components/enki-shell/enki-shell.css";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 
 type BanMe = {
@@ -82,7 +85,7 @@ export default function BannedPage() {
           <>
             <div style={card}>
               <div style={{ ...micro, marginBottom: 6 }}>Account status</div>
-              <h1 style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 30, fontWeight: 400, margin: "0 0 6px", color: "#b33a3a" }}>Banned.</h1>
+              <h1 style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 30, fontWeight: 400, margin: "0 0 6px", color: "var(--enki-danger)" }}>Banned.</h1>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--enki-ink-2)", lineHeight: 1.65 }}>
                 {me.reason ?? "No reason recorded."}
               </p>

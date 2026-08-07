@@ -11,6 +11,10 @@
   --enki-rule: #d8d2c5; --enki-rule-2: #ebe5d8; --enki-ember: #c96838;
   --ember-rgb: 201, 104, 56;
   --enki-turq: #0d9488; --turq-rgb: 13, 148, 136;
+  /* One red per theme, because a single literal cannot clear 4.5:1 on both
+     cream and near-black. Both values were already in this file (recovery
+     banner / refer error) — this only lets them switch with the theme. */
+  --enki-danger: #b3271e;
   --header-bg: rgba(255, 255, 255, 0.92);
   --qc-bg: #1a1715; --qc-ink: #ffffff;
   --cta-bg: #1a1715; --cta-ink: #ffffff;
@@ -28,6 +32,7 @@
   --enki-rule: #1e3849; --enki-rule-2: #2a4658; --enki-ember: #cba24a;
   --ember-rgb: 203, 162, 74;
   --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --enki-danger: #e0584f;
   --header-bg: rgba(10, 24, 37, 0.92);
   --qc-bg: #f0a868; --qc-ink: #3a2410;
   --cta-bg: linear-gradient(135deg, #cba24a 0%, #b8862f 100%); --cta-ink: #0a1825;
@@ -38,6 +43,7 @@
   --enki-rule: #2e2442; --enki-rule-2: #3d3154; --enki-ember: #a855f7;
   --ember-rgb: 168, 85, 247;
   --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --enki-danger: #e0584f;
   --header-bg: rgba(20, 14, 32, 0.92);
   --qc-bg: #8b5cf6; --qc-ink: #ffffff;
   --cta-bg: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); --cta-ink: #ffffff;
