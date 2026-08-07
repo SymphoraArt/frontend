@@ -19,6 +19,9 @@ import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, chooseRoute } from "@/lib/generation/models";
+import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
+import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
+import type { VoidReason } from "@/lib/payments/authorization";
 import { reportSuccess, reportFailure } from "@/lib/generation/provider-health";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
@@ -27,7 +30,6 @@ import { acquireSlot, releaseSlot } from "@/lib/generation/concurrency";
 import { stripWorkflowImages } from "@/lib/generation/workflow";
 import {
   fulfillGenerationIntent,
-  redeemGenerationIntent,
   releaseGenerationIntent,
 } from "@/lib/payments/generation-redemption";
 
@@ -195,13 +197,36 @@ export async function POST(request: NextRequest) {
   // helper can never throw); every generation-failure path — including the
   // catch-all below — must release it so the buyer retries without paying
   // again.
-  let consumedIntent: { supabase: SupabaseClient; id: string } | null = null;
-  const releaseIfConsumed = async () => {
-    if (consumedIntent) {
-      await releaseGenerationIntent(consumedIntent.supabase, consumedIntent.id);
-      consumedIntent = null;
+  let consumedIntent: { supabase: SupabaseClient; id: string; mode: ClaimMode } | null = null;
+  /**
+   * Give the payment back. What that MEANS depends on the model, and the two
+   * are not interchangeable:
+   *
+   *   prepaid     the transfer already settled, so all we can return is the
+   *               claim — the buyer keeps a usable intent and retries.
+   *   authorized  nothing has moved. Void it and close the nonce, which kills
+   *               the held signature for good. Returning the claim instead
+   *               would leave a live signature on a generation we gave up on.
+   */
+  const releaseIfConsumed = async (reason: VoidReason = "provider_failed") => {
+    if (!consumedIntent) return;
+    const held = consumedIntent;
+    consumedIntent = null;
+    if (held.mode === "authorized") {
+      await voidAndFlush(held.supabase, held.id, reason).catch((e) =>
+        console.error("[generate] void failed:", held.id, e instanceof Error ? e.message : e),
+      );
+    } else {
+      await releaseGenerationIntent(held.supabase, held.id);
     }
   };
+
+  // Flush authorisations whose worker went quiet. Opportunistic because this
+  // deployment has no scheduler: every generation sweeps a few on its way in,
+  // so under load it runs constantly, and with no load there is also nobody
+  // whose held signature could be misused. after() so a slow sweep never
+  // delays a paying customer, and sweepAndFlush never throws.
+  after(sweepAndFlush(getSupabaseServerClient()));
 
   // Held for the length of the generation. Declared out here so EVERY exit —
   // success, provider failure, the catch-all — gives it back: a leaked slot
@@ -443,14 +468,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
       }
       const supabase = getSupabaseServerClient();
-      const redemption = await redeemGenerationIntent(supabase, {
+      // One claim function for both payment models. Two independent claim
+      // paths against one row is how a double charge happens: each correct on
+      // its own, together broadcasting a held transaction for funds that had
+      // already settled. It refuses an intent carrying the markers of both
+      // rather than guessing which.
+      const redemption = await claimForGeneration(supabase, {
         intentId,
         buyerWallet: authUser.userId,
       });
       if (!redemption.ok) {
         return NextResponse.json({ error: redemption.error }, { status: redemption.status });
       }
-      consumedIntent = { supabase, id: intentId };
+      consumedIntent = { supabase, id: intentId, mode: redemption.mode };
       paidResolution = redemption.resolution;
       paymentResult = {
         success: true,
@@ -901,10 +931,33 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Using data URL fallback due to upload error');
     }
 
-    // The paid image is delivered — mark the intent fulfilled so the
-    // stale-claim rescue can never mistake it for a dead claim.
+    // The image exists and is stored. NOW take the money.
+    //
+    // This order is the whole promise: "once the image goes through, we will
+    // receive the money. otherwise it will be sent back" (Kev, 2026-08-06),
+    // written into Terms of Use Section 4. Capturing before the image was
+    // durably stored would charge for something an upload failure could still
+    // lose; capturing after means the only thing a crash in between costs us
+    // is our own fee, and that is the direction that must fail.
+    //
+    // For a prepaid intent there is nothing to capture — the transfer settled
+    // before the generation started — so this marks it delivered and stops.
     if (consumedIntent) {
-      await fulfillGenerationIntent(consumedIntent.supabase, consumedIntent.id);
+      const settled = consumedIntent;
+      if (settled.mode === "authorized") {
+        const captured = await captureAndBroadcast(settled.supabase, settled.id);
+        if (!captured) {
+          // The claim was lost (swept as abandoned) or the broadcast failed.
+          // Either way the buyer keeps the image: a durable-nonce transaction
+          // does not expire, so a failed broadcast stays rebroadcastable, and
+          // only we can invalidate that nonce.
+          console.error("[generate] delivered but not captured:", settled.id);
+        }
+      }
+      // Marks the intent delivered so the stale-claim rescue can never mistake
+      // it for a dead claim and hand out a second image.
+      await fulfillGenerationIntent(settled.supabase, settled.id);
+      consumedIntent = null;
     }
 
     // Write the generation down. after() rather than await: the record must
