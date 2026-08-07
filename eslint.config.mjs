@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored design snapshot: never imported, never typechecked (it is not in
+    // tsconfig include). Linting it only adds noise the gate would have to
+    // baseline away.
+    ".design/**",
   ]),
   // CDP hooks only work inside CDPHooksProvider, which mounts lazily and only
   // for signed-in users. Called anywhere else they throw at runtime and take
@@ -31,6 +35,15 @@ const eslintConfig = defineConfig([
               name: "@coinbase/cdp-hooks",
               message:
                 "CDP hooks throw outside CdpProvider. Use lib/cdp-bridge instead (useCdpAddress / requestCdpSign / requestCdpKeyExport).",
+            },
+          ],
+          // `paths` matches the bare specifier only, so
+          // "@coinbase/cdp-hooks/dist/index.js" walked straight past the ban.
+          patterns: [
+            {
+              group: ["@coinbase/cdp-hooks/*"],
+              message:
+                "Same ban as the bare import — a subpath is not a loophole. Use lib/cdp-bridge.",
             },
           ],
         },

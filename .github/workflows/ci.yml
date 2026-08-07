@@ -1,13 +1,18 @@
 # Enki CI — the quality gate. Green + Kev's merge click = done.
 # Maintenance rules (agreed):
-#  - The gate is REAL: vitest runs the lib/** suites (money math). No
-#    --passWithNoTests — deleting tests turns the gate red.
+#  - The gate is REAL: vitest runs the lib/** suites (money math, moderation).
+#    No --passWithNoTests — deleting tests turns the gate red.
+#  - Every job runs the same npm script a dev runs locally. If CI and the
+#    terminal can disagree, the gate is theatre.
+#  - npm ci, never npm install: install resolves fresh versions and would test
+#    a dependency tree nobody has on their machine.
 #  - Backend suites (backend/vitest.config.ts) join as a second step when
 #    PR #54 lands them; the broken @jest/globals legacy files stay excluded
 #    until the backend team rewrites them.
 #  - A test that fails then passes with no code change is flaky: skip it via
 #    .skip + open a fix ticket. Never "just rerun" as a routine.
-#  - Tests must not hit real network/time — mock everything.
+#  - Tests must not hit real network/time — mock everything. vitest.setup.ts
+#    enforces it: an unmocked fetch throws instead of billing a provider.
 name: ci
 
 on:
@@ -16,17 +21,35 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Legacy errors are frozen in eslint-suppressions.json, so this is green
+      # today and red the moment a NEW one appears. The rule that matters most
+      # here has zero entries in that file: the ban on importing
+      # @coinbase/cdp-hooks outside the provider tree (eslint.config.mjs) —
+      # a violation takes the editor down at runtime and tsc cannot see it.
+      # Shrink the baseline with `npm run lint:prune`.
+      - name: ESLint
+        run: npm run lint
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: TypeScript check
-        run: npx tsc --noEmit --skipLibCheck
+        run: npm run check
 
   tests:
     runs-on: ubuntu-latest
@@ -34,11 +57,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install --no-audit --no-fund
-      - name: Unit tests (lib money math)
-        run: npx vitest run
+      - run: npm ci --no-audit --no-fund
+      - name: Unit tests (money math, moderation)
+        run: npm test
 
   # Full production build. tsc --noEmit misses a whole class of errors that
   # only `next build` catches: PageProps violations (a page.tsx default export
@@ -67,8 +90,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Production build (next build)
         run: npm run build

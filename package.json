@@ -8,7 +8,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --pass-on-unpruned-suppressions",
+    "lint:prune": "eslint --prune-suppressions",
+    "test": "vitest run",
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "dev:webpack": "next dev --webpack"
