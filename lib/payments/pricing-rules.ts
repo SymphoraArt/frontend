@@ -141,14 +141,29 @@ export async function resolvePricingRule(
 export function applyRuleToSplit(split: GenerationSplit, rule: AppliedRule): GenerationSplit {
   if (rule.effect.type === "fee_percent_off") {
     const pct = Math.min(100, Math.max(0, rule.effect.value));
-    const enkiFeeMicro = split.enkiFeeMicro - Math.floor((split.enkiFeeMicro * pct) / 100);
+    // The discount touches only the PLATFORM part of the fee. The network fee
+    // is a passed-through cost, not margin — "100% off the fee" waiving it
+    // would have Enki paying the chain out of pocket on every discounted
+    // sale, which is a silent per-sale loss no campaign ever priced in.
+    const platformFeeMicro = split.enkiFeeMicro - split.networkFeeMicro;
+    const enkiFeeMicro =
+      split.networkFeeMicro + platformFeeMicro - Math.floor((platformFeeMicro * pct) / 100);
     const enkiTotalMicro = split.modelCostMicro + enkiFeeMicro;
     return { ...split, enkiFeeMicro, enkiTotalMicro, totalMicro: split.artistAmountMicro + enkiTotalMicro };
   }
-  // free_generation — Enki subsidizes its whole leg. NOTE for the pay route:
-  // on a free prompt this makes totalMicro 0; a zero-total intent must be
-  // short-circuited (no on-chain transfer, mark paid directly).
-  return { ...split, modelCostMicro: 0, enkiFeeMicro: 0, enkiTotalMicro: 0, totalMicro: split.artistAmountMicro };
+  // free_generation — Enki subsidizes its whole leg, the network fee
+  // included: a "free" generation that still bills half a cent is not free,
+  // it is a support ticket. NOTE for the pay route: on a free prompt this
+  // makes totalMicro 0; a zero-total intent must be short-circuited (no
+  // on-chain transfer, mark paid directly).
+  return {
+    ...split,
+    modelCostMicro: 0,
+    enkiFeeMicro: 0,
+    networkFeeMicro: 0,
+    enkiTotalMicro: 0,
+    totalMicro: split.artistAmountMicro,
+  };
 }
 
 // NOTE: there is deliberately NO redemption counter. Free-use quotas are

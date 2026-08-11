@@ -49,19 +49,30 @@ describe("computeGenerationSplit", () => {
     }
   });
 
-  it("fees exactly 10% of the subtotal, floored to the buyer's favor", () => {
-    // $1 premium prompt + $0.07 model → fee on $1.07
+  it("fees are 10% of the subtotal plus the flat network fee", () => {
+    // $1 premium prompt + $0.07 model → 10% on $1.07, plus $0.005 network
+    // (Kev, 2026-08-12: the chain cost is the buyer's, shown at checkout).
     const s = computeGenerationSplit(1_000_000, 70_000);
-    expect(s.enkiFeeMicro).toBe(107_000);
+    expect(s.enkiFeeMicro).toBe(107_000 + PRICING_POLICY.networkFeeMicro);
+    expect(s.networkFeeMicro).toBe(PRICING_POLICY.networkFeeMicro);
     expect(s.artistAmountMicro).toBe(1_000_000); // addOn: artist keeps the listed price
-    expect(s.totalMicro).toBe(1_177_000);
+    expect(s.totalMicro).toBe(1_177_000 + PRICING_POLICY.networkFeeMicro);
+  });
+
+  it("pins the network fee at half a cent, inside the fee component", () => {
+    // Flat by design: a per-request SOL conversion would show the buyer a fee
+    // that jitters between quote and capture. Covers the measured ~25-30k
+    // lamports (~$0.002) with margin.
+    expect(PRICING_POLICY.networkFeeMicro).toBe(5_000);
+    const s = computeGenerationSplit(1_000_000, 70_000);
+    expect(s.networkFeeMicro).toBeLessThanOrEqual(s.enkiFeeMicro);
   });
 
   it("free prompts have no artist leg", () => {
     const s = computeGenerationSplit(0, 70_000);
     expect(s.artistAmountMicro).toBe(0);
-    expect(s.enkiTotalMicro).toBe(77_000);
-    expect(s.totalMicro).toBe(77_000);
+    expect(s.enkiTotalMicro).toBe(77_000 + PRICING_POLICY.networkFeeMicro);
+    expect(s.totalMicro).toBe(77_000 + PRICING_POLICY.networkFeeMicro);
   });
 
   it("rejects fractional or negative micro amounts", () => {
@@ -80,7 +91,10 @@ describe("getModelCostMicro", () => {
 describe("splitToBreakdown", () => {
   it("serializes amounts as strings with the fee-policy snapshot", () => {
     const b = splitToBreakdown(computeGenerationSplit(0, 70_000));
-    expect(b.totalAmount).toBe("77000");
+    expect(b.totalAmount).toBe(String(77_000 + PRICING_POLICY.networkFeeMicro));
+    // The checkout shows this line — ToS §4 conditions passing the fee on
+    // upon displaying it before the order is confirmed.
+    expect(b.networkFee).toBe(String(PRICING_POLICY.networkFeeMicro));
     expect(b.currency).toBe("USDC");
     expect(b.decimals).toBe(6);
     expect(b.feePolicy).toEqual({

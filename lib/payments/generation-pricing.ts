@@ -34,11 +34,28 @@ export const PRICING_POLICY: {
   feeBase: FeeBase;
   feeMode: FeeMode;
   quoteTtlSeconds: number;
+  networkFeeMicro: number;
 } = {
   enkiFeeBps: 1000,
   feeBase: "subtotal",
   feeMode: "addOn",
   quoteTtlSeconds: 300,
+  /**
+   * The Solana network cost of one paid generation, passed to the buyer
+   * (Kev, 2026-08-12 — reversing ToS §4's "currently paid by Enki", which
+   * reserved exactly this and requires the fee to be SHOWN before the order
+   * is confirmed; splitToBreakdown carries it for that).
+   *
+   * Charged in USDC because buyers hold no SOL — Enki still pays the chain
+   * and collects the equivalent here. Flat rather than metered per
+   * transaction: measured cost is ~25-30k lamports per generation (nonce
+   * create ~10k, close ~5k, the payment itself ~10-15k, base fee 5k/signature)
+   * ≈ $0.002 at SOL $75, plus occasional priority fees. Half a cent covers
+   * that with margin, and a flat, displayed number is honest in the ToS §4
+   * sense — a per-request SOL-price conversion would show the buyer a fee
+   * that jitters between quote and capture.
+   */
+  networkFeeMicro: 5_000,
 };
 
 export const MICRO_PER_USDC = 1_000_000;
@@ -83,8 +100,19 @@ export interface GenerationSplit {
   artistAmountMicro: number;
   /** Raw provider cost component (informational; part of the Enki leg). */
   modelCostMicro: number;
-  /** Enki fee component (informational; part of the Enki leg). */
+  /**
+   * Enki fee component (informational; part of the Enki leg). INCLUDES the
+   * network fee — the DB rows and the leg invariant (artist + model + fee =
+   * total) know only these three components, so the network fee lives inside
+   * this one rather than growing every schema and assertion around it.
+   */
   enkiFeeMicro: number;
+  /**
+   * The network-cost part of enkiFeeMicro, carried separately so the checkout
+   * can SHOW it (ToS §4: a passed-on network fee must be displayed before the
+   * order is confirmed). Never larger than enkiFeeMicro.
+   */
+  networkFeeMicro: number;
   /** Second transfer: model cost + fee → Enki wallet. */
   enkiTotalMicro: number;
   /** What the buyer pays in total (artist leg + Enki leg). */
@@ -108,9 +136,9 @@ export function computeGenerationSplit(
     PRICING_POLICY.feeBase === "subtotal"
       ? artistPriceMicro + modelCostMicro
       : modelCostMicro;
-  const enkiFeeMicro = Math.floor(
-    (feeBaseMicro * PRICING_POLICY.enkiFeeBps) / 10_000,
-  );
+  const networkFeeMicro = PRICING_POLICY.networkFeeMicro;
+  const enkiFeeMicro =
+    Math.floor((feeBaseMicro * PRICING_POLICY.enkiFeeBps) / 10_000) + networkFeeMicro;
 
   let artistAmountMicro: number;
   if (PRICING_POLICY.feeMode === "addOn") {
@@ -131,6 +159,7 @@ export function computeGenerationSplit(
     artistAmountMicro,
     modelCostMicro,
     enkiFeeMicro,
+    networkFeeMicro,
     enkiTotalMicro,
     totalMicro,
   };
@@ -148,6 +177,9 @@ export function splitToBreakdown(split: GenerationSplit) {
     artistAmount: String(split.artistAmountMicro),
     modelCost: String(split.modelCostMicro),
     enkiFee: String(split.enkiFeeMicro),
+    // Broken out of enkiFee so the checkout can show it — ToS §4 conditions
+    // passing the network fee on upon displaying it before the order.
+    networkFee: String(split.networkFeeMicro),
     enkiTotal: String(split.enkiTotalMicro),
     totalAmount: String(split.totalMicro),
     currency: "USDC" as const,
