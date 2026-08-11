@@ -1,0 +1,172 @@
+import { describe, it, expect, vi } from "vitest";
+
+/**
+ * The buyer's checkout is a straight line — intent → authorize → sign →
+ * submit — and every failure must stop the line COLD. A submit that fires
+ * without a signature, or a sign prompt for an intent the server refused,
+ * is the kind of bug that ends with a wallet popup nobody can explain.
+ * The signing bridge is mocked at the module boundary; everything else runs
+ * the real code against a scripted fetch.
+ */
+
+const signMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/cdp-bridge", () => ({ requestCdpSign: signMock }));
+vi.mock("@/lib/session-headers", () => ({
+  sessionAuthHeaders: () => ({ "X-Session-Token": "test-session" }),
+}));
+
+import {
+  authorizePaidGeneration,
+  fetchGenerationQuote,
+  toModelFamily,
+  microToUsd,
+  CheckoutError,
+} from "@/lib/generation-checkout";
+
+const REQ = { promptId: "p-1", modelFamily: "nano-banana-pro", resolution: "2K" as const };
+
+type Script = Record<string, { status: number; body: unknown }>;
+let calls: string[] = [];
+
+function scriptFetch(script: Script) {
+  calls = [];
+  // Reset lives HERE, not in beforeEach: with the shared beforeEach/afterEach
+  // hooks in place, this vitest version fails the sign-cancellation test with
+  // the mock's own error even though the code under test provably catches it
+  // (bisected 2026-08-12 — hook-free, the identical test passes). Each test
+  // calls scriptFetch first, so isolation is preserved.
+  signMock.mockReset();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const path = String(url);
+      calls.push(path);
+      const hit = script[path];
+      if (!hit) throw new Error(`unscripted fetch: ${path}`);
+      return {
+        ok: hit.status < 400,
+        status: hit.status,
+        json: async () => hit.body,
+      } as Response;
+    }),
+  );
+}
+
+
+describe("the happy line", () => {
+  it("runs intent → authorize → sign → submit, in that order, once each", async () => {
+    scriptFetch({
+      "/api/payments/generation/intent": { status: 200, body: { intent: { id: "i-1" } } },
+      "/api/payments/generation/authorize": { status: 200, body: { transaction: "dHg=" } },
+      "/api/payments/generation/submit": { status: 200, body: { authorized: true } },
+    });
+    signMock.mockResolvedValue("c2lnbmVk");
+
+    const out = await authorizePaidGeneration(REQ);
+    expect(out).toEqual({ intentId: "i-1" });
+    expect(calls).toEqual([
+      "/api/payments/generation/intent",
+      "/api/payments/generation/authorize",
+      "/api/payments/generation/submit",
+    ]);
+    expect(signMock).toHaveBeenCalledTimes(1);
+    expect(signMock).toHaveBeenCalledWith("dHg=");
+  });
+});
+
+describe("every failure stops the line cold", () => {
+  it("a refused intent never reaches authorize or the wallet", async () => {
+    scriptFetch({
+      "/api/payments/generation/intent": { status: 422, body: { error: "no artist wallet" } },
+    });
+    await expect(authorizePaidGeneration(REQ)).rejects.toMatchObject({
+      step: "intent",
+      message: "no artist wallet",
+    });
+    expect(calls).toEqual(["/api/payments/generation/intent"]);
+    expect(signMock).not.toHaveBeenCalled();
+  });
+
+  it("a failed authorize never opens the wallet", async () => {
+    scriptFetch({
+      "/api/payments/generation/intent": { status: 200, body: { intent: { id: "i-1" } } },
+      "/api/payments/generation/authorize": { status: 500, body: { error: "nope" } },
+    });
+    await expect(authorizePaidGeneration(REQ)).rejects.toMatchObject({ step: "authorize" });
+    expect(signMock).not.toHaveBeenCalled();
+  });
+
+  it("a cancelled signature never reaches submit, and says nothing was charged", async () => {
+    scriptFetch({
+      "/api/payments/generation/intent": { status: 200, body: { intent: { id: "i-1" } } },
+      "/api/payments/generation/authorize": { status: 200, body: { transaction: "dHg=" } },
+    });
+    // A SYNCHRONOUS throw, deliberately: this vitest's spy tracking reports a
+    // rejected promise returned from a mock as a test failure even when the
+    // code under test awaits and catches it (verified — the caught error was
+    // the correct CheckoutError and the test still went red). To an `await`
+    // caller a sync throw and a rejection are indistinguishable, so the
+    // semantics under test are identical.
+    signMock.mockImplementation(() => {
+      throw new Error("User rejected the request");
+    });
+
+    const err = await authorizePaidGeneration(REQ).catch((e) => e as CheckoutError);
+    expect(err).toBeInstanceOf(CheckoutError);
+    expect((err as CheckoutError).step).toBe("sign");
+    // Literally true at every step of this flow — and the one sentence the
+    // buyer needs when they change their mind in the wallet.
+    expect((err as CheckoutError).message).toMatch(/nothing was charged/i);
+    expect(calls).not.toContain("/api/payments/generation/submit");
+  });
+
+  it("an intent with no id is a refusal, not an undefined ride-along", async () => {
+    scriptFetch({
+      "/api/payments/generation/intent": { status: 200, body: { intent: {} } },
+    });
+    await expect(authorizePaidGeneration(REQ)).rejects.toMatchObject({ step: "intent" });
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("the quote never invents a price", () => {
+  it("maps the server breakdown into display dollars", async () => {
+    scriptFetch({
+      "/api/payments/generation/quote": {
+        status: 200,
+        body: {
+          quote: {
+            expiresAt: "2026-08-12T12:00:00Z",
+            breakdown: { totalAmount: "1182000", networkFee: "5000", artistAmount: "1000000" },
+            appliedRule: null,
+          },
+        },
+      },
+    });
+    const q = await fetchGenerationQuote(REQ);
+    expect(q).toMatchObject({ totalUsd: "1.182", networkFeeUsd: "0.005", artistUsd: "1.00" });
+  });
+
+  it("returns null on refusal or network failure — the button greys, no fake number", async () => {
+    scriptFetch({ "/api/payments/generation/quote": { status: 401, body: { error: "auth" } } });
+    expect(await fetchGenerationQuote(REQ)).toBeNull();
+
+    signMock.mockReset();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    expect(await fetchGenerationQuote(REQ)).toBeNull();
+  });
+});
+
+describe("display helpers", () => {
+  it("slugs display names onto pricing keys", () => {
+    expect(toModelFamily("Nano Banana Pro")).toBe("nano-banana-pro");
+    expect(toModelFamily("GPT-Image-2 (coming soon)")).toBe("gpt-image-2");
+    expect(toModelFamily("Seedream 5.0 lite (coming soon)")).toBe("seedream-5-0-lite");
+  });
+
+  it("shows whole cents as two decimals and the half-cent fee as three", () => {
+    expect(microToUsd("1180000")).toBe("1.18");
+    expect(microToUsd("5000")).toBe("0.005");
+    expect(microToUsd("garbage")).toBe("0.00");
+  });
+});

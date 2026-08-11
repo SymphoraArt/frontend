@@ -1,6 +1,7 @@
 "use client";
 
 import { sessionAuthHeaders } from "@/lib/session-headers";
+import { fetchGenerationQuote, authorizePaidGeneration, toModelFamily } from "@/lib/generation-checkout";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useActiveAccount } from "thirdweb/react";
@@ -174,6 +175,21 @@ export default function PromptGeneratorView({
     false;
   const price = prompt?.price ?? 0;
   const tags = prompt?.tags?.length ? prompt.tags : [];
+
+  /* The real total, from the server's own arithmetic. boostedCost(price) was
+     only ever the ARTIST price — it omitted model cost, platform fee and the
+     network fee, so the button promised less than the charge. A paid prompt
+     with no quote greys out rather than showing a number we invented. */
+  const modelFamily = toModelFamily(generator);
+  const quoteResolution = resolution === "4K" ? ("4K" as const) : ("2K" as const);
+  const { data: paidQuote } = useQuery({
+    queryKey: ["generation-quote", promptId, modelFamily, quoteResolution],
+    queryFn: () =>
+      fetchGenerationQuote({ promptId: promptId!, modelFamily, resolution: quoteResolution }),
+    enabled: !isFree && !!promptId && !loading,
+    // Quotes expire server-side after 5 minutes; refresh a little sooner.
+    refetchInterval: 4 * 60 * 1000,
+  });
   const showcaseImages = prompt?.showcaseImages?.length ? prompt.showcaseImages : propShowcaseImages;
   const mainImage = showcaseImages[0]?.thumbnail || showcaseImages[0]?.url || propImageUrl || "";
   const promptText = prompt?.publicPromptText || "";
@@ -336,12 +352,33 @@ export default function PromptGeneratorView({
         if (filled) final = `${final}, ${filled}`;
       }
 
-      /* 2. Generate image */
-      const res = await fetch("/api/generate-free", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution }),
-      });
+      /* 2. Generate image.
+
+         Paid prompts hold a payment FIRST — intent → authorize → sign in the
+         buyer's wallet → submit — and generate with the intentId; the server
+         captures only after the image is stored, and voids on any failure, so
+         no branch of this function can end with money gone and no picture.
+         This surface previously displayed a price and then called the FREE
+         route: the marketplace showed prices and never charged anyone. */
+      let res: Response;
+      if (!isFree && promptId) {
+        const { intentId } = await authorizePaidGeneration({
+          promptId,
+          modelFamily,
+          resolution: quoteResolution,
+        });
+        res = await fetch("/api/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+          body: JSON.stringify({ intentId, prompt: final.trim(), aspectRatio: aspect }),
+        });
+      } else {
+        res = await fetch("/api/generate-free", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution }),
+        });
+      }
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Generation failed"); }
       const data = await res.json();
       if (!data.imageUrl) throw new Error("No image returned");
@@ -633,11 +670,32 @@ export default function PromptGeneratorView({
         </div>
 
         {/* ── Sticky footer: Generate button ── */}
+        {/* ToS §4: the network fee is itemised before the buyer confirms.
+            Rendered only when the quote carries it — a free prompt has none. */}
+        {!isFree && paidQuote && (
+          <div style={{ fontSize: 11, opacity: 0.65, padding: "0 2px 6px", textAlign: "right" }}>
+            incl. ${paidQuote.networkFeeUsd} network fee
+            {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
+          </div>
+        )}
         <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
-          <button className="pgv-generate-btn" onClick={generate} disabled={generating} style={{ flex: 1 }}>
+          {/* The label is the QUOTE total — the server's arithmetic, model
+              cost and fees included. boostedCost(price) was the artist price
+              alone and understated every paid generation. A paid prompt with
+              no quote yet cannot promise a number, so it cannot be clicked. */}
+          <button
+            className="pgv-generate-btn"
+            onClick={generate}
+            disabled={generating || (!isFree && !paidQuote)}
+            style={{ flex: 1 }}
+          >
             {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
-            Generate / ${boostedCost(price, boost).toFixed(2)}
+            {isFree
+              ? "Generate / free"
+              : paidQuote
+                ? `Generate / $${paidQuote.totalUsd}`
+                : "Generate / …"}
           </button>
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
