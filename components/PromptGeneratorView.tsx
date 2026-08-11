@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
+import DiceButton from "@/components/DiceButton";
+import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -263,6 +265,37 @@ export default function PromptGeneratorView({
 
   const onVarChange = useCallback((name: string, value: string) => {
     setVars(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  // This surface keys `vars` by variable NAME, so name is the dice id — the
+  // promptId path makes the server load the authoritative definitions from
+  // prompt_variables and key its reply by name too.
+  const diceVariables = useMemo<DiceVariable[]>(
+    () =>
+      variables.map((v) => ({
+        id: v.name,
+        name: v.name,
+        label: v.label,
+        description: v.description || undefined,
+        // radio is a pick-one control; the dice knows it as single-select
+        type: v.type === "radio" ? "single-select" : v.type,
+        options: v.options,
+        min: v.min,
+        max: v.max,
+      })),
+    [variables]
+  );
+
+  // Merge ONLY the rolled names; `vars` stores every value as a string
+  // (checkbox "true"/"false", multi-select comma-joined), so encode to match.
+  const applyDiceValues = useCallback((values: Record<string, DiceValue>) => {
+    setVars((prev) => {
+      const next = { ...prev };
+      for (const [name, value] of Object.entries(values)) {
+        next[name] = Array.isArray(value) ? value.join(",") : String(value);
+      }
+      return next;
+    });
   }, []);
 
   const generate = useCallback(async () => {
@@ -606,6 +639,17 @@ export default function PromptGeneratorView({
             {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
             Generate / ${boostedCost(price, boost).toFixed(2)}
           </button>
+          {/* publicPromptText is the only prompt text this surface may hold
+              for a paid prompt; sliced because the route's zod max REJECTS an
+              over-long context rather than clipping it. */}
+          <DiceButton
+            variables={diceVariables}
+            promptId={promptId}
+            context={promptText ? promptText.slice(0, DICE_LIMITS.maxContextLen) : undefined}
+            onValues={applyDiceValues}
+            headers={sessionAuthHeaders()}
+            disabled={generating}
+          />
         </div>
       </aside>
 

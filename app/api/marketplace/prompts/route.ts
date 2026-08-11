@@ -174,8 +174,18 @@ export async function GET(request: NextRequest) {
     try {
       const supabase = getSupabaseServerClient();
 
-      // Build Supabase query
-      let dbQuery = supabase.from("prompts").select("*");
+      /*
+       * Live-schema boundary (probed 2026-08-12): the columns this query used
+       * to filter, sort and read — price, downloads, rating, user_id,
+       * uploaded_photos — do not exist (PostgREST 400 kills the whole select).
+       * Live: price_usd_cents (integer cents — the same unit minPrice/maxPrice
+       * are documented in), creator_id, showcase_images (jsonb URL strings).
+       */
+      let dbQuery = supabase
+        .from("prompts")
+        .select(
+          "id,title,public_prompt_text,price_usd_cents,category,tags,ai_model,created_at,creator_id,showcase_images,aspect_ratio,resolution,is_free_showcase,prompt_type"
+        );
 
       if (category) {
         dbQuery = dbQuery.eq("category", category);
@@ -186,12 +196,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (priceFilter === "free") {
-        dbQuery = dbQuery.eq("price", 0);
+        dbQuery = dbQuery.eq("price_usd_cents", 0);
       } else if (priceFilter === "paid") {
-        dbQuery = dbQuery.gt("price", 0);
+        dbQuery = dbQuery.gt("price_usd_cents", 0);
       } else if (minPrice !== undefined || maxPrice !== undefined) {
-        if (minPrice !== undefined) dbQuery = dbQuery.gte("price", minPrice);
-        if (maxPrice !== undefined) dbQuery = dbQuery.lte("price", maxPrice);
+        if (minPrice !== undefined) dbQuery = dbQuery.gte("price_usd_cents", minPrice);
+        if (maxPrice !== undefined) dbQuery = dbQuery.lte("price_usd_cents", maxPrice);
       }
 
       if (query && query.trim()) {
@@ -204,13 +214,15 @@ export async function GET(request: NextRequest) {
           dbQuery = dbQuery.order("created_at", { ascending: false });
           break;
         case "popular":
-          dbQuery = dbQuery.order("downloads", { ascending: false });
+          // No sales/downloads column exists live; recency is the only
+          // honest order until engagement lands on the prompts row.
+          dbQuery = dbQuery.order("created_at", { ascending: false });
           break;
         case "price_low":
-          dbQuery = dbQuery.order("price", { ascending: true });
+          dbQuery = dbQuery.order("price_usd_cents", { ascending: true });
           break;
         case "price_high":
-          dbQuery = dbQuery.order("price", { ascending: false });
+          dbQuery = dbQuery.order("price_usd_cents", { ascending: false });
           break;
         case "trending":
         default:
@@ -233,19 +245,23 @@ export async function GET(request: NextRequest) {
           title: p.title,
           description: p.public_prompt_text || "",
           promptTemplate: p.public_prompt_text || "",
-          priceUsdCents: typeof p.price === "number" ? p.price : 0,
+          // Integer cents straight through — the field name carries the unit
+          // and the feed adapter (enkiPromptAdapter.dollars) divides by 100.
+          priceUsdCents:
+            typeof p.price_usd_cents === "number" ? p.price_usd_cents : 0,
           category: p.category || "",
           tags: Array.isArray(p.tags) ? p.tags : [],
-          totalSales: typeof p.downloads === "number" ? p.downloads : 0,
-          avgRating: typeof p.rating === "number" ? p.rating : 0,
+          // No sales/rating columns exist live; 0 is the shape's default.
+          totalSales: 0,
+          avgRating: 0,
           createdAt: p.created_at,
           listedAt: p.created_at,
-          userId: p.user_id,
-          previewImages: Array.isArray(p.uploaded_photos)
-            ? p.uploaded_photos.map((url: string) => ({ url }))
+          userId: p.creator_id,
+          previewImages: Array.isArray(p.showcase_images)
+            ? p.showcase_images.map((url: string) => ({ url }))
             : [],
-          showcaseImages: Array.isArray(p.uploaded_photos)
-            ? p.uploaded_photos.map((url: string) => ({ url }))
+          showcaseImages: Array.isArray(p.showcase_images)
+            ? p.showcase_images.map((url: string) => ({ url }))
             : [],
           aiModel: p.ai_model,
           model: p.ai_model,
@@ -264,27 +280,36 @@ export async function GET(request: NextRequest) {
     // Enrich with creator data and variables
     const supabase = getSupabaseServerClient();
 
-    // Batch-fetch variables for all returned prompts
+    // Batch-fetch variables for all returned prompts. They live in
+    // prompt_variables (the bare `variables` table is a PostgREST 404);
+    // data_type is the DB enum, mapped back to the client vocabulary.
+    const VAR_TYPE_FROM_DB: Record<string, string> = {
+      reference_image: "image",
+      multi_select: "multi-select",
+      single_select: "single-select",
+    };
     const promptIds = prompts.map((p: any) => p.id).filter(Boolean);
     let variablesMap: Record<string, any[]> = {};
     if (promptIds.length > 0) {
       try {
         const { data: varsData } = await supabase
-          .from("variables")
-          .select("prompt_id,name,label,description,type,default_value,required,position")
+          .from("prompt_variables")
+          .select("prompt_id,name,label,description,data_type,default_value,is_required,position")
           .in("prompt_id", promptIds)
+          .is("deleted_at", null)
           .order("position", { ascending: true });
         if (Array.isArray(varsData)) {
           varsData.forEach((v) => {
             const pid = String(v.prompt_id);
+            const dbType = String(v.data_type ?? "text");
             if (!variablesMap[pid]) variablesMap[pid] = [];
             variablesMap[pid].push({
               name: String(v.name ?? ""),
               label: String(v.label ?? v.name ?? ""),
               description: String(v.description ?? ""),
-              type: String(v.type ?? "text"),
+              type: VAR_TYPE_FROM_DB[dbType] ?? dbType,
               defaultValue: v.default_value ?? null,
-              required: Boolean(v.required ?? false),
+              required: Boolean(v.is_required ?? false),
               position: typeof v.position === "number" ? v.position : 0,
             });
           });

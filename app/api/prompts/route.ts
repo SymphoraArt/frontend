@@ -30,11 +30,31 @@ type PromptListItem = {
   variables: VariableSummary[];
 };
 
-const FREE_TYPES = new Set(["showcase", "free", "free-prompt"]);
+/*
+ * ── Live-schema boundary (probed against the live DB, 2026-08-12) ─────────
+ *
+ * prompts carries creator_id, price_usd_cents (integer cents) and
+ * showcase_images (jsonb array of URL strings). The columns this route used
+ * to select — user_id, price, uploaded_photos, downloads, rating — are all
+ * PostgREST 400s, which failed the whole select and made the showcase answer
+ * { items: [] } forever. downloads/rating have no live replacement
+ * (engagement is a separate concern), so they stay constant 0 in the shape
+ * the grid already defaults. Variables live in prompt_variables (the bare
+ * `variables` table is a 404); data_type is the DB enum, mapped back to the
+ * client's hyphenated vocabulary here.
+ */
+const VAR_TYPE_FROM_DB: Record<string, string> = {
+  reference_image: "image",
+  multi_select: "multi-select",
+  single_select: "single-select",
+};
 
-function deriveThumbnail(uploadedPhotos: unknown): string {
-  if (Array.isArray(uploadedPhotos) && typeof uploadedPhotos[0] === "string") {
-    return uploadedPhotos[0] as string;
+// DB prompt_type values: create-now | showcase | free | paid.
+const FREE_TYPES = new Set(["showcase", "free"]);
+
+function deriveThumbnail(showcaseImages: unknown): string {
+  if (Array.isArray(showcaseImages) && typeof showcaseImages[0] === "string") {
+    return showcaseImages[0] as string;
   }
   return "";
 }
@@ -61,7 +81,7 @@ export async function GET(request: NextRequest) {
     const { data: rows, error } = await supabase
       .from("prompts")
       .select(
-        "id,title,prompt_type,is_free_showcase,public_prompt_text,price,category,tags,ai_model,created_at,downloads,rating,user_id,uploaded_photos"
+        "id,title,prompt_type,is_free_showcase,public_prompt_text,price_usd_cents,category,tags,ai_model,created_at,creator_id,showcase_images"
       )
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -77,9 +97,10 @@ export async function GET(request: NextRequest) {
     let variablesByPrompt = new Map<string, VariableSummary[]>();
     if (promptIds.length > 0) {
       const { data: vars, error: varsError } = await supabase
-        .from("variables")
-        .select("id,prompt_id,name,label,type,position")
+        .from("prompt_variables")
+        .select("id,prompt_id,name,label,data_type,position")
         .in("prompt_id", promptIds)
+        .is("deleted_at", null)
         .order("position", { ascending: true });
 
       if (varsError) {
@@ -88,11 +109,12 @@ export async function GET(request: NextRequest) {
         for (const v of vars) {
           const key = String(v.prompt_id);
           const list = variablesByPrompt.get(key) ?? [];
+          const dbType = String(v.data_type ?? "text");
           list.push({
             id: String(v.id ?? ""),
             name: String(v.name ?? ""),
             label: String(v.label ?? v.name ?? ""),
-            type: String(v.type ?? "text"),
+            type: VAR_TYPE_FROM_DB[dbType] ?? dbType,
             position: typeof v.position === "number" ? v.position : 0,
           });
           variablesByPrompt.set(key, list);
@@ -104,7 +126,7 @@ export async function GET(request: NextRequest) {
       const promptType = String(p.prompt_type ?? "");
       const isFreeShowcase = Boolean(p.is_free_showcase ?? false);
       const isFree = FREE_TYPES.has(promptType) || isFreeShowcase;
-      const thumb = deriveThumbnail(p.uploaded_photos);
+      const thumb = deriveThumbnail(p.showcase_images);
       const id = String(p.id ?? "");
 
       return {
@@ -114,14 +136,17 @@ export async function GET(request: NextRequest) {
         type: promptType,
         isFree,
         isFreeShowcase,
-        price: typeof p.price === "number" ? p.price : 0,
+        // The consumers print this number as-is (ArtworkGrid: `${price}cr`),
+        // so the boundary converts the stored integer cents to dollars.
+        price:
+          typeof p.price_usd_cents === "number" ? p.price_usd_cents / 100 : 0,
         category: typeof p.category === "string" ? p.category : undefined,
         tags: Array.isArray(p.tags) ? (p.tags as string[]) : undefined,
         aiModel: typeof p.ai_model === "string" ? p.ai_model : undefined,
         createdAt: typeof p.created_at === "string" ? p.created_at : undefined,
-        downloads: typeof p.downloads === "number" ? p.downloads : 0,
-        rating: typeof p.rating === "number" ? p.rating : 0,
-        creatorId: p.user_id ? String(p.user_id) : undefined,
+        downloads: 0,
+        rating: 0,
+        creatorId: p.creator_id ? String(p.creator_id) : undefined,
         thumbnail: thumb,
         imageUrl: thumb,
         publicPromptText:
