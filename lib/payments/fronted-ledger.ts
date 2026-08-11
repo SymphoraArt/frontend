@@ -29,6 +29,16 @@ const UNIQUE_VIOLATION = "23505";
  */
 export const ATA_RENT_LAMPORTS = 2_039_280;
 
+/**
+ * What the artist's books are charged for that rent, in micro-USDC: the
+ * "about $0.15" the Terms of Use quote (Section 7). A constant, not a live
+ * SOL/USD conversion — the ToS number is the contract with the artist, and a
+ * debt that changes with the SOL price between fronting and recovery would be
+ * unauditable. The ledger stores the lamports beside it, so the rate the debt
+ * was priced at stays derivable if this ever needs revisiting.
+ */
+export const ATA_FRONTED_MICRO = 150_000;
+
 /** One artist payout account: an ATA is (owner, mint), and so is this debt. */
 export interface PayoutAccount {
   /** Case-exact base58 — see exactWallet(); a lowercased address is a different account. */
@@ -50,8 +60,20 @@ export interface PayoutAccount {
  */
 export async function outstandingMicro(
   supabase: SupabaseClient,
-  { artistWallet, mint }: PayoutAccount,
+  account: PayoutAccount,
 ): Promise<number> {
+  return (await ledgerState(supabase, account)).outstandingMicro;
+}
+
+/**
+ * Both numbers the instalment rule needs, from one read: what was originally
+ * fronted (the instalment is a quarter of THAT — a quarter of the remainder
+ * is Zeno's staircase) and what is still outstanding.
+ */
+export async function ledgerState(
+  supabase: SupabaseClient,
+  { artistWallet, mint }: PayoutAccount,
+): Promise<{ frontedMicro: number; outstandingMicro: number }> {
   const { data, error } = await supabase
     .from(TABLE)
     .select("entry, micro")
@@ -60,13 +82,16 @@ export async function outstandingMicro(
 
   if (error) {
     console.error("[payments/fronted] could not read the ledger:", error.message);
-    return 0;
+    return { frontedMicro: 0, outstandingMicro: 0 };
   }
 
-  return (data ?? []).reduce(
-    (sum, row) => sum + (row.entry === "fronted" ? Number(row.micro) : -Number(row.micro)),
-    0,
-  );
+  let fronted = 0;
+  let recovered = 0;
+  for (const row of data ?? []) {
+    if (row.entry === "fronted") fronted += Number(row.micro);
+    else recovered += Number(row.micro);
+  }
+  return { frontedMicro: fronted, outstandingMicro: fronted - recovered };
 }
 
 /**

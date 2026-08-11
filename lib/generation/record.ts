@@ -98,13 +98,23 @@ async function ensurePromptRow(
   prompt: string,
   model: ResolvedModel,
 ): Promise<string | null> {
+  // The prompts table predates the `_ct` convention: its ciphertext column is
+  // plain `encrypted_content`, while iv/tag/kid carry the prefix. Probed live
+  // 2026-08-08 — encrypted_content_ct is 400, encrypted_content is 200. The
+  // envelope spread wrote the former, so every free-form generation's prompt
+  // row failed with PGRST204 and recordGeneration bailed before writing
+  // anything at all.
+  const sealed = envelope("encrypted_content", prompt);
+  sealed.encrypted_content = sealed.encrypted_content_ct;
+  delete sealed.encrypted_content_ct;
+
   const { data, error } = await supabase
     .from("prompts")
     .insert({
       creator_id: userId,
       title: prompt.slice(0, 60).trim() || "Untitled",
       tags: [],
-      ...envelope("encrypted_content", prompt),
+      ...sealed,
       ai_model: model.name,
       ai_settings: {},
       // Private until the author releases it. Generating is not publishing.

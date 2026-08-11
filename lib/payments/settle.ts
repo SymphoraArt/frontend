@@ -26,6 +26,8 @@ import {
 } from "@/lib/payments/authorization";
 import { closeNonceAccount } from "@/lib/payments/nonce";
 import { feePayerKeypair, solanaConnection } from "@/lib/payments/solana";
+import { frontedPlanOf } from "@/lib/payments/authorize-flow";
+import { recordFronted, recordRecovery, ATA_RENT_LAMPORTS } from "@/lib/payments/fronted-ledger";
 
 /**
  * Charge for a delivered image.
@@ -61,6 +63,14 @@ export async function captureAndBroadcast(
       .update({ tx_signature: signature, fulfilled_at: now, updated_at: now })
       .eq("id", intentId);
 
+    // The Section 7 books, now that the money has really moved. Both writes
+    // are idempotent (unique indexes turn a retry into `false`), and both are
+    // best-effort: the broadcast succeeded, so failing THEM must not fail the
+    // capture — the loud logs inside the ledger are the recovery path.
+    await recordPlannedLedgerEntries(supabase, intentId).catch((e) =>
+      console.error("[payments/settle] ledger write failed:", intentId, e instanceof Error ? e.message : e),
+    );
+
     return { signature };
   } catch (e) {
     // The claim stands. A durable nonce does not expire, so the same signed
@@ -72,6 +82,41 @@ export async function captureAndBroadcast(
       e instanceof Error ? e.message : e,
     );
     return null;
+  }
+}
+
+/**
+ * Book what the broadcast payment carried, from the plan stored at
+ * /authorize: the fronting entry when this transaction created the artist's
+ * token account, then the instalment it moved from the artist's leg to
+ * Enki's. Fronting FIRST — a recovery against a debt not yet on the books
+ * would read as a negative balance in between.
+ *
+ * Reads the plan from the row rather than taking it as an argument, because
+ * the caller only has an intent id and the plan must be the one the buyer's
+ * signature was checked against — not anything recomputed.
+ */
+async function recordPlannedLedgerEntries(supabase: SupabaseClient, intentId: string): Promise<void> {
+  const { data } = await supabase
+    .from("generation_payment_intents")
+    .select("fronted_atas")
+    .eq("id", intentId)
+    .maybeSingle();
+
+  const plan = frontedPlanOf(data?.fronted_atas).recovery;
+  if (!plan) return;
+
+  const account = { artistWallet: plan.artistWallet, mint: plan.mint };
+  if (plan.frontingNow) {
+    await recordFronted(supabase, {
+      ...account,
+      micro: plan.frontedTotalMicro,
+      lamports: ATA_RENT_LAMPORTS,
+      intentId,
+    });
+  }
+  if (plan.micro > 0) {
+    await recordRecovery(supabase, { ...account, micro: plan.micro, intentId });
   }
 }
 

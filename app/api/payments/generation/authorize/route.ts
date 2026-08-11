@@ -18,15 +18,18 @@ import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { createNonceAccount } from "@/lib/payments/nonce";
-import { feePayerKeypair, solanaConnection, feePayerBalance } from "@/lib/payments/solana";
+import { feePayerKeypair, solanaConnection, feePayerBalance, usdcMint } from "@/lib/payments/solana";
 import { signAsEnki } from "@/lib/payments/authorize-tx";
 import {
   authorizationFor,
   exactWallet,
   findMissingAtas,
   enkiWallet,
+  planRecovery,
   type IntentRow,
+  type FrontedPlan,
 } from "@/lib/payments/authorize-flow";
+import { ledgerState } from "@/lib/payments/fronted-ledger";
 
 export const runtime = "nodejs";
 
@@ -89,11 +92,28 @@ export async function POST(req: NextRequest) {
     );
     const missing = await findMissingAtas(recipients);
 
+    // The Terms-of-Use Section 7 instalment, decided HERE and stored with the
+    // intent. The mint travels in the plan so capture books against the chain
+    // this payment actually ran on, and `frontingNow` starts the debt in the
+    // same transaction that creates the account — the ledger entry itself is
+    // only written after broadcast, when the rent has really been paid.
+    const mint = usdcMint().toBase58();
+    const artistWallet = intent.artist_wallet as string | null;
+    const recovery = planRecovery({
+      artistWallet,
+      mint,
+      artistAmountMicro: intent.artist_amount_micro as number,
+      frontingNow: Boolean(artistWallet && missing.includes(artistWallet)),
+      ledger: artistWallet
+        ? await ledgerState(supabase, { artistWallet, mint })
+        : { frontedMicro: 0, outstandingMicro: 0 },
+    });
+
     const { address, nonce } = await createNonceAccount(solanaConnection(), feePayerKeypair());
 
     // Written BEFORE the transaction is built, because /submit rebuilds from
-    // exactly these two values and must not recompute them.
-    const frontedAtas = missing.map((owner) => ({ owner }));
+    // exactly these values and must not recompute them.
+    const frontedAtas: FrontedPlan = { owners: missing.map((owner) => ({ owner })), recovery };
     const { error: saveError } = await supabase
       .from("generation_payment_intents")
       .update({
