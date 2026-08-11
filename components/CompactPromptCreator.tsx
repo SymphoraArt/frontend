@@ -30,6 +30,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import QuickVariableCreator from "./QuickVariableCreator";
+import DiceButton from "./DiceButton";
+import type { DiceValue, DiceVariable } from "@/lib/generation/variable-dice";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import { useX402PaymentProduction } from "@/hooks/useX402PaymentProduction";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccount } from "thirdweb/react";
@@ -252,6 +255,54 @@ export default function CompactPromptCreator() {
   const removeVariable = useCallback((id: string) => {
     setVariables((prev) => prev.filter((v) => v.id !== id));
   }, []);
+
+  // Dice mapping is keyed by NAME, because updateVariable and the [tokens] in
+  // the prompt are name-keyed; the effect above guarantees names are unique.
+  const diceVariables: DiceVariable[] = variables.map((v) => ({
+    id: v.name,
+    name: v.name,
+    // This panel renders multi-select as a one-value <select>, so ask the
+    // dice for a single pick — an array could not be applied back.
+    type: v.type === "multi-select" ? "single-select" : v.type,
+    options: v.options?.map((o) => ({ promptValue: o })),
+    min: v.min,
+    max: v.max,
+  }));
+
+  const applyDiceValues = useCallback(
+    (values: Record<string, DiceValue>) => {
+      // All rolled tokens go into ONE prompt update. Looping updateVariable
+      // here would batch N updates whose promptText updaters run before the
+      // variables updaters that produce their token text (hook order), so
+      // every token after the first kept its old value and the re-extraction
+      // effect reverted those fields. The effect then propagates the
+      // rewritten tokens into `variables` state, exactly like hand-typed ones.
+      setPromptText((prevText) => {
+        let out = prevText;
+        for (const [name, value] of Object.entries(values)) {
+          const variable = variables.find((v) => v.name === name);
+          if (!variable) continue;
+          // Strip the bracket-grammar characters so a rolled value cannot
+          // corrupt the [token] it lands in.
+          const text = (Array.isArray(value) ? value.join(", ") : String(value))
+            .replace(/[[\]|]/g, "")
+            .trim();
+          if (!text) continue;
+          // Boundary lookahead: a roll for "color" must not clobber a
+          // "[colorful]" token. Function replacement, because rolled text
+          // could contain "$&" and the string form would expand it.
+          const tokenRegex = new RegExp(
+            `\\[\\s*${escapeRegExp(name)}(?=[\\s:=|\\]])[^\\]]*\\]`,
+            "g"
+          );
+          const serialized = serializeBracketToken({ ...variable, currentValue: text });
+          out = out.replace(tokenRegex, () => serialized);
+        }
+        return out;
+      });
+    },
+    [variables]
+  );
 
   // Handle text selection
   const handleTextSelect = useCallback(() => {
@@ -618,13 +669,13 @@ export default function CompactPromptCreator() {
                   </div>
                 </div>
 
-                {/* Generate button */}
-                <div style={{ padding: "10px 14px", borderTop: "1px solid #f0ede8" }}>
+                {/* Generate button (+ dice; it renders null without variables) */}
+                <div style={{ padding: "10px 14px", borderTop: "1px solid #f0ede8", display: "flex", gap: 8 }}>
                   <button
                     onClick={authenticated ? handleGenerateImage : () => setShowWalletPicker(true)}
                     disabled={isGenerating || isPending}
                     style={{
-                      width: "100%", padding: "10px", background: isGenerating || isPending ? "#ccc" : "#111",
+                      flex: 1, padding: "10px", background: isGenerating || isPending ? "#ccc" : "#111",
                       color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 700,
                       cursor: isGenerating || isPending ? "not-allowed" : "pointer", fontFamily: "inherit",
                       letterSpacing: 0.3,
@@ -633,6 +684,14 @@ export default function CompactPromptCreator() {
                   >
                     {isGenerating || isPending ? "Generating…" : !authenticated ? "Connect Wallet to Generate" : "Generate →"}
                   </button>
+                  <DiceButton
+                    variables={diceVariables}
+                    // The artist's own draft, straight from the textarea — this
+                    // surface never holds a decrypted marketplace prompt.
+                    context={promptText.trim() || undefined}
+                    headers={sessionAuthHeaders()}
+                    onValues={applyDiceValues}
+                  />
                 </div>
               </div>
 

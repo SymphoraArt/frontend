@@ -14,6 +14,9 @@ import { Icon } from "./icons";
 import { generateWithModel, persistCreation, placeholderArt } from "./generation";
 import { useModelLimits } from "@/hooks/useModelLimits";
 import DocView from "./DocView";
+import DiceButton from "@/components/DiceButton";
+import { sessionAuthHeaders } from "@/lib/session-headers";
+import type { DiceValue } from "@/lib/generation/variable-dice";
 
 /* ── constants ── */
 /**
@@ -983,6 +986,17 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const setTokValue = (name: string, v: string) =>
     setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.type === "text" && n.name === name ? { ...n, value: v } : n)) }));
 
+  // 🎲 → one coherent AI-invented set for the variable defaults. Applies ONLY
+  // the ids the dice returned, keyed by node id so a rename while the roll is
+  // in flight cannot mis-target; untouched vars keep the artist's values.
+  // Via commit: the whole roll is a single undo step.
+  const applyDiceValues = (values: Record<string, DiceValue>) => commit((p) => ({
+    ...p,
+    nodes: p.nodes.map((n) => n.type === "text" && n.id in values
+      ? { ...n, value: n.kind === "bool" ? (values[n.id] ? "on" : "off") : String(values[n.id]) }
+      : n),
+  }));
+
   // Add an empty output slot; Generate fills every empty slot at once.
   // With a drop position it sits exactly there (free); otherwise it joins the current row.
   const addOutput = (atPos?: { x: number; y: number }) => commit((p) => {
@@ -1615,10 +1629,25 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.quality} width={88} title="Quality · does not affect grouping"
                     options={NC_QUALITIES.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                 </div>
-                <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={() => spawnOutput()}>
-                  <span className="nc-genbtn-top"><Icon name="sparkles" size={14} stroke={2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
-                  <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
-                </button>
+                {/* Dice + Generate as one cluster: the row is space-between,
+                    so a bare sibling would strand the dice mid-row. */}
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <DiceButton
+                    // Node id as the dice id — renames can't mis-key the reply.
+                    // Blank-named nodes are skipped: one nameless var would
+                    // fail validation and kill the whole roll otherwise.
+                    variables={texts.filter((t) => t.name.trim()).map((t) => (t.kind === "bool"
+                      ? { id: t.id, name: t.name, type: "checkbox", description: (t.str || "").trim() || undefined }
+                      : { id: t.id, name: t.name, type: "text" }))}
+                    context={st.body.trim() || undefined}
+                    headers={sessionAuthHeaders()}
+                    onValues={applyDiceValues}
+                  />
+                  <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={() => spawnOutput()}>
+                    <span className="nc-genbtn-top"><Icon name="sparkles" size={14} stroke={2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
+                    <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
+                  </button>
+                </div>
               </div>
             </div>
             {/* ports — text input (left) + generated-images output (right); reference images are an in-prompt deck */}

@@ -1,4 +1,7 @@
 import BoostToggle from "@/components/generation/BoostToggle";
+import DiceButton from "@/components/DiceButton";
+import type { DiceValue, DiceVariable } from "@/lib/generation/variable-dice";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Sparkles, Plus, ImageIcon, Ratio, Maximize2, Copy, Settings, FileText, CheckCircle2 } from "lucide-react";
 import { getVariableColors } from "../lib/variableColors";
@@ -480,6 +483,32 @@ export default function EnkiMobileGenerateModal({
         PLATFORM_FEE_PERCENT * 100
       )}%)`
     : undefined;
+
+  /* Declared to the dice under the SAME ids onVariableChange uses, so a rolled
+     value lands exactly in the field the user would have typed into. Both
+     parents (editor + feed launcher) store plain strings, so everything that
+     is not explicitly a checkbox/image rolls as free text. */
+  const diceVariables: DiceVariable[] = variables.map((v) => ({
+    id: v.id,
+    name: v.name,
+    label: v.label && v.label !== v.name ? v.label : undefined,
+    type: v.type === "checkbox" || v.type === "image" ? v.type : "text",
+  }));
+
+  const applyDiceValues = (values: Record<string, DiceValue>) => {
+    if (!onVariableChange) return;
+    // Iterating our own variables merges ONLY known ids; fields the dice did
+    // not return keep whatever the user already entered.
+    for (const v of variables) {
+      const val = values[v.id];
+      if (val === undefined) continue;
+      // Inputs hold strings; "Yes"/"No" is this file's own boolean idiom.
+      onVariableChange(
+        v.id,
+        typeof val === "boolean" ? (val ? "Yes" : "No") : Array.isArray(val) ? val.join(", ") : String(val)
+      );
+    }
+  };
 
   const snapshotVars = () =>
     variables.map((v) => ({
@@ -1351,6 +1380,21 @@ export default function EnkiMobileGenerateModal({
               </div>
               {onBoostChange && (
                 <BoostToggle boost={!!boost} onChange={onBoostChange} disabled={isGenerating} />
+              )}
+              {/* 🎲 — invents one coherent set of variable values. Without an
+                  onVariableChange there is nowhere to put a roll, so no dice.
+                  setPromptBody absent = locked paid (vars-only) prompt: its
+                  body must NOT ride along to the dice model on a buyer's
+                  behalf, so the roll then sees only the variable declarations. */}
+              {onVariableChange && (
+                <DiceButton
+                  variables={diceVariables}
+                  context={setPromptBody ? promptBody : undefined}
+                  headers={sessionAuthHeaders()}
+                  onValues={applyDiceValues}
+                  disabled={isGenerating}
+                  size={14}
+                />
               )}
               <button className="mobile-modal-generate-btn" onClick={onGenerate} disabled={isGenerating}>
                 <Sparkles size={13} style={{ fill: "white" }} />

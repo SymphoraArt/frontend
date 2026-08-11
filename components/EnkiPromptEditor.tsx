@@ -64,6 +64,8 @@ import {
 } from "@/lib/editorVersions";
 import nlp from "compromise";
 import { getVariableColors, pickVariableColorIndex } from "@/lib/variableColors";
+import DiceButton from "@/components/DiceButton";
+import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 
 
 const EDITOR_DRAFT_KEY = "symphora-editor-draft-v1";
@@ -3018,6 +3020,40 @@ export default function EnkiPromptEditor() {
     variables.every((v) => v.type === "checkbox" || v.defaultValue);
   const canPushToVerify = hasPromptBody && allVariablesFilled;
 
+  /* ─── Dice (🎲 next to Pay & Gen) ───
+     PromptVariable.id is the stable key the rolled values come back under.
+     Unnamed variables are skipped because the API rejects name: "" — and an
+     unnamed variable's prompt token embeds its defaultValue, so writing to it
+     behind updateVariable's back would desync the body. Image variables pass
+     through untouched; the shared dice filters them out itself. */
+  const diceVariables: DiceVariable[] = variables
+    .filter((v) => v.name.trim())
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      label: v.label || undefined,
+      description: v.description || undefined,
+      type: v.type,
+    }));
+
+  const applyDiceValues = (values: Record<string, DiceValue>) => {
+    setVariables((prev) =>
+      prev.map((v) => {
+        const val = values[v.id];
+        // defaultValue only, like Auto Fill and the card input — a roll must
+        // not wipe a hand-built batch stack (`values`). Named variables keep
+        // their `[name]` token, so no body rewrite is needed.
+        if (v.type === "checkbox" && typeof val === "boolean") return { ...v, defaultValue: val };
+        if (v.type === "text" && typeof val === "string") return { ...v, defaultValue: val };
+        return v;
+      })
+    );
+  };
+
+  // Same session header the save/publish fetches send.
+  const diceSessionToken =
+    typeof window !== "undefined" ? localStorage.getItem("turnkey_session_token") : null;
+
   const settingsPristine =
     !promptData.title.trim() &&
     promptData.tags.length === 0 &&
@@ -4945,6 +4981,13 @@ export default function EnkiPromptEditor() {
                   {ui.isGrokFilling ? "Filling..." : "Auto Fill"}
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <DiceButton
+                    variables={diceVariables}
+                    context={promptData.body.slice(0, DICE_LIMITS.maxContextLen)}
+                    headers={diceSessionToken ? { "X-Session-Token": diceSessionToken } : undefined}
+                    onValues={applyDiceValues}
+                    size={12}
+                  />
                   <button
                     className="enk-pay-btn"
                     onClick={handlePayAndGenerate}

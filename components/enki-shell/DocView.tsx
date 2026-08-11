@@ -11,6 +11,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { useModelCatalogue } from "@/hooks/useModelLimits";
+import { DiceButton } from "@/components/DiceButton";
+import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import {
   EditName, NcSelect, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
@@ -464,6 +467,34 @@ export default function DocView({ api }: { api: DocViewApi }) {
   );
 
   const genCost = perImage; // one render per doc-Generate click
+
+  /* ── 🎲 the dice beside Generate: rail vars → DiceVariable, keyed by the
+     node id patchText applies values back under. A checkbox's snippet rides
+     along as description so the model knows what "on" would add. ── */
+  const diceVars = useMemo<DiceVariable[]>(
+    () =>
+      texts.map((t): DiceVariable =>
+        t.kind === "bool"
+          ? { id: t.id, name: t.name, type: "checkbox",
+              description: t.str?.trim() ? "When on, adds to the prompt: " + t.str.trim() : undefined }
+          : { id: t.id, name: t.name, type: "text" },
+      ),
+    [texts],
+  );
+  const applyDiceValues = (values: Record<string, DiceValue>) => {
+    api.pushHist(); // one roll = one undo step
+    for (const [id, v] of Object.entries(values)) {
+      const t = texts.find((x) => x.id === id);
+      if (!t) continue;
+      if (t.kind === "bool") {
+        if (typeof v === "boolean") api.patchText(id, { value: v ? "on" : "off" });
+      } else if (typeof v === "string") {
+        // brackets in a value would be re-substituted as tokens by buildPrompt —
+        // strip them, same defense as confirmRemoveVar
+        api.patchText(id, { value: v.replace(/[[\]]/g, "") });
+      }
+    }
+  };
   // Confirm dialog portals above the whole shell, same as NodeCreator's modals.
   const portalRoot = typeof document !== "undefined" ? ((document.querySelector(".ek-app") as HTMLElement) || document.body) : null;
 
@@ -578,12 +609,23 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   <span className={"nc-chk-box" + (autoFill ? " on" : "")}>{autoFill && <Icon name="check" size={11} stroke={3} />}</span> Auto&nbsp;Fill
                 </label>
                 {/* narrow page: the price wraps under the label to save width */}
-                <button className={"ncd-gen" + (cols.page < 540 ? " stack" : "") + (canGenerate ? "" : " disabled")}
-                  title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
-                  onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
-                  <span className="ncd-gen-top"><Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
-                  <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {/* renders null while the doc has no variables */}
+                  <DiceButton
+                    variables={diceVars}
+                    /* the artist's OWN draft; sliced because the route's zod max
+                       REJECTS an over-long context rather than clipping it */
+                    context={st.body.trim() ? st.body.slice(0, DICE_LIMITS.maxContextLen) : undefined}
+                    headers={sessionAuthHeaders()}
+                    onValues={applyDiceValues}
+                  />
+                  <button className={"ncd-gen" + (cols.page < 540 ? " stack" : "") + (canGenerate ? "" : " disabled")}
+                    title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
+                    onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
+                    <span className="ncd-gen-top"><Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
+                    <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

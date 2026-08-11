@@ -39,6 +39,9 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
 import ImageLightbox from "./ImageLightbox";
+import DiceButton from "./DiceButton";
+import type { DiceValue, DiceVariable } from "@/lib/generation/variable-dice";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import type { Variable } from "./PromptEditor";
@@ -325,6 +328,36 @@ export default function GeneratorInterface({
   const promptVariables = useMemo(() => {
     return promptData?.prompt?.promptData?.variables || [];
   }, [promptData]);
+
+  // This surface keys variableValues by `name || id`, so that key IS the dice
+  // id — rolled values come back under exactly the key they are applied to.
+  const diceVariables = useMemo<DiceVariable[]>(
+    () =>
+      promptVariables.map((v) => ({
+        id: v.name || v.id,
+        name: v.name || v.id,
+        label: v.label,
+        description: v.description || undefined,
+        // radio is a pick-one control; the dice knows it as single-select
+        type: v.type === "radio" ? "single-select" : v.type,
+        options: v.options,
+        min: v.min,
+        max: v.max,
+      })),
+    [promptVariables]
+  );
+
+  // Merge ONLY the rolled ids; every value here is stored as a string
+  // (checkbox "true"/"false", multi-select comma-joined), so encode to match.
+  const applyDiceValues = (values: Record<string, DiceValue>) => {
+    setVariableValues((prev) => {
+      const next = { ...prev };
+      for (const [id, value] of Object.entries(values)) {
+        next[id] = Array.isArray(value) ? value.join(",") : String(value);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (promptVariables.length > 0) {
@@ -1165,24 +1198,37 @@ export default function GeneratorInterface({
                       )}
                     </div>
 
-                    <Button
-                      className="w-full h-9"
-                      data-testid="button-create"
-                      onClick={handleCreateNow}
-                      disabled={isGenerating || isPaymentPending || (selectedChainBalance && !selectedChainBalance.hasSufficientBalance)}
-                    >
-                      {isGenerating || isPaymentPending ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
-                          {isPaymentPending ? "Processing Payment..." : "Generating..."}
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5 mr-2" />
-                          Create Now
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1 h-9"
+                        data-testid="button-create"
+                        onClick={handleCreateNow}
+                        disabled={isGenerating || isPaymentPending || (selectedChainBalance && !selectedChainBalance.hasSufficientBalance)}
+                      >
+                        {isGenerating || isPaymentPending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                            {isPaymentPending ? "Processing Payment..." : "Generating..."}
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5 mr-2" />
+                            Create Now
+                          </>
+                        )}
+                      </Button>
+                      {/* publicPromptText is the only prompt text this surface
+                          may hold client-side — the paid prompt stays encrypted
+                          until the server decrypts per generation. */}
+                      <DiceButton
+                        variables={diceVariables}
+                        context={publicPromptText}
+                        onValues={applyDiceValues}
+                        headers={sessionAuthHeaders()}
+                        disabled={isGenerating || isPaymentPending}
+                        className="h-9 w-9 shrink-0"
+                      />
+                    </div>
 
                     {/* Free Generate button (no wallet/payment needed) */}
                     <Button
