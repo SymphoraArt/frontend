@@ -18,6 +18,14 @@ import type { DiceVariable, DiceValue } from "@/lib/generation/variable-dice";
 
 export interface DiceButtonProps {
   variables: DiceVariable[];
+  /**
+   * Set for SAVED prompts: the server then loads the authoritative variable
+   * definitions and the public context from the database and ignores the
+   * client's copies. `variables` still controls visibility and how the
+   * returned values are applied — for the promptId path, make sure their ids
+   * are the variable NAMES, because that is what the server keys its reply by.
+   */
+  promptId?: string;
   /** Public prompt text or the artist's own draft — never a decrypted prompt. */
   context?: string;
   /** Receives ONLY validated values, keyed by variable id. */
@@ -33,6 +41,7 @@ export interface DiceButtonProps {
 
 export function DiceButton({
   variables,
+  promptId,
   context,
   onValues,
   headers,
@@ -56,7 +65,7 @@ export function DiceButton({
       const res = await fetch("/api/workflow/variables", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(headers ?? {}) },
-        body: JSON.stringify({ variables: rollable, context }),
+        body: JSON.stringify(promptId ? { promptId } : { variables: rollable, context }),
       });
       if (res.status === 501) {
         // Not configured on this deployment — vanish rather than error on

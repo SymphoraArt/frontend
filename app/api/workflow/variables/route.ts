@@ -15,10 +15,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import {
   buildDiceMessages,
   diceableVariables,
+  rowToDiceVariable,
   validateDiceValues,
   DICE_LIMITS,
   type DiceVariable,
@@ -47,12 +49,21 @@ const variableSchema = z.object({
 });
 
 const bodySchema = z.object({
-  variables: z.array(variableSchema).min(1).max(DICE_LIMITS.maxVariables),
+  /**
+   * A SAVED prompt: the server loads its variables from prompt_variables and
+   * its context from public_prompt_text, and whatever the client sent as
+   * `variables` is ignored. The stored definitions are the authoritative ones
+   * — options, ranges and types with full fidelity — and a client cannot
+   * widen a select or drop a range by editing its copy.
+   */
+  promptId: z.string().uuid().optional(),
+  /** Unsaved editor drafts only — there is no row to load them from yet. */
+  variables: z.array(variableSchema).min(1).max(DICE_LIMITS.maxVariables).optional(),
   /**
    * The PUBLIC prompt text or the artist's own draft. The client decides what
    * it may show here — a buyer's client only ever holds the public excerpt,
    * so a decrypted marketplace prompt cannot leak through this field by
-   * construction.
+   * construction. Ignored when promptId is given; the server's copy wins.
    */
   context: z.string().max(DICE_LIMITS.maxContextLen).optional(),
 });
@@ -84,7 +95,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dice is not configured" }, { status: 501 });
   }
 
-  const vars = diceableVariables(parsed.data.variables as DiceVariable[]);
+  let sourceVars: DiceVariable[];
+  let context = parsed.data.context;
+
+  if (parsed.data.promptId) {
+    // Server-authoritative path for saved prompts. Values come back keyed by
+    // variable NAME (unique per prompt, enforced by the table), which is also
+    // the key every surface fills its inputs under.
+    const supabase = getSupabaseServerClient();
+    const [{ data: rows, error }, { data: prompt }] = await Promise.all([
+      supabase
+        .from("prompt_variables")
+        .select("name, label, description, data_type, min_value, max_value, options")
+        .eq("prompt_id", parsed.data.promptId)
+        .is("deleted_at", null)
+        .order("position"),
+      supabase
+        .from("prompts")
+        .select("public_prompt_text")
+        .eq("id", parsed.data.promptId)
+        .maybeSingle(),
+    ]);
+    if (error) {
+      console.error("[dice] could not load prompt variables:", error.message);
+      return NextResponse.json({ error: "Could not load the prompt" }, { status: 500 });
+    }
+    sourceVars = (rows ?? []).map(rowToDiceVariable);
+    // The stored PUBLIC excerpt, never the encrypted content: a buyer's dice
+    // roll must not carry the artist's secret to a third party.
+    context = (prompt?.public_prompt_text as string | undefined) ?? undefined;
+  } else if (parsed.data.variables) {
+    sourceVars = parsed.data.variables as DiceVariable[];
+  } else {
+    return NextResponse.json({ error: "Validation failed" }, { status: 400 });
+  }
+
+  const vars = diceableVariables(sourceVars);
   if (vars.length === 0) {
     return NextResponse.json({ values: {} });
   }
@@ -95,7 +141,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: process.env.XAI_DICE_MODEL || "grok-4-fast",
-        messages: buildDiceMessages(vars, parsed.data.context),
+        messages: buildDiceMessages(vars, context),
         response_format: { type: "json_object" },
         // High on purpose: the dice exists to surprise. Coherence comes from
         // the single call, not from a timid temperature.

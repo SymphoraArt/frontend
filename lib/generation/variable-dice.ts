@@ -46,6 +46,64 @@ export const DICE_LIMITS = {
  * artist's full text must not ride along to a third party for a buyer's
  * convenience feature.
  */
+/** A live prompt_variables row, as the dice needs it. */
+export interface PromptVariableRow {
+  name: string;
+  label?: string | null;
+  description?: string | null;
+  data_type: string;
+  min_value?: number | null;
+  max_value?: number | null;
+  options?: unknown;
+}
+
+/**
+ * Map a stored prompt_variables row onto the dice's wire shape.
+ *
+ * The id is the NAME, not the row uuid: names are unique per prompt (the
+ * table enforces it), and every generation surface keys its filled-in values
+ * by name first — a roll keyed by row uuids would come back unappliable.
+ *
+ * The db's enum is richer than the dice's vocabulary, so this is where it
+ * narrows: number behaves as a slider (a clamped range is the only honest way
+ * to validate a model-invented number), color rolls as text (a short phrase
+ * like "burnt sienna" is exactly what a prompt wants), radio is a
+ * single-select by another UI name, and reference_image maps to image so the
+ * existing filter drops it before the model can invent a URL.
+ */
+export function rowToDiceVariable(row: PromptVariableRow): DiceVariable {
+  const type: DiceVariable["type"] =
+    row.data_type === "checkbox" || row.data_type === "boolean" ? "checkbox"
+    : row.data_type === "number" || row.data_type === "slider" ? "slider"
+    : row.data_type === "single_select" || row.data_type === "radio" ? "single-select"
+    : row.data_type === "multi_select" ? "multi-select"
+    : row.data_type === "reference_image" ? "image"
+    : "text"; // text, long_text, color — and any enum value added after this was written
+
+  const options = Array.isArray(row.options)
+    ? (row.options as { promptValue?: unknown; label?: unknown; visibleName?: unknown }[])
+        .filter((o) => typeof o?.promptValue === "string")
+        .map((o) => ({
+          promptValue: o.promptValue as string,
+          label:
+            typeof o.label === "string" ? o.label
+            : typeof o.visibleName === "string" ? o.visibleName
+            : undefined,
+        }))
+    : undefined;
+
+  return {
+    id: row.name,
+    name: row.name,
+    label: row.label ?? undefined,
+    description: row.description ?? undefined,
+    type,
+    options,
+    min: typeof row.min_value === "number" ? row.min_value : undefined,
+    max: typeof row.max_value === "number" ? row.max_value : undefined,
+  };
+}
+
 export function diceableVariables(vars: DiceVariable[]): DiceVariable[] {
   const clip = (s: string | undefined) => (s ?? "").slice(0, DICE_LIMITS.maxFieldLen);
   return vars

@@ -3,6 +3,7 @@ import {
   buildDiceMessages,
   diceableVariables,
   validateDiceValues,
+  rowToDiceVariable,
   DICE_LIMITS,
   type DiceVariable,
 } from "@/lib/generation/variable-dice";
@@ -59,6 +60,63 @@ describe("what reaches the model", () => {
     expect(user).toContain('"winter"');
     expect(user).toContain('"lantern"');
     expect(user).toContain("between 1 and 10");
+  });
+});
+
+describe("rowToDiceVariable — the stored definitions as the dice sees them", () => {
+  const row = (over: Partial<Parameters<typeof rowToDiceVariable>[0]> = {}) =>
+    rowToDiceVariable({ name: "season", data_type: "text", ...over });
+
+  it("keys by NAME, because that is what the surfaces fill their inputs under", () => {
+    // Row uuids are unique too — but a roll keyed by them would come back
+    // unappliable, since every UI stores values under the variable's name.
+    const v = row({ name: "weather" });
+    expect(v.id).toBe("weather");
+    expect(v.name).toBe("weather");
+  });
+
+  it("narrows the db enum onto the dice vocabulary", () => {
+    expect(row({ data_type: "long_text" }).type).toBe("text");
+    expect(row({ data_type: "color" }).type).toBe("text");
+    expect(row({ data_type: "number" }).type).toBe("slider");
+    expect(row({ data_type: "slider" }).type).toBe("slider");
+    expect(row({ data_type: "boolean" }).type).toBe("checkbox");
+    expect(row({ data_type: "checkbox" }).type).toBe("checkbox");
+    expect(row({ data_type: "radio" }).type).toBe("single-select");
+    expect(row({ data_type: "single_select" }).type).toBe("single-select");
+    expect(row({ data_type: "multi_select" }).type).toBe("multi-select");
+    // Mapped to image so the existing filter drops it before the model can
+    // invent a URL for it.
+    expect(row({ data_type: "reference_image" }).type).toBe("image");
+  });
+
+  it("treats an enum value added after this code was written as text", () => {
+    // Fail-open to the SAFEST type: text is validated by length only, while a
+    // wrong guess at select/slider would drop every value the model returns.
+    expect(row({ data_type: "gradient_mesh" }).type).toBe("text");
+  });
+
+  it("carries range and options through, dropping malformed option entries", () => {
+    const v = row({
+      data_type: "single_select",
+      min_value: 2,
+      max_value: 9,
+      options: [
+        { promptValue: "winter", visibleName: "Winter" },
+        { label: "no promptValue — not usable in a prompt" },
+        "garbage",
+      ],
+    });
+    expect(v.min).toBe(2);
+    expect(v.max).toBe(9);
+    expect(v.options).toEqual([{ promptValue: "winter", label: "Winter" }]);
+  });
+
+  it("survives null columns without inventing values", () => {
+    const v = row({ label: null, description: null, min_value: null, options: null });
+    expect(v.label).toBeUndefined();
+    expect(v.min).toBeUndefined();
+    expect(v.options).toBeUndefined();
   });
 });
 

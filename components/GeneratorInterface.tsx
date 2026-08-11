@@ -1222,6 +1222,11 @@ export default function GeneratorInterface({
                           until the server decrypts per generation. */}
                       <DiceButton
                         variables={diceVariables}
+                        // A saved marketplace prompt: the server loads the
+                        // authoritative definitions from prompt_variables and
+                        // keys the reply by NAME — which is exactly what the
+                        // ids above are.
+                        promptId={promptId}
                         context={publicPromptText}
                         onValues={applyDiceValues}
                         headers={sessionAuthHeaders()}
