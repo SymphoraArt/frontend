@@ -24,8 +24,18 @@ interface PollinationsRequest {
  * Get dimensions from aspect ratio string
  */
 function getDimensions(aspectRatio: string, resolution: string): { width: number; height: number } {
-  // Base size from resolution
-  const baseSize = resolution === '4K' ? 1024 : resolution === '2K' ? 768 : 512;
+  // Base size from resolution.
+  //
+  // Capped at 768 on purpose. Measured 2026-08-12: asking for 1024x1280
+  // ("4K") and 768x960 ("2K") both come back as 686x858 — the free tier caps
+  // around 0.59 megapixels — but the 1024 request took roughly TWICE as long
+  // server-side (11.4s vs 5.9s) for byte-identical dimensions. The larger
+  // request bought the user nothing but a longer wait.
+  //
+  // The labels above this layer still promise more than the free provider can
+  // deliver; that is a product decision (see the free/paid contingent work),
+  // not something this adapter can honestly fix by asking louder.
+  const baseSize = resolution === '1K' ? 512 : 768;
 
   switch (aspectRatio) {
     case '16:9':
@@ -87,11 +97,19 @@ export async function generateImageWithPollinations(
     });
 
     if (!response.ok) {
+      // 429 is the free tier's normal answer to a burst — measured
+      // 2026-08-12, three requests in a row after a handful of renders. It is
+      // the most retryable failure there is, and reporting it as a plain
+      // server error made the route answer 500 and the user read "generation
+      // failed" for something that works again seconds later.
+      const rateLimited = response.status === 429;
       return {
         success: false,
-        error: `Pollinations API error: ${response.status} ${response.statusText}`,
+        error: rateLimited
+          ? 'The free generator is busy right now. Try again in a moment.'
+          : `Pollinations API error: ${response.status} ${response.statusText}`,
         generationTime: Date.now() - startTime,
-        retryable: response.status >= 500,
+        retryable: rateLimited || response.status >= 500,
       };
     }
 
