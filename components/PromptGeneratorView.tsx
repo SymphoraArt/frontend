@@ -124,7 +124,7 @@ export default function PromptGeneratorView({
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* Fetch available models from DB */
-  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string }>>({
+  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string; price?: number }>>({
     queryKey: ["/api/models"],
     queryFn: async () => {
       const res = await fetch("/api/models", { credentials: "include" });
@@ -182,11 +182,27 @@ export default function PromptGeneratorView({
      with no quote greys out rather than showing a number we invented. */
   const modelFamily = toModelFamily(generator);
   const quoteResolution = resolution === "4K" ? ("4K" as const) : ("2K" as const);
+
+  /* A model priced at 0 in the DB runs on the free provider (Kev,
+     2026-08-12 — "den preis entfernen, falls free model verfügbar ist").
+     There is nothing to quote and nothing to charge, so the whole payment
+     path is skipped rather than quoted at zero: a quote of $0.00 would still
+     build an intent, a nonce account and a signature request for a payment
+     that moves nothing. */
+  const freeModel = useMemo(() => {
+    const row = (modelsData ?? []).find((m) => m.name === generator);
+    return typeof row?.price === "number" && row.price === 0;
+  }, [modelsData, generator]);
+
+  /* Free of charge for either reason: the artist gave the prompt away, or the
+     chosen model costs nothing to run. */
+  const noCharge = isFree || freeModel;
+
   const { data: paidQuote } = useQuery({
     queryKey: ["generation-quote", promptId, modelFamily, quoteResolution],
     queryFn: () =>
       fetchGenerationQuote({ promptId: promptId!, modelFamily, resolution: quoteResolution }),
-    enabled: !isFree && !!promptId && !loading,
+    enabled: !noCharge && !!promptId && !loading,
     // Quotes expire server-side after 5 minutes; refresh a little sooner.
     refetchInterval: 4 * 60 * 1000,
   });
@@ -361,7 +377,7 @@ export default function PromptGeneratorView({
          This surface previously displayed a price and then called the FREE
          route: the marketplace showed prices and never charged anyone. */
       let res: Response;
-      if (!isFree && promptId) {
+      if (!noCharge && promptId) {
         const { intentId } = await authorizePaidGeneration({
           promptId,
           modelFamily,
@@ -435,7 +451,7 @@ export default function PromptGeneratorView({
     } catch (e: any) {
       toast({ title: "Generation Failed", description: e.message, variant: "destructive" });
     } finally { setGenerating(false); }
-  }, [isFree, promptText, vars, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
+  }, [isFree, noCharge, modelFamily, quoteResolution, promptText, vars, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
 
   const download = useCallback(() => {
     if (!resultUrl) return;
@@ -659,7 +675,7 @@ export default function PromptGeneratorView({
         {/* ── Sticky footer: Generate button ── */}
         {/* ToS §4: the network fee is itemised before the buyer confirms.
             Rendered only when the quote carries it — a free prompt has none. */}
-        {!isFree && paidQuote && (
+        {!noCharge && paidQuote && (
           <div style={{ fontSize: 11, opacity: 0.65, padding: "0 2px 6px", textAlign: "right" }}>
             incl. ${paidQuote.networkFeeUsd} network fee
             {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
@@ -674,11 +690,11 @@ export default function PromptGeneratorView({
           <button
             className="pgv-generate-btn"
             onClick={generate}
-            disabled={generating || (!isFree && !paidQuote)}
+            disabled={generating || (!noCharge && !paidQuote)}
             style={{ flex: 1 }}
           >
             {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
-            {isFree
+            {noCharge
               ? "Generate / free"
               : paidQuote
                 ? `Generate / $${paidQuote.totalUsd}`

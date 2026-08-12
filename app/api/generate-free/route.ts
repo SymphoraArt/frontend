@@ -86,9 +86,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert to base64 data URL (no blob storage needed)
-    const base64 = result.imageBuffers[0].toString('base64');
-    const imageUrl = `data:image/png;base64,${base64}`;
+    // Convert to base64 data URL (no blob storage needed).
+    //
+    // The media type is MEASURED from the bytes, not assumed. This said
+    // `image/png` unconditionally while Pollinations returns JPEG — verified
+    // 2026-08-12 in the browser, the rendered data URL began "/9j/" (FFD8FF,
+    // a JPEG SOI). Browsers sniff and display it anyway, which is why nobody
+    // noticed; what breaks is everything downstream that believes the label —
+    // generated_images.mime_type, download filenames, any CDN or converter.
+    const buffer = result.imageBuffers[0];
+    const measured = readImageDimensions(buffer);
+    const mediaType = measured?.format ? `image/${measured.format}` : 'application/octet-stream';
+    const imageUrl = `data:${mediaType};base64,${buffer.toString('base64')}`;
 
     console.log(`✅ Image generated successfully in ${result.generationTime}ms`);
 
