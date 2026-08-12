@@ -322,6 +322,22 @@ export default function PromptGeneratorView({
     setRefOverI(null);
   }, []);
 
+  /* Where the carried card will actually land, as an index in the CURRENT
+   * deck, so the gap can be opened at that exact seam.
+   *
+   * The off-by-one is the whole difficulty. moveRef splices the card out
+   * before putting it back, so dragging LEFT-to-RIGHT lands it AFTER the card
+   * under the cursor, while dragging right-to-left lands it BEFORE. Marking
+   * the hovered card would therefore point at the wrong seam in one of the two
+   * directions — it would say "here" and then drop the image somewhere else.
+   *
+   * refs.length is a valid value: it means the seam past the last card.
+   */
+  const refGapAt = useMemo(() => {
+    if (refDragI === null || refOverI === null || refDragI === refOverI) return -1;
+    return refDragI < refOverI ? refOverI + 1 : refOverI;
+  }, [refDragI, refOverI]);
+
   /* How much of each buried reference card stays visible.
    *
    * The deck must fit on ONE line inside a fixed 230px sidebar that clips
@@ -706,7 +722,7 @@ export default function PromptGeneratorView({
                       className={
                         "pgv-ref-slot" +
                         (refDragI === idx ? " dragging" : "") +
-                        (refOverI === idx && refDragI !== null && refDragI !== idx ? " over" : "")
+                        (refGapAt === idx ? " gap-before" : "")
                       }
                       aria-label={`Reference image ${idx + 1}`}
                       draggable
@@ -744,6 +760,12 @@ export default function PromptGeneratorView({
                       </button>
                     </div>
                   ))}
+                  {/* The seam past the last card needs its own element: the
+                      last card may itself be the one being carried, and that
+                      card's margins are already spoken for. */}
+                  {refGapAt === refs.length && (
+                    <span className="pgv-ref-gap-end" aria-hidden="true" />
+                  )}
                 </div>
               )}
             </div>

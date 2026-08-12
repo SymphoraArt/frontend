@@ -256,6 +256,12 @@
      because the sidebar is a fixed 230px and clips rather than scrolls.
      20px is only the fallback for a row rendered without it. */
   --pgv-ref-strip: 20px;
+  /* How wide the deck splits open at the drop seam. One strip would keep the
+     total width exactly constant but would also be invisible, because one
+     strip is the deck's normal rhythm. The extra 10px is what makes the seam
+     read as a gap, and it fits: at ten images the deck ends 16px short of the
+     panel edge, so a drag can spend 10 of those and still not be clipped. */
+  --pgv-ref-gap: calc(var(--pgv-ref-strip) + 10px);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -304,6 +310,16 @@
 .pgv-ref-deck > .pgv-ref-slot { margin-left: calc(var(--pgv-ref-strip) - var(--pgv-ref-tile)); }
 .pgv-ref-deck > .pgv-ref-slot:first-child { margin-left: 0; }
 
+/* .gap-before marks the ONE card that sits immediately after the seam the
+   carried image will drop into. Widening its left margin pushes it and
+   everything behind it aside, which is the whole point: the deck visibly
+   splits open at the place the image is going, rather than merely
+   highlighting a card and leaving the user to guess which side of it. */
+.pgv-ref-deck > .pgv-ref-slot.gap-before {
+  margin-left: calc(var(--pgv-ref-strip) - var(--pgv-ref-tile) + var(--pgv-ref-gap));
+}
+.pgv-ref-deck > .pgv-ref-slot.gap-before:first-child { margin-left: var(--pgv-ref-gap); }
+
 /* Later siblings paint over earlier ones by DOM order alone, so the
    z-index stays a flat 1 here and hover can lift a card above the whole
    stack. Do NOT set z-index inline per index: an inline value outranks
@@ -324,14 +340,40 @@
 .pgv-ref-slot:hover { z-index: 10; transform: translateY(-2px); }
 .pgv-ref-slot[draggable="true"] { cursor: grab; }
 .pgv-ref-slot:active { cursor: grabbing; }
-/* The card being carried fades but stays in place, so the deck does not
-   reflow mid-drag and the drop target keeps the position it was aimed at. */
-.pgv-ref-slot.dragging { opacity: 0.4; z-index: 20; }
-.pgv-ref-slot.over {
-  z-index: 15;
-  outline: 2px solid var(--pgv-accent);
-  outline-offset: 2px;
+
+/* The carried card gives up exactly its own visible footprint — one strip,
+   NOT one tile — so the deck closes over the hole it leaves without lurching.
+   A card advances the deck by (margin-left + width + margin-right), which is
+   (strip - tile) + tile + margin-right, so -strip is the value that makes it
+   contribute nothing. Using -tile here would shrink the deck by a whole tile
+   and everything behind it would jump 36px left instead of 13. */
+.pgv-ref-slot.dragging {
+  opacity: 0.35;
+  margin-right: calc(var(--pgv-ref-strip) * -1);
+  pointer-events: none;   /* let dragover reach the card underneath it */
 }
+
+/* The seam marker. A caret centred in the opened gap, so the answer to
+   "between which two images" is a line you can point at rather than an
+   inference from which card is highlighted. */
+.pgv-ref-slot.gap-before::before,
+.pgv-ref-gap-end::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: calc(var(--pgv-ref-gap) / -2 - 1px);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--pgv-accent);
+  z-index: 30;
+}
+.pgv-ref-gap-end {
+  position: relative;
+  flex: 0 0 var(--pgv-ref-gap);
+  align-self: stretch;
+}
+.pgv-ref-gap-end::before { left: calc(var(--pgv-ref-gap) / 2 - 1px); }
 .pgv-ref-slot img {
   width: 100%;
   height: 100%;
