@@ -295,6 +295,33 @@ export default function PromptGeneratorView({
 
   const removeRef = useCallback((i: number) => setRefs(prev => prev.filter((_, idx) => idx !== i)), []);
 
+  /* Reorder by dragging a card onto another position.
+   *
+   * The numbers on the deck are not labels, they are the order the images are
+   * sent in, and a prompt refers to them by that position. Without this the
+   * only way to fix an upload that landed in the wrong order is to delete the
+   * images and add them again. The editor deck has had this from the start
+   * (NodeCreator's moveRef); this is the buyer side catching up.
+   */
+  const [refDragI, setRefDragI] = useState<number | null>(null);
+  const [refOverI, setRefOverI] = useState<number | null>(null);
+
+  const moveRef = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    setRefs(prev => {
+      if (from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  const endRefDrag = useCallback(() => {
+    setRefDragI(null);
+    setRefOverI(null);
+  }, []);
+
   /* How much of each buried reference card stays visible.
    *
    * The deck must fit on ONE line inside a fixed 230px sidebar that clips
@@ -676,8 +703,34 @@ export default function PromptGeneratorView({
                   {refs.map((img, idx) => (
                     <div
                       key={idx}
-                      className="pgv-ref-slot"
+                      className={
+                        "pgv-ref-slot" +
+                        (refDragI === idx ? " dragging" : "") +
+                        (refOverI === idx && refDragI !== null && refDragI !== idx ? " over" : "")
+                      }
                       aria-label={`Reference image ${idx + 1}`}
+                      draggable
+                      onDragStart={e => {
+                        setRefDragI(idx);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", String(idx));
+                      }}
+                      onDragOver={e => {
+                        if (refDragI === null) return;
+                        // Without preventDefault the browser refuses the drop
+                        // outright, and the card springs back with no clue why.
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (refOverI !== idx) setRefOverI(idx);
+                      }}
+                      onDrop={e => {
+                        if (refDragI === null) return;
+                        e.preventDefault();
+                        const from = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
+                        if (!Number.isNaN(from)) moveRef(from, idx);
+                        endRefDrag();
+                      }}
+                      onDragEnd={endRefDrag}
                     >
                       <img src={img} alt={`Reference ${idx + 1}`} draggable={false} />
                       <span className="pgv-ref-num" aria-hidden="true">{idx + 1}</span>

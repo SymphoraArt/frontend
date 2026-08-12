@@ -322,6 +322,16 @@
   transition: transform 0.12s ease, box-shadow 0.15s ease;
 }
 .pgv-ref-slot:hover { z-index: 10; transform: translateY(-2px); }
+.pgv-ref-slot[draggable="true"] { cursor: grab; }
+.pgv-ref-slot:active { cursor: grabbing; }
+/* The card being carried fades but stays in place, so the deck does not
+   reflow mid-drag and the drop target keeps the position it was aimed at. */
+.pgv-ref-slot.dragging { opacity: 0.4; z-index: 20; }
+.pgv-ref-slot.over {
+  z-index: 15;
+  outline: 2px solid var(--pgv-accent);
+  outline-offset: 2px;
+}
 .pgv-ref-slot img {
   width: 100%;
   height: 100%;
