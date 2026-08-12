@@ -1071,3 +1071,85 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   transition: color 0.15s, background 0.15s;
 }
 .pgv-back:hover { color: var(--pgv-accent); background: var(--pgv-input-bg); }
+
+/* ── A free prompt, edited in its own sentence ────────────────────────────
+   The variables are chips inside the text rather than a stack of labelled
+   boxes underneath it. A box repeats what the sentence already says, and
+   separates the value from the place it will land. */
+.pgv-prompt-live {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: var(--pgv-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pgv-copy-prompt {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--pgv-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.pgv-copy-prompt:hover { color: var(--pgv-accent); }
+
+.pgv-tok-wrap { position: relative; display: inline; }
+/* The chip reads as a slot to fill: dashed while empty, solid once it holds
+   a value, so a glance at the sentence tells you what is still missing. */
+.pgv-tok {
+  font: inherit;
+  padding: 1px 6px;
+  margin: 0 1px;
+  border-radius: 5px;
+  border: 1px dashed var(--pgv-accent);
+  background: color-mix(in oklab, var(--pgv-accent) 12%, transparent);
+  color: var(--pgv-accent);
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+}
+.pgv-tok:hover { background: color-mix(in oklab, var(--pgv-accent) 22%, transparent); }
+.pgv-tok.filled {
+  border-style: solid;
+  color: var(--pgv-text);
+  background: color-mix(in oklab, var(--pgv-accent) 18%, transparent);
+}
+
+/* The scrim sits inside the token's wrapper, BEHIND the popover, so a click
+   anywhere else closes it — including a click on another token, which then
+   opens that one in the same gesture rather than costing two clicks. */
+.pgv-tok-scrim { position: fixed; inset: 0; z-index: 3; }
+/* Grows out of the chip and collapses back into it: transform-origin sits at
+   the top-left, where the chip is, so the motion reads as the same object
+   opening rather than as a panel arriving from somewhere else. */
+.pgv-tok-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 4;
+  width: 178px;
+  padding: 7px;
+  border-radius: 8px;
+  background: var(--pgv-raised);
+  border: 1px solid var(--pgv-border);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transform-origin: top left;
+  animation: pgv-tok-in 0.13s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes pgv-tok-in {
+  from { opacity: 0; transform: scale(0.86) translateY(-3px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.pgv-tok-hint {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 10px;
+  color: var(--pgv-text-muted);
+}

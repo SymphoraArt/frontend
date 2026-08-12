@@ -194,6 +194,7 @@ export default function PromptGeneratorView({
    * standalone route, so a recipient who is not signed into the shell still
    * lands on the piece itself.
    */
+
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const shareUrl = useMemo(
@@ -264,6 +265,29 @@ export default function PromptGeneratorView({
   const showcaseImages = prompt?.showcaseImages?.length ? prompt.showcaseImages : propShowcaseImages;
   const mainImage = showcaseImages[0]?.thumbnail || showcaseImages[0]?.url || propImageUrl || "";
   const promptText = prompt?.publicPromptText || "";
+
+  /* The prompt, split into text and the variables embedded in it.
+   *
+   * A token is only a token when a variable of that name actually exists.
+   * Prompt text contains ordinary brackets too, and turning "[sic]" into a
+   * button that writes nowhere would be a control that lies about what it
+   * does. Unknown brackets stay plain text.
+   */
+  const [openVar, setOpenVar] = useState<string | null>(null);
+  const promptSegments = useMemo(() => {
+    const byName = new Map(variables.map(v => [v.name, v]));
+    const out: Array<{ text: string; variable?: PromptVariable }> = [];
+    let last = 0;
+    for (const m of (promptText || "").matchAll(/\[([^\]\n]+)\]/g)) {
+      const v = byName.get(m[1]);
+      if (!v) continue;
+      if (m.index! > last) out.push({ text: (promptText || "").slice(last, m.index) });
+      out.push({ text: m[0], variable: v });
+      last = m.index! + m[0].length;
+    }
+    if (last < (promptText || "").length) out.push({ text: (promptText || "").slice(last) });
+    return out;
+  }, [promptText, variables]);
 
   /* Fetch user's generations — API returns { data: { generations, total } } via createSuccessResponse */
   const genQueryKey = ["user-generations", userKey, promptId];
@@ -746,20 +770,70 @@ export default function PromptGeneratorView({
             </div>
           </div>
 
-          {/* Free: show prompt text */}
+          {/* Free: the prompt IS the interface.
+              A free prompt has nothing to hide, so the text is the thing worth
+              showing — and its variables are edited IN it rather than in a
+              stack of labelled boxes underneath that repeat what the sentence
+              already says. Paid prompts keep the boxes: their text is not
+              shown, so the boxes are the only place their variables exist. */}
           {isFree && promptText && (
             <div className="pgv-block">
               <span className="pgv-section-label">Prompt · Free</span>
-              <textarea className="pgv-prompt-area" value={promptText} readOnly rows={4} />
-              <button onClick={copyPrompt} style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#666", background: "none", border: "none", cursor: "pointer" }}>
+              <p className="pgv-prompt-live">
+                {promptSegments.map((seg, i) =>
+                  seg.variable ? (
+                    <span className="pgv-tok-wrap" key={`${seg.variable.name}-${i}`}>
+                      <button
+                        type="button"
+                        className={`pgv-tok${vars[seg.variable.name] ? " filled" : ""}`}
+                        onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
+                        title={`Set ${seg.variable.label || seg.variable.name}`}
+                      >
+                        {vars[seg.variable.name] || seg.variable.label || seg.variable.name}
+                      </button>
+                      {openVar === seg.variable.name && (
+                        <>
+                          {/* Clicking away closes it. The scrim is inside the
+                              token's own wrapper so it cannot steal the click
+                              that opens a DIFFERENT token — that would need two
+                              clicks to move between variables. */}
+                          <span className="pgv-tok-scrim" onClick={() => setOpenVar(null)} />
+                          <span className="pgv-tok-pop" role="dialog">
+                            <input
+                              autoFocus
+                              className="pgv-input"
+                              value={vars[seg.variable.name] || ""}
+                              placeholder={seg.variable.label || seg.variable.name}
+                              onChange={e => onVarChange(seg.variable!.name, e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setOpenVar(null); }}
+                            />
+                            {/* Every occurrence of this variable reads the same
+                                value, so one edit fills them all — said out
+                                loud only when it actually applies. */}
+                            {promptSegments.filter(s => s.variable?.name === seg.variable!.name).length > 1 && (
+                              <span className="pgv-tok-hint">applies to every use</span>
+                            )}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    <span key={`t-${i}`}>{seg.text}</span>
+                  )
+                )}
+              </p>
+              <button className="pgv-copy-prompt" onClick={copyPrompt}>
                 {copied ? <Check size={12} /> : <Copy size={12} />}
                 {copied ? "Copied" : "Copy prompt"}
               </button>
             </div>
           )}
 
-          {/* Variable inputs — type-aware, one block per variable */}
-          {variables.map(v => (
+          {/* Variable inputs — type-aware, one block per variable.
+              Skipped for a free prompt: its variables are already editable
+              inside the text above, and showing both would be two controls
+              writing one value. */}
+          {!isFree && variables.map(v => (
             <div key={v.id || v.name} className="pgv-block">
               <span className="pgv-section-label">{v.label || v.name}</span>
 
