@@ -41,33 +41,11 @@ export default function PromptDetailModal({ isOpen, onClose, prompt }: PromptDet
   if (!isOpen || !prompt) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "#0F0E0D",
-      }}
-    >
-      <button
-        onClick={onClose}
-        style={{
-          position: "absolute",
-          top: 10,
-          right: 16,
-          zIndex: 1001,
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.15)",
-          borderRadius: "50%",
-          width: 32,
-          height: 32,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          color: "#fff",
-        }}
-      >
+    /* Same frame as EnkiDetailPanel, from one class now. This surface renders
+       outside the shell, where --ek-sw is undefined and the fallback of 0
+       keeps it full-width exactly as before. */
+    <div className="pgv-detail-panel">
+      <button onClick={onClose} aria-label="Close" className="pgv-detail-close">
         <X size={16} />
       </button>
       <PromptGeneratorView

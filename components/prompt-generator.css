@@ -32,6 +32,53 @@
   --pgv-star:        #f5a623;
 }
 
+/* ── The frame this view gets when it opens over an existing page ──────────
+   Two callers open it that way (EnkiDetailPanel from the profile grid,
+   PromptDetailModal from the showcase) and both had the SAME inline styles
+   copied into them: fixed, inset: 0, z-index 1000, background #0F0E0D. One
+   class, so a third caller cannot invent a fourth variant.
+
+   left, not inset. `inset: 0` starts the frame at x=0, which puts the view's
+   own 230px left column underneath the shell's icon rail — Kev's screenshot
+   shows the labels sliced to "...red brass" and "...dow light". The shell
+   already publishes its width as --ek-sw (256px, flipped to 78px by
+   .ek-root--rail), so the frame reads it and starts after it. Outside the
+   shell the variable is undefined and the fallback of 0 restores exactly the
+   old full-width behaviour, which is what /showcase wants.
+
+   z-index below the sidebar's 165 on purpose. enki-shell.css states the rule
+   next to that value: "no panel may ever cover the sidebar — especially not
+   the collapse chevron poking out of its edge". 162 clears the right-side
+   panel scrim at 160 and still leaves the rail and its chevron on top. */
+.pgv-detail-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--ek-sw, 0px);
+  z-index: 162;
+  background: var(--pgv-bg);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pgv-detail-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pgv-raised);
+  border: 1px solid var(--pgv-border);
+  color: var(--pgv-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pgv-detail-close:hover { border-color: var(--pgv-accent); color: var(--pgv-accent); }
+
 /* ── Page ── */
 .pgv-page {
   display: flex;

@@ -21,27 +21,13 @@ export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProp
   }, []);
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0F0E0D" }}>
-      <button
-        onClick={onClose}
-        aria-label="Close"
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 16,
-          zIndex: 1001,
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.15)",
-          borderRadius: "50%",
-          width: 32,
-          height: 32,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          color: "#fff",
-        }}
-      >
+    /* Frame and close button come from .pgv-detail-panel / .pgv-detail-close
+       in prompt-generator.css, which PromptGeneratorView imports itself. They
+       were inline here and identically inline in PromptDetailModal — two
+       copies of a frame that started at x=0 and so ran under the shell's icon
+       rail, and of a palette that ignored the theme. */
+    <div className="pgv-detail-panel">
+      <button onClick={onClose} aria-label="Close" className="pgv-detail-close">
         <X size={16} />
       </button>
       <PromptGeneratorView
