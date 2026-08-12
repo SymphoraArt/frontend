@@ -24,8 +24,12 @@ import bs58 from "bs58";
 import { PAYMENT_CHAINS, isSolanaChain, type ChainKey } from "@/shared/payment-config";
 
 export function solanaChain(): { rpcUrl: string; usdc: string } {
-  const key = (process.env.SOLANA_PAYMENT_CHAIN ??
-    process.env.SOLANA_FUND_CHAIN ??
+  // || rather than ??: a `.env` line reading `SOLANA_PAYMENT_CHAIN=` puts an
+  // EMPTY STRING in the environment, and ?? treats that as a real value —
+  // found on the devnet dry run, where it made every payment path throw
+  // "Not a Solana chain key: ".
+  const key = (process.env.SOLANA_PAYMENT_CHAIN ||
+    process.env.SOLANA_FUND_CHAIN ||
     "solana-devnet") as ChainKey;
   if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key)) {
     throw new Error(`Not a Solana chain key: ${key}`);

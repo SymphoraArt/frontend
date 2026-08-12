@@ -17,8 +17,10 @@ import { PAYMENT_CHAINS, isSolanaChain, type ChainKey } from "@/shared/payment-c
  * SOLANA_RPC_URL. Nothing hardcoded, no new env vars.
  */
 function getSolanaChain(): { rpcUrl: string; usdc: string } {
-  const key = (process.env.SOLANA_PAYMENT_CHAIN ??
-    process.env.SOLANA_FUND_CHAIN ??
+  // || not ??: an empty-string env line (`SOLANA_PAYMENT_CHAIN=`) must count
+  // as unset — same fix as lib/payments/solana.ts, found on the devnet run.
+  const key = (process.env.SOLANA_PAYMENT_CHAIN ||
+    process.env.SOLANA_FUND_CHAIN ||
     "solana-devnet") as ChainKey;
   if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key)) {
     throw new Error(`Not a Solana chain key: ${key}`);
