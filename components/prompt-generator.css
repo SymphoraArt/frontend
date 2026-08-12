@@ -2,17 +2,34 @@
    PromptGeneratorView – Dark 3-column layout
    ============================================================ */
 
+/* ── Palette ──────────────────────────────────────────────────────────────
+   Mapped onto the app's shared theme tokens, not a private palette.
+   This view used to carry its own greys (#0c0c0c page, #111 sidebar, #e07040
+   accent) while the app ran navy-and-gold, so the surface a buyer PAYS on was
+   the one place that ignored the theme they chose.
+
+   One block, not one per theme. --background and --ember-rgb are defined for
+   light AND dark, so they need no help. --surface-* exist only under `.dark`
+   and `.dark.theme-purple`, so each gets a light value as its var() fallback:
+   dark and purple pick up their token, light falls through. That is the same
+   shape used in components/generation/boost-toggle.css, and it means a new
+   theme is a token change with nothing to do here — the failure this file
+   already demonstrated is a second palette drifting away from the first. */
 :root {
-  --pgv-bg:          #0c0c0c;
-  --pgv-sidebar-bg:  #111;
-  --pgv-border:      #242424;
-  --pgv-text:        #e2e2e2;
-  --pgv-text-muted:  #666;
-  --pgv-accent:      #e07040;
-  --pgv-accent-h:    #f08858;
+  --pgv-bg:          hsl(var(--background));
+  --pgv-sidebar-bg:  var(--surface-1, #ffffff);
+  --pgv-right-bg:    hsl(var(--background));
+  --pgv-border:      var(--surface-rule, #e6e1d8);
+  --pgv-text:        var(--surface-text, #1c1814);
+  --pgv-text-muted:  hsl(var(--muted-foreground));
+  --pgv-accent:      rgb(var(--ember-rgb));
+  --pgv-accent-h:    color-mix(in oklab, rgb(var(--ember-rgb)) 82%, white);
+  --pgv-input-bg:    var(--surface-chrome, #f7f5f1);
+  --pgv-raised:      var(--surface-2, #f0ece4);
+  /* Rating gold stays literal on purpose: a star is not the brand accent, and
+     tinting it per theme would make four stars mean different things on two
+     screens. */
   --pgv-star:        #f5a623;
-  --pgv-input-bg:    var(--surface-chrome, #181818);
-  --pgv-right-bg:    #0c0c0c;
 }
 
 /* ── Page ── */
@@ -46,7 +63,7 @@
 }
 .pgv-sidebar-scroll::-webkit-scrollbar { width: 2px; }
 .pgv-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
-.pgv-sidebar-scroll::-webkit-scrollbar-thumb { background: var(--surface-2, #2e2e2e); border-radius: 2px; }
+.pgv-sidebar-scroll::-webkit-scrollbar-thumb { background: var(--surface-2, var(--pgv-border)); border-radius: 2px; }
 
 .pgv-sidebar-footer {
   flex-shrink: 0;
@@ -64,7 +81,7 @@
   font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
-  color: #fff;
+  color: var(--pgv-text);
   margin: 0 0 8px;
   letter-spacing: -0.2px;
   word-break: break-word;
@@ -78,8 +95,8 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  background: var(--surface-1, #1c1c1c);
-  border: 1px solid var(--surface-2, #2e2e2e);
+  background: var(--surface-1, var(--pgv-raised));
+  border: 1px solid var(--surface-2, var(--pgv-border));
   border-radius: 4px;
   padding: 3px 7px;
   font-size: 11px;
@@ -87,8 +104,8 @@
   color: var(--pgv-star);
 }
 .pgv-icon-btn {
-  background: var(--surface-1, #1c1c1c);
-  border: 1px solid var(--surface-2, #2e2e2e);
+  background: var(--surface-1, var(--pgv-raised));
+  border: 1px solid var(--surface-2, var(--pgv-border));
   border-radius: 4px;
   width: 24px;
   height: 24px;
@@ -96,10 +113,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #888;
+  color: var(--pgv-text-muted);
   transition: color 0.15s, background 0.15s;
 }
-.pgv-icon-btn:hover { color: #fff; background: var(--surface-2, #262626); }
+.pgv-icon-btn:hover { color: var(--pgv-text); background: var(--surface-2, var(--pgv-border)); }
 
 /* ── Section label (orange caps) ── */
 .pgv-section-label {
@@ -122,8 +139,8 @@
 .pgv-input {
   width: 100%;
   background: var(--pgv-input-bg);
-  border: 1px solid #252525;
-  color: #ddd;
+  border: 1px solid var(--pgv-border);
+  color: var(--pgv-text);
   padding: 7px 10px;
   border-radius: 7px;
   font-size: 12.5px;
@@ -132,8 +149,8 @@
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
-.pgv-input:focus { border-color: #3a3a3a; }
-.pgv-input::placeholder { color: #444; }
+.pgv-input:focus { border-color: var(--pgv-border); }
+.pgv-input::placeholder { color: var(--pgv-text-muted); }
 
 /* ── Checkbox / radio row ── */
 .pgv-check-row {
@@ -141,7 +158,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #bbb;
+  color: var(--pgv-text-muted);
   padding: 4px 0;
   cursor: pointer;
   user-select: none;
@@ -174,12 +191,12 @@
   gap: 5px;
   padding-left: 7px;
   background: var(--pgv-input-bg);
-  border: 1px solid #252525;
+  border: 1px solid var(--pgv-border);
   border-radius: 7px;
-  color: #5a5a5a;
+  color: var(--pgv-text-muted);
   transition: border-color 0.15s;
 }
-.pgv-field:focus-within { border-color: #3a3a3a; }
+.pgv-field:focus-within { border-color: var(--pgv-border); }
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */
@@ -189,22 +206,22 @@
    highlight, which is what a dark panel with a white dropdown looks like.
    Declared on the field and on the select because the popup takes it from
    the element that owns it. */
-.pgv-field,
-.pgv-generator-select,
-.pgv-field select {
+html.dark .pgv-field,
+html.dark .pgv-generator-select,
+html.dark .pgv-field select {
   color-scheme: dark;
 }
 .pgv-field select option,
 .pgv-generator-select option {
-  background: #161616;
-  color: #ddd;
+  background: var(--pgv-input-bg);
+  color: var(--pgv-text);
 }
 .pgv-field select {
   flex: 1 1 auto;
   min-width: 0;
   background: transparent;
   border: none;
-  color: #ddd;
+  color: var(--pgv-text);
   padding: 7px 4px 7px 0;
   font-size: 12px;
   font-family: inherit;
@@ -216,8 +233,8 @@
 .pgv-generator-select {
   width: 100%;
   background: var(--pgv-input-bg);
-  border: 1px solid #252525;
-  color: #ddd;
+  border: 1px solid var(--pgv-border);
+  color: var(--pgv-text);
   padding: 7px 8px;
   border-radius: 7px;
   font-size: 12px;
@@ -228,7 +245,7 @@
   appearance: auto;
   transition: border-color 0.15s;
 }
-.pgv-generator-select:focus { border-color: #3a3a3a; }
+.pgv-generator-select:focus { border-color: var(--pgv-border); }
 
 /* ── Generate button ── */
 /* Holds the button plus its fee marker, which is positioned against it. */
@@ -275,8 +292,8 @@
   height: 16px;
   border-radius: 50%;
   background: var(--pgv-bg);
-  border: 1px solid var(--surface-2, #2e2e2e);
-  color: #9a9a9a;
+  border: 1px solid var(--surface-2, var(--pgv-border));
+  color: var(--pgv-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -295,12 +312,12 @@
   bottom: calc(100% + 7px);
   right: -4px;
   white-space: nowrap;
-  background: #1b1b1b;
-  border: 1px solid var(--surface-2, #2e2e2e);
+  background: var(--pgv-raised);
+  border: 1px solid var(--surface-2, var(--pgv-border));
   border-radius: 6px;
   padding: 5px 8px;
   font-size: 10.5px;
-  color: #cfcfcf;
+  color: var(--pgv-text);
   opacity: 0;
   pointer-events: none;
   transform: translateY(2px);
@@ -318,8 +335,8 @@
 .pgv-prompt-area {
   width: 100%;
   background: var(--pgv-input-bg);
-  border: 1px solid #252525;
-  color: #bbb;
+  border: 1px solid var(--pgv-border);
+  color: var(--pgv-text-muted);
   padding: 9px 10px;
   border-radius: 7px;
   font-size: 11px;
@@ -337,7 +354,7 @@
   justify-content: space-between;
   margin-bottom: 8px;
 }
-.pgv-ref-count { font-size: 10px; color: #444; }
+.pgv-ref-count { font-size: 10px; color: var(--pgv-text-muted); }
 
 /* Cascading numbered card-deck, mirroring the prompt editor's reference
    row (.enk-ref-* in app/editor/enki-editor.css). Same idea, separate
@@ -374,9 +391,9 @@
   align-items: center;
   justify-content: center;
   background: var(--pgv-input-bg);
-  border: 1px dashed var(--surface-2, #2e2e2e);
+  border: 1px dashed var(--surface-2, var(--pgv-border));
   border-radius: 7px;
-  color: #555;
+  color: var(--pgv-text-muted);
   font-size: 18px;
   line-height: 1;
   font-family: inherit;
@@ -392,7 +409,7 @@
 .pgv-ref-hint {
   font-size: 11px;
   line-height: 1.25;
-  color: #555;
+  color: var(--pgv-text-muted);
   min-width: 0;
   flex: 1 1 0;
   user-select: none;
@@ -505,10 +522,10 @@
 .pgv-ref-remove {
   position: absolute; top: -5px; right: -5px;
   width: 16px; height: 16px; border-radius: 50%;
-  background: rgba(0,0,0,0.9); border: 1px solid #555; cursor: pointer;
+  background: rgba(0,0,0,0.9); border: 1px solid var(--pgv-text-muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity 0.15s, transform 0.12s;
-  color: #ccc; padding: 0;
+  color: var(--pgv-text); padding: 0;
 }
 .pgv-ref-slot:hover .pgv-ref-remove,
 .pgv-ref-slot:focus-within .pgv-ref-remove { opacity: 1; }
@@ -520,7 +537,7 @@ input[type="range"].pgv-range {
   appearance: none;
   width: 100%;
   height: 3px;
-  background: var(--surface-2, #2a2a2a);
+  background: var(--surface-2, var(--pgv-border));
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -551,7 +568,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   flex: 1;
   border-radius: 10px;
   overflow: hidden;
-  background: #161616;
+  background: var(--pgv-input-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -578,17 +595,17 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  background: var(--surface-chrome, #181818);
-  border: 1px solid var(--surface-2, #2a2a2a);
+  background: var(--surface-chrome, var(--pgv-input-bg));
+  border: 1px solid var(--surface-2, var(--pgv-border));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
+  color: var(--pgv-text-muted);
   transition: all 0.15s;
 }
-.pgv-thumb-arrow:hover:not(:disabled) { background: #242424; color: #ccc; }
+.pgv-thumb-arrow:hover:not(:disabled) { background: var(--pgv-border); color: var(--pgv-text); }
 .pgv-thumb-arrow:disabled { opacity: 0.25; cursor: default; }
 
 .pgv-thumb-strip {
@@ -608,7 +625,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  background: var(--surface-1, #1c1c1c);
+  background: var(--surface-1, var(--pgv-raised));
   border: 2px solid transparent;
   transition: border-color 0.15s, transform 0.1s;
 }
@@ -621,8 +638,8 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 /* placeholder when image hasn't loaded */
 .pgv-thumb-item:not(:has(img[src])) {
   background: repeating-linear-gradient(
-    45deg, var(--surface-1, #1c1c1c) 0px, var(--surface-1, #1c1c1c) 4px,
-    #222 4px, #222 8px
+    45deg, var(--surface-1, var(--pgv-raised)) 0px, var(--surface-1, var(--pgv-raised)) 4px,
+    var(--pgv-border) 4px, var(--pgv-border) 8px
   );
 }
 
@@ -636,7 +653,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 }
 .pgv-thumb-status.success { background: #27ae60; color: #fff; }
 .pgv-thumb-status.error   { background: #c0392b; color: #fff; }
-.pgv-thumb-status.loading { background: var(--surface-2, #2a2a2a); color: #888; }
+.pgv-thumb-status.loading { background: var(--surface-2, var(--pgv-border)); color: var(--pgv-text-muted); }
 
 /* ── Comments / Reviews tabs ── */
 .pgv-center-tabs {
@@ -651,17 +668,17 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   gap: 5px;
   padding: 7px 13px;
   border-radius: 20px;
-  border: 1px solid #222;
-  background: #141414;
-  color: #666;
+  border: 1px solid var(--pgv-border);
+  background: var(--pgv-bg);
+  color: var(--pgv-text-muted);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
 }
-.pgv-center-tab:hover { background: var(--surface-1, #1e1e1e); color: #ccc; border-color: var(--surface-2, #2e2e2e); }
-.pgv-center-tab.active { background: var(--surface-1, #1e1e1e); border-color: #383838; color: #e0e0e0; }
-.pgv-center-tab-sub { font-size: 10px; color: #444; margin-left: 2px; }
+.pgv-center-tab:hover { background: var(--surface-1, var(--pgv-raised)); color: var(--pgv-text); border-color: var(--surface-2, var(--pgv-border)); }
+.pgv-center-tab.active { background: var(--surface-1, var(--pgv-raised)); border-color: var(--pgv-border); color: var(--pgv-text); }
+.pgv-center-tab-sub { font-size: 10px; color: var(--pgv-text-muted); margin-left: 2px; }
 
 /* ── Save / Download overlay buttons ── */
 .pgv-image-actions {
@@ -686,9 +703,9 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   gap: 5px;
   padding: 7px 15px;
   background: rgba(14, 14, 14, 0.9);
-  border: 1px solid #383838;
+  border: 1px solid var(--pgv-border);
   border-radius: 20px;
-  color: #bbb;
+  color: var(--pgv-text-muted);
   font-size: 11.5px;
   font-weight: 500;
   font-family: inherit;
@@ -697,7 +714,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   backdrop-filter: blur(8px);
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.pgv-img-action-btn:hover { background: rgba(30,30,30,0.95); border-color: #555; color: #fff; }
+.pgv-img-action-btn:hover { background: var(--pgv-raised); border-color: var(--pgv-text-muted); color: var(--pgv-text); }
 .pgv-img-action-btn.saved { border-color: var(--pgv-accent); color: var(--pgv-accent); }
 
 /* ── Generating overlay ── */
@@ -709,7 +726,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   background: rgba(0,0,0,0.75);
   backdrop-filter: blur(2px);
   border-radius: 10px;
-  color: #888; font-size: 13px;
+  color: var(--pgv-text-muted); font-size: 13px;
 }
 
 /* ══════════════════════════════
@@ -733,17 +750,17 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   font-weight: 700;
   letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: #555;
+  color: var(--pgv-text-muted);
   flex-shrink: 0;
   border-bottom: 1px solid var(--pgv-border);
 }
 .pgv-history-header button {
   background: none; border: none; cursor: pointer;
-  color: #444; display: flex; align-items: center;
+  color: var(--pgv-text-muted); display: flex; align-items: center;
   padding: 2px; border-radius: 3px;
   transition: color 0.15s;
 }
-.pgv-history-header button:hover { color: #999; }
+.pgv-history-header button:hover { color: var(--pgv-text-muted); }
 
 .pgv-history-list {
   flex: 1;
@@ -753,16 +770,16 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   flex-direction: column;
   gap: 7px;
   scrollbar-width: thin;
-  scrollbar-color: var(--surface-2, #2a2a2a) transparent;
+  scrollbar-color: var(--surface-2, var(--pgv-border)) transparent;
 }
 .pgv-history-list::-webkit-scrollbar { width: 3px; }
 .pgv-history-list::-webkit-scrollbar-track { background: transparent; }
-.pgv-history-list::-webkit-scrollbar-thumb { background: var(--surface-2, #2a2a2a); border-radius: 3px; }
+.pgv-history-list::-webkit-scrollbar-thumb { background: var(--surface-2, var(--pgv-border)); border-radius: 3px; }
 
 /* Empty state */
 .pgv-history-list:empty::after {
   content: "No generations yet";
-  color: #333;
+  color: var(--pgv-border);
   font-size: 10px;
   text-align: center;
   padding: 16px 0;
@@ -770,7 +787,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 }
 
 .pgv-history-empty {
-  color: #333;
+  color: var(--pgv-border);
   font-size: 10px;
   text-align: center;
   padding: 20px 0 10px;
@@ -784,13 +801,13 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   overflow: hidden;
   position: relative;
   cursor: pointer;
-  background: var(--surface-chrome, #181818);
+  background: var(--surface-chrome, var(--pgv-input-bg));
   flex-shrink: 0;
   border: 1px solid var(--pgv-border);
   transition: border-color 0.15s, transform 0.1s;
 }
 .pgv-history-item:hover {
-  border-color: #383838;
+  border-color: var(--pgv-border);
   transform: scale(1.02);
 }
 .pgv-history-item img {
@@ -807,13 +824,13 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 }
 .pgv-history-status.success { background: #27ae60; color: #fff; }
 .pgv-history-status.error   { background: #c0392b; color: #fff; }
-.pgv-history-status.loading { background: #222; color: #aaa; border: 1px solid #333; }
+.pgv-history-status.loading { background: var(--pgv-border); color: var(--pgv-text-muted); border: 1px solid var(--pgv-border); }
 
 /* scroll hint arrow */
 .pgv-history-scroll-hint {
   text-align: center;
   padding: 4px 0 6px;
-  color: #333;
+  color: var(--pgv-border);
   flex-shrink: 0;
 }
 
@@ -822,8 +839,8 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 ══════════════════════════════ */
 .pgv-loading {
   display: flex; align-items: center; justify-content: center;
-  height: 100vh; background: #0c0c0c;
-  color: #555; font-size: 13px; gap: 10px;
+  height: 100vh; background: var(--pgv-bg);
+  color: var(--pgv-text-muted); font-size: 13px; gap: 10px;
 }
 
 .pgv-spinner { animation: pgv-spin 0.75s linear infinite; }
@@ -844,7 +861,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   width: 34px; height: 34px; border-radius: 50%;
   background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
   cursor: pointer; display: flex; align-items: center;
-  justify-content: center; color: #ccc;
+  justify-content: center; color: var(--pgv-text);
   transition: background 0.15s;
 }
 .pgv-lightbox-close:hover { background: rgba(255,255,255,0.16); }
@@ -882,7 +899,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
     border-radius: 999px;
     background: var(--pgv-sidebar-bg);
     border: 1px solid var(--pgv-border);
-    color: #9a9a9a;
+    color: var(--pgv-text-muted);
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
