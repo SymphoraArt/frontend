@@ -115,6 +115,9 @@ export default function PromptGeneratorView({
   const [generating, setGenerating] = useState(false);
   // Same model on a priority host — faster, dearer, identical image.
   const [boost, setBoost] = useState(false);
+  /* Only consulted below the 960px breakpoint, where the history is an
+     overlay. Above it the panel is always in the layout and this is inert. */
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -362,22 +365,47 @@ export default function PromptGeneratorView({
     return refSeam;
   }, [refDragI, refSeam]);
 
+  /* The deck's geometry as it stood when the drag STARTED.
+   *
+   * This has to be a snapshot, not a live measurement, or the indicator
+   * oscillates and the user sees nothing settle. Opening the gap moves every
+   * card behind it to the right; measuring live would then put a different
+   * card under a stationary cursor, which flips the seam, which moves the gap
+   * back, which flips it again. The seam has to be a function of the pointer
+   * alone, and the pointer is not moved by our own reflow.
+   */
+  const refGeom = useRef<{ lefts: number[]; strip: number; lastRight: number } | null>(null);
+
+  const captureRefGeometry = useCallback((deck: Element | null) => {
+    if (!deck) return;
+    const cards = [...deck.querySelectorAll<HTMLElement>(".pgv-ref-slot")];
+    if (cards.length === 0) return;
+    const last = cards[cards.length - 1].getBoundingClientRect();
+    refGeom.current = {
+      lefts: cards.map((c) => c.getBoundingClientRect().left),
+      strip: refStrip,
+      lastRight: last.right,
+    };
+  }, [refStrip]);
+
   /* Which seam the pointer is over, from its x against the midpoint of the
-   * part of the card the user can actually SEE.
+   * part of each card the user can actually SEE.
    *
    * Not the midpoint of the card's box: cards overlap, so all but the last
    * show only their leftmost strip and the rest lies buried under their
-   * neighbours. Splitting on the box midpoint would flip the seam at a point
-   * sitting under a different card entirely, and the marker would jump
+   * neighbours. Splitting on box midpoints would flip the seam at a point
+   * sitting under a different card entirely, and the marker would appear
    * somewhere the cursor is not.
    */
-  const seamFromPointer = useCallback(
-    (idx: number, clientX: number, rect: DOMRect) => {
-      const visibleWidth = idx === refs.length - 1 ? rect.width : refStrip;
-      return clientX < rect.left + visibleWidth / 2 ? idx : idx + 1;
-    },
-    [refs.length, refStrip]
-  );
+  const seamFromX = useCallback((clientX: number): number | null => {
+    const g = refGeom.current;
+    if (!g) return null;
+    for (let i = 0; i < g.lefts.length; i++) {
+      const visible = i === g.lefts.length - 1 ? g.lastRight - g.lefts[i] : g.strip;
+      if (clientX < g.lefts[i] + visible / 2) return i;
+    }
+    return g.lefts.length;
+  }, []);
 
   const onVarChange = useCallback((name: string, value: string) => {
     setVars(prev => ({ ...prev, [name]: value }));
@@ -734,9 +762,39 @@ export default function PromptGeneratorView({
                 these images by position (`@Image3`). Hover lifts a card
                 clear of the stack so its remove button stays reachable
                 from underneath. */}
+            {/* dragover/drop live on the ROW, not on each card. A card only
+                covers its own strip, so per-card handlers went silent over the
+                opened gap and over the empty space right of the deck — exactly
+                the two places the user aims at when moving an image to the
+                end. The row spans all of it, and the seam comes from the
+                frozen geometry, so which element reports the event no longer
+                matters. */}
             <div
               className="pgv-ref-row"
               style={{ ["--pgv-ref-strip" as string]: `${refStrip}px` } as React.CSSProperties}
+              onDragOver={e => {
+                if (refDragI === null) return;
+                // Without preventDefault the browser refuses the drop outright
+                // and the card springs back with no indication why.
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                const seam = seamFromX(e.clientX);
+                if (seam !== null && seam !== refSeam) setRefSeam(seam);
+              }}
+              onDrop={e => {
+                if (refDragI === null) return;
+                e.preventDefault();
+                const from = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
+                const seam = seamFromX(e.clientX);
+                // The seam counts positions in the deck WITH the carried card
+                // still in it. Removing that card shifts every later position
+                // down by one, so a seam to its right loses one to land where
+                // the gap was drawn.
+                if (!Number.isNaN(from) && seam !== null) {
+                  moveRef(from, seam > from ? seam - 1 : seam);
+                }
+                endRefDrag();
+              }}
             >
               <button
                 type="button"
@@ -763,30 +821,12 @@ export default function PromptGeneratorView({
                       aria-label={`Reference image ${idx + 1}`}
                       draggable
                       onDragStart={e => {
+                        // Freeze the layout before anything moves; every seam
+                        // for the rest of this drag is measured against it.
+                        captureRefGeometry(e.currentTarget.parentElement);
                         setRefDragI(idx);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", String(idx));
-                      }}
-                      onDragOver={e => {
-                        if (refDragI === null) return;
-                        // Without preventDefault the browser refuses the drop
-                        // outright, and the card springs back with no clue why.
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                        const seam = seamFromPointer(idx, e.clientX, e.currentTarget.getBoundingClientRect());
-                        if (refSeam !== seam) setRefSeam(seam);
-                      }}
-                      onDrop={e => {
-                        if (refDragI === null) return;
-                        e.preventDefault();
-                        const from = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
-                        const seam = seamFromPointer(idx, e.clientX, e.currentTarget.getBoundingClientRect());
-                        // The seam counts positions in the deck WITH the
-                        // carried card still in it. Removing that card shifts
-                        // every later position down by one, so a seam to its
-                        // right has to lose one to land where the gap was.
-                        if (!Number.isNaN(from)) moveRef(from, seam > from ? seam - 1 : seam);
-                        endRefDrag();
                       }}
                       onDragEnd={endRefDrag}
                     >
@@ -859,14 +899,6 @@ export default function PromptGeneratorView({
         </div>
 
         {/* ── Sticky footer: Generate button ── */}
-        {/* ToS §4: the network fee is itemised before the buyer confirms.
-            Rendered only when the quote carries it — a free prompt has none. */}
-        {!noCharge && paidQuote && (
-          <div style={{ fontSize: 11, opacity: 0.65, padding: "0 2px 6px", textAlign: "right" }}>
-            incl. ${paidQuote.networkFeeUsd} network fee
-            {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
-          </div>
-        )}
         {/* Both settings sit BEFORE Generate. They change what Generate will
             do, so reaching them after passing the button reads backwards, and
             the dice in particular was easy to mistake for a post-generation
@@ -889,19 +921,41 @@ export default function PromptGeneratorView({
               cost and fees included. boostedCost(price) was the artist price
               alone and understated every paid generation. A paid prompt with
               no quote yet cannot promise a number, so it cannot be clicked. */}
-          <button
-            className="pgv-generate-btn"
-            onClick={generate}
-            disabled={generating || (!noCharge && !paidQuote)}
-            style={{ flex: 1 }}
-          >
-            {generating ? <Loader2 size={16} className="pgv-spinner" /> : <Sparkles size={15} />}
-            {noCharge
-              ? "Generate / free"
-              : paidQuote
-                ? `Generate / $${paidQuote.totalUsd}`
-                : "Generate / …"}
-          </button>
+          <div className="pgv-generate-wrap">
+            <button
+              className="pgv-generate-btn"
+              onClick={generate}
+              disabled={generating || (!noCharge && !paidQuote)}
+            >
+              {generating ? <Loader2 size={14} className="pgv-spinner" /> : <Sparkles size={14} />}
+              {noCharge
+                ? "Generate free"
+                : paidQuote
+                  ? `Generate $${paidQuote.totalUsd}`
+                  : "Generate …"}
+            </button>
+            {/* ToS §4 requires the network fee to be itemised before the buyer
+                confirms. It used to occupy its own line above the footer,
+                which in a 230px rail is a lot of permanent space for a number
+                that only matters once. As a marker on the button it is still
+                there, still before the click, and reachable by hover, focus
+                and touch — but it stops competing with the price it qualifies.
+                Rendered only when the quote actually carries a fee. */}
+            {!noCharge && paidQuote && (
+              <span
+                className="pgv-fee-info"
+                tabIndex={0}
+                role="note"
+                aria-label={`Total includes a $${paidQuote.networkFeeUsd} network fee`}
+              >
+                <Info size={11} aria-hidden />
+                <span className="pgv-fee-tip">
+                  incl. ${paidQuote.networkFeeUsd} network fee
+                  {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
+                </span>
+              </span>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -1010,11 +1064,35 @@ export default function PromptGeneratorView({
         </div>
       </main>
 
-      {/* ═══ RIGHT HISTORY ═══ */}
-      <aside className="pgv-history">
+      {/* ═══ RIGHT HISTORY ═══
+          Below 960px this used to be `display: none` and nothing replaced it,
+          so a narrow window simply lost every generated image with no way to
+          reach them — the images were still in state, just unreachable. It is
+          now an off-canvas panel with a handle, so the content stays available
+          at any width instead of being thrown away by a breakpoint. */}
+      {!historyOpen && (
+        <button
+          type="button"
+          className="pgv-history-handle"
+          onClick={() => setHistoryOpen(true)}
+          aria-label={`Your history${history.length ? ` (${history.length})` : ""}`}
+          title="Your history"
+        >
+          <ImageIcon size={13} aria-hidden />
+          {history.length > 0 && <span className="pgv-history-handle__n">{history.length}</span>}
+        </button>
+      )}
+      <aside className={`pgv-history${historyOpen ? " pgv-history--open" : ""}`}>
         <div className="pgv-history-header">
           <span>Your History</span>
-          <button><X size={12} /></button>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(false)}
+            aria-label="Close history"
+            title="Close history"
+          >
+            <X size={12} />
+          </button>
         </div>
         <div className="pgv-history-list">
           {history.length === 0 && (

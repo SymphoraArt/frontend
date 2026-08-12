@@ -183,6 +183,22 @@
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */
+/* color-scheme is what makes the NATIVE popup dark. The option list is drawn
+   by the browser, not by us, so no amount of styling on the select reaches
+   it: without this it renders as the default light list with a blue
+   highlight, which is what a dark panel with a white dropdown looks like.
+   Declared on the field and on the select because the popup takes it from
+   the element that owns it. */
+.pgv-field,
+.pgv-generator-select,
+.pgv-field select {
+  color-scheme: dark;
+}
+.pgv-field select option,
+.pgv-generator-select option {
+  background: #161616;
+  color: #ddd;
+}
 .pgv-field select {
   flex: 1 1 auto;
   min-width: 0;
@@ -215,15 +231,24 @@
 .pgv-generator-select:focus { border-color: #3a3a3a; }
 
 /* ── Generate button ── */
+/* Holds the button plus its fee marker, which is positioned against it. */
+.pgv-generate-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
 .pgv-generate-btn {
   width: 100%;
   background: var(--pgv-accent);
   color: #fff;
   border: none;
-  padding: 11px 16px;
+  /* Trimmed from 11px/13.5px. With boost and the dice now sharing the row,
+     the old size pushed "Generate $1.802" onto two lines in a 230px rail. */
+  padding: 9px 10px;
   border-radius: 8px;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 700;
+  white-space: nowrap;
   font-family: inherit;
   cursor: pointer;
   display: flex;
@@ -236,6 +261,55 @@
 .pgv-generate-btn:hover:not(:disabled) {
   background: var(--pgv-accent-h);
   transform: translateY(-1px);
+}
+
+/* Fee marker: a quiet dot on the button's corner that opens the itemisation
+   on hover or keyboard focus. Focusable on purpose — a disclosure reachable
+   only by mouse would put a term of the sale out of reach of anyone using a
+   keyboard, which is the opposite of what itemising it is for. */
+.pgv-fee-info {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pgv-bg);
+  border: 1px solid var(--surface-2, #2e2e2e);
+  color: #9a9a9a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  z-index: 2;
+  transition: color 0.15s, border-color 0.15s;
+}
+.pgv-fee-info:hover,
+.pgv-fee-info:focus-visible {
+  color: var(--pgv-accent);
+  border-color: var(--pgv-accent);
+  outline: none;
+}
+.pgv-fee-tip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  right: -4px;
+  white-space: nowrap;
+  background: #1b1b1b;
+  border: 1px solid var(--surface-2, #2e2e2e);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 10.5px;
+  color: #cfcfcf;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.pgv-fee-info:hover .pgv-fee-tip,
+.pgv-fee-info:focus-visible .pgv-fee-tip {
+  opacity: 1;
+  transform: translateY(0);
 }
 .pgv-generate-btn:active:not(:disabled) { transform: translateY(0); }
 .pgv-generate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -775,8 +849,58 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 }
 .pgv-lightbox-close:hover { background: rgba(255,255,255,0.16); }
 
-/* ── Responsive ── */
-@media (max-width: 960px) { .pgv-history { display: none; } }
+/* ── Responsive ──
+   The history is NOT dropped when the window narrows. It used to be
+   `display: none` below 960px with nothing in its place, so every generated
+   image became unreachable — still in state, just with no way to open it.
+   It becomes an off-canvas panel instead, with a handle to bring it back. */
+.pgv-history-handle { display: none; }
+
+@media (max-width: 960px) {
+  .pgv-history {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    transform: translateX(100%);
+    transition: transform 0.18s ease;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  }
+  .pgv-history--open { transform: translateX(0); }
+
+  .pgv-history-handle {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 39;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: var(--pgv-sidebar-bg);
+    border: 1px solid var(--pgv-border);
+    color: #9a9a9a;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .pgv-history-handle:hover { color: var(--pgv-accent); border-color: var(--pgv-accent); }
+  .pgv-history-handle__n {
+    font-weight: 700;
+    color: var(--pgv-accent);
+  }
+}
+
+/* Above the breakpoint the panel is part of the layout and always visible,
+   so its close button would only be able to make it unreachable. */
+@media (min-width: 961px) {
+  .pgv-history-header button { display: none; }
+}
+
 @media (max-width: 640px) {
   .pgv-sidebar { width: 200px; }
   .pgv-center { padding: 8px 8px 0; }
