@@ -904,7 +904,7 @@ export default function PromptGeneratorView({
             the dice in particular was easy to mistake for a post-generation
             action out on the right. */}
         <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} compact />
+          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
               over-long context rather than clipping it. */}

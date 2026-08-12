@@ -34,12 +34,6 @@ export interface BoostToggleProps {
   /** Hidden entirely when the chosen model has no faster host. */
   available?: boolean;
   disabled?: boolean;
-  /**
-   * Icons only, no word, for footers where width is the scarce resource.
-   * The clock and the bolt stay together — the pair is the claim — and the
-   * title and aria-label keep carrying the full sentence.
-   */
-  compact?: boolean;
   className?: string;
 }
 
@@ -48,7 +42,6 @@ export default function BoostToggle({
   onChange,
   available = true,
   disabled = false,
-  compact = false,
   className = "",
 }: BoostToggleProps) {
   // Hidden rather than disabled: a greyed-out control invites a click and
@@ -64,18 +57,25 @@ export default function BoostToggle({
       aria-label="Boost — priority provider, faster generation"
       disabled={disabled}
       onClick={() => onChange(!boost)}
-      className={`enki-boost${boost ? " enki-boost--on" : ""}${compact ? " enki-boost--compact" : ""} ${className}`.trim()}
+      className={`enki-boost${boost ? " enki-boost--on" : ""} ${className}`.trim()}
+      /* Short on purpose. A tooltip is read while the cursor is already moving,
+         so it gets one fact: what changes and what it costs. The rest — same
+         model, same picture — is what the icons already say by NOT being a
+         quality badge. */
       title={
         boost
-          ? `Boost on — a priority provider runs this, roughly 3x faster. ${BOOST_MULTIPLIER}x the price, same model, same image.`
-          : "Boost — pay more to run on a priority provider, roughly 3x faster. Same model, same image."
+          ? `On: ~3x faster, ${BOOST_MULTIPLIER}x the price. Same image.`
+          : `~3x faster for ${BOOST_MULTIPLIER}x the price. Same image.`
       }
     >
-      {/* Clock + bolt: the promise is time, not quality. Both survive the
-          compact variant; only the word is dropped. */}
+      {/* Clock + bolt, and nothing else. The word "Boost" is gone from every
+          surface: it cost width in toolbars that were already truncating their
+          dropdowns, and it named the control rather than explaining it. The
+          pair IS the claim — time, not quality — so neither icon survives
+          alone, and the full sentence stays on aria-label for anyone who
+          cannot hover. */}
       <Clock size={12} strokeWidth={2.2} aria-hidden />
       <Zap size={12} strokeWidth={2.6} aria-hidden />
-      {!compact && <span>Boost</span>}
     </button>
   );
 }

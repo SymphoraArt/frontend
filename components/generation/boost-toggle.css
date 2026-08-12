@@ -22,9 +22,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   height: 28px;
-  padding: 0 10px;
+  /* Icons only, so the width is the two glyphs plus breathing room rather
+     than a word. Fixed, so it cannot squeeze a toolbar that is already
+     truncating its dropdowns. */
+  width: 44px;
+  padding: 0;
   border: 1px solid var(--enki-rule, var(--surface-rule, #2a2a2a));
   border-radius: 999px;
   background: var(--enki-paper-2, transparent);
@@ -55,12 +59,3 @@
   outline-offset: 2px;
 }
 
-/* Compact: the clock and the bolt alone, for footers where width is the
-   scarce resource. The word is dropped, not the icons — the pair IS the
-   claim (time, not quality), so neither survives alone. The title and
-   aria-label still carry the full sentence for anyone who needs it. */
-.enki-boost--compact {
-  width: 44px;
-  padding: 0;
-  gap: 3px;
-}
