@@ -2,6 +2,8 @@
 
 import { Heart, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { preloadImageUI } from "@/components/enki/EnkiDetailPanel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import "./enki.css";
 
@@ -15,8 +17,27 @@ type EnkiCardProps = {
 
 export default function EnkiCard({ prompt, onOpen, faved, toggleFav, onEdit }: EnkiCardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  /* Warm what the click is about to need, while the pointer is still on its
+     way: the image view's chunk, which next/dynamic otherwise fetches only on
+     first render, and the two requests that view makes before it can paint.
+     All three are idempotent, so hovering ten cards costs one chunk fetch and
+     one models request. Failures are swallowed on purpose — this is an
+     optimisation, and a broken one must never interfere with the click. */
+  const warm = () => {
+    preloadImageUI();
+    queryClient.prefetchQuery({ queryKey: [`/api/prompts/${prompt.id}`] }).catch(() => {});
+    queryClient.prefetchQuery({ queryKey: ["/api/models"] }).catch(() => {});
+  };
+
   return (
-    <article className="enki-card" onClick={() => onOpen?.(prompt)}>
+    <article
+      className="enki-card"
+      onClick={() => onOpen?.(prompt)}
+      onMouseEnter={warm}
+      onFocus={warm}
+    >
       <div className="enki-card-img">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={prompt.art.url} alt={prompt.title} />

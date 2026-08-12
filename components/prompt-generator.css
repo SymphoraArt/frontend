@@ -982,3 +982,21 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   .pgv-sidebar { width: 200px; }
   .pgv-center { padding: 8px 8px 0; }
 }
+
+/* ── Loading, inside the frame ────────────────────────────────────────────
+   Centred on .pgv-detail-panel rather than on the viewport: the frame starts
+   at the shell's menu edge and below the recovery banner, so a viewport-
+   centred spinner lands visibly off to one side of the thing it belongs to. */
+.pgv-detail-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pgv-bg);
+}
+.pgv-detail-spinner {
+  color: var(--pgv-accent);
+  animation: pgv-spin 0.9s linear infinite;
+}
+@keyframes pgv-spin { to { transform: rotate(360deg); } }

@@ -234,7 +234,18 @@ export default function EnkiHome() {
     if (nodeOpen) closeNode();
     // Guests can browse, but personal areas need an account.
     if (!authed && AUTHED_ONLY.has(id)) { showToast("Sign in to use this."); return; }
-    if (id === "home") { setPanel(null); setActiveNav("home"); router.push("/home"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (id === "home") {
+      setPanel(null); setActiveNav("home");
+      /* If the image view is open, Home means "back to where I was" — close it
+         and leave the feed exactly as it was, rather than routing and scrolling
+         to the top of a list the reader had already worked their way down. */
+      const detailOpen = !!document.querySelector(".pgv-detail-panel");
+      window.dispatchEvent(new CustomEvent("enki:close-detail"));
+      if (detailOpen) return;
+      router.push("/home");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (id === "search") {
       setPanel(null); setActiveNav("search");
       window.scrollTo({ top: 0, behavior: "smooth" });
