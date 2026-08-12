@@ -377,12 +377,10 @@ export default function EnkiHome() {
         />
 
         <main className="ek-main">
-          {/* The search input used to live here, permanently across the top.
-              It is now a single glyph after the last category in the filter
-              bar, which unrolls on click (Kev, 2026-08-13) — see SearchChip in
-              components/enki/EnkiFilters.tsx. The bar itself stays: it is what
-              gives the feed its top offset. */}
-          <div className="ek-topbar" />
+          {/* No top bar. It held only the search input, which is now a glyph
+              in the category bar, and an empty 56px strip with a border and a
+              background is not "nothing" — it is a band of unused screen above
+              the first thing the reader wants (Kev, 2026-08-13). */}
           <EnkiFeedPage />
         </main>
       </div>

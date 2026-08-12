@@ -244,8 +244,6 @@
 .ek-with-banner .ek-sidebar { top: var(--ek-banner-h); }
 .ek-with-banner .ek-topbar { top: var(--ek-banner-h); }
 .ek-with-banner .ek-panel-scrim { top: var(--ek-banner-h); }
-.ek-with-banner .ek-main .enki-catbar { top: calc(56px + var(--ek-banner-h)); } /* topbar + banner */
-.ek-with-banner .ek-main > .enki { padding-top: calc(112px + var(--ek-banner-h)); }
 .ek-with-banner .nc { top: var(--ek-banner-h); }         /* node editor + its absolute toolbar/ribbon */
 
 /* ── small viewports: compress the sidebar so nothing ever overlaps ── */
@@ -290,8 +288,12 @@
    64px top navbar. In the shell there is no top navbar and the left rail owns
    the left edge, so we slide the fixed catbar over by the sidebar width and
    trim the feed's top padding. */
-.ek-main > .enki { padding-top: 112px; }
-.ek-main .enki-catbar { top: 56px; left: var(--ek-sw); right: 0; width: auto; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease; }
+/* No top bar any more — the category bar IS the top of the main area, so it
+   clears the recovery banner and nothing else, and the feed clears the
+   category bar plus a little air. Both read --ek-banner-h, so the dismissed
+   state needs no second rule. The 112/56 below were the old bar's budget. */
+.ek-main > .enki { padding-top: calc(62px + var(--ek-banner-h, 0px)); }
+.ek-main .enki-catbar { top: var(--ek-banner-h, 0px); left: var(--ek-sw); right: 0; width: auto; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease; }
 
 /* ── shell top bar (search) ── */
 .ek-topbar {
@@ -389,9 +391,7 @@
 .ek-panel-body .set-save-floater { position: sticky; bottom: 12px; }
 
 @media (max-width: 700px) {
-  .ek-topbar { padding: 0 14px; height: 52px; }
-  .ek-main > .enki { padding-top: 104px; }
-  .ek-main .enki-catbar { top: 52px; }
+  .ek-main > .enki { padding-top: calc(58px + var(--ek-banner-h, 0px)); }
 }
 
 /* Hide the floating "Generate · new image" quick-create pill while the node

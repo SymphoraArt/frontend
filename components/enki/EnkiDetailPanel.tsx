@@ -83,6 +83,7 @@ export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProp
         promptId={prompt.id}
         title={prompt.title}
         artistName={prompt.artist?.name}
+        artistId={prompt.artist?.handle || prompt.artist?.id}
         imageUrl={prompt.art.url}
         showcaseImages={[prompt.art, ...(prompt.versions || [])].map(v => ({ url: v.url }))}
         isFreeShowcase={prompt.visibility === "full"}

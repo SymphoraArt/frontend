@@ -26,6 +26,9 @@ import {
   ChevronDown,
   Crop,
   Maximize2,
+  Link2 as LinkIcon,
+  Send,
+  ArrowLeft,
 } from "lucide-react";
 import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
@@ -89,6 +92,7 @@ export default function PromptGeneratorView({
   promptId,
   title: propTitle,
   artistName: propArtistName,
+  artistId,
   imageUrl: propImageUrl,
   showcaseImages: propShowcaseImages = [],
   isFreeShowcase: propIsFree,
@@ -118,6 +122,7 @@ export default function PromptGeneratorView({
   /* Only consulted below the 960px breakpoint, where the history is an
      overlay. Above it the panel is always in the layout and this is inert. */
   const [historyOpen, setHistoryOpen] = useState(false);
+
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -180,6 +185,51 @@ export default function PromptGeneratorView({
     false;
   const price = prompt?.price ?? 0;
   const tags = prompt?.tags?.length ? prompt.tags : [];
+
+  /* Sharing.
+   *
+   * The link is built from the CURRENT location rather than a hardcoded
+   * origin, so a link copied on a preview deployment points at that preview
+   * and not at production. /generator/{id} is used deliberately: it is the
+   * standalone route, so a recipient who is not signed into the shell still
+   * lands on the piece itself.
+   */
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const shareUrl = useMemo(
+    () => (typeof window === "undefined" ? "" : `${window.location.origin}/generator/${promptId}`),
+    [promptId]
+  );
+  /* Checked once on mount, not during render: navigator.share does not exist
+     on the server, and reading it while rendering makes the first client paint
+     disagree with the server's. */
+  const [canNativeShare, setCanNativeShare] = useState(false);
+  useEffect(() => { setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share); }, []);
+
+  const shareText = `${title} on Enki Art`;
+  const xUrl = `https://x.com/intent/post?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+  const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+
+  const copyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 1600);
+    } catch {
+      // Clipboard access can be refused outright; say so rather than showing a
+      // tick for something that did not happen.
+      toast({ title: "Could not copy", description: shareUrl });
+    }
+  }, [shareUrl, toast]);
+
+  const nativeShare = useCallback(async () => {
+    try {
+      await navigator.share({ title, text: shareText, url: shareUrl });
+    } catch {
+      /* Dismissing the sheet rejects too. Nothing went wrong, so say nothing. */
+    }
+    setShareOpen(false);
+  }, [title, shareText, shareUrl]);
 
   /* The real total, from the server's own arithmetic. boostedCost(price) was
      only ever the ARTIST price — it omitted model cost, platform fee and the
@@ -608,11 +658,91 @@ export default function PromptGeneratorView({
         <div className="pgv-sidebar-scroll">
           {/* Title + meta */}
           <div className="pgv-sidebar-header">
+            {/* A small way back, directly above the title. Kev asked for it
+                "very small to save space": the header is the top of a 230px
+                column, so a full-width Back row would cost a line that the
+                prompt and its variables need more.
+
+                Opened as an overlay it closes the overlay, which leaves the
+                feed exactly where it was. On the standalone /generator route
+                there is no overlay to close, so it steps back through history
+                instead — same gesture, same result, whichever way the reader
+                arrived. */}
+            <button
+              className="pgv-back"
+              type="button"
+              aria-label="Back"
+              title="Back"
+              onClick={() => {
+                if (document.querySelector(".pgv-detail-panel")) {
+                  window.dispatchEvent(new CustomEvent("enki:close-detail"));
+                } else {
+                  window.history.back();
+                }
+              }}
+            >
+              <ArrowLeft size={13} />
+            </button>
             <h1>{title}</h1>
+            {/* The artist, under the title, reachable. A marketplace whose
+                creator is unclickable makes every piece look like stock. When
+                there is no id to link to, the name is plain text rather than a
+                link that goes nowhere. */}
+            {artistId ? (
+              <a className="pgv-artist" href={`/creators/${artistId}`}>{artistName}</a>
+            ) : (
+              <span className="pgv-artist pgv-artist--plain">{artistName}</span>
+            )}
             <div className="pgv-meta-row">
               <span className="pgv-star-badge"><Star size={11} fill="currentColor" /> 4.9</span>
-              <button className="pgv-icon-btn"><Share2 size={12} /></button>
-              <button className="pgv-icon-btn"><Bookmark size={12} fill={fav ? "currentColor" : "none"} /></button>
+              <div className="pgv-share">
+                <button
+                  className="pgv-icon-btn"
+                  aria-label="Share"
+                  aria-expanded={shareOpen}
+                  title="Share"
+                  onClick={() => setShareOpen(v => !v)}
+                >
+                  <Share2 size={12} />
+                </button>
+                {shareOpen && (
+                  <>
+                    {/* A click anywhere else closes it — a menu you can only
+                        dismiss by hitting the same small button again is a
+                        menu people leave open. */}
+                    <div className="pgv-share-scrim" onClick={() => setShareOpen(false)} />
+                    <div className="pgv-share-menu" role="menu">
+                      <button role="menuitem" onClick={copyLink}>
+                        {copiedLink ? <Check size={13} /> : <LinkIcon size={13} />}
+                        {copiedLink ? "Link copied" : "Copy link"}
+                      </button>
+                      {canNativeShare ? (
+                        /* On a phone this is the whole point: one sheet with
+                           every app the reader actually has, including the
+                           ones no web intent can reach. */
+                        <button role="menuitem" onClick={nativeShare}>
+                          <Share2 size={13} /> Share post via …
+                        </button>
+                      ) : (
+                        /* Desktop has no such sheet, so the networks that
+                           publish a real web intent are listed by name.
+                           Instagram is deliberately absent: it has no share
+                           intent for an arbitrary link, and an entry that
+                           silently does nothing is worse than no entry. */
+                        <>
+                          <a role="menuitem" href={xUrl} target="_blank" rel="noreferrer" onClick={() => setShareOpen(false)}>
+                            <Share2 size={13} /> Share on X
+                          </a>
+                          <a role="menuitem" href={tgUrl} target="_blank" rel="noreferrer" onClick={() => setShareOpen(false)}>
+                            <Send size={13} /> Share on Telegram
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              <button className="pgv-icon-btn" aria-label="Bookmark"><Bookmark size={12} fill={fav ? "currentColor" : "none"} /></button>
             </div>
           </div>
 

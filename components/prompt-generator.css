@@ -1000,3 +1000,74 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   animation: pgv-spin 0.9s linear infinite;
 }
 @keyframes pgv-spin { to { transform: rotate(360deg); } }
+
+/* ── Artist, under the title ──────────────────────────────────────────── */
+.pgv-artist {
+  display: inline-block;
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--pgv-text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
+.pgv-artist--plain { cursor: default; }
+
+/* ── Share menu ───────────────────────────────────────────────────────────
+   Anchored to its button rather than centred on the screen: it belongs to
+   that icon, and a dialog in the middle of the view for "copy a link" is a
+   heavier gesture than the action deserves. */
+.pgv-share { position: relative; display: inline-flex; }
+.pgv-share-scrim { position: fixed; inset: 0; z-index: 1; }
+.pgv-share-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  min-width: 178px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--pgv-raised);
+  border: 1px solid var(--pgv-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+.pgv-share-menu > * {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--pgv-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.pgv-share-menu > *:hover { background: var(--pgv-input-bg); color: var(--pgv-accent); }
+
+/* Back, above the title. Deliberately tiny: it sits at the top of a 230px
+   column where a full-width Back row would cost a line the prompt and its
+   variables need more (Kev: "very small to save space"). */
+.pgv-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 0 4px -3px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--pgv-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.pgv-back:hover { color: var(--pgv-accent); background: var(--pgv-input-bg); }
