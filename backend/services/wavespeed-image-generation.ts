@@ -18,6 +18,7 @@
  */
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 import { readImageDimensions } from './gemini-image-generation';
+import { referenceImageCount, referenceImagesUnsupported } from '@/lib/generation/provider-capabilities';
 
 const API_BASE = 'https://api.wavespeed.ai/api/v3';
 
@@ -49,6 +50,25 @@ export async function generateImagesWithWaveSpeed(
   const apiKey = process.env.WAVESPEED_API_KEY;
   if (!apiKey) {
     return { success: false, error: 'WAVESPEED_API_KEY is not set', generationTime: 0, retryable: false };
+  }
+
+  /* Reference images are REFUSED, not ignored.
+   *
+   * This adapter posts to a /text-to-image model id and builds an `input`
+   * object with no image field in it, so anything attached is dropped on the
+   * floor. Until 2026-08-12 it was dropped silently: the buyer paid, the
+   * provider never saw the images, and the returned picture looked like a
+   * plausible answer to the prompt, so nothing anywhere revealed the loss.
+   *
+   * Failing here rather than generating costs the buyer nothing — the caller
+   * treats success:false as a failed generation and voids the authorisation
+   * instead of capturing it — while generating would charge them for the wrong
+   * thing. When the sibling image-input endpoint is wired, this guard comes out
+   * and "wavespeed" joins PROVIDERS_WITH_IMAGE_INPUT in the same commit.
+   */
+  const refs = referenceImageCount(request.referenceImages);
+  if (refs > 0) {
+    return { ...referenceImagesUnsupported('this host', refs), generationTime: Date.now() - startTime };
   }
 
   const model = request.modelVersion || 'google/nano-banana-pro/text-to-image';

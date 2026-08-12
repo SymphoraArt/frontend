@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { eligibleRoutes, pickRoute, type RouteLink, type RouteCandidate } from "@/lib/generation/routing";
 import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-health";
+import { supportsReferenceImages } from "@/lib/generation/provider-capabilities";
 
 export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
@@ -309,14 +310,32 @@ export const __testing__ = { fromRow, linkToRoute };
  * Falls back to routeFor() whenever the ordered list cannot be built: no
  * priority columns yet, no matching row, everything down. Delivering the image
  * matters more than delivering it cheaply.
+ *
+ * Returns NULL in exactly one case: the request carries reference images and no
+ * host — not the ordered candidates, not the fallback — can pass them to the
+ * model. Null rather than a route the caller might use anyway, because the
+ * fallback path is precisely how the silent drop used to happen: candidates
+ * came back empty and routeFor() handed over WaveSpeed, which discards them.
+ * A nullable return makes the compiler force every caller to decide.
  */
 export async function chooseRoute(
   supabase: SupabaseClient | null,
   model: ResolvedModel,
-  opts: { boost?: boolean; quality?: string | null; resolution?: string | null },
+  opts: {
+    boost?: boolean;
+    quality?: string | null;
+    resolution?: string | null;
+    /** The request has reference images attached. */
+    needsImageInput?: boolean;
+  },
   audience: Audience = "public",
-): Promise<Route> {
-  const fallback = routeFor(model, opts.boost);
+): Promise<Route | null> {
+  const needsImages = opts.needsImageInput === true;
+  const rawFallback = routeFor(model, opts.boost);
+  // The fallback is a route like any other and gets the same capability test.
+  const fallback =
+    !needsImages || supportsReferenceImages(rawFallback.provider) ? rawFallback : null;
+
   const links = (model.links ?? []) as RouteLink[];
   if (!supabase || links.length === 0) return fallback;
 
@@ -325,6 +344,7 @@ export async function chooseRoute(
     { quality: opts.quality, resolution: opts.resolution },
     opts.boost ? "boost" : "normal",
     audience,
+    { needsImageInput: needsImages },
   );
   if (candidates.length === 0) return fallback;
 

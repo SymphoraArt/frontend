@@ -13,6 +13,7 @@ import {
 } from "@/backend/solana-x402-verifier";
 import { generateImagesWithGemini } from "@/backend/services/gemini-image-generation";
 import type { ImageGenerationRequest } from "@/backend/services/types";
+import { referenceImageCount } from "@/lib/generation/provider-capabilities";
 import { getSupabaseServerClient, getSupabaseServerClientSafe } from "@/lib/supabaseServer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
@@ -309,6 +310,12 @@ export async function POST(request: NextRequest) {
     // of a specific host: quoting AceData and then generating on WaveSpeed
     // would charge the wrong amount. This also skips hosts whose breaker is
     // open, so an outage costs a fallback rather than a failed payment.
+    /* Reference images decide WHICH host is even eligible, which is why the
+     * count is computed here, before the route is chosen and long before the
+     * quote. Only hosts that can pass images to the model are considered, so a
+     * prompt with references takes the Gemini row rather than the cheaper
+     * WaveSpeed one that would discard them. */
+    const attachedRefs = referenceImageCount(body.referenceImages);
     const preflightRoute = await chooseRoute(
       getSupabaseServerClientSafe(),
       preflightModel,
@@ -318,8 +325,32 @@ export async function POST(request: NextRequest) {
         resolution: preflightModel.supportsResolution
           ? (body.resolution ?? null)
           : null,
+        needsImageInput: attachedRefs > 0,
       },
     );
+
+    /* No host can carry these images. Refuse, and say so, rather than
+     * generating without them.
+     *
+     * This is the case the whole capability layer exists for. Until
+     * 2026-08-12 the request went through on the cheapest host, the images
+     * were dropped somewhere below this line, and the buyer was charged in
+     * full for a picture that had never seen them. Nothing surfaced it: the
+     * output is a perfectly plausible answer to the prompt. 422 rather than
+     * 501 — the request is well formed, the combination is simply not
+     * available. */
+    if (!preflightRoute) {
+      return NextResponse.json(
+        {
+          error:
+            `${preflightModel.name} cannot use reference images. ` +
+            `Nothing was generated and nothing was charged. ` +
+            `Choose a model that accepts them, or remove the ${attachedRefs} attached image${attachedRefs === 1 ? "" : "s"}.`,
+        },
+        { status: 422 },
+      );
+    }
+
     const IMPLEMENTED: readonly string[] = ["gemini", "wavespeed", "pollinations", "openai"];
     if (!IMPLEMENTED.includes(preflightRoute.provider)) {
       return NextResponse.json(

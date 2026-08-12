@@ -111,9 +111,30 @@ export async function generateImagesWithGemini(
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
       { text: request.prompt },
     ];
-    for (const ref of request.referenceImages ?? []) {
+    /* Every attached reference has to make it, or the request fails.
+     *
+     * This used to be `if (parsed) parts.push(...)`, which quietly used the
+     * ones it could read and threw the rest away. A buyer attaching five
+     * images and getting three used would be charged in full and told
+     * nothing — the same silent-loss failure that made the WaveSpeed and
+     * OpenAI adapters refuse outright, just in a smaller dose and harder to
+     * notice, because the picture does honour SOME of the references.
+     */
+    const unreadable: number[] = [];
+    (request.referenceImages ?? []).forEach((ref, i) => {
       const parsed = parseImageInput(ref);
       if (parsed) parts.push({ inlineData: parsed });
+      else unreadable.push(i + 1);
+    });
+    if (unreadable.length > 0) {
+      return {
+        success: false,
+        error:
+          `Reference image${unreadable.length === 1 ? "" : "s"} ${unreadable.join(", ")} could not be read. ` +
+          `Nothing was generated and nothing was charged. Re-upload ${unreadable.length === 1 ? "it" : "them"} and try again.`,
+        generationTime: Date.now() - startTime,
+        retryable: false,
+      };
     }
     const refCount = parts.length - 1;
     if (refCount > 0) console.log(`[Gemini] Using ${refCount} reference image(s)`);

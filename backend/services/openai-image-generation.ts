@@ -21,6 +21,7 @@
  */
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 import { readImageDimensions } from './gemini-image-generation';
+import { referenceImageCount, referenceImagesUnsupported } from '@/lib/generation/provider-capabilities';
 
 const ENDPOINT = 'https://api.openai.com/v1/images/generations';
 
@@ -103,6 +104,17 @@ export async function generateImagesWithOpenAI(
     ?.trim();
   if (!apiKey) {
     return { success: false, error: 'OPENAI_API_KEY is not set', generationTime: 0, retryable: false };
+  }
+
+  /* Reference images are REFUSED, not ignored. Same reasoning as the
+   * WaveSpeed adapter: this posts to /v1/images/generations, which has no
+   * image input at all — the edits endpoint is a different call with a
+   * different body — so anything attached vanishes without a trace while the
+   * buyer is charged in full. Refusing costs them nothing; generating charges
+   * them for something they did not order. */
+  const refs = referenceImageCount(request.referenceImages);
+  if (refs > 0) {
+    return { ...referenceImagesUnsupported('this host', refs), generationTime: Date.now() - startTime };
   }
 
   const model = request.modelVersion || 'gpt-image-2';

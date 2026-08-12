@@ -15,6 +15,8 @@
  * and it must be testable without a database, a network or a provider.
  */
 
+import { supportsReferenceImages } from "./provider-capabilities";
+
 export type Audience = "public" | "enterprise" | "internal";
 
 /** The request settings a route may be conditioned on. */
@@ -76,6 +78,21 @@ export function matchesConditions(
   return true;
 }
 
+export interface RouteFilters {
+  /**
+   * The request carries reference images, so a host that cannot pass them to
+   * the model is not a candidate at any price.
+   *
+   * This is a CAPABILITY filter, not a preference. Nano Banana Pro sits on
+   * WaveSpeed at priority 10 and on Gemini at 20; before this, a prompt with
+   * eighteen references took the cheap host and lost all eighteen without a
+   * word. Dropping the host that cannot serve the request turns that into a
+   * correct, slightly dearer generation — and where no host qualifies, into a
+   * refusal the caller can act on instead of a lie.
+   */
+  needsImageInput?: boolean;
+}
+
 /**
  * Every route that could serve this request, best first.
  *
@@ -88,6 +105,7 @@ export function eligibleRoutes(
   settings: RouteSettings,
   role: string,
   audience: Audience = "public",
+  filters: RouteFilters = {},
 ): RouteCandidate[] {
   return links
     .map((l, index) => ({ l, index }))
@@ -100,6 +118,7 @@ export function eligibleRoutes(
       // the UI would advertise what it cannot deliver.
       const want = (p.audience as Audience) ?? "public";
       if (want !== "public" && want !== audience) return false;
+      if (filters.needsImageInput && !supportsReferenceImages(p.key)) return false;
       return matchesConditions(l.applies_when, settings);
     })
     .sort((a, b) => (a.l.priority ?? 100) - (b.l.priority ?? 100) || a.index - b.index)
