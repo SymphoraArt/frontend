@@ -82,6 +82,14 @@ CREATE INDEX IF NOT EXISTS gpi_rule_buyer_day_idx
 -- Turn a rule off instantly:  UPDATE pricing_rules SET active = false WHERE name = '…';
 
 -- RLS: only server routes (service role) read these.
+--
+-- pricing_rule_redemptions is NOT listed here. It is dropped 30 lines above,
+-- on purpose — quotas are derived from generation_payment_intents rather than
+-- counted in a table of their own. An ALTER on it survived that rewrite and
+-- made the whole migration abort with
+--   ERROR: 42P01: relation "pricing_rule_redemptions" does not exist
+-- which is worse than it sounds: everything BEFORE the failing statement had
+-- already run, so a retry met half-created objects. Every statement here is
+-- IF NOT EXISTS / IF EXISTS precisely so a re-run after this fix is clean.
 ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pricing_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pricing_rule_redemptions ENABLE ROW LEVEL SECURITY;
