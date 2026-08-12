@@ -29,9 +29,33 @@ function mockFetch(response: Response): FetchArgs {
   return seen;
 }
 
-function imageResponse(): Response {
-  // A JPEG SOI is enough — the adapter only forwards the bytes.
-  return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), { status: 200 });
+/** Bytes as a plain ArrayBuffer — Response's BodyInit does not take a Node Buffer. */
+function bodyOf(b: Buffer): ArrayBuffer {
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+}
+
+/** A 24-byte PNG header carrying real dimensions — enough for readImageDimensions. */
+function pngOf(width: number, height: number): ArrayBuffer {
+  const b = Buffer.alloc(24);
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  b.write("IHDR", 12, "ascii");
+  b.writeUInt32BE(width, 16);
+  b.writeUInt32BE(height, 20);
+  return bodyOf(b);
+}
+
+/** A minimal JPEG carrying an SOF0 frame header, so the format differs from PNG. */
+function jpegOf(width: number, height: number): ArrayBuffer {
+  const b = Buffer.alloc(32);
+  b.set([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08], 0); // SOI, SOF0, length, precision
+  b.writeUInt16BE(height, 7);
+  b.writeUInt16BE(width, 9);
+  b.set([0xff, 0xd9], 21); // EOI
+  return bodyOf(b);
+}
+
+function imageResponse(width = 686, height = 858): Response {
+  return new Response(pngOf(width, height), { status: 200 });
 }
 
 function errorResponse(status: number, statusText: string): Response {
@@ -91,17 +115,32 @@ describe("free provider: failure classification", () => {
 });
 
 describe("free provider: requested size", () => {
-  it("never asks for more than the provider can return", async () => {
-    for (const resolution of ["1K", "2K", "4K"]) {
-      const seen = mockFetch(imageResponse());
-      await generateImageWithPollinations("a teapot", "1:1", resolution);
-      const { width, height } = dimensionsOf(seen.url);
+  // Every ratio the adapter offers. The first attempt at this capped one SIDE
+  // at 768 and was checked only against 1:1, which passed while 4:5 was still
+  // 25% over the budget, 16:9 was 78% over and 2.39:1 was 139% over. A test
+  // that walks a single ratio cannot see that, so this one walks them all.
+  const RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "4:5", "2:3", "2.39:1", "1:2.39"];
+  const MAX_PIXELS = 589_824;
 
-      // 768 is the measured ceiling below which the provider stops padding the
-      // wait for pixels it will not deliver.
-      expect(Math.max(width, height)).toBeLessThanOrEqual(768);
-      vi.unstubAllGlobals();
+  it("never asks for more pixels than the provider will render, at any ratio", async () => {
+    const overshooting: string[] = [];
+
+    for (const resolution of ["1K", "2K", "4K"]) {
+      for (const ratio of RATIOS) {
+        const seen = mockFetch(imageResponse());
+        await generateImageWithPollinations("a teapot", ratio, resolution);
+        const { width, height } = dimensionsOf(seen.url);
+        vi.unstubAllGlobals();
+
+        // Rounding to whole pixels after the sqrt rescale can land a hair over
+        // the budget; a couple of hundred pixels is not over-asking.
+        if (width * height > MAX_PIXELS + 1000) {
+          overshooting.push(`${resolution} ${ratio} -> ${width}x${height} (${width * height}px)`);
+        }
+      }
     }
+
+    expect(overshooting).toEqual([]);
   });
 
   it("asks for the same size at 4K as at 2K, since the provider returns the same image", async () => {
@@ -134,6 +173,38 @@ describe("free provider: requested size", () => {
     expect(oneK.width).toBeLessThan(twoK.width);
   });
 
+  it("lets 4K outgrow 2K again once the provider budget is raised", async () => {
+    /* The ladder is deliberately kept intact in the adapter and bounded only
+       by the pixel budget, so that raising POLLINATIONS_MAX_PIXELS makes the
+       user's choice mean something again. Pollinations set that ceiling per
+       worker (589,824 observed, 810,000 in their code, 1,048,576 in their
+       provisioning script), so it genuinely does move.
+
+       Without this test, collapsing the ladder back into a fixed one-side cap
+       passes everything else — the budget clamps both arms to the same size
+       today, and the regression would only surface on the day someone raises
+       the ceiling and nothing gets bigger. */
+    vi.stubEnv("POLLINATIONS_MAX_PIXELS", "8000000");
+    vi.resetModules();
+    const generous = await import("@/backend/services/pollinations-image-generation");
+
+    const at2K = mockFetch(imageResponse());
+    await generous.generateImageWithPollinations("a teapot", "4:5", "2K");
+    const twoK = dimensionsOf(at2K.url);
+    vi.unstubAllGlobals();
+
+    const at4K = mockFetch(imageResponse());
+    await generous.generateImageWithPollinations("a teapot", "4:5", "4K");
+    const fourK = dimensionsOf(at4K.url);
+    vi.unstubAllGlobals();
+
+    vi.unstubAllEnvs();
+    vi.resetModules();
+
+    expect(fourK.width).toBeGreaterThan(twoK.width);
+    expect(fourK.width * fourK.height).toBeGreaterThan(twoK.width * twoK.height);
+  });
+
   it("keeps the aspect ratio the user chose", async () => {
     const seen = mockFetch(imageResponse());
     await generateImageWithPollinations("a teapot", "16:9", "2K");
@@ -142,5 +213,59 @@ describe("free provider: requested size", () => {
 
     expect(width).toBeGreaterThan(height);
     expect(width / height).toBeCloseTo(16 / 9, 1);
+  });
+});
+
+describe("free provider: what it reports back", () => {
+  it("reports the dimensions of the image it got, not the ones it asked for", async () => {
+    // The provider silently shrinks over-budget requests, so echoing the
+    // request would record an image that was never produced. The type in
+    // ./types.ts already specifies measured-not-requested; this adapter was
+    // the one still passing the caller's "2K" label straight through.
+    mockFetch(imageResponse(686, 858));
+
+    const result = await generateImageWithPollinations("a teapot", "4:5", "4K");
+    vi.unstubAllGlobals();
+
+    expect(result.metadata?.resolution).toBe("686x858");
+    expect(result.metadata?.resolution).not.toBe("4K");
+  });
+
+  it("keeps what it asked for alongside, so the two can be compared", async () => {
+    const seen = mockFetch(imageResponse(686, 858));
+    await generateImageWithPollinations("a teapot", "4:5", "4K");
+    const asked = dimensionsOf(seen.url);
+    vi.unstubAllGlobals();
+
+    mockFetch(imageResponse(686, 858));
+    const result = await generateImageWithPollinations("a teapot", "4:5", "4K");
+    vi.unstubAllGlobals();
+
+    expect(result.metadata?.requestedSize).toBe(`${asked.width}x${asked.height}`);
+  });
+
+  it("reads the container format off the bytes instead of assuming one", async () => {
+    // The provider serves JPEG, and this route's data URL is built from the
+    // reported type — a hardcoded "png" would mislabel every image it returns.
+    mockFetch(new Response(jpegOf(686, 858), { status: 200 }));
+    const asJpeg = await generateImageWithPollinations("a teapot", "4:5", "2K");
+    vi.unstubAllGlobals();
+
+    mockFetch(imageResponse(686, 858));
+    const asPng = await generateImageWithPollinations("a teapot", "4:5", "2K");
+    vi.unstubAllGlobals();
+
+    expect(asJpeg.metadata?.format).toBe("jpeg");
+    expect(asPng.metadata?.format).toBe("png");
+  });
+
+  it("reports no resolution rather than a wrong one when the bytes are unreadable", async () => {
+    mockFetch(new Response(bodyOf(Buffer.from([1, 2, 3])), { status: 200 }));
+
+    const result = await generateImageWithPollinations("a teapot", "1:1", "2K");
+    vi.unstubAllGlobals();
+
+    expect(result.success).toBe(true);
+    expect(result.metadata?.resolution).toBeNull();
   });
 });

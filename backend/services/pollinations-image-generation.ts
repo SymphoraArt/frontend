@@ -9,6 +9,41 @@
  */
 
 import type { ImageGenerationResult } from './types';
+import { readImageDimensions } from './gemini-image-generation';
+
+/**
+ * Total pixels the free tier will actually render.
+ *
+ * The provider clamps by TOTAL PIXEL COUNT, preserving aspect ratio, and it
+ * does so BEFORE the diffusion call — so pixels asked for above the budget
+ * are never rendered, they are silently dropped. Measured 2026-08-12
+ * (768x960 and 1024x1280 both came back 686x858, which is exactly this
+ * budget reshaped to 4:5) and confirmed in their worker source, where
+ * find_nearest_valid_dimensions() rescales by sqrt(MAX_PIXELS / requested)
+ * and the CLAMPED values are what reach the model.
+ *
+ * A cap on one SIDE cannot express that, which is how the first attempt at
+ * this went wrong: at a 768 base only 1:1 lands inside the budget. 4:5 is
+ * 25% over, 4:3 is 33%, 2:3 is 50%, 16:9 is 78%, 2.39:1 is 139%. Eight of
+ * the nine ratios this adapter offers were still over-asking. The budget
+ * belongs on the product, applied with the provider's own formula.
+ *
+ * 589,824 is what the worker that served us was configured with. Pollinations
+ * set this per worker through an env var (their code default is 810,000,
+ * their provisioning script sets 1,048,576), so the true ceiling is a lottery
+ * across the pool rather than a property of the API. This is therefore a
+ * deliberately conservative floor, raisable without a code change once
+ * somebody measures what the pool actually offers.
+ */
+const MAX_PIXELS = Number(process.env.POLLINATIONS_MAX_PIXELS) || 589_824;
+
+/** Aspect-preserving shrink to the pixel budget — the provider's own formula. */
+function fitToPixelBudget(width: number, height: number): { width: number; height: number } {
+  const pixels = width * height;
+  if (pixels <= MAX_PIXELS) return { width, height };
+  const scale = Math.sqrt(MAX_PIXELS / pixels);
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
 
 interface PollinationsRequest {
   prompt: string;
@@ -24,19 +59,16 @@ interface PollinationsRequest {
  * Get dimensions from aspect ratio string
  */
 function getDimensions(aspectRatio: string, resolution: string): { width: number; height: number } {
-  // Base size from resolution.
-  //
-  // Capped at 768 on purpose. Measured 2026-08-12: asking for 1024x1280
-  // ("4K") and 768x960 ("2K") both come back as 686x858 — the free tier caps
-  // around 0.59 megapixels — but the 1024 request took roughly TWICE as long
-  // server-side (11.4s vs 5.9s) for byte-identical dimensions. The larger
-  // request bought the user nothing but a longer wait.
-  //
-  // The labels above this layer still promise more than the free provider can
-  // deliver; that is a product decision (see the free/paid contingent work),
-  // not something this adapter can honestly fix by asking louder.
-  const baseSize = resolution === '1K' ? 512 : 768;
+  // The ladder stays intact — it is what the caller asked for, and the budget
+  // below is what the provider will honour. Keeping the two separate means
+  // raising POLLINATIONS_MAX_PIXELS makes 4K genuinely larger than 2K again,
+  // instead of the ladder being flattened here where nobody can see it.
+  const baseSize = resolution === '4K' ? 1024 : resolution === '2K' ? 768 : 512;
+  const { width, height } = rawDimensions(aspectRatio, baseSize);
+  return fitToPixelBudget(width, height);
+}
 
+function rawDimensions(aspectRatio: string, baseSize: number): { width: number; height: number } {
   switch (aspectRatio) {
     case '16:9':
       return { width: Math.round(baseSize * (16 / 9)), height: baseSize };
@@ -119,6 +151,13 @@ export async function generateImageWithPollinations(
     const generationTime = Date.now() - startTime;
     console.log(`[Pollinations] Generation completed in ${generationTime}ms (${buffer.length} bytes)`);
 
+    // metadata.resolution is contractually WHAT CAME BACK, measured from the
+    // bytes (see ImageGenerationResult in ./types). This adapter was echoing
+    // the caller's label instead, so a record could read "4K" for an image the
+    // provider rendered at 0.59 MP. The label the caller passed is still kept,
+    // as requestedSize, so the two can be compared rather than confused.
+    const measured = readImageDimensions(buffer);
+
     return {
       success: true,
       imageBuffers: [buffer],
@@ -126,7 +165,10 @@ export async function generateImageWithPollinations(
       metadata: {
         model: 'pollinations-flux',
         aspectRatio,
-        resolution,
+        resolution: measured ? `${measured.width}x${measured.height}` : null,
+        requestedSize: `${width}x${height}`,
+        bytes: buffer.length,
+        format: measured?.format ?? null,
       },
     };
 
