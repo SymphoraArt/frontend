@@ -113,6 +113,46 @@ describe("paid adapters refuse reference images they cannot deliver", () => {
   });
 });
 
+describe("WaveSpeed polling stops on every terminal status, not just failure", () => {
+  /* WaveSpeed documents six statuses and only created/processing mean "keep
+     waiting". Treating cancelled and timeout as non-terminal left the loop
+     spinning for its full 240s before reporting a timeout of our own — four
+     minutes of the buyer's wait to be told the wrong reason for a job that
+     had already ended. */
+  async function pollOnce(terminalStatus: string) {
+    vi.stubEnv("WAVESPEED_API_KEY", "test-key-not-a-real-one");
+    let calls = 0;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      calls++;
+      if (String(input).includes("/predictions/")) {
+        return new Response(JSON.stringify({ data: { status: terminalStatus } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: { id: "p1" } }), { status: 200 });
+    });
+    const { generateImagesWithWaveSpeed } = await import(
+      "@/backend/services/wavespeed-image-generation"
+    );
+    const started = Date.now();
+    const result = await generateImagesWithWaveSpeed({ prompt: "a teapot" });
+    return { result, elapsed: Date.now() - started, calls };
+  }
+
+  it("returns as soon as the provider says cancelled", async () => {
+    const { result, elapsed } = await pollOnce("cancelled");
+    expect(result.success).toBe(false);
+    expect(result.retryable).toBe(false);
+    // The old loop would still be polling here; 240s is its ceiling.
+    expect(elapsed).toBeLessThan(30_000);
+  }, 40_000);
+
+  it("returns as soon as the provider says timeout", async () => {
+    const { result, elapsed } = await pollOnce("timeout");
+    expect(result.success).toBe(false);
+    expect(result.retryable).toBe(false);
+    expect(elapsed).toBeLessThan(30_000);
+  }, 40_000);
+});
+
 describe("routing will not offer a host that cannot carry the images", () => {
   // The live shape for Nano Banana Pro: cheap host first, capable host second.
   const LINKS: RouteLink[] = [

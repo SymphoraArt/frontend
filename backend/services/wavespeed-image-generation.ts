@@ -126,8 +126,24 @@ export async function generateImagesWithWaveSpeed(
         continue;
       }
 
+      /* WaveSpeed documents SIX statuses — created, processing, completed,
+       * failed, cancelled, timeout — and only the first two mean "keep
+       * waiting". Treating just `failed` as terminal left `cancelled` and
+       * `timeout` falling through to the poll loop, which then spun for the
+       * full 240s before reporting a timeout of our own. The buyer waited
+       * four minutes to be told the wrong reason for a job that was already
+       * over. Not retryable: the provider ended it deliberately, and hammering
+       * it would charge the breaker for a fault it did not commit. */
       if (status.status === 'failed') {
         return { success: false, error: status.error || 'WaveSpeed generation failed', generationTime: Date.now() - startTime, retryable: true };
+      }
+      if (status.status === 'cancelled' || status.status === 'timeout') {
+        return {
+          success: false,
+          error: status.error || `WaveSpeed ${status.status} the generation`,
+          generationTime: Date.now() - startTime,
+          retryable: false,
+        };
       }
       if (status.status !== 'completed') continue;
 
