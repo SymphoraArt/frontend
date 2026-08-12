@@ -52,7 +52,11 @@
    panel scrim at 160 and still leaves the rail and its chevron on top. */
 .pgv-detail-panel {
   position: fixed;
-  top: 0;
+  /* The shell's recovery banner displaces every fixed layer rather than
+     covering it, and publishes its height as --ek-banner-h. Reading it here
+     is what keeps this view's title out from under the red bar. 0 outside the
+     shell, and 0 inside it whenever the banner is dismissed. */
+  top: var(--ek-banner-h, 0px);
   right: 0;
   bottom: 0;
   left: var(--ek-sw, 0px);

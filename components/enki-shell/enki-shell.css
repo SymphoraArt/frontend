@@ -228,13 +228,25 @@
   background: rgba(255, 255, 255, 0.16); color: #fff;
 }
 .ek-recovery-banner-x:hover { background: rgba(255, 255, 255, 0.3); }
-/* The banner pushes EVERY fixed layer down 30px so nothing hides behind it. */
-.ek-with-banner .ek-sidebar { top: 30px; }
-.ek-with-banner .ek-topbar { top: 30px; }
-.ek-with-banner .ek-panel-scrim { top: 30px; }
-.ek-with-banner .ek-main .enki-catbar { top: 86px; }    /* 30 banner + 56 topbar */
-.ek-with-banner .ek-main > .enki { padding-top: 142px; } /* 112 + 30 */
-.ek-with-banner .nc { top: 30px; }                       /* node editor + its absolute toolbar/ribbon */
+/* The banner pushes EVERY fixed layer down so nothing hides behind it.
+   It must never COVER the UI — it displaces it (Kev, 2026-08-13).
+
+   --ek-banner-h carries the height, so a fixed layer opts in by reading the
+   variable instead of by being remembered here. This used to be a hand-kept
+   list of selectors each repeating a literal 30, and the image view — added
+   later, and fixed at top: 0 — was simply never added to it, so it opened
+   underneath the banner with its title cut off. A list you must remember to
+   extend is a list that will be forgotten; a variable is inherited by
+   whatever comes next. */
+.ek-app { --ek-banner-h: 0px; }
+.ek-app.ek-with-banner { --ek-banner-h: 30px; }
+
+.ek-with-banner .ek-sidebar { top: var(--ek-banner-h); }
+.ek-with-banner .ek-topbar { top: var(--ek-banner-h); }
+.ek-with-banner .ek-panel-scrim { top: var(--ek-banner-h); }
+.ek-with-banner .ek-main .enki-catbar { top: calc(56px + var(--ek-banner-h)); } /* topbar + banner */
+.ek-with-banner .ek-main > .enki { padding-top: calc(112px + var(--ek-banner-h)); }
+.ek-with-banner .nc { top: var(--ek-banner-h); }         /* node editor + its absolute toolbar/ribbon */
 
 /* ── small viewports: compress the sidebar so nothing ever overlaps ── */
 @media (max-height: 800px) {
