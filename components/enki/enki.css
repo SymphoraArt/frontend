@@ -2215,3 +2215,58 @@
   outline: 2px solid var(--enki-ember);
   outline-offset: 2px;
 }
+
+/* ── Search, folded into the category row ─────────────────────────────────
+   One glyph after the last category, which unrolls into a field. It replaces
+   a permanent input across the top bar: on a feed you browse first and search
+   second, so a whole row was spent on a control most visits never touch
+   (Kev, 2026-08-13).
+
+   The width animates rather than display toggling, so the row keeps its
+   rhythm — a field that appears at full size shoves every chip left by 220px
+   in one frame, which reads as a layout break rather than as an answer to
+   the click. */
+.enki-catbar-search {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 6px;
+}
+.enki-catbar-searchbtn {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--enki-ink-3);
+  transition: color 0.15s, background 0.15s;
+}
+.enki-catbar-searchbtn:hover { color: var(--enki-ember); background: var(--enki-paper-2); }
+
+.enki-catbar-search input {
+  width: 0;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--enki-ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  /* Not visibility/display: the width has to be animatable, and a zero-width
+     field is already unreachable by pointer. tabIndex handles the keyboard. */
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s, border-color 0.22s;
+}
+.enki-catbar-search.open input {
+  width: min(240px, 34vw);
+  padding: 4px 2px;
+  border-bottom-color: var(--enki-rule);
+}
+.enki-catbar-search.open input:focus { border-bottom-color: var(--enki-ember); }
+.enki-catbar-search input::placeholder { color: var(--enki-ink-3); }

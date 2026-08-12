@@ -200,17 +200,8 @@ export default function EnkiHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrow]);
 
-  // ⌘/Ctrl+K focuses search (matches the topbar hint).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  /* Ctrl/Cmd+K now lives with the field, in SearchChip. Two listeners on the
+     same chord would both fire and the second would undo the first. */
 
   // Live search → drives the feed via the ?q= param EnkiFeedPage already reads.
   const pushQuery = (q: string) => {
@@ -244,7 +235,14 @@ export default function EnkiHome() {
     // Guests can browse, but personal areas need an account.
     if (!authed && AUTHED_ONLY.has(id)) { showToast("Sign in to use this."); return; }
     if (id === "home") { setPanel(null); setActiveNav("home"); router.push("/home"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-    if (id === "search") { setPanel(null); setActiveNav("search"); window.scrollTo({ top: 0, behavior: "smooth" }); searchRef.current?.focus(); return; }
+    if (id === "search") {
+      setPanel(null); setActiveNav("search");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      // The field lives in the filter bar now, so ask it to open rather than
+      // reaching for a ref that no longer points at anything.
+      window.dispatchEvent(new CustomEvent("enki:open-search"));
+      return;
+    }
     // Every other menu item opens in the standalone right-side panel.
     setActiveNav(id);
     openPanel(id);
@@ -368,19 +366,12 @@ export default function EnkiHome() {
         />
 
         <main className="ek-main">
-          <div className="ek-topbar">
-            <div className="ek-search">
-              <Icon name="search" size={16} stroke={2} style={{ color: "var(--enki-ink-3)", flexShrink: 0 }} />
-              <input
-                ref={searchRef}
-                value={query}
-                placeholder="Search prompts, artists, tags…"
-                onChange={(e) => pushQuery(e.target.value)}
-                aria-label="Search prompts"
-              />
-              <span className="ek-kbd">Ctrl K</span>
-            </div>
-          </div>
+          {/* The search input used to live here, permanently across the top.
+              It is now a single glyph after the last category in the filter
+              bar, which unrolls on click (Kev, 2026-08-13) — see SearchChip in
+              components/enki/EnkiFilters.tsx. The bar itself stays: it is what
+              gives the feed its top offset. */}
+          <div className="ek-topbar" />
           <EnkiFeedPage />
         </main>
       </div>
