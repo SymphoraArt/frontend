@@ -1,0 +1,66 @@
+/* ── Boost toggle ─────────────────────────────────────────────────────────
+   Moved here from components/enki/enki.css and imported by BoostToggle.tsx
+   itself, so the control carries its own appearance to every surface that
+   renders it.
+
+   It had to move because the styling silently did not reach the buyer's
+   generator: enki.css is imported only by EnkiCard and ProfileView, and
+   /generator/[id] renders neither. The boost control there was a bare browser
+   button — no border, no radius, no pill, 35px wide with its label squeezed —
+   while the same component looked correct in the editor. Nothing warned about
+   it, because a missing stylesheet is not an error, just an unstyled element.
+   A component that ships its own CSS cannot lose it that way again.
+
+   Deliberately quiet when off: boost is an upsell, and an upsell that shouts
+   is a nuisance. Ember only once it is on, so the state is unmistakable next
+   to the price it changes.
+
+   Fallbacks on every token: this now renders on surfaces that never load the
+   editor's theme mapping, and an undefined var() would collapse to an
+   invisible control rather than to something merely off-palette. */
+.enki-boost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--enki-rule, var(--surface-rule, #2a2a2a));
+  border-radius: 999px;
+  background: var(--enki-paper-2, transparent);
+  color: var(--enki-ink-3, #8a8a8a);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
+  flex-shrink: 0;
+}
+.enki-boost:hover:not(:disabled) {
+  color: var(--enki-ink, #e2e2e2);
+  border-color: color-mix(in oklab, var(--enki-ember, #cba24a) 45%, var(--enki-rule, #2a2a2a));
+}
+.enki-boost--on {
+  color: var(--enki-ember, #cba24a);
+  border-color: color-mix(in oklab, var(--enki-ember, #cba24a) 60%, transparent);
+  background: color-mix(in oklab, var(--enki-ember, #cba24a) 12%, transparent);
+}
+.enki-boost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.enki-boost:focus-visible {
+  outline: 2px solid var(--enki-ember, #cba24a);
+  outline-offset: 2px;
+}
+
+/* Compact: the clock and the bolt alone, for footers where width is the
+   scarce resource. The word is dropped, not the icons — the pair IS the
+   claim (time, not quality), so neither survives alone. The title and
+   aria-label still carry the full sentence for anyone who needs it. */
+.enki-boost--compact {
+  width: 44px;
+  padding: 0;
+  gap: 3px;
+}

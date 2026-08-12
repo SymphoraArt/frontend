@@ -156,22 +156,47 @@
   flex-shrink: 0;
 }
 
-/* ── Image settings: two dropdowns ── */
+/* ── Image settings: two dropdowns, icon-labelled ──
+   The caps label above each field is gone. In a 230px rail it cost a whole
+   line and a large share of the field's width to name something the value
+   already states — nobody reads "16:9" and wonders what it is. The icon sits
+   INSIDE the field's frame, so the two controls fit side by side without the
+   select being squeezed to a stub. The word survives on title/aria-label. */
 .pgv-img-settings {
   display: flex;
   gap: 8px;
 }
-.pgv-img-settings > div { flex: 1; }
-.pgv-img-settings label {
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  color: #555;
-  text-transform: uppercase;
-  display: block;
-  margin-bottom: 5px;
+.pgv-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 7px;
+  background: var(--pgv-input-bg);
+  border: 1px solid #252525;
+  border-radius: 7px;
+  color: #5a5a5a;
+  transition: border-color 0.15s;
 }
-.pgv-img-settings select,
+.pgv-field:focus-within { border-color: #3a3a3a; }
+.pgv-field > svg { flex: 0 0 auto; }
+/* The frame belongs to .pgv-field now, so the select inside it carries none:
+   a second border here would draw a box within a box. */
+.pgv-field select {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: #ddd;
+  padding: 7px 4px 7px 0;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
 .pgv-generator-select {
   width: 100%;
   background: var(--pgv-input-bg);
@@ -187,7 +212,6 @@
   appearance: auto;
   transition: border-color 0.15s;
 }
-.pgv-img-settings select:focus,
 .pgv-generator-select:focus { border-color: #3a3a3a; }
 
 /* ── Generate button ── */

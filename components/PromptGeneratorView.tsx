@@ -24,6 +24,8 @@ import {
   Image as ImageIcon,
   MessageSquare,
   ChevronDown,
+  Crop,
+  Maximize2,
 } from "lucide-react";
 import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
@@ -295,6 +297,27 @@ export default function PromptGeneratorView({
 
   const removeRef = useCallback((i: number) => setRefs(prev => prev.filter((_, idx) => idx !== i)), []);
 
+  /* How much of each buried reference card stays visible.
+   *
+   * The deck must fit on ONE line inside a fixed 230px sidebar that clips
+   * horizontally (.pgv-sidebar has overflow: hidden, .pgv-sidebar-scroll has
+   * overflow-x: hidden), so a deck that overruns does not scroll — the last
+   * cards simply vanish. Measured budget for the deck itself is 155px: 201px
+   * of block content, minus the 36px add-tile and the 10px gap.
+   *
+   * So the strip is derived from the count rather than fixed: ten images pack
+   * to 13px each (36 + 9x13 = 153), six or fewer get the comfortable 20px.
+   * The badge width is the same value, so the ordinal always sits exactly on
+   * the part of the card that is not covered by its neighbour — and the drop
+   * seam below splits on the middle of that same strip.
+   */
+  const refStrip = useMemo(() => {
+    const DECK_PX = 155;
+    const TILE_PX = 36;
+    if (refs.length < 2) return 20;
+    return Math.min(20, Math.floor((DECK_PX - TILE_PX) / (refs.length - 1)));
+  }, [refs.length]);
+
   /* Reorder by dragging a card onto another position.
    *
    * The numbers on the deck are not labels, they are the order the images are
@@ -304,7 +327,12 @@ export default function PromptGeneratorView({
    * (NodeCreator's moveRef); this is the buyer side catching up.
    */
   const [refDragI, setRefDragI] = useState<number | null>(null);
-  const [refOverI, setRefOverI] = useState<number | null>(null);
+  /* The seam the pointer is currently aiming at, as an insertion index into
+   * the deck as it stands (0 = before the first card, refs.length = past the
+   * last). Tracking the SEAM rather than the hovered card is what makes the
+   * feedback honest: it follows the cursor across each card's midpoint, and
+   * it does not depend on which side the drag started from. */
+  const [refSeam, setRefSeam] = useState<number | null>(null);
 
   const moveRef = useCallback((from: number, to: number) => {
     if (from === to) return;
@@ -319,44 +347,37 @@ export default function PromptGeneratorView({
 
   const endRefDrag = useCallback(() => {
     setRefDragI(null);
-    setRefOverI(null);
+    setRefSeam(null);
   }, []);
 
-  /* Where the carried card will actually land, as an index in the CURRENT
-   * deck, so the gap can be opened at that exact seam.
+  /* Which seam to draw the gap at.
    *
-   * The off-by-one is the whole difficulty. moveRef splices the card out
-   * before putting it back, so dragging LEFT-to-RIGHT lands it AFTER the card
-   * under the cursor, while dragging right-to-left lands it BEFORE. Marking
-   * the hovered card would therefore point at the wrong seam in one of the two
-   * directions — it would say "here" and then drop the image somewhere else.
-   *
-   * refs.length is a valid value: it means the seam past the last card.
+   * Nothing is drawn for the two seams either side of the carried card,
+   * because dropping there moves nothing: promising a change and then not
+   * making one is worse than showing no marker at all.
    */
   const refGapAt = useMemo(() => {
-    if (refDragI === null || refOverI === null || refDragI === refOverI) return -1;
-    return refDragI < refOverI ? refOverI + 1 : refOverI;
-  }, [refDragI, refOverI]);
+    if (refDragI === null || refSeam === null) return -1;
+    if (refSeam === refDragI || refSeam === refDragI + 1) return -1;
+    return refSeam;
+  }, [refDragI, refSeam]);
 
-  /* How much of each buried reference card stays visible.
+  /* Which seam the pointer is over, from its x against the midpoint of the
+   * part of the card the user can actually SEE.
    *
-   * The deck must fit on ONE line inside a fixed 230px sidebar that clips
-   * horizontally (.pgv-sidebar has overflow: hidden, .pgv-sidebar-scroll has
-   * overflow-x: hidden), so a deck that overruns does not scroll — the last
-   * cards simply vanish. Measured budget for the deck itself is 155px: 201px
-   * of block content, minus the 36px add-tile and the 10px gap.
-   *
-   * So the strip is derived from the count rather than fixed: ten images pack
-   * to 13px each (36 + 9x13 = 153), six or fewer get the comfortable 20px.
-   * The badge width is the same value, so the ordinal always sits exactly on
-   * the part of the card that is not covered by its neighbour.
+   * Not the midpoint of the card's box: cards overlap, so all but the last
+   * show only their leftmost strip and the rest lies buried under their
+   * neighbours. Splitting on the box midpoint would flip the seam at a point
+   * sitting under a different card entirely, and the marker would jump
+   * somewhere the cursor is not.
    */
-  const refStrip = useMemo(() => {
-    const DECK_PX = 155;
-    const TILE_PX = 36;
-    if (refs.length < 2) return 20;
-    return Math.min(20, Math.floor((DECK_PX - TILE_PX) / (refs.length - 1)));
-  }, [refs.length]);
+  const seamFromPointer = useCallback(
+    (idx: number, clientX: number, rect: DOMRect) => {
+      const visibleWidth = idx === refs.length - 1 ? rect.width : refStrip;
+      return clientX < rect.left + visibleWidth / 2 ? idx : idx + 1;
+    },
+    [refs.length, refStrip]
+  );
 
   const onVarChange = useCallback((name: string, value: string) => {
     setVars(prev => ({ ...prev, [name]: value }));
@@ -381,12 +402,27 @@ export default function PromptGeneratorView({
     [variables]
   );
 
-  // Merge ONLY the rolled names; `vars` stores every value as a string
-  // (checkbox "true"/"false", multi-select comma-joined), so encode to match.
+  /* Fill the gaps, never overwrite a decision.
+   *
+   * On this surface the dice is a helper for the fields the buyer left empty,
+   * not a reset button. Someone who typed "brass, heavily tarnished" into one
+   * field and wants the rest invented would otherwise lose that sentence on
+   * the click that was supposed to help them, with no undo anywhere on the
+   * page. So an existing value wins over a rolled one, always.
+   *
+   * The roll itself still covers every variable: on the promptId path the
+   * server loads the definitions and rolls a COHERENT set, so it has to see
+   * the whole picture. Narrowing the request would buy nothing and cost the
+   * coherence. The filtering belongs here, at the point of application.
+   *
+   * `vars` stores every value as a string (checkbox "true"/"false",
+   * multi-select comma-joined), so encode to match.
+   */
   const applyDiceValues = useCallback((values: Record<string, DiceValue>) => {
     setVars((prev) => {
       const next = { ...prev };
       for (const [name, value] of Object.entries(values)) {
+        if (typeof prev[name] === "string" && prev[name].trim() !== "") continue;
         next[name] = Array.isArray(value) ? value.join(",") : String(value);
       }
       return next;
@@ -737,13 +773,19 @@ export default function PromptGeneratorView({
                         // outright, and the card springs back with no clue why.
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
-                        if (refOverI !== idx) setRefOverI(idx);
+                        const seam = seamFromPointer(idx, e.clientX, e.currentTarget.getBoundingClientRect());
+                        if (refSeam !== seam) setRefSeam(seam);
                       }}
                       onDrop={e => {
                         if (refDragI === null) return;
                         e.preventDefault();
                         const from = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
-                        if (!Number.isNaN(from)) moveRef(from, idx);
+                        const seam = seamFromPointer(idx, e.clientX, e.currentTarget.getBoundingClientRect());
+                        // The seam counts positions in the deck WITH the
+                        // carried card still in it. Removing that card shifts
+                        // every later position down by one, so a seam to its
+                        // right has to lose one to land where the gap was.
+                        if (!Number.isNaN(from)) moveRef(from, seam > from ? seam - 1 : seam);
                         endRefDrag();
                       }}
                       onDragEnd={endRefDrag}
@@ -775,16 +817,32 @@ export default function PromptGeneratorView({
           {/* Image Settings: aspect + resolution side by side */}
           <div className="pgv-block">
             <span className="pgv-section-label">Image Settings</span>
+            {/* Icon instead of a stacked caps label, the way quick create
+                labels its controls. "ASPECT RATIO" and "RESOLUTION" cost a
+                whole line each and half the field's width in a 230px rail,
+                to name two things the values already say: nobody reads
+                "16:9" and wonders what it is. The word survives as the
+                title/aria-label for anyone who does. */}
             <div className="pgv-img-settings">
-              <div>
-                <label>Aspect Ratio</label>
-                <select value={aspect} onChange={e => setAspect(e.target.value)}>
+              <div className="pgv-field">
+                <Crop size={12} aria-hidden />
+                <select
+                  value={aspect}
+                  onChange={e => setAspect(e.target.value)}
+                  title="Aspect ratio"
+                  aria-label="Aspect ratio"
+                >
                   {ASPECTS.map(a => <option key={a}>{a}</option>)}
                 </select>
               </div>
-              <div>
-                <label>Resolution</label>
-                <select value={resolution} onChange={e => setResolution(e.target.value)}>
+              <div className="pgv-field">
+                <Maximize2 size={12} aria-hidden />
+                <select
+                  value={resolution}
+                  onChange={e => setResolution(e.target.value)}
+                  title="Resolution"
+                  aria-label="Resolution"
+                >
                   {RESOLUTIONS.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
@@ -809,8 +867,24 @@ export default function PromptGeneratorView({
             {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
           </div>
         )}
-        <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
+        {/* Both settings sit BEFORE Generate. They change what Generate will
+            do, so reaching them after passing the button reads backwards, and
+            the dice in particular was easy to mistake for a post-generation
+            action out on the right. */}
+        <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} compact />
+          {/* publicPromptText is the only prompt text this surface may hold
+              for a paid prompt; sliced because the route's zod max REJECTS an
+              over-long context rather than clipping it. */}
+          <DiceButton
+            variables={diceVariables}
+            promptId={promptId}
+            context={promptText ? promptText.slice(0, DICE_LIMITS.maxContextLen) : undefined}
+            onValues={applyDiceValues}
+            headers={sessionAuthHeaders()}
+            disabled={generating}
+            title="Roll the dice — fill the fields you left empty"
+          />
           {/* The label is the QUOTE total — the server's arithmetic, model
               cost and fees included. boostedCost(price) was the artist price
               alone and understated every paid generation. A paid prompt with
@@ -828,17 +902,6 @@ export default function PromptGeneratorView({
                 ? `Generate / $${paidQuote.totalUsd}`
                 : "Generate / …"}
           </button>
-          {/* publicPromptText is the only prompt text this surface may hold
-              for a paid prompt; sliced because the route's zod max REJECTS an
-              over-long context rather than clipping it. */}
-          <DiceButton
-            variables={diceVariables}
-            promptId={promptId}
-            context={promptText ? promptText.slice(0, DICE_LIMITS.maxContextLen) : undefined}
-            onValues={applyDiceValues}
-            headers={sessionAuthHeaders()}
-            disabled={generating}
-          />
         </div>
       </aside>
 
