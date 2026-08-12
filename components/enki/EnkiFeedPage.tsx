@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import EnkiCard from "@/components/enki/EnkiCard";
 import EnkiFilters from "@/components/enki/EnkiFilters";
 import GenerateLauncher from "@/components/GenerateLauncher";
+import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { mapMarketplacePromptToEnkiPrompt } from "@/lib/enkiPromptAdapter";
 
@@ -200,10 +201,29 @@ export default function EnkiFeedPage() {
           </section>
         ) : null}
 
-        {/* One launcher drives both the blank floating "Generate" button and the
-            seeded view opened by clicking a feed card. */}
-        <GenerateLauncher seedPrompt={open} onSeedClose={() => setOpen(null)} />
+        {/* The floating "Generate" button, and only that. It used to be handed
+            the clicked card as a seed, which opened the quick-create modal
+            over the feed — Kev, 2026-08-13: "wenn ich ein image anclicke SOLL
+            NICHT quick create oder sowas aufgehen". */}
+        <GenerateLauncher />
       </main>
+
+      {/* Clicking a card opens the canonical image view — the same one the
+          /generator route and the profile grid open, so a buyer meets one
+          layout everywhere: variables and generate on the left, the image in
+          the middle, the session's other images beneath it, comments and
+          reviews at the top, history on the right.
+
+          EnkiDetailPanel is the frame that already knows to start where the
+          shell's menu ends, so this inherits that rather than restating it. */}
+      {open && (
+        <EnkiDetailPanel
+          prompt={open}
+          onClose={() => setOpen(null)}
+          faved={Boolean(favs[open.id])}
+          toggleFav={toggleFav}
+        />
+      )}
 
       <EnkiFilters active={tags} toggle={toggleTag} />
     </>
