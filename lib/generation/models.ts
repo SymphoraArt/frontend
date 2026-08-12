@@ -15,7 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { eligibleRoutes, pickRoute, type RouteLink, type RouteCandidate } from "@/lib/generation/routing";
 import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-health";
-import { supportsReferenceImages } from "@/lib/generation/provider-capabilities";
+import { canCarryReferenceImages } from "@/lib/generation/provider-capabilities";
 
 export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
@@ -325,16 +325,15 @@ export async function chooseRoute(
     boost?: boolean;
     quality?: string | null;
     resolution?: string | null;
-    /** The request has reference images attached. */
-    needsImageInput?: boolean;
+    /** How many reference images the request carries. */
+    referenceImages?: number;
   },
   audience: Audience = "public",
 ): Promise<Route | null> {
-  const needsImages = opts.needsImageInput === true;
+  const refs = opts.referenceImages ?? 0;
   const rawFallback = routeFor(model, opts.boost);
   // The fallback is a route like any other and gets the same capability test.
-  const fallback =
-    !needsImages || supportsReferenceImages(rawFallback.provider) ? rawFallback : null;
+  const fallback = canCarryReferenceImages(rawFallback.provider, refs) ? rawFallback : null;
 
   const links = (model.links ?? []) as RouteLink[];
   if (!supabase || links.length === 0) return fallback;
@@ -344,7 +343,7 @@ export async function chooseRoute(
     { quality: opts.quality, resolution: opts.resolution },
     opts.boost ? "boost" : "normal",
     audience,
-    { needsImageInput: needsImages },
+    { referenceImages: refs },
   );
   if (candidates.length === 0) return fallback;
 

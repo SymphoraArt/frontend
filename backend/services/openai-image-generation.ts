@@ -21,9 +21,76 @@
  */
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 import { readImageDimensions } from './gemini-image-generation';
-import { referenceImageCount, referenceImagesUnsupported } from '@/lib/generation/provider-capabilities';
+import { referenceImageLimit } from '@/lib/generation/provider-capabilities';
 
 const ENDPOINT = 'https://api.openai.com/v1/images/generations';
+/** Reference images go here instead — multipart, one `image[]` part each. */
+const EDIT_ENDPOINT = 'https://api.openai.com/v1/images/edits';
+
+/**
+ * A data URI or bare base64 payload as bytes plus its media type.
+ *
+ * Returns null rather than guessing. A reference we cannot decode must fail
+ * the request, not be quietly left out: dropping one of five attachments and
+ * charging for all five is the exact failure this whole layer exists to stop.
+ */
+function decodeImageInput(input: string): { bytes: ArrayBuffer; mime: string } | null {
+  // [\s\S] rather than the dotAll flag: the build target predates es2018 and
+  // an `s` flag fails compilation. This exact trap has bitten this repo before.
+  const m = /^data:([^;,]+);base64,([\s\S]*)$/.exec(input.trim());
+  const mime = m ? m[1] : 'image/png';
+  const payload = m ? m[2] : input.trim();
+  if (!payload) return null;
+  try {
+    const buf = Buffer.from(payload, 'base64');
+    if (buf.length === 0) return null;
+    return {
+      bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
+      mime,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/webp': 'webp',
+};
+
+/** The multipart body for /v1/images/edits. */
+function buildEditForm(args: {
+  model: string;
+  prompt: string;
+  size: string;
+  quality: string;
+  refImages: string[];
+}): FormData {
+  const form = new FormData();
+  form.append('model', args.model);
+  form.append('prompt', args.prompt);
+  form.append('size', args.size);
+  form.append('quality', args.quality);
+  form.append('n', '1');
+  args.refImages.forEach((ref, i) => {
+    const decoded = decodeImageInput(ref);
+    if (!decoded) throw new UnreadableReferenceError(i + 1);
+    // A filename is supplied because the official client always sends one; the
+    // extension follows the measured media type rather than a fixed guess.
+    const ext = EXT[decoded.mime.toLowerCase()] ?? 'png';
+    form.append('image[]', new Blob([decoded.bytes], { type: decoded.mime }), `reference-${i + 1}.${ext}`);
+  });
+  return form;
+}
+
+class UnreadableReferenceError extends Error {
+  constructor(readonly position: number) {
+    super(`Reference image ${position} could not be read`);
+    this.name = 'UnreadableReferenceError';
+  }
+}
 
 /** Hard limits from the API docs. Verified against them, not guessed. */
 const MIN_PIXELS = 655_360;
@@ -106,15 +173,31 @@ export async function generateImagesWithOpenAI(
     return { success: false, error: 'OPENAI_API_KEY is not set', generationTime: 0, retryable: false };
   }
 
-  /* Reference images are REFUSED, not ignored. Same reasoning as the
-   * WaveSpeed adapter: this posts to /v1/images/generations, which has no
-   * image input at all — the edits endpoint is a different call with a
-   * different body — so anything attached vanishes without a trace while the
-   * buyer is charged in full. Refusing costs them nothing; generating charges
-   * them for something they did not order. */
-  const refs = referenceImageCount(request.referenceImages);
-  if (refs > 0) {
-    return { ...referenceImagesUnsupported('this host', refs), generationTime: Date.now() - startTime };
+  /* Reference images change the ENDPOINT and the encoding.
+   *
+   * /v1/images/generations has no image input at all — which is how references
+   * used to vanish here. /v1/images/edits takes them, as repeated multipart
+   * `image[]` file parts rather than JSON. So a request with references is a
+   * different call, not the same call with an extra field.
+   *
+   * The ceiling is enforced, not clamped: sending 17 of 18 attached images
+   * would be the silent-loss bug again with a smaller loss. Routing normally
+   * keeps an over-large request away from this host in the first place. */
+  const refImages = (request.referenceImages ?? []).filter(
+    (r): r is string => typeof r === 'string' && r.trim() !== '',
+  );
+  const refs = refImages.length;
+  const limit = referenceImageLimit('openai');
+  if (refs > limit) {
+    return {
+      success: false,
+      error:
+        `${refs} reference images were attached, but this host accepts at most ${limit}. ` +
+        `Nothing was generated and nothing was charged. Remove ${refs - limit} of them, ` +
+        `or choose a model that takes more.`,
+      generationTime: Date.now() - startTime,
+      retryable: false,
+    };
   }
 
   const model = request.modelVersion || 'gpt-image-2';
@@ -125,22 +208,36 @@ export async function generateImagesWithOpenAI(
   const quality = request.quality ?? TIER_QUALITY[request.imageSize ?? '2K'] ?? 'medium';
 
   try {
-    const res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        prompt: request.prompt,
-        size,
-        quality,
-        n: 1,
-        // Half the bytes of png for the same picture, which the gallery pays
-        // for on every view.
-        output_format: 'jpeg',
-        // input_fidelity is deliberately omitted: gpt-image-2 always runs high
-        // fidelity and rejects the parameter.
-      }),
-    });
+    /* Two different calls behind one adapter. Without references this is the
+       JSON generations endpoint as before; with them it is the edits endpoint,
+       multipart, one `image[]` part per reference. Content-Type is left unset
+       on the multipart branch on purpose — fetch fills in the boundary, and
+       setting it by hand produces a body the server cannot parse. */
+    const editing = refs > 0;
+    const res = editing
+      ? await fetch(EDIT_ENDPOINT, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: buildEditForm({ model, prompt: request.prompt, size, quality, refImages }),
+        })
+      : await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            prompt: request.prompt,
+            size,
+            quality,
+            n: 1,
+            // Half the bytes of png for the same picture, which the gallery
+            // pays for on every view.
+            output_format: 'jpeg',
+            // input_fidelity is deliberately omitted. The SDK documents it for
+            // "gpt-image-1.5 and later", so gpt-image-2 may well accept it;
+            // omitting is the safe branch, but do not read the old claim that
+            // it is REJECTED as established — nothing sourced it.
+          }),
+        });
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
@@ -183,6 +280,20 @@ export async function generateImagesWithOpenAI(
       },
     };
   } catch (error: unknown) {
+    /* An unreadable reference is the buyer's problem to fix, not a fault of
+       the host, so it must not be retried and must not be blamed on OpenAI —
+       a retryable verdict here would also charge the circuit breaker for an
+       outage that never happened. */
+    if (error instanceof UnreadableReferenceError) {
+      return {
+        success: false,
+        error:
+          `Reference image ${error.position} could not be read. ` +
+          `Nothing was generated and nothing was charged. Re-upload it and try again.`,
+        generationTime: Date.now() - startTime,
+        retryable: false,
+      };
+    }
     return {
       success: false,
       error: `OpenAI error: ${error instanceof Error ? error.message : 'unknown'}`,

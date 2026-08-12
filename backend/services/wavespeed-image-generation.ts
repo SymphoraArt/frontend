@@ -18,7 +18,24 @@
  */
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 import { readImageDimensions } from './gemini-image-generation';
-import { referenceImageCount, referenceImagesUnsupported } from '@/lib/generation/provider-capabilities';
+import { referenceImageLimit } from '@/lib/generation/provider-capabilities';
+
+/**
+ * The image-input sibling of a text-to-image model id.
+ *
+ * WaveSpeed ids are paths and the trailing segment IS the endpoint:
+ * google/nano-banana-pro/text-to-image -> google/nano-banana-pro/edit.
+ * An id that already names an image-input endpoint is left alone, so a routing
+ * row can point straight at /edit if someone ever configures it that way.
+ *
+ * Not /edit-multi or /edit-ultra: the first locks num_images to exactly two
+ * OUTPUT variants, the second only offers 4k and 8k. /edit is the one that
+ * takes many references and returns one image.
+ */
+function toEditModel(model: string): string {
+  if (/\/(edit|edit-multi|edit-ultra|image-to-image)$/.test(model)) return model;
+  return model.replace(/\/text-to-image(-multi|-ultra)?$/, '/edit');
+}
 
 const API_BASE = 'https://api.wavespeed.ai/api/v3';
 
@@ -52,32 +69,49 @@ export async function generateImagesWithWaveSpeed(
     return { success: false, error: 'WAVESPEED_API_KEY is not set', generationTime: 0, retryable: false };
   }
 
-  /* Reference images are REFUSED, not ignored.
+  /* Reference images switch the ENDPOINT, they are not an extra parameter.
    *
-   * This adapter posts to a /text-to-image model id and builds an `input`
-   * object with no image field in it, so anything attached is dropped on the
-   * floor. Until 2026-08-12 it was dropped silently: the buyer paid, the
-   * provider never saw the images, and the returned picture looked like a
-   * plausible answer to the prompt, so nothing anywhere revealed the loss.
+   * WaveSpeed model ids are URL path segments, and the text-to-image variant
+   * has no image input at all — which is how references used to vanish here
+   * without a word. The sibling that accepts them is /edit, and it takes an
+   * `images` array. So the id has to be chosen per request; a single static
+   * provider_model string in the routing table cannot express it.
    *
-   * Failing here rather than generating costs the buyer nothing — the caller
-   * treats success:false as a failed generation and voids the authorisation
-   * instead of capturing it — while generating would charge them for the wrong
-   * thing. When the sibling image-input endpoint is wired, this guard comes out
-   * and "wavespeed" joins PROVIDERS_WITH_IMAGE_INPUT in the same commit.
+   * The count ceiling is enforced BEFORE the call rather than clamped: sending
+   * 15 of 18 attached images would be the silent-loss bug again, just with a
+   * smaller loss. Routing normally prevents this from ever being reached by
+   * sending an over-large request to a host that can take it.
    */
-  const refs = referenceImageCount(request.referenceImages);
-  if (refs > 0) {
-    return { ...referenceImagesUnsupported('this host', refs), generationTime: Date.now() - startTime };
+  const refImages = (request.referenceImages ?? []).filter(
+    (r): r is string => typeof r === 'string' && r.trim() !== '',
+  );
+  const refs = refImages.length;
+  const limit = referenceImageLimit('wavespeed');
+  if (refs > limit) {
+    return {
+      success: false,
+      error:
+        `${refs} reference images were attached, but this host accepts at most ${limit}. ` +
+        `Nothing was generated and nothing was charged. Remove ${refs - limit} of them, ` +
+        `or choose a model that takes more.`,
+      generationTime: Date.now() - startTime,
+      retryable: false,
+    };
   }
 
-  const model = request.modelVersion || 'google/nano-banana-pro/text-to-image';
+  const requested = request.modelVersion || 'google/nano-banana-pro/text-to-image';
+  const model = refs > 0 ? toEditModel(requested) : requested;
 
   try {
     const input: Record<string, unknown> = {
       prompt: request.prompt,
       output_format: request.outputFormat ?? 'jpeg',
     };
+    /* Data URIs go straight in. WaveSpeed documents three accepted forms for
+       an image input — a public URL, a base64-encoded data URI, and multipart
+       upload — so the browser's own data: URLs need no hosting step of their
+       own. (docs: "Accepts public URLs or Base64-encoded Data URLs".) */
+    if (refs > 0) input.images = refImages;
     if (request.aspectRatio) input.aspect_ratio = request.aspectRatio;
     if (request.imageSize) input.resolution = RESOLUTION_MAP[request.imageSize] ?? '1k';
     // Accepted by WaveSpeed's gpt-image-2 with exactly OpenAI's three values —

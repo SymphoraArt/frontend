@@ -31,15 +31,49 @@
  * entry added in advance re-creates exactly the bug it exists to prevent.
  */
 
-/** Provider keys, as stored in providers.key on the live table. */
-export const PROVIDERS_WITH_IMAGE_INPUT: ReadonlySet<string> = new Set([
-  // Sends each reference as an inlineData part beside the text prompt.
-  // Verified in backend/services/gemini-image-generation.ts.
-  "gemini",
+/**
+ * Provider key -> how many reference images that host will actually take.
+ *
+ * The COUNT is part of the capability, not a detail. The hosts disagree, and
+ * our own models table advertises 18 for Nano Banana Pro while WaveSpeed's
+ * edit endpoint documents a ceiling of 14. Without the number here, a
+ * fifteen-image request would be routed to WaveSpeed and rejected after the
+ * buyer had already paid — the same class of failure as dropping them, just
+ * louder and later. With it, routing simply sends that request to a host that
+ * can take fifteen.
+ */
+export const REFERENCE_IMAGE_LIMITS: ReadonlyMap<string, number> = new Map([
+  // Each reference goes as an inlineData part beside the text prompt.
+  // Verified in backend/services/gemini-image-generation.ts. No documented
+  // ceiling of its own; our models table is the binding limit.
+  ["gemini", 18],
+  // google/nano-banana-pro/edit and openai/gpt-image-2/edit take an `images`
+  // array. Documented ceilings are 14 and 16 respectively, so the adapter is
+  // held to the LOWER of the two — one number cannot promise both, and
+  // over-promising is the failure this file exists to prevent.
+  ["wavespeed", 14],
+  // /v1/images/edits, multipart image[] parts. Documented: up to 16 for the
+  // GPT image models.
+  ["openai", 16],
 ]);
 
 export function supportsReferenceImages(providerKey: string | null | undefined): boolean {
-  return typeof providerKey === "string" && PROVIDERS_WITH_IMAGE_INPUT.has(providerKey.toLowerCase());
+  return typeof providerKey === "string" && REFERENCE_IMAGE_LIMITS.has(providerKey.toLowerCase());
+}
+
+/** Provider keys that can carry reference images at all. */
+export const PROVIDERS_WITH_IMAGE_INPUT: ReadonlySet<string> = new Set(REFERENCE_IMAGE_LIMITS.keys());
+
+/** How many this host takes. 0 when it takes none. */
+export function referenceImageLimit(providerKey: string | null | undefined): number {
+  if (typeof providerKey !== "string") return 0;
+  return REFERENCE_IMAGE_LIMITS.get(providerKey.toLowerCase()) ?? 0;
+}
+
+/** Can this host serve a request carrying exactly this many references? */
+export function canCarryReferenceImages(providerKey: string | null | undefined, count: number): boolean {
+  if (count <= 0) return true;
+  return referenceImageLimit(providerKey) >= count;
 }
 
 /**

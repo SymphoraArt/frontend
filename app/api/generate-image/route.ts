@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
         resolution: preflightModel.supportsResolution
           ? (body.resolution ?? null)
           : null,
-        needsImageInput: attachedRefs > 0,
+        referenceImages: attachedRefs,
       },
     );
 

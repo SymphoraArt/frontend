@@ -15,7 +15,7 @@
  * and it must be testable without a database, a network or a provider.
  */
 
-import { supportsReferenceImages } from "./provider-capabilities";
+import { canCarryReferenceImages } from "./provider-capabilities";
 
 export type Audience = "public" | "enterprise" | "internal";
 
@@ -80,17 +80,17 @@ export function matchesConditions(
 
 export interface RouteFilters {
   /**
-   * The request carries reference images, so a host that cannot pass them to
-   * the model is not a candidate at any price.
+   * How many reference images the request carries. A host that cannot take
+   * that many is not a candidate at any price.
    *
-   * This is a CAPABILITY filter, not a preference. Nano Banana Pro sits on
-   * WaveSpeed at priority 10 and on Gemini at 20; before this, a prompt with
-   * eighteen references took the cheap host and lost all eighteen without a
-   * word. Dropping the host that cannot serve the request turns that into a
-   * correct, slightly dearer generation — and where no host qualifies, into a
-   * refusal the caller can act on instead of a lie.
+   * A CAPABILITY filter, not a preference, and a counted one rather than a
+   * yes/no. Nano Banana Pro sits on WaveSpeed at priority 10 and on Gemini at
+   * 20, and the two do not agree on how many images they accept: WaveSpeed's
+   * edit endpoint documents 14, our own table advertises 18. A boolean filter
+   * would send a fifteen-image request to WaveSpeed and have it rejected after
+   * the buyer had paid. Counting sends it to the host that can serve it.
    */
-  needsImageInput?: boolean;
+  referenceImages?: number;
 }
 
 /**
@@ -118,7 +118,7 @@ export function eligibleRoutes(
       // the UI would advertise what it cannot deliver.
       const want = (p.audience as Audience) ?? "public";
       if (want !== "public" && want !== audience) return false;
-      if (filters.needsImageInput && !supportsReferenceImages(p.key)) return false;
+      if (!canCarryReferenceImages(p.key, filters.referenceImages ?? 0)) return false;
       return matchesConditions(l.applies_when, settings);
     })
     .sort((a, b) => (a.l.priority ?? 100) - (b.l.priority ?? 100) || a.index - b.index)
