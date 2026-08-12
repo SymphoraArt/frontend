@@ -83,6 +83,11 @@ export async function GET(request: NextRequest) {
       .select(
         "id,title,prompt_type,is_free_showcase,public_prompt_text,price_usd_cents,category,tags,ai_model,created_at,creator_id,showcase_images"
       )
+      // Only what the artist actually released. Neither list route filtered on
+      // visibility, so the first prompt ever saved (2026-08-12, still
+      // listing_status 'draft') showed up here immediately — an artist's
+      // unfinished work, public to every beta user, listed as if for sale.
+      .eq("is_listed", true)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 

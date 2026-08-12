@@ -187,6 +187,10 @@ export async function GET(request: NextRequest) {
           "id,title,public_prompt_text,price_usd_cents,category,tags,ai_model,created_at,creator_id,showcase_images,aspect_ratio,resolution,is_free_showcase,prompt_type"
         );
 
+      // Released prompts only. Without this a draft was on the marketplace the
+      // moment it was saved — see app/api/prompts/route.ts for the same fix.
+      dbQuery = dbQuery.eq("is_listed", true);
+
       if (category) {
         dbQuery = dbQuery.eq("category", category);
       }

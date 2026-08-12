@@ -591,28 +591,15 @@ export default function PromptGeneratorView({
             </div>
           ))}
 
-          {/* Style Preset */}
-          <div className="pgv-block">
-            <span className="pgv-section-label">Style Preset</span>
-            <input className="pgv-input" defaultValue="Minimal Brutalism" placeholder="e.g. Minimal Brutalism" />
-          </div>
-
-          {/* Camera / Lens */}
-          <div className="pgv-block">
-            <span className="pgv-section-label">Camera / Lens</span>
-            <input className="pgv-input" defaultValue="35mm" placeholder="e.g. 35mm" />
-          </div>
-
-          {/* Detail options checkboxes */}
-          <div className="pgv-block">
-            <span className="pgv-section-label">Detail Options</span>
-            <label className="pgv-check-row">
-              <input type="checkbox" defaultChecked /> Keep brutalist geometry
-            </label>
-            <label className="pgv-check-row">
-              <input type="checkbox" defaultChecked /> Boost concrete textures
-            </label>
-          </div>
+          {/* Style Preset, Camera / Lens and Detail Options used to sit here as
+              HARDCODED demo fields — "Minimal Brutalism", "35mm", "Keep
+              brutalist geometry". They rendered for every prompt, took the
+              buyer's input, and were bound to nothing: generate() only reads
+              `vars`, which is keyed by the prompt's real variables. So a buyer
+              filled in four fields that changed nothing about their image, on
+              a page they had paid on. Removed rather than wired up: what a
+              prompt asks for is the artist's decision, expressed by its
+              variables, not a fixed set every prompt inherits. */}
 
           {/* Reference Images */}
           <div className="pgv-block">
