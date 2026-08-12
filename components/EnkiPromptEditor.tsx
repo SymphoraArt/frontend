@@ -3789,6 +3789,17 @@ export default function EnkiPromptEditor() {
                             }}
                           >
                             <img src={src} alt={`Reference ${idx + 1}`} draggable={false} />
+                            {/* Ordinal. Not decoration: the prompt body
+                                binds reference images by position
+                                (`@Image3` resolves to referenceImages[2],
+                                see REF_IMAGE_MENTION_RE), and the deck
+                                showed no numbers at all, so the author had
+                                to count overlapping thumbnails to find the
+                                one they meant. aria-hidden because the slot
+                                already announces its index. */}
+                            <span className="enk-ref-slot__num" aria-hidden="true">
+                              {idx + 1}
+                            </span>
                             <button
                               type="button"
                               className="enk-ref-slot__remove"

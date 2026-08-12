@@ -295,6 +295,26 @@ export default function PromptGeneratorView({
 
   const removeRef = useCallback((i: number) => setRefs(prev => prev.filter((_, idx) => idx !== i)), []);
 
+  /* How much of each buried reference card stays visible.
+   *
+   * The deck must fit on ONE line inside a fixed 230px sidebar that clips
+   * horizontally (.pgv-sidebar has overflow: hidden, .pgv-sidebar-scroll has
+   * overflow-x: hidden), so a deck that overruns does not scroll — the last
+   * cards simply vanish. Measured budget for the deck itself is 155px: 201px
+   * of block content, minus the 36px add-tile and the 10px gap.
+   *
+   * So the strip is derived from the count rather than fixed: ten images pack
+   * to 13px each (36 + 9x13 = 153), six or fewer get the comfortable 20px.
+   * The badge width is the same value, so the ordinal always sits exactly on
+   * the part of the card that is not covered by its neighbour.
+   */
+  const refStrip = useMemo(() => {
+    const DECK_PX = 155;
+    const TILE_PX = 36;
+    if (refs.length < 2) return 20;
+    return Math.min(20, Math.floor((DECK_PX - TILE_PX) / (refs.length - 1)));
+  }, [refs.length]);
+
   const onVarChange = useCallback((name: string, value: string) => {
     setVars(prev => ({ ...prev, [name]: value }));
   }, []);
@@ -623,24 +643,57 @@ export default function PromptGeneratorView({
               <span className="pgv-section-label" style={{ marginBottom: 0 }}>Reference Images</span>
               <span className="pgv-ref-count">{refs.length}/10</span>
             </div>
-            {refs.length > 0 && (
-              <div className="pgv-ref-grid">
-                {refs.map((img, idx) => (
-                  <div key={idx} className="pgv-ref-slot filled">
-                    <img src={img} alt={`ref ${idx + 1}`} />
-                    <button className="pgv-ref-remove" onClick={() => removeRef(idx)}>
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {refs.length < 10 && (
-              <button className="pgv-ref-add-btn" onClick={() => fileRef.current?.click()}>
-                <span className="pgv-ref-add-icon">+</span>
-                Add Reference Images
+            {/* Cascading numbered card-deck, the same shape the prompt
+                editor uses for the author's own reference row: one line,
+                each card overlapping the one before it, the ordinal
+                always readable on the exposed left strip.
+
+                It replaces a 4-column grid. The grid wrapped to three
+                rows at ten images and pushed everything below it down
+                the panel, and it showed no numbers at all — which is the
+                one thing that matters here, because a prompt addresses
+                these images by position (`@Image3`). Hover lifts a card
+                clear of the stack so its remove button stays reachable
+                from underneath. */}
+            <div
+              className="pgv-ref-row"
+              style={{ ["--pgv-ref-strip" as string]: `${refStrip}px` } as React.CSSProperties}
+            >
+              <button
+                type="button"
+                className="pgv-ref-add"
+                onClick={() => fileRef.current?.click()}
+                disabled={refs.length >= 10}
+                aria-label="Add reference images"
+                title="Add reference images"
+              >
+                +
               </button>
-            )}
+              {refs.length === 0 ? (
+                <span className="pgv-ref-hint">Add images this prompt can refer to</span>
+              ) : (
+                <div className="pgv-ref-deck">
+                  {refs.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="pgv-ref-slot"
+                      aria-label={`Reference image ${idx + 1}`}
+                    >
+                      <img src={img} alt={`Reference ${idx + 1}`} draggable={false} />
+                      <span className="pgv-ref-num" aria-hidden="true">{idx + 1}</span>
+                      <button
+                        type="button"
+                        className="pgv-ref-remove"
+                        aria-label={`Remove reference image ${idx + 1}`}
+                        onClick={() => removeRef(idx)}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onRefUpload} />
           </div>
 

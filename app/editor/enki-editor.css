@@ -2967,7 +2967,11 @@ html.dark .enk-textarea-box {
    parent settings-box. */
 .enk-ref-zone {
   --enk-ref-tile: 36px;        /* tile edge length */
-  --enk-ref-overlap: 22px;     /* overlap between consecutive cards */
+  /* Overlap between consecutive cards. Do NOT loosen this to give the
+     ordinal badge more room: the zone is 222px wide, the "+" tile and
+     its gap take 46, and ten cards at 22px overlap come to 162px. At
+     20px they come to 180 and the last card leaves the settings box. */
+  --enk-ref-overlap: 22px;
   border: none;
   padding: 0;
   background: transparent;
@@ -3111,6 +3115,45 @@ html.dark .enk-textarea-box {
   pointer-events: none;
   display: block;
 }
+/* Ordinal badge. The prompt body addresses reference images by their
+   position (`@Image3`), so the number is the only thing tying a card in
+   this deck to the text that uses it.
+
+   Anchored bottom-LEFT and sized from the same two variables that build
+   the cascade: a buried card only ever shows its leftmost
+   (tile − overlap) strip, so that strip is exactly how much room the
+   badge has. Deriving the width instead of hard-coding it means changing
+   the overlap can never quietly push the numbers under the next card.
+   At the current 36/22 that is 14px, which fits a two-digit "10" at 8px
+   with room to spare — the deck caps at ten images. */
+.enk-ref-slot__num {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(var(--enk-ref-tile) - var(--enk-ref-overlap));
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px 4px 0 0;
+  /* Literal black scrim and literal white text, NOT the --enk-white /
+     --enk-dark pair used elsewhere in this file. Those two are theme
+     tokens that swap meaning between light and dark (--enk-dark resolves
+     to #FFFFFF under html.dark), so they describe contrast against the
+     PANEL. This badge sits on the user's image, whose brightness follows
+     no theme, so it carries its own scrim and needs a fixed foreground.
+     Using var(--enk-white) here rendered #0f2230 text on a near-black
+     scrim: an invisible number. */
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-family: var(--enk-font-mono, ui-monospace, monospace);
+  font-size: 8px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  user-select: none;
+}
+
 .enk-ref-slot__remove {
   position: absolute;
   top: -5px;

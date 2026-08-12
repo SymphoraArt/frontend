@@ -240,55 +240,129 @@
   margin-bottom: 8px;
 }
 .pgv-ref-count { font-size: 10px; color: #444; }
-.pgv-ref-add-btn {
-  width: 100%;
+
+/* Cascading numbered card-deck, mirroring the prompt editor's reference
+   row (.enk-ref-* in app/editor/enki-editor.css). Same idea, separate
+   tokens: this panel is wider than the editor's settings box, so the
+   tiles are bigger and the exposed strip is roomier.
+
+   Single non-scrolling line: [+] then either the hint or the deck. The
+   row height is locked to the tile so nothing below it reflows when the
+   first image lands. */
+.pgv-ref-row {
+  --pgv-ref-tile: 36px;
+  /* --pgv-ref-strip (how much of a buried card stays visible) is set
+     inline by the component: it depends on how many images there are,
+     because the sidebar is a fixed 230px and clips rather than scrolls.
+     20px is only the fallback for a row rendered without it. */
+  --pgv-ref-strip: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--pgv-ref-tile);
+  overflow: visible;          /* let the × hang outside; never scroll */
+}
+.pgv-ref-add {
+  flex: 0 0 var(--pgv-ref-tile);
+  width: var(--pgv-ref-tile);
+  height: var(--pgv-ref-tile);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 10px;
-  margin-top: 4px;
   background: var(--pgv-input-bg);
   border: 1px dashed var(--surface-2, #2e2e2e);
   border-radius: 7px;
   color: #555;
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s, transform 0.12s;
 }
-.pgv-ref-add-btn:hover { border-color: var(--pgv-accent); color: var(--pgv-accent); }
-.pgv-ref-add-icon { font-size: 15px; line-height: 1; color: inherit; }
-.pgv-ref-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-  margin-bottom: 4px;
+.pgv-ref-add:hover:not(:disabled) { border-color: var(--pgv-accent); color: var(--pgv-accent); }
+.pgv-ref-add:active:not(:disabled) { transform: scale(0.94); }
+.pgv-ref-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Only while the deck is empty, so it vanishes the moment the first
+   image lands. min-width:0 lets flex clamp it instead of spilling. */
+.pgv-ref-hint {
+  font-size: 11px;
+  line-height: 1.25;
+  color: #555;
+  min-width: 0;
+  flex: 1 1 0;
+  user-select: none;
+  pointer-events: none;
 }
+
+.pgv-ref-deck {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.pgv-ref-deck > .pgv-ref-slot { margin-left: calc(var(--pgv-ref-strip) - var(--pgv-ref-tile)); }
+.pgv-ref-deck > .pgv-ref-slot:first-child { margin-left: 0; }
+
+/* Later siblings paint over earlier ones by DOM order alone, so the
+   z-index stays a flat 1 here and hover can lift a card above the whole
+   stack. Do NOT set z-index inline per index: an inline value outranks
+   the stylesheet and the hover lift silently stops working, leaving the
+   × of a buried card unclickable. The ring in the same colour as the
+   panel keeps overlapping tiles visually separated. */
 .pgv-ref-slot {
-  aspect-ratio: 1;
-  border: 1px dashed var(--surface-2, #2e2e2e);
+  flex: 0 0 var(--pgv-ref-tile);
+  width: var(--pgv-ref-tile);
+  height: var(--pgv-ref-tile);
+  position: relative;
+  z-index: 1;
   border-radius: 6px;
+  overflow: visible;
+  box-shadow: 0 0 0 1.5px var(--pgv-bg);
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+.pgv-ref-slot:hover { z-index: 10; transform: translateY(-2px); }
+.pgv-ref-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Ordinal. Width IS the exposed strip, from the same variable that spaces
+   the cascade, so the number can never end up under the next card no
+   matter how tightly the deck has to pack. */
+.pgv-ref-num {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--pgv-ref-strip);
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  background: var(--pgv-input-bg);
-  position: relative;
-  overflow: hidden;
+  border-radius: 6px 5px 0 0;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
-.pgv-ref-slot:hover { border-color: var(--pgv-accent); }
-.pgv-ref-slot.filled { border-style: solid; border-color: #303030; }
-.pgv-ref-slot img { width: 100%; height: 100%; object-fit: cover; }
+
 .pgv-ref-remove {
-  position: absolute; top: 2px; right: 2px;
-  width: 15px; height: 15px; border-radius: 50%;
-  background: rgba(0,0,0,0.85); border: none; cursor: pointer;
+  position: absolute; top: -5px; right: -5px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(0,0,0,0.9); border: 1px solid #555; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 0.15s;
-  color: #ccc;
+  opacity: 0; transition: opacity 0.15s, transform 0.12s;
+  color: #ccc; padding: 0;
 }
-.pgv-ref-slot:hover .pgv-ref-remove { opacity: 1; }
+.pgv-ref-slot:hover .pgv-ref-remove,
+.pgv-ref-slot:focus-within .pgv-ref-remove { opacity: 1; }
+.pgv-ref-remove:hover { transform: scale(1.12); }
 
 /* ── Slider ── */
 input[type="range"].pgv-range {
