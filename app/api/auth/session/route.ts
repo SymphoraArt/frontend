@@ -102,7 +102,21 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify cryptographic signature
+  // Two forms, deliberately.
+  //
+  // normalizedWallet is for CASE-INSENSITIVE matching only: the allowlist
+  // lookup, and consume_auth_nonce (the nonce route stores the lowercased
+  // form, so the RPC must be given the same).
+  //
+  // storedWallet is what gets PERSISTED. Base58 is case-sensitive, so a
+  // lowercased Solana address is a different, valid-looking key nobody holds
+  // — stored, it made exactWallet() hand the payment builder a buyer whose
+  // signature could never match, and made every artist unsellable behind
+  // computeQuote's "must be re-linked" guard. EVM addresses are hex and
+  // unaffected either way. PR #69 fixed the settings route, lib/auth.ts and
+  // the quote guard, but never this file — the primary login path.
   const normalizedWallet = walletAddress.toLowerCase();
+  const storedWallet = walletType === "solana" ? walletAddress : normalizedWallet;
   const valid =
     walletType === "solana"
       ? await verifySolana(walletAddress, signature, message)
@@ -147,7 +161,7 @@ export async function POST(req: NextRequest) {
 
   let { error: sessionError } = await supabase.from("auth_sessions").insert({
     token: sessionToken,
-    wallet_address: normalizedWallet,
+    wallet_address: storedWallet,
     wallet_type: walletType,
     expires_at: expiresAt,
     ip_hash: ipHash,
@@ -156,7 +170,7 @@ export async function POST(req: NextRequest) {
     // moderation-council migration not run yet — insert without the column
     ({ error: sessionError } = await supabase.from("auth_sessions").insert({
       token: sessionToken,
-      wallet_address: normalizedWallet,
+      wallet_address: storedWallet,
       wallet_type: walletType,
       expires_at: expiresAt,
     }));
@@ -166,11 +180,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
-  // Ensure user + wallet row exist
+  // Ensure user + wallet row exist.
+  //
+  // Looked up case-INSENSITIVELY so a row written by the old lowercasing code
+  // is still found rather than duplicated, then REPAIRED in place. Every
+  // Solana wallet that ever logged in carries a mangled address; this heals
+  // them on their next login, so no migration has to guess which rows to
+  // touch.
   const { data: walletRow } = await supabase
     .from("user_wallets")
-    .select("user_id")
-    .eq("address", normalizedWallet)
+    .select("user_id, address")
+    .ilike("address", normalizedWallet)
     .is("removed_at", null)
     .maybeSingle();
 
@@ -179,12 +199,18 @@ export async function POST(req: NextRequest) {
     if (!userInsert.error && userInsert.data?.id) {
       await supabase.from("user_wallets").insert({
         user_id: userInsert.data.id,
-        address: normalizedWallet,
+        address: storedWallet,
         chain_family: walletType === "solana" ? "solana" : "evm",
         wallet_type: "external_eoa",
         is_primary: true,
       }).select();
     }
+  } else if (walletRow.address !== storedWallet) {
+    await supabase
+      .from("user_wallets")
+      .update({ address: storedWallet })
+      .eq("user_id", walletRow.user_id)
+      .ilike("address", normalizedWallet);
   }
 
   // Banned users still get a session — it only opens /api/ban/* (status,
@@ -192,7 +218,7 @@ export async function POST(req: NextRequest) {
   const banned = walletRow?.user_id ? !!(await activeBanFor(supabase, String(walletRow.user_id))) : false;
 
   // Whitelisted login → grant app access (sets the gate cookie the proxy checks).
-  const res = NextResponse.json({ sessionToken, expiresAt, walletAddress: normalizedWallet, walletType, ...(banned ? { banned: true } : {}) });
+  const res = NextResponse.json({ sessionToken, expiresAt, walletAddress: storedWallet, walletType, ...(banned ? { banned: true } : {}) });
   return grantGateCookie(res);
 }
 
