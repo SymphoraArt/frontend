@@ -71,6 +71,16 @@ export async function captureAndBroadcast(
       console.error("[payments/settle] ledger write failed:", intentId, e instanceof Error ? e.message : e),
     );
 
+    // Reclaim the nonce rent. Security needs nothing here — the payment's own
+    // AdvanceNonceAccount already killed the signature — but an open account
+    // parks 1,447,680 lamports forever, and the devnet dry run (2026-08-12)
+    // showed capture leaving exactly that behind on every sale: ~1.1 cents of
+    // SOL per purchase, more than the whole network fee the buyer pays.
+    // Best-effort: a failed close costs rent, never the capture.
+    if (held.nonceAccount) {
+      await closeNonceAccount(connection, held.nonceAccount, feePayerKeypair()).catch(() => "failed");
+    }
+
     return { signature };
   } catch (e) {
     // The claim stands. A durable nonce does not expire, so the same signed

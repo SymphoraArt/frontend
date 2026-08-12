@@ -1,3 +1,14 @@
+/* ═══════════════════════════════════════════════════════════════════
+ * QUARANTINED — dead code, kept deliberately (Kev, 2026-08-12).
+ *
+ * Nothing renders this editor (PromptEditor, the pre-left-menu one): zero importers anywhere in app/ or
+ * components/ (verified by import-graph scan, 2026-08-12). The live
+ * surfaces are /generator/[id] → PromptGeneratorView and /editor →
+ * EnkiPromptEditor. Kept only as a reservoir of exportable functions —
+ * "brauchen wir vllt noch fürn export von einigen funktionen".
+ *
+ * Do NOT wire this back into a route without a full review — its save/load price convention had drifted twice from the live schema.
+ * ═══════════════════════════════════════════════════════════════════ */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1011,7 +1022,9 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
         category,
         tags,
         aiModel,
-        price: Math.round(price * 10000),
+        // Dollars, as /api/prompt expects (it converts to cents itself).
+        // Was `price * 10000` — a $1 prompt would have stored $10,000.
+        price,
         aspectRatio,
         photoCount,
         promptType,
@@ -1118,7 +1131,7 @@ export default function PromptEditor({ onBack }: PromptEditorProps = {}) {
       setTags(Array.isArray(data.tags) ? (data.tags as string[]) : []);
       setAiModel(typeof data.aiModel === "string" ? data.aiModel : "gemini");
       setPrice(
-        typeof data.price === "number" ? data.price / 10000 : (1 / 10000)
+        typeof data.price === "number" ? data.price : 1
       );
       setAspectRatio(typeof data.aspectRatio === "string" ? data.aspectRatio : null);
       setPhotoCount(typeof data.photoCount === "number" ? data.photoCount : 1);
