@@ -43,6 +43,14 @@ export interface RouteLink {
   active?: boolean | null;
   priority?: number | null;
   applies_when?: Record<string, string[]> | null;
+  /**
+   * How many reference images THIS host accepts for THIS model. Null means the
+   * model's own limit applies, which is the common case: a host usually serves
+   * the model's full allowance. It exists for the case where one host is more
+   * restrictive than another for the same model, which no per-model number can
+   * express and which would otherwise be found out by the buyer, after payment.
+   */
+  max_reference_images?: number | null;
   provider_id?: string | null;
   providers?: {
     id?: string | null;

@@ -21,7 +21,7 @@ export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "ace
 
 export interface Route {
   provider: Provider;
-  /** The provider's own model id, e.g. "gemini-3-pro-image-preview". */
+  /** The provider's own model id, e.g. "gemini-3-pro-image". */
   providerModel: string;
   /**
    * The model_providers row this came from, and its provider. Carried so the
@@ -92,13 +92,19 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 
 /**
  * Bridge for rows that predate models.provider_model. Measured 2026-08-06:
- * gemini-3-pro-image-preview honours imageSize (1K 1024², 2K 2048², 4K 4096²);
+ * gemini-3-pro-image honours imageSize (1K 1024², 2K 2048², 4K 4096²);
  * gemini-2.5-flash-image ignores it and always returns 1024².
+ *
+ * The id here was gemini-3-pro-image-PREVIEW, which Google shut down on
+ * 2026-06-25 ("The gemini-3-pro-image-preview models are deprecated and will
+ * be shut down on June 25, 2026"). The GA id, released 2026-05-28, is
+ * gemini-3-pro-image. The live model_providers rows carried the dead id too;
+ * migrations/2026-08-12-reference-image-limits.sql renames them.
  */
 const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supportsResolution" | "supportsQuality">> = {
   "nano-banana-pro": {
     normal: { provider: "wavespeed", providerModel: "google/nano-banana-pro/text-to-image" },
-    boost: { provider: "gemini", providerModel: "gemini-3-pro-image-preview" },
+    boost: { provider: "gemini", providerModel: "gemini-3-pro-image" },
     supportsResolution: true,
     supportsQuality: false,
   },

@@ -1,0 +1,75 @@
+import { describe, expect, it } from "vitest";
+import {
+  estimateGeminiCost,
+  isGemini3ProImage,
+} from "@/backend/services/gemini-image-generation";
+import { DEFAULT_MODEL } from "@/lib/generation/models";
+
+/*
+ * Google shut down gemini-3-pro-image-preview on 2026-06-25 ("The
+ * gemini-3-pro-image-preview models are deprecated and will be shut down on
+ * June 25, 2026"). The GA id, released 2026-05-28, is gemini-3-pro-image. Our
+ * live rows and our code both still carried the dead one on 2026-08-12, seven
+ * weeks after the shutdown.
+ *
+ * Renaming it is the easy half. The dangerous half is that TWO behaviours
+ * branched on the exact string, and both fail SILENTLY when it stops matching:
+ *
+ *   - imageSize is only attached for this family, so a miss means the buyer
+ *     pays for 4K and receives 1024² with nothing reporting the difference;
+ *   - the cost estimate only has a rate for this family, so a miss books a
+ *     paid generation at $0.
+ *
+ * Neither raises an error. Both are exactly the failure this codebase keeps
+ * producing, so both get a test rather than a careful rename.
+ */
+
+describe("the Gemini 3 Pro Image family is recognised under either id", () => {
+  it("matches the GA id", () => {
+    expect(isGemini3ProImage("gemini-3-pro-image")).toBe(true);
+  });
+
+  it("still matches the shut-down preview id", () => {
+    // Deliberate. The live rows are renamed by a migration Kev runs by hand,
+    // so for a window the deployed code and the table disagree; matching only
+    // one of them breaks whichever side has not caught up yet.
+    expect(isGemini3ProImage("gemini-3-pro-image-preview")).toBe(true);
+  });
+
+  it("does not match the flash model, which has different behaviour entirely", () => {
+    // gemini-2.5-flash-image ignores imageSize and is priced per token at a
+    // different rate; treating it as Pro would misprice and mis-size it.
+    expect(isGemini3ProImage("gemini-2.5-flash-image")).toBe(false);
+    expect(isGemini3ProImage("")).toBe(false);
+    expect(isGemini3ProImage(null)).toBe(false);
+    expect(isGemini3ProImage(undefined)).toBe(false);
+  });
+});
+
+describe("a Pro generation is never costed at zero", () => {
+  it("prices the GA id, not just the retired one", () => {
+    const ga = estimateGeminiCost("gemini-3-pro-image", "2K", 1);
+    const preview = estimateGeminiCost("gemini-3-pro-image-preview", "2K", 1);
+
+    expect(ga).toBeGreaterThan(0);
+    expect(ga).toBe(preview);
+  });
+
+  it("still charges more for 4K than for 1K", () => {
+    // The tier table is the only thing that makes resolution cost anything;
+    // if the id stops matching, every tier collapses to the same zero.
+    expect(estimateGeminiCost("gemini-3-pro-image", "4K", 1)).toBeGreaterThan(
+      estimateGeminiCost("gemini-3-pro-image", "1K", 1),
+    );
+  });
+});
+
+describe("the code's own fallback model id is one that still exists", () => {
+  it("does not name a model Google has switched off", () => {
+    /* DEFAULT_MODEL is what a request falls back to when the lookup fails, so
+       a dead id here is a dead id on exactly the paths that were already
+       having a bad day. */
+    expect(DEFAULT_MODEL.boost.providerModel).toBe("gemini-3-pro-image");
+    expect(DEFAULT_MODEL.boost.providerModel).not.toMatch(/-preview$/);
+  });
+});

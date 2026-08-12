@@ -91,7 +91,7 @@ export async function generateImagesWithGemini(
     };
 
     // Only add imageSize if model is Gemini 3 Pro (supports 1K, 2K, 4K)
-    if (model === 'gemini-3-pro-image-preview' && request.imageSize) {
+    if (isGemini3ProImage(model) && request.imageSize) {
       config.imageConfig.imageSize = request.imageSize;
     }
 
@@ -370,6 +370,24 @@ export function parseImageInput(input: string): { mimeType: string; data: string
  * for twenty bytes of header. PNG carries width/height in the IHDR chunk at a
  * fixed offset; JPEG needs a walk to the first Start-Of-Frame marker.
  */
+/**
+ * Is this the Gemini 3 Pro Image family, under either of its ids?
+ *
+ * Two behaviours branch on it and BOTH fail silently on a miss: the request
+ * only carries imageSize for this family (a miss means the buyer pays for 4K
+ * and receives 1024², with nothing reporting it), and the cost estimate only
+ * has a rate for this family (a miss books the generation at $0).
+ *
+ * Both ids are matched on purpose. Google shut down gemini-3-pro-image-preview
+ * on 2026-06-25 and the GA id is gemini-3-pro-image, but the live rows are
+ * renamed by a migration Kev runs by hand — so for a window the code and the
+ * table disagree, and an exact match on either one alone breaks the other
+ * side of that window.
+ */
+export function isGemini3ProImage(model: string | null | undefined): boolean {
+  return model === 'gemini-3-pro-image' || model === 'gemini-3-pro-image-preview';
+}
+
 export function readImageDimensions(
   buf: Buffer | undefined,
 ): { width: number; height: number; format: 'png' | 'jpeg' } | null {
@@ -476,7 +494,7 @@ export function estimateGeminiCost(
   if (model === 'gemini-2.5-flash-image') {
     // 1290 tokens per image at $30/1M tokens
     costPerImage = (1290 / 1_000_000) * 30; // $0.0387
-  } else if (model === 'gemini-3-pro-image-preview') {
+  } else if (isGemini3ProImage(model)) {
     // Vertex AI pricing
     const tokenCounts: Record<string, number> = {
       '1K': 1120,

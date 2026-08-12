@@ -23,7 +23,7 @@ import { addCreation } from "@/lib/creations";
  * The function is now named for what it does, and generateWithModel() below
  * routes by the model the user actually picked.
  */
-export const NANO_BANANA_MODEL = "gemini-3-pro-image-preview";
+export const NANO_BANANA_MODEL = "gemini-3-pro-image";
 
 /** A model as the catalogue describes it — /api/models, never a constant. */
 export interface CatalogueModel {
