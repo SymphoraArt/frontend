@@ -82,8 +82,17 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .pgv-detail-close:hover { border-color: var(--pgv-accent); color: var(--pgv-accent); }
+/* Fill the frame, not the viewport. See the note on .pgv-page below. */
+.pgv-detail-panel > .pgv-page { height: 100%; }
 
-/* ── Page ── */
+/* ── Page ──
+   100vh only when this view IS the page. Opened inside .pgv-detail-panel it
+   must fill the FRAME, which starts below the recovery banner — otherwise the
+   view is 30px taller than the box holding it and the bottom row (generate,
+   comments, reviews) is pushed under the fold. Measured before the override:
+   panel bottom 355, page bottom 385, footer cut off by exactly the banner's
+   height. Kev: that row "MUST be always visible at the bottom frame despite
+   the warning banner". */
 .pgv-page {
   display: flex;
   height: 100vh;
