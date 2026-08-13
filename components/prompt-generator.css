@@ -1085,21 +1085,7 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   white-space: pre-wrap;
   word-break: break-word;
 }
-.pgv-copy-prompt {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--pgv-text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-.pgv-copy-prompt:hover { color: var(--pgv-accent); }
 
-.pgv-tok-wrap { position: relative; display: inline; }
 /* The chip reads as a slot to fill: dashed while empty, solid once it holds
    a value, so a glance at the sentence tells you what is still missing. */
 .pgv-tok {
@@ -1120,36 +1106,49 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   background: color-mix(in oklab, var(--pgv-accent) 18%, transparent);
 }
 
-/* The scrim sits inside the token's wrapper, BEHIND the popover, so a click
-   anywhere else closes it — including a click on another token, which then
-   opens that one in the same gesture rather than costing two clicks. */
-.pgv-tok-scrim { position: fixed; inset: 0; z-index: 3; }
-/* Grows out of the chip and collapses back into it: transform-origin sits at
-   the top-left, where the chip is, so the motion reads as the same object
-   opening rather than as a panel arriving from somewhere else. */
-.pgv-tok-pop {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 4;
-  width: 178px;
-  padding: 7px;
-  border-radius: 8px;
-  background: var(--pgv-raised);
-  border: 1px solid var(--pgv-border);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+
+/* ── Prompt header: two views, and a copy that follows them ───────────────
+   The icons sit on the label's own line rather than above the text, because
+   a 230px column cannot spare a row for three 22px buttons. */
+.pgv-prompt-head {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  transform-origin: top left;
-  animation: pgv-tok-in 0.13s cubic-bezier(0.4, 0, 0.2, 1);
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
 }
-@keyframes pgv-tok-in {
-  from { opacity: 0; transform: scale(0.86) translateY(-3px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+.pgv-prompt-modes {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
 }
-.pgv-tok-hint {
-  font-family: var(--font-sans), sans-serif;
-  font-size: 10px;
+.pgv-mode {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
   color: var(--pgv-text-muted);
+  cursor: pointer;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+.pgv-mode:hover { color: var(--pgv-text); background: var(--pgv-input-bg); }
+/* The active view is stated, not implied by which one you pressed last —
+   the two forms of the sentence can look similar enough that the reader
+   needs to be told which one they are looking at. */
+.pgv-mode.on {
+  color: var(--pgv-accent);
+  border-color: color-mix(in oklab, var(--pgv-accent) 45%, transparent);
+  background: color-mix(in oklab, var(--pgv-accent) 12%, transparent);
+}
+.pgv-mode--copy { margin-left: 2px; }
+
+/* The chip that is currently expanded below is marked, so the control down
+   there is visibly tied to the word up here. */
+.pgv-tok.active {
+  border-style: solid;
+  background: color-mix(in oklab, var(--pgv-accent) 26%, transparent);
+  color: var(--pgv-text);
 }

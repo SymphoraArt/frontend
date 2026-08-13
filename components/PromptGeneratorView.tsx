@@ -29,6 +29,8 @@ import {
   Link2 as LinkIcon,
   Send,
   ArrowLeft,
+  Braces,
+  Type,
 } from "lucide-react";
 import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
@@ -274,6 +276,10 @@ export default function PromptGeneratorView({
    * does. Unknown brackets stay plain text.
    */
   const [openVar, setOpenVar] = useState<string | null>(null);
+  /* Which form the sentence is shown in. "variables" is the default because
+     it is what the text IS — the values are this reader's copy of it, and
+     starting on those would hide the thing the artist actually wrote. */
+  const [promptView, setPromptView] = useState<"variables" | "contents">("variables");
   const promptSegments = useMemo(() => {
     const byName = new Map(variables.map(v => [v.name, v]));
     const out: Array<{ text: string; variable?: PromptVariable }> = [];
@@ -288,6 +294,33 @@ export default function PromptGeneratorView({
     if (last < (promptText || "").length) out.push({ text: (promptText || "").slice(last) });
     return out;
   }, [promptText, variables]);
+
+  /* The variable whose full control is showing, if any. Resolved from the
+     name rather than stored as an object so it cannot go stale when the
+     prompt reloads and hands back fresh variable objects. */
+  const openVarDef = useMemo(
+    () => (openVar ? variables.find(v => v.name === openVar) ?? null : null),
+    [openVar, variables]
+  );
+
+  /* What Copy puts on the clipboard: exactly what is on screen.
+     In "variables" that is the artist's text with its slots intact, which is
+     the form worth reusing. In "contents" it is this reader's filled-in
+     version. Copying one while showing the other is the kind of quiet
+     mismatch nobody notices until they paste it somewhere. */
+  const promptForClipboard = useMemo(
+    () =>
+      promptSegments
+        .map(seg =>
+          seg.variable
+            ? promptView === "contents" && vars[seg.variable.name]
+              ? vars[seg.variable.name]
+              : `[${seg.variable.name}]`
+            : seg.text
+        )
+        .join(""),
+    [promptSegments, promptView, vars]
+  );
 
   /* Fetch user's generations — API returns { data: { generations, total } } via createSuccessResponse */
   const genQueryKey = ["user-generations", userKey, promptId];
@@ -353,12 +386,16 @@ export default function PromptGeneratorView({
     toast({ title: fav ? "Removed from favorites" : "Saved to favorites" });
   }, [fav, promptId, toast]);
 
+  /* Copies WHAT IS SHOWN — slots in "variables", filled values in
+     "contents" — rather than always the raw text. Copying one form while
+     displaying the other is a mismatch nobody notices until they paste it. */
   const copyPrompt = useCallback(() => {
-    if (!promptText) return;
-    navigator.clipboard.writeText(promptText);
+    const text = promptForClipboard || promptText;
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [promptText]);
+  }, [promptForClipboard, promptText]);
 
   const onRefUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -675,6 +712,115 @@ export default function PromptGeneratorView({
     : showcaseImages;
   const visibleThumbs = allImages.slice(thumbOffset, thumbOffset + 6);
 
+  /* One rendering of a variable, used by BOTH surfaces.
+   * Paid prompts list every variable; a free prompt shows the one the reader
+   * clicked in the sentence. Two copies of this markup would drift the moment
+   * a new variable type is added, and only one of the two would get it.
+   */
+  const renderVariable = (v: PromptVariable) => (
+            <div key={v.id || v.name} className="pgv-block">
+              <span className="pgv-section-label">{v.label || v.name}</span>
+
+              {/* TEXT */}
+              {v.type === "text" && (
+                <input
+                  className="pgv-input"
+                  value={vars[v.name] || ""}
+                  onChange={e => onVarChange(v.name, e.target.value)}
+                  placeholder={v.defaultValue ? String(v.defaultValue) : `Enter ${(v.label || v.name).toLowerCase()}…`}
+                />
+              )}
+
+              {/* CHECKBOX */}
+              {v.type === "checkbox" && (
+                <label className="pgv-check-row">
+                  <input
+                    type="checkbox"
+                    checked={vars[v.name] === "true"}
+                    onChange={e => onVarChange(v.name, e.target.checked ? "true" : "false")}
+                  />
+                  {v.description || v.label}
+                </label>
+              )}
+
+              {/* SINGLE-SELECT */}
+              {v.type === "single-select" && v.options && (
+                <select
+                  className="pgv-generator-select"
+                  value={vars[v.name] || ""}
+                  onChange={e => onVarChange(v.name, e.target.value)}
+                >
+                  {v.options.map((opt, i) => (
+                    <option key={i} value={opt.promptValue}>{opt.visibleName}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* RADIO */}
+              {v.type === "radio" && v.options && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                  {v.options.map((opt, i) => (
+                    <label key={i} className="pgv-check-row">
+                      <input
+                        type="radio"
+                        name={v.name}
+                        value={opt.promptValue}
+                        checked={vars[v.name] === opt.promptValue}
+                        onChange={() => onVarChange(v.name, opt.promptValue)}
+                        style={{ accentColor: "var(--pgv-accent)" }}
+                      />
+                      {opt.visibleName}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* MULTI-SELECT */}
+              {v.type === "multi-select" && v.options && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                  {v.options.map((opt, i) => {
+                    const selected = (vars[v.name] || "").split(",").filter(Boolean);
+                    const checked = selected.includes(opt.promptValue);
+                    return (
+                      <label key={i} className="pgv-check-row">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => {
+                            const next = e.target.checked
+                              ? [...selected, opt.promptValue]
+                              : selected.filter(s => s !== opt.promptValue);
+                            onVarChange(v.name, next.join(","));
+                          }}
+                        />
+                        {opt.visibleName}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* SLIDER */}
+              {v.type === "slider" && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#888", marginBottom: 4 }}>
+                    <span>{v.min ?? 0}</span>
+                    <span style={{ color: "#ddd", fontWeight: 600 }}>{vars[v.name] ?? v.defaultValue ?? v.min ?? 0}</span>
+                    <span>{v.max ?? 100}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={v.min ?? 0}
+                    max={v.max ?? 100}
+                    step={1}
+                    value={Number(vars[v.name] ?? v.defaultValue ?? v.min ?? 0)}
+                    onChange={e => onVarChange(v.name, e.target.value)}
+                    style={{ width: "100%", accentColor: "var(--pgv-accent)" }}
+                  />
+                </div>
+              )}
+            </div>
+  );
   return (
     <div className="pgv-page">
       {/* ═══ LEFT SIDEBAR ═══ */}
@@ -778,165 +924,86 @@ export default function PromptGeneratorView({
               shown, so the boxes are the only place their variables exist. */}
           {isFree && promptText && (
             <div className="pgv-block">
-              <span className="pgv-section-label">Prompt · Free</span>
+              {/* Two views of one text, and the copy that follows whichever is
+                  showing. VARIABLES gives the slots — [surface] — which is the
+                  form an artist reads and reuses. CONTENTS gives the sentence
+                  as it will be sent. Copy takes what is on screen, so there is
+                  never a second guess about which version reached the
+                  clipboard. */}
+              <div className="pgv-prompt-head">
+                <span className="pgv-section-label" style={{ marginBottom: 0 }}>Prompt · Free</span>
+                {variables.length > 0 && (
+                  <div className="pgv-prompt-modes">
+                    <button
+                      type="button"
+                      className={`pgv-mode${promptView === "variables" ? " on" : ""}`}
+                      onClick={() => setPromptView("variables")}
+                      aria-pressed={promptView === "variables"}
+                      title="Show the variable slots"
+                      aria-label="Show the variable slots"
+                    >
+                      <Braces size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`pgv-mode${promptView === "contents" ? " on" : ""}`}
+                      onClick={() => setPromptView("contents")}
+                      aria-pressed={promptView === "contents"}
+                      title="Show the values that will be sent"
+                      aria-label="Show the values that will be sent"
+                    >
+                      <Type size={12} />
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="pgv-mode pgv-mode--copy"
+                  onClick={copyPrompt}
+                  title="Copy this prompt"
+                  aria-label="Copy this prompt"
+                >
+                  {copied ? <Check size={12} /> : <Copy size={12} />}
+                </button>
+              </div>
+
               <p className="pgv-prompt-live">
                 {promptSegments.map((seg, i) =>
                   seg.variable ? (
-                    <span className="pgv-tok-wrap" key={`${seg.variable.name}-${i}`}>
-                      <button
-                        type="button"
-                        className={`pgv-tok${vars[seg.variable.name] ? " filled" : ""}`}
-                        onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
-                        title={`Set ${seg.variable.label || seg.variable.name}`}
-                      >
-                        {vars[seg.variable.name] || seg.variable.label || seg.variable.name}
-                      </button>
-                      {openVar === seg.variable.name && (
-                        <>
-                          {/* Clicking away closes it. The scrim is inside the
-                              token's own wrapper so it cannot steal the click
-                              that opens a DIFFERENT token — that would need two
-                              clicks to move between variables. */}
-                          <span className="pgv-tok-scrim" onClick={() => setOpenVar(null)} />
-                          <span className="pgv-tok-pop" role="dialog">
-                            <input
-                              autoFocus
-                              className="pgv-input"
-                              value={vars[seg.variable.name] || ""}
-                              placeholder={seg.variable.label || seg.variable.name}
-                              onChange={e => onVarChange(seg.variable!.name, e.target.value)}
-                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setOpenVar(null); }}
-                            />
-                            {/* Every occurrence of this variable reads the same
-                                value, so one edit fills them all — said out
-                                loud only when it actually applies. */}
-                            {promptSegments.filter(s => s.variable?.name === seg.variable!.name).length > 1 && (
-                              <span className="pgv-tok-hint">applies to every use</span>
-                            )}
-                          </span>
-                        </>
-                      )}
-                    </span>
+                    <button
+                      key={`${seg.variable.name}-${i}`}
+                      type="button"
+                      className={
+                        `pgv-tok${vars[seg.variable.name] ? " filled" : ""}` +
+                        (openVar === seg.variable.name ? " active" : "")
+                      }
+                      onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
+                      title={`Set ${seg.variable.label || seg.variable.name}`}
+                    >
+                      {promptView === "contents" && vars[seg.variable.name]
+                        ? vars[seg.variable.name]
+                        : `[${seg.variable.name}]`}
+                    </button>
                   ) : (
                     <span key={`t-${i}`}>{seg.text}</span>
                   )
                 )}
               </p>
-              <button className="pgv-copy-prompt" onClick={copyPrompt}>
-                {copied ? <Check size={12} /> : <Copy size={12} />}
-                {copied ? "Copied" : "Copy prompt"}
-              </button>
             </div>
           )}
+
+          {/* The clicked variable, in full, below the sentence. It is the SAME
+              renderer a paid prompt's list uses, so a select stays a select
+              and a slider stays a slider — the popover this replaces could
+              only ever hold a text box, which left those two types with
+              nowhere to go. */}
+          {isFree && openVarDef && renderVariable(openVarDef)}
 
           {/* Variable inputs — type-aware, one block per variable.
               Skipped for a free prompt: its variables are already editable
               inside the text above, and showing both would be two controls
               writing one value. */}
-          {!isFree && variables.map(v => (
-            <div key={v.id || v.name} className="pgv-block">
-              <span className="pgv-section-label">{v.label || v.name}</span>
-
-              {/* TEXT */}
-              {v.type === "text" && (
-                <input
-                  className="pgv-input"
-                  value={vars[v.name] || ""}
-                  onChange={e => onVarChange(v.name, e.target.value)}
-                  placeholder={v.defaultValue ? String(v.defaultValue) : `Enter ${(v.label || v.name).toLowerCase()}…`}
-                />
-              )}
-
-              {/* CHECKBOX */}
-              {v.type === "checkbox" && (
-                <label className="pgv-check-row">
-                  <input
-                    type="checkbox"
-                    checked={vars[v.name] === "true"}
-                    onChange={e => onVarChange(v.name, e.target.checked ? "true" : "false")}
-                  />
-                  {v.description || v.label}
-                </label>
-              )}
-
-              {/* SINGLE-SELECT */}
-              {v.type === "single-select" && v.options && (
-                <select
-                  className="pgv-generator-select"
-                  value={vars[v.name] || ""}
-                  onChange={e => onVarChange(v.name, e.target.value)}
-                >
-                  {v.options.map((opt, i) => (
-                    <option key={i} value={opt.promptValue}>{opt.visibleName}</option>
-                  ))}
-                </select>
-              )}
-
-              {/* RADIO */}
-              {v.type === "radio" && v.options && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-                  {v.options.map((opt, i) => (
-                    <label key={i} className="pgv-check-row">
-                      <input
-                        type="radio"
-                        name={v.name}
-                        value={opt.promptValue}
-                        checked={vars[v.name] === opt.promptValue}
-                        onChange={() => onVarChange(v.name, opt.promptValue)}
-                        style={{ accentColor: "var(--pgv-accent)" }}
-                      />
-                      {opt.visibleName}
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* MULTI-SELECT */}
-              {v.type === "multi-select" && v.options && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-                  {v.options.map((opt, i) => {
-                    const selected = (vars[v.name] || "").split(",").filter(Boolean);
-                    const checked = selected.includes(opt.promptValue);
-                    return (
-                      <label key={i} className="pgv-check-row">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={e => {
-                            const next = e.target.checked
-                              ? [...selected, opt.promptValue]
-                              : selected.filter(s => s !== opt.promptValue);
-                            onVarChange(v.name, next.join(","));
-                          }}
-                        />
-                        {opt.visibleName}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* SLIDER */}
-              {v.type === "slider" && (
-                <div style={{ marginTop: 4 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#888", marginBottom: 4 }}>
-                    <span>{v.min ?? 0}</span>
-                    <span style={{ color: "#ddd", fontWeight: 600 }}>{vars[v.name] ?? v.defaultValue ?? v.min ?? 0}</span>
-                    <span>{v.max ?? 100}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={v.min ?? 0}
-                    max={v.max ?? 100}
-                    step={1}
-                    value={Number(vars[v.name] ?? v.defaultValue ?? v.min ?? 0)}
-                    onChange={e => onVarChange(v.name, e.target.value)}
-                    style={{ width: "100%", accentColor: "var(--pgv-accent)" }}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
+          {!isFree && variables.map(renderVariable)}
 
           {/* Style Preset, Camera / Lens and Detail Options used to sit here as
               HARDCODED demo fields — "Minimal Brutalism", "35mm", "Keep
