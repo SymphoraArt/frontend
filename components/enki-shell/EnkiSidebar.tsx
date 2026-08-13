@@ -48,6 +48,16 @@ export default function EnkiSidebar({
 }: SidebarProps) {
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
+  /* Short viewports fold the nav into this. It is rendered unconditionally and
+     revealed by a media query rather than by a resize listener: a listener
+     cannot know the height during the server render, so the first paint would
+     always be the wrong one and then correct itself in front of the reader. */
+  const [burgerOpen, setBurgerOpen] = useState(false);
+  const burgerRef = useRef<HTMLDivElement>(null);
+  /* Folding the list away would also fold away its unread counts, so they are
+     summed onto the burger itself — otherwise a short window silently hides
+     the one signal the menu exists to carry. */
+  const totalBadge = nav.reduce((n, i) => n + (i.badge ?? 0), 0);
 
   useEffect(() => {
     if (!colorOpen) return;
@@ -57,6 +67,17 @@ export default function EnkiSidebar({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [colorOpen]);
+
+  useEffect(() => {
+    if (!burgerOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (burgerRef.current && !burgerRef.current.contains(e.target as Node)) setBurgerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setBurgerOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [burgerOpen]);
 
   return (
     <aside className="ek-sidebar">
@@ -77,6 +98,56 @@ export default function EnkiSidebar({
           <img className="ek-logo-img" src="/enki-art-logo.png" alt="Enki Art" />
         )}
       </a>
+
+      {/* ── Burger: the whole nav, for viewports too short to stand it up ──
+          Below the breakpoint the rail simply ran out of room and the list
+          scrolled with a hidden scrollbar, so the last items were gone with
+          nothing on screen saying so. */}
+      <div className="ek-burger-wrap" ref={burgerRef}>
+        <button
+          className={"ek-burger" + (burgerOpen ? " on" : "")}
+          type="button"
+          onClick={() => setBurgerOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={burgerOpen}
+          aria-label="Menu"
+          title="Menu"
+        >
+          <Icon name="menu" size={18} stroke={2.2} />
+          {!rail && <span className="ek-burger-btn-label">Menu</span>}
+          {totalBadge > 0 && !burgerOpen && <span className="ek-nav-badge ek-burger-badge">{totalBadge}</span>}
+        </button>
+        {burgerOpen && (
+          <div className="ek-burger-menu" role="menu">
+            {nav.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                className={"ek-burger-item" + (active === item.id ? " active" : "")}
+                onClick={() => { onNav(item.id); setBurgerOpen(false); }}
+              >
+                <Icon name={item.icon} size={16} stroke={active === item.id ? 2.4 : 1.9} />
+                <span className="ek-burger-label">{item.label}</span>
+                {item.badge ? <span className="ek-nav-badge">{item.badge}</span> : null}
+              </button>
+            ))}
+            <div className="ek-burger-sep" />
+            <button type="button" role="menuitem" className="ek-burger-item" onClick={() => { onRefer(); setBurgerOpen(false); }}>
+              <Icon name="link" size={16} stroke={1.9} />
+              <span className="ek-burger-label">Refer a prompt</span>
+              <span className="ek-earn-chip">$</span>
+            </button>
+            {onFeedback && (
+              <button type="button" role="menuitem" className="ek-burger-item" onClick={() => { onFeedback(); setBurgerOpen(false); }}>
+                <Icon name="message" size={16} stroke={1.9} />
+                <span className="ek-burger-label">Feedback</span>
+                <span className="ek-earn-chip">$100</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <nav className="ek-nav">
         {nav.map((item) => {

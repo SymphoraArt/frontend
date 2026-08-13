@@ -101,7 +101,18 @@
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   font-size: 13px;
+  /* One knob for the preview strip under the image. The strip and the image
+     share the centre column's height, so on a short window every pixel it
+     keeps is one the picture loses — and the picture is what the reader came
+     for (Kev, 2026-08-13). Declared here so the arrows and the status dot
+     scale with the tiles instead of drifting out of proportion. */
+  --pgv-thumb: 58px;
 }
+@media (max-height: 760px) { .pgv-page { --pgv-thumb: 46px; } }
+@media (max-height: 620px) { .pgv-page { --pgv-thumb: 38px; } }
+/* Narrow windows squeeze the centre column too, so the strip gives way there
+   as well — otherwise four tiles and two arrows leave no room for the image. */
+@media (max-width: 900px) { .pgv-page { --pgv-thumb: 46px; } }
 
 /* ══════════════════════════════
    LEFT SIDEBAR
@@ -652,8 +663,8 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   flex-shrink: 0;
 }
 .pgv-thumb-arrow {
-  width: 26px;
-  height: 26px;
+  width: calc(var(--pgv-thumb) * 0.45);
+  height: calc(var(--pgv-thumb) * 0.45);
   flex-shrink: 0;
   background: var(--surface-chrome, var(--pgv-input-bg));
   border: 1px solid var(--surface-2, var(--pgv-border));
@@ -678,8 +689,8 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 .pgv-thumb-strip::-webkit-scrollbar { display: none; }
 
 .pgv-thumb-item {
-  width: 58px;
-  height: 58px;
+  width: var(--pgv-thumb);
+  height: var(--pgv-thumb);
   flex-shrink: 0;
   border-radius: 7px;
   overflow: hidden;
@@ -706,7 +717,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 /* Status badge on thumbnail */
 .pgv-thumb-status {
   position: absolute; top: 3px; left: 3px;
-  width: 18px; height: 18px;
+  width: calc(var(--pgv-thumb) * 0.31); height: calc(var(--pgv-thumb) * 0.31);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 700;

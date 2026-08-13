@@ -255,12 +255,79 @@
   .ek-account { margin-top: 8px; }
   .ek-avatar { width: 34px; height: 34px; }
 }
-@media (max-height: 640px) {
-  /* Last resort: the nav list scrolls instead of stacking over the footer. */
-  .ek-nav { min-height: 0; overflow-y: auto; scrollbar-width: none; }
-  .ek-nav::-webkit-scrollbar { display: none; }
-  .ek-nav-item { height: 34px; }
-  .ek-create { height: 36px; margin-top: 6px; }
+
+/* ── The burger, for viewports too short to stand the nav up ──────────
+   Hidden by default and revealed by the query below, so nothing here
+   depends on measuring the window from JavaScript.
+
+   Below 640px of height the list used to scroll behind a hidden scrollbar:
+   the tail of the menu was simply gone, with nothing on screen admitting
+   it (Kev, 2026-08-13 — only home, refer and chat left standing). A menu
+   that silently drops its own entries is worse than one that folds up and
+   says so, so the whole list moves into a popover and what stays in the
+   rail is the burger plus the two things you came to press.
+
+   760 is measured, not chosen: the full sidebar needs 714px of its own
+   height, and the recovery banner takes 30 off the viewport before the
+   sidebar sees it — so 744 is the last viewport that can hold it, and 760
+   leaves the margin. The band between 640 and 744 was the broken one: the
+   scroll fallback did not reach it, so the account row simply fell off the
+   bottom of the screen (measured at 720px: 24px of it below the fold). */
+.ek-burger-wrap { display: none; position: relative; flex-shrink: 0; }
+/* Expanded, it is a labelled row like everything else in the column; railed,
+   it collapses to the same circle the nav items use. Same order as .ek-nav-item
+   below — full form first, rail as the override. */
+.ek-burger {
+  display: flex; align-items: center; gap: 12px; position: relative;
+  width: 100%; height: 40px; margin: 2px 0 4px; padding: 0 14px;
+  border: 1px solid var(--enki-rule); border-radius: 999px;
+  background: none; color: var(--enki-ink); font-size: 14px; text-align: left; cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.ek-burger-btn-label { flex: 1; }
+.ek-root--rail .ek-burger { width: 40px; padding: 0; margin: 2px auto 4px; justify-content: center; border-radius: 50%; }
+.ek-burger:hover, .ek-burger.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); border-color: var(--enki-ink-3); }
+.ek-burger-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; font-size: 9px; padding: 0 4px; }
+.ek-burger-menu {
+  position: absolute; top: 0; left: calc(100% + 8px); z-index: 210;
+  min-width: 208px; max-height: 78vh; overflow-y: auto;
+  padding: 6px; border: 1px solid var(--enki-rule); border-radius: 12px;
+  background: var(--enki-paper); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
+}
+.ek-burger-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  height: 34px; padding: 0 10px; border: none; border-radius: 8px;
+  background: none; color: var(--enki-ink); font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.ek-burger-item:hover { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-burger-item.active { font-weight: 600; }
+.ek-burger-item.active svg { color: var(--enki-ember); }
+.ek-burger-label { flex: 1; white-space: nowrap; }
+.ek-burger-sep { height: 1px; margin: 5px 8px; background: var(--enki-rule); }
+
+@media (max-height: 760px) {
+  /* The rail keeps only the burger and the two create buttons; everything
+     with a label moves into the popover. */
+  .ek-burger-wrap { display: block; }
+  .ek-nav, .ek-earn-lab, .ek-earn-row { display: none; }
+  .ek-logo { height: 38px; margin-bottom: 4px; }
+  .ek-logo-img { height: 26px; }
+  .ek-logo-mark, .ek-logo-mark-img { width: 32px; height: 32px; }
+  .ek-collapse-btn { top: 58px; }
+  .ek-create { height: 40px; margin-top: 8px; font-size: 14px; }
+  .ek-create2 { height: 36px; margin-top: 6px; font-size: 13px; }
+  .ek-root--rail .ek-create { width: 40px; height: 40px; }
+  .ek-root--rail .ek-create2 { width: 40px; height: 36px; }
+  .ek-avatar { width: 30px; height: 30px; font-size: 11px; }
+  .ek-account { margin-top: 6px; }
+}
+@media (max-height: 460px) {
+  /* Nothing left to fold: the popover itself scrolls and the rail is just
+     the burger, one create button and the account. */
+  .ek-burger { width: 34px; height: 34px; }
+  .ek-create2 { display: none; }
+  .ek-logo { display: none; }
+  .ek-collapse-btn { top: 14px; }
 }
 .ek-create, .ek-account { flex-shrink: 0; }
 
