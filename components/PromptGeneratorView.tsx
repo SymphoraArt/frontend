@@ -1111,11 +1111,55 @@ export default function PromptGeneratorView({
             </div>
           )}
 
-          {/* The clicked variable, in full, below the sentence. It is the SAME
-              renderer a paid prompt's list uses, so a select stays a select
-              and a slider stays a slider — the popover this replaces could
-              only ever hold a text box, which left those two types with
-              nowhere to go. */}
+          {/* The prompt's named parts.
+              Optional by construction: a free prompt is allowed to be nothing
+              but text, and then this renders nothing at all rather than an
+              empty header (Kev, 2026-08-13). It exists for the other case —
+              an artist who names a slot to say what a passage IS, "this part
+              here is character design" — so the name and the artist's note
+              are what the row leads with, and the value follows. Reading the
+              list is also how you reach a select or a slider: the row opens
+              the full control below, which a click in the sentence cannot do
+              for those types. */}
+          {isFree && variables.length > 0 && (
+            <div className="pgv-block">
+              <span className="pgv-section-label">Parts of this prompt</span>
+              <ul className="pgv-varlist">
+                {variables.map(v => {
+                  const val = vars[v.name] || "";
+                  const open = openVar === v.name;
+                  return (
+                    <li key={v.id || v.name}>
+                      <button
+                        type="button"
+                        className={`pgv-varlist-row${open ? " on" : ""}`}
+                        aria-expanded={open}
+                        /* Opening a part also puts its slot into value form, so
+                           the sentence above shows the thing you are editing
+                           instead of leaving you to match a name to a box. */
+                        onClick={() => {
+                          setTokenOverrides(o => ({ ...o, [v.name]: true }));
+                          setOpenVar(x => (x === v.name ? null : v.name));
+                        }}
+                      >
+                        <span className="pgv-varlist-head">
+                          <span className="pgv-varlist-name">{v.label || v.name}</span>
+                          <span className="pgv-varlist-slot">[{v.name}]</span>
+                        </span>
+                        {v.description && <span className="pgv-varlist-note">{v.description}</span>}
+                        <span className={`pgv-varlist-val${val ? "" : " empty"}`}>{val || "not set"}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* The open part, in full, below the list. It is the SAME renderer a
+              paid prompt uses, so a select stays a select and a slider stays a
+              slider — the popover this replaces could only ever hold a text
+              box, which left those two types with nowhere to go. */}
           {isFree && openVarDef && renderVariable(openVarDef)}
 
           {/* Variable inputs — type-aware, one block per variable.

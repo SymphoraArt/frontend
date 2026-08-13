@@ -1245,3 +1245,38 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   outline: none;
   min-width: 60px;
 }
+
+/* ── The prompt's named parts (free prompts only) ──────────────────────
+   A list of rows rather than a stack of inputs: most of the time this is
+   read, not filled in. The name leads because the name is the point — an
+   artist writes it to say what a passage of the prompt IS. The slot is
+   kept beside it so the row and the sentence above can be matched without
+   counting words. */
+.pgv-varlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pgv-varlist-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--pgv-border);
+  border-radius: 6px;
+  background: var(--surface-chrome, var(--pgv-input-bg));
+  color: var(--pgv-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pgv-varlist-row:hover { border-color: var(--pgv-accent); }
+.pgv-varlist-row.on { border-color: var(--pgv-accent); background: var(--surface-1, var(--pgv-raised)); }
+.pgv-varlist-head { display: flex; align-items: baseline; gap: 6px; }
+.pgv-varlist-name { font-size: 12px; font-weight: 600; }
+.pgv-varlist-slot { font-family: var(--font-mono), ui-monospace, monospace; font-size: 10px; color: var(--pgv-text-muted); }
+.pgv-varlist-note { font-size: 11px; color: var(--pgv-text-muted); line-height: 1.35; }
+.pgv-varlist-val {
+  font-size: 11.5px;
+  color: var(--pgv-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* "not set" is a state, not a value — it must not read as one. */
+.pgv-varlist-val.empty { color: var(--pgv-text-muted); font-style: italic; }
