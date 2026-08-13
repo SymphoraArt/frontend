@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { eligibleRoutes, pickRoute, type RouteLink, type RouteCandidate } from "@/lib/generation/routing";
 import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-health";
 import { canCarryReferenceImages } from "@/lib/generation/provider-capabilities";
+import { maxTier, type ResolutionTier } from "@/lib/generation/resolution";
 
 export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
@@ -58,6 +59,12 @@ export interface ResolvedModel {
   links?: unknown[];
   /** True when the model honours a size/resolution request. */
   supportsResolution: boolean;
+  /**
+   * The largest tier this model genuinely renders, so a picker can offer the
+   * sizes that exist instead of a fixed 1K/2K/4K list. Flux caps at 2K: a 4K
+   * request there comes back byte-identical to a 2K one.
+   */
+  maxResolution: ResolutionTier;
   /**
    * True when the model takes a low|medium|high quality tier as its OWN
    * parameter. Only the gpt-image family does — on both hosts. For Gemini the
@@ -136,8 +143,11 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     // and hasBoost() reports false — the button never appears for it.
     normal: { provider: "pollinations", providerModel: "flux" },
     boost: { provider: "pollinations", providerModel: "flux" },
-    // Pollinations maps a ratio to width/height itself and its "resolution"
-    // only picks the base edge, so a size request is honoured in spirit.
+    /* "Honoured in spirit" was the old claim here, and it is false. The
+       worker clamps on TOTAL pixels before diffusing, so 4K and 2K return
+       byte-identical images at every ratio the UI offers — 686x858 at 4:5,
+       measured against the live rows. The ceiling that matters now lives in
+       lib/generation/resolution.ts, which caps this route at 2K. */
     supportsResolution: true,
     supportsQuality: false,
   },
@@ -148,6 +158,7 @@ export const DEFAULT_MODEL: ResolvedModel = {
   id: null,
   name: "Nano Banana Pro",
   ...BY_SLUG["nano-banana-pro"],
+  maxResolution: maxTier("wavespeed", "google/nano-banana-pro/text-to-image"),
   allowedRatios: ["1:1", "16:9", "9:16"],
   maxRefs: 3,
 };
@@ -224,10 +235,15 @@ function fromRow(row: ModelRow, audience: Audience): ResolvedModel {
     links,
     allowedRatios: row.allowed_ratios?.length ? row.allowed_ratios : DEFAULT_MODEL.allowedRatios,
     maxRefs: typeof row.max_reference_images === "number" ? row.max_reference_images : DEFAULT_MODEL.maxRefs,
-    // Derived from the model, never from a column: whether a model honours a
-    // resolution is a fact about that model, and a stale column would make us
-    // charge for a size the model silently ignores.
-    supportsResolution: bridge.supportsResolution,
+    /* Derived from the ROUTE, never from a column and no longer from the
+       display-name bridge. Whether a model honours a resolution is a fact
+       about the provider and the provider model, and the bridge answered it
+       by slugging row.name with a fallback to the Nano Banana Pro entry — so
+       any name it did not recognise inherited supportsResolution: true and
+       was billed by resolution against a host that may ignore the field.
+       lib/generation/resolution.ts fails closed at 1K instead. */
+    supportsResolution: maxTier(normal.provider, normal.providerModel) !== "1K",
+    maxResolution: maxTier(normal.provider, normal.providerModel),
     supportsQuality: bridge.supportsQuality,
   };
 }

@@ -36,6 +36,7 @@ import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
+import { maxTier, tiersUpTo, type ResolutionTier } from "@/lib/generation/resolution";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -77,7 +78,16 @@ interface Props {
 }
 
 const ASPECTS = ["3:4", "4:5", "1:1", "2:3", "4:3", "16:9"];
-const RESOLUTIONS = ["1K", "2K", "4K"];
+/* Offered sizes are per ROUTE, because "4K" is not a thing every route can
+   do. The free path is hard-wired to Pollinations/Flux, whose worker clamps
+   on total pixels before diffusing: a 4K and a 2K request came back
+   byte-identical from the live rows, 686x858 at 4:5 — a fourteenth of a 4K
+   frame, and nothing in the response admitted it. The paid path starts at 2K
+   because the quote and intent schemas are z.enum(["2K","4K"]); a 1K pick was
+   silently quoted, charged AND rendered at 2K. Both lists now contain only
+   sizes the buyer actually receives. */
+const RESOLUTIONS_FREE = tiersUpTo(maxTier("pollinations", "flux"));   // 1K, 2K
+const RESOLUTIONS_PAID: ResolutionTier[] = ["2K", "4K"];
 
 function getFavs(): string[] {
   if (typeof window === "undefined") return [];
@@ -255,6 +265,17 @@ export default function PromptGeneratorView({
   /* Free of charge for either reason: the artist gave the prompt away, or the
      chosen model costs nothing to run. */
   const noCharge = isFree || freeModel;
+
+  /* Which sizes this run can actually deliver, and a pick that never survives
+     outside that list. Without the correction a buyer who chose 4K and then
+     switched to the free generator kept a 4K selection that the free route
+     silently rendered at 0.59 MP. */
+  const resolutions = useMemo(() => (noCharge ? RESOLUTIONS_FREE : RESOLUTIONS_PAID), [noCharge]);
+  useEffect(() => {
+    if (!resolutions.includes(resolution as ResolutionTier)) {
+      setResolution(resolutions[resolutions.length - 1]);
+    }
+  }, [resolutions, resolution]);
 
   const { data: paidQuote } = useQuery({
     queryKey: ["generation-quote", promptId, modelFamily, quoteResolution],
@@ -1350,7 +1371,7 @@ export default function PromptGeneratorView({
                   title="Resolution"
                   aria-label="Resolution"
                 >
-                  {RESOLUTIONS.map(r => <option key={r}>{r}</option>)}
+                  {resolutions.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
             </div>

@@ -1,0 +1,89 @@
+/**
+ * What "4K" means, in one place.
+ *
+ * Before this file each adapter invented its own answer and they disagreed by
+ * more than an order of magnitude for the same request: Pollinations mapped 4K
+ * to a 1024 base edge and then clamped it to ~0.59 MP, WaveSpeed forwarded the
+ * opaque string "4k", Gemini attached an imageSize only for one hardcoded model
+ * id, and OpenAI converted the tier to a pixel target of its own. A buyer who
+ * picked 4K therefore got anything between 0.59 MP and 17 MP depending on which
+ * host the router happened to choose, and nothing anywhere compared the two.
+ *
+ * The ceilings below are the providers' own documented limits, read 2026-08-13:
+ *
+ *  - gemini / gemini-3-pro-image — imageSize accepts "1K" | "2K" | "4K"
+ *    (uppercase K is mandatory, "lowercase parameters will be rejected"). 4K is
+ *    not square: 4096x4096 at 1:1, 5504x3072 at 16:9, 6336x2688 at 21:9.
+ *  - gemini / gemini-2.5-flash-image — has no imageSize at all and always
+ *    returns ~1 MP. Measured 2026-08-06, and the docs agree.
+ *  - wavespeed / nano-banana-pro and gpt-image-2 — `resolution` enum
+ *    "1k" | "2k" | "4k", default 1k. 8k exists only on the -ultra endpoints,
+ *    which nothing here routes to.
+ *  - openai / gpt-image-2 — `size` takes arbitrary "WIDTHxHEIGHT" with a max
+ *    edge of 3840 and a max total of 8,294,400 px, so 3840x2160 is the top.
+ *  - pollinations / flux — the docs state no maximum at all; the real ceiling
+ *    lives in the GPU worker as a total-pixel budget. Measured against the host
+ *    we actually call: a 4K request and a 2K request come back byte-identical
+ *    at every aspect ratio the UI offers, 686x858 for 4:5. So its honest
+ *    ceiling is 2K, and offering 4K there is a promise nothing can keep.
+ */
+
+export type ResolutionTier = "1K" | "2K" | "4K";
+
+export const RESOLUTION_TIERS: readonly ResolutionTier[] = ["1K", "2K", "4K"];
+
+const RANK: Record<ResolutionTier, number> = { "1K": 1, "2K": 2, "4K": 3 };
+
+/**
+ * A tier, or null for anything that is not one.
+ *
+ * Null rather than a default on purpose. The route this replaces cast the raw
+ * client string straight to the union, so "4k" from the editor path reached
+ * WaveSpeed's `RESOLUTION_MAP[...] ?? '1k'` and rendered at the SMALLEST tier
+ * while the price ladder charged for the largest. A value that is not a tier
+ * must be refused where it arrives, not quietly turned into one.
+ */
+export function normalizeTier(value: unknown): ResolutionTier | null {
+  const s = String(value ?? "").trim().toUpperCase();
+  return s === "1K" || s === "2K" || s === "4K" ? s : null;
+}
+
+/** Ceilings keyed by what actually determines them: provider + provider model. */
+const MAX_BY_ROUTE: ReadonlyArray<{ provider: string; model: RegExp; max: ResolutionTier }> = [
+  { provider: "gemini", model: /^gemini-3-pro-image(-preview)?$/, max: "4K" },
+  { provider: "gemini", model: /^gemini-2\.5-flash-image$/, max: "1K" },
+  { provider: "wavespeed", model: /^google\/nano-banana-pro\/(text-to-image|edit)$/, max: "4K" },
+  { provider: "wavespeed", model: /^openai\/gpt-image-2\/(text-to-image|edit)$/, max: "4K" },
+  { provider: "openai", model: /^gpt-image-2/, max: "4K" },
+  { provider: "pollinations", model: /./, max: "2K" },
+];
+
+/**
+ * The largest tier this route genuinely renders.
+ *
+ * Unknown routes get 1K, not 4K. The bridge this replaces defaulted an
+ * unrecognised model NAME to the Nano Banana Pro entry, so adding a row to the
+ * models table was enough to have it billed by resolution against a host that
+ * may ignore the field entirely. Failing closed costs a new model one line
+ * here; failing open charges a buyer for pixels nobody sent.
+ */
+export function maxTier(provider: string | undefined, providerModel: string | undefined): ResolutionTier {
+  const p = String(provider ?? "");
+  const m = String(providerModel ?? "");
+  return MAX_BY_ROUTE.find(r => r.provider === p && r.model.test(m))?.max ?? "1K";
+}
+
+/** The asked-for tier, or the route's ceiling when it cannot go that high. */
+export function clampTier(
+  asked: ResolutionTier,
+  provider: string | undefined,
+  providerModel: string | undefined
+): ResolutionTier {
+  const cap = maxTier(provider, providerModel);
+  return RANK[asked] <= RANK[cap] ? asked : cap;
+}
+
+/** Every tier a route can honestly offer, for building a picker from. */
+export function tiersUpTo(cap: ResolutionTier): ResolutionTier[] {
+  return RESOLUTION_TIERS.filter(t => RANK[t] <= RANK[cap]);
+}
