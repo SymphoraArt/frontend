@@ -1116,11 +1116,6 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   gap: 6px;
   margin-bottom: 7px;
 }
-.pgv-prompt-modes {
-  display: flex;
-  gap: 2px;
-  margin-left: auto;
-}
 .pgv-mode {
   width: 22px;
   height: 22px;
@@ -1135,14 +1130,6 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   transition: color 0.14s, background 0.14s, border-color 0.14s;
 }
 .pgv-mode:hover { color: var(--pgv-text); background: var(--pgv-input-bg); }
-/* The active view is stated, not implied by which one you pressed last —
-   the two forms of the sentence can look similar enough that the reader
-   needs to be told which one they are looking at. */
-.pgv-mode.on {
-  color: var(--pgv-accent);
-  border-color: color-mix(in oklab, var(--pgv-accent) 45%, transparent);
-  background: color-mix(in oklab, var(--pgv-accent) 12%, transparent);
-}
 .pgv-mode--copy { margin-left: 2px; }
 
 /* The chip that is currently expanded below is marked, so the control down
@@ -1152,3 +1139,82 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   background: color-mix(in oklab, var(--pgv-accent) 26%, transparent);
   color: var(--pgv-text);
 }
+
+/* ── The view slider ──────────────────────────────────────────────────────
+   Two positions of ONE control rather than two buttons. Two buttons read as
+   two unrelated actions; a slider says these are two views of the same text
+   and that choosing one puts the other away — which is the relationship Kev
+   asked to be able to feel ("damit man merkt, dass diese ui flächen
+   zusammengehören").
+
+   The thumb travels rather than appearing: the motion is what ties the two
+   halves together. A jump would just be two states of a highlight. */
+.pgv-viewtoggle {
+  position: relative;
+  display: flex;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--pgv-input-bg);
+  border: 1px solid var(--pgv-border);
+}
+.pgv-viewtoggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pgv-accent) 22%, transparent);
+  border: 1px solid color-mix(in oklab, var(--pgv-accent) 55%, transparent);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.pgv-viewtoggle.at-contents .pgv-viewtoggle-thumb { transform: translateX(22px); }
+.pgv-viewtoggle-opt {
+  position: relative;   /* above the thumb, which is painted behind them */
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--pgv-text-muted);
+  cursor: pointer;
+  transition: color 0.16s;
+}
+.pgv-viewtoggle-opt:hover { color: var(--pgv-text); }
+.pgv-viewtoggle-opt.on { color: var(--pgv-accent); }
+
+/* Your copy of the prompt: a real field, because CONTENTS is the reader's
+   version and the artist's original stays intact under VARIABLES. */
+.pgv-prompt-edit {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--pgv-input-bg);
+  border: 1px solid var(--pgv-border);
+  border-radius: 7px;
+  padding: 8px 9px;
+  color: var(--pgv-text);
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 11.5px;
+  line-height: 1.7;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.pgv-prompt-edit:focus { border-color: color-mix(in oklab, var(--pgv-accent) 55%, transparent); }
+.pgv-prompt-revert {
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pgv-text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pgv-prompt-revert:hover { color: var(--pgv-accent); }

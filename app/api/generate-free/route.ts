@@ -27,6 +27,9 @@ import { readImageDimensions } from "@/backend/services/gemini-image-generation"
  * Body: { prompt, aspectRatio?, resolution?, workflow? }
  * Reference images are refused here — the free model is text-only.
  */
+/** Only a real uuid may reach generations.prompt_id — it is a foreign key. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -115,7 +118,17 @@ export async function POST(request: NextRequest) {
         after(
           recordGeneration(supabase, {
             userId: recUserId,
-            promptId: null,
+            /* Which prompt this came from.
+             *
+             * Hardcoded null until 2026-08-13, so every free generation was
+             * recorded as if it had come from nowhere — the artist's prompt
+             * got no credit for it, and a reader could not later ask "which
+             * prompt made this?". The buyer surface now sends the id, and a
+             * reader who EDITS the text keeps it: it is still that prompt's
+             * descendant, and the edited wording is stored beside it. Shape
+             * is checked because this arrives from the client and a bad value
+             * would fail the row's foreign key and lose the whole record. */
+            promptId: UUID_RE.test(String(body?.promptId ?? "")) ? String(body.promptId) : null,
             finalPrompt: prompt,
             // Pollinations rewrites the prompt itself (`enhance=true`) and
             // never returns the result, so the best we can honestly record is

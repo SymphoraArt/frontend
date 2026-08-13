@@ -280,6 +280,10 @@ export default function PromptGeneratorView({
      it is what the text IS — the values are this reader's copy of it, and
      starting on those would hide the thing the artist actually wrote. */
   const [promptView, setPromptView] = useState<"variables" | "contents">("variables");
+  /* The reader's own wording, or null while they have not touched it. Not ""
+     as the untouched value: an empty string is a deliberate edit and has to
+     survive as one. */
+  const [editedPrompt, setEditedPrompt] = useState<string | null>(null);
   const promptSegments = useMemo(() => {
     const byName = new Map(variables.map(v => [v.name, v]));
     const out: Array<{ text: string; variable?: PromptVariable }> = [];
@@ -308,19 +312,22 @@ export default function PromptGeneratorView({
      the form worth reusing. In "contents" it is this reader's filled-in
      version. Copying one while showing the other is the kind of quiet
      mismatch nobody notices until they paste it somewhere. */
-  const promptForClipboard = useMemo(
-    () =>
-      promptSegments
-        .map(seg =>
-          seg.variable
-            ? promptView === "contents" && vars[seg.variable.name]
-              ? vars[seg.variable.name]
-              : `[${seg.variable.name}]`
-            : seg.text
-        )
-        .join(""),
-    [promptSegments, promptView, vars]
-  );
+  const promptForClipboard = useMemo(() => {
+    /* An edit wins over everything below it. Once the reader has changed the
+       wording, re-deriving from the slots would quietly throw their sentence
+       away the next time a variable changed. null means "not edited" — an
+       empty string is a deliberate edit and must survive. */
+    if (promptView === "contents" && editedPrompt !== null) return editedPrompt;
+    return promptSegments
+      .map(seg =>
+        seg.variable
+          ? promptView === "contents" && vars[seg.variable.name]
+            ? vars[seg.variable.name]
+            : `[${seg.variable.name}]`
+          : seg.text
+      )
+      .join("");
+  }, [promptSegments, promptView, vars, editedPrompt]);
 
   /* Fetch user's generations — API returns { data: { generations, total } } via createSuccessResponse */
   const genQueryKey = ["user-generations", userKey, promptId];
@@ -592,7 +599,12 @@ export default function PromptGeneratorView({
       });
 
       let final = "";
-      if (isFree && promptText) {
+      if (isFree && editedPrompt !== null) {
+        /* The reader rewrote it, so send exactly that. Running the slot
+           substitution over their sentence again would edit words they chose
+           themselves — and silently, since the result still looks plausible. */
+        final = editedPrompt;
+      } else if (isFree && promptText) {
         final = promptText;
         Object.entries(resolvedVars).forEach(([k, v]) => {
           if (v) final = final.replace(new RegExp(`\\[${k}\\]`, "gi"), v);
@@ -630,7 +642,10 @@ export default function PromptGeneratorView({
         res = await fetch("/api/generate-free", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution }),
+          /* promptId travels even when the wording was edited: the image is
+             still that prompt's descendant, and without it the record said the
+             generation came from nowhere. */
+          body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution, promptId }),
         });
       }
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Generation failed"); }
@@ -689,7 +704,13 @@ export default function PromptGeneratorView({
     } catch (e: any) {
       toast({ title: "Generation Failed", description: e.message, variant: "destructive" });
     } finally { setGenerating(false); }
-  }, [isFree, noCharge, modelFamily, quoteResolution, promptText, vars, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
+    /* editedPrompt belongs here. Without it this callback keeps the value from
+       the render that created it — null — so a reader could rewrite the prompt,
+       press Generate, and receive the ARTIST'S wording instead of their own,
+       with nothing on screen explaining why. Caught by intercepting the request
+       body rather than by watching the picture, which would have looked like a
+       plausible result either way. */
+  }, [isFree, noCharge, modelFamily, quoteResolution, promptText, editedPrompt, vars, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
 
   const download = useCallback(() => {
     if (!resultUrl) return;
@@ -932,11 +953,21 @@ export default function PromptGeneratorView({
                   clipboard. */}
               <div className="pgv-prompt-head">
                 <span className="pgv-section-label" style={{ marginBottom: 0 }}>Prompt · Free</span>
+                {/* One control with two positions, not two buttons. Two
+                    buttons read as two unrelated actions; a slider says these
+                    are two views of the SAME text and that picking one puts
+                    the other away. The thumb slides rather than jumping, which
+                    is what makes the pair feel like one object. */}
                 {variables.length > 0 && (
-                  <div className="pgv-prompt-modes">
+                  <div
+                    className={`pgv-viewtoggle${promptView === "contents" ? " at-contents" : ""}`}
+                    role="group"
+                    aria-label="Prompt view"
+                  >
+                    <span className="pgv-viewtoggle-thumb" aria-hidden />
                     <button
                       type="button"
-                      className={`pgv-mode${promptView === "variables" ? " on" : ""}`}
+                      className={`pgv-viewtoggle-opt${promptView === "variables" ? " on" : ""}`}
                       onClick={() => setPromptView("variables")}
                       aria-pressed={promptView === "variables"}
                       title="Show the variable slots"
@@ -946,7 +977,7 @@ export default function PromptGeneratorView({
                     </button>
                     <button
                       type="button"
-                      className={`pgv-mode${promptView === "contents" ? " on" : ""}`}
+                      className={`pgv-viewtoggle-opt${promptView === "contents" ? " on" : ""}`}
                       onClick={() => setPromptView("contents")}
                       aria-pressed={promptView === "contents"}
                       title="Show the values that will be sent"
@@ -967,28 +998,52 @@ export default function PromptGeneratorView({
                 </button>
               </div>
 
-              <p className="pgv-prompt-live">
-                {promptSegments.map((seg, i) =>
-                  seg.variable ? (
-                    <button
-                      key={`${seg.variable.name}-${i}`}
-                      type="button"
-                      className={
-                        `pgv-tok${vars[seg.variable.name] ? " filled" : ""}` +
-                        (openVar === seg.variable.name ? " active" : "")
-                      }
-                      onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
-                      title={`Set ${seg.variable.label || seg.variable.name}`}
-                    >
-                      {promptView === "contents" && vars[seg.variable.name]
-                        ? vars[seg.variable.name]
-                        : `[${seg.variable.name}]`}
+              {/* VARIABLES is the artist's text and stays read-only — its
+                  slots are the thing being shown, and they are clickable.
+                  CONTENTS is YOUR copy of it, so it is a real textarea: type
+                  in it, generate from it. The two views therefore also mean
+                  "theirs" and "yours", which is why editing belongs on one and
+                  not the other. */}
+              {promptView === "variables" ? (
+                <p className="pgv-prompt-live">
+                  {promptSegments.map((seg, i) =>
+                    seg.variable ? (
+                      <button
+                        key={`${seg.variable.name}-${i}`}
+                        type="button"
+                        className={
+                          `pgv-tok${vars[seg.variable.name] ? " filled" : ""}` +
+                          (openVar === seg.variable.name ? " active" : "")
+                        }
+                        onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
+                        title={`Set ${seg.variable.label || seg.variable.name}`}
+                      >
+                        {`[${seg.variable.name}]`}
+                      </button>
+                    ) : (
+                      <span key={`t-${i}`}>{seg.text}</span>
+                    )
+                  )}
+                </p>
+              ) : (
+                <>
+                  <textarea
+                    className="pgv-prompt-edit"
+                    value={promptForClipboard}
+                    onChange={e => setEditedPrompt(e.target.value)}
+                    rows={5}
+                    spellCheck={false}
+                    aria-label="Your version of this prompt"
+                  />
+                  {/* Only offered once there is something to undo, and it says
+                      what it restores rather than just "reset". */}
+                  {editedPrompt !== null && (
+                    <button type="button" className="pgv-prompt-revert" onClick={() => setEditedPrompt(null)}>
+                      Back to the artist&apos;s wording
                     </button>
-                  ) : (
-                    <span key={`t-${i}`}>{seg.text}</span>
-                  )
-                )}
-              </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 
