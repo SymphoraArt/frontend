@@ -303,11 +303,30 @@ export default function PromptGeneratorView({
     setTokenOverrides({});
   }, []);
   const promptSegments = useMemo(() => {
-    const byName = new Map(variables.map(v => [v.name, v]));
+    /* Tokens resolve the way the author side STORES names, not literally.
+       The editor writes the token exactly as the artist typed it —
+       "[Character Design]" — while app/api/prompt/route.ts slugs the stored
+       name to satisfy chk_var_name_format (^[a-z][a-z0-9_]*$): lowercased,
+       every non-alphanumeric run collapsed to an underscore. An exact lookup
+       therefore misses every name that is not already one lowercase word, and
+       the slot renders as dead literal text — which is exactly the case an
+       artist hits when they name a part "character design".
+
+       Each variable is indexed under its stored name, that name's slug, and
+       its LABEL's slug. The label is kept verbatim by the same route, so it
+       is the only key that still matches when the slug gained a prefix
+       ("2nd subject" -> name v_2nd_subject, label "2nd subject"). */
+    const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+    const byName = new Map<string, PromptVariable>();
+    for (const v of variables) {
+      for (const k of [v.name, slug(v.name), v.label ? slug(v.label) : ""]) {
+        if (k && !byName.has(k)) byName.set(k, v);
+      }
+    }
     const out: Array<{ text: string; variable?: PromptVariable }> = [];
     let last = 0;
     for (const m of (promptText || "").matchAll(/\[([^\]\n]+)\]/g)) {
-      const v = byName.get(m[1]);
+      const v = byName.get(m[1]) ?? byName.get(slug(m[1]));
       if (!v) continue;
       if (m.index! > last) out.push({ text: (promptText || "").slice(last, m.index) });
       out.push({ text: m[0], variable: v });
@@ -626,10 +645,15 @@ export default function PromptGeneratorView({
            themselves — and silently, since the result still looks plausible. */
         final = editedPrompt;
       } else if (isFree && promptText) {
-        final = promptText;
-        Object.entries(resolvedVars).forEach(([k, v]) => {
-          if (v) final = final.replace(new RegExp(`\\[${k}\\]`, "gi"), v);
-        });
+        /* Assembled from the SAME segments the sentence renders, so a token
+           the reader saw resolve is a token that gets substituted. This used
+           to rebuild the text by regex from the STORED slug — /\[character_
+           design\]/i — which cannot match the "[Character Design]" actually
+           written in the prompt body, so every multi-word name shipped its
+           raw bracket to the image model as literal words. */
+        final = promptSegments
+          .map(s => (s.variable ? resolvedVars[s.variable.name] || s.text : s.text))
+          .join("");
       } else {
         final = title || "A beautiful artistic image";
         const filled = Object.entries(resolvedVars)
@@ -731,7 +755,12 @@ export default function PromptGeneratorView({
        with nothing on screen explaining why. Caught by intercepting the request
        body rather than by watching the picture, which would have looked like a
        plausible result either way. */
-  }, [isFree, noCharge, modelFamily, quoteResolution, promptText, editedPrompt, vars, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
+    /* variables and promptSegments are read in the body and were both absent
+       here: the callback kept whichever list it closed over on first render,
+       so a prompt whose variables arrived after it would have generated from
+       an empty set. Same class of bug as the edited-prompt one this component
+       already carried. */
+  }, [isFree, noCharge, modelFamily, quoteResolution, promptText, editedPrompt, vars, variables, promptSegments, title, aspect, resolution, userKey, promptId, refs.length, toast, queryClient, genQueryKey]);
 
   const download = useCallback(() => {
     if (!resultUrl) return;
@@ -1086,7 +1115,12 @@ export default function PromptGeneratorView({
                             : `${seg.variable.label || name} — click for the value, double-click to edit`
                         }
                       >
-                        {shownAsValue(name) && value ? value : `[${name}]`}
+                        {/* The artist's name for the part, not the stored slug. The
+                            slug is a database identity (lowercased, underscored,
+                            sometimes v_-prefixed to satisfy the name CHECK) and
+                            saying "[v_2nd_subject]" to a reader tells them
+                            nothing the artist meant. */}
+                        {shownAsValue(name) && value ? value : `[${seg.variable.label || name}]`}
                       </button>
                     );
                   })}
@@ -1144,7 +1178,6 @@ export default function PromptGeneratorView({
                       >
                         <span className="pgv-varlist-head">
                           <span className="pgv-varlist-name">{v.label || v.name}</span>
-                          <span className="pgv-varlist-slot">[{v.name}]</span>
                         </span>
                         {v.description && <span className="pgv-varlist-note">{v.description}</span>}
                         <span className={`pgv-varlist-val${val ? "" : " empty"}`}>{val || "not set"}</span>
