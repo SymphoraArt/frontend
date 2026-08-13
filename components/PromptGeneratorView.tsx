@@ -284,6 +284,24 @@ export default function PromptGeneratorView({
      as the untouched value: an empty string is a deliberate edit and has to
      survive as one. */
   const [editedPrompt, setEditedPrompt] = useState<string | null>(null);
+  /* Per-slot deviations from the slider. The slider is the whole sentence,
+     these are the exceptions — so flipping one word does not fight the global
+     control, and moving the slider clears them because that is a statement
+     about the whole thing. */
+  const [tokenOverrides, setTokenOverrides] = useState<Record<string, boolean>>({});
+  const [editingVar, setEditingVar] = useState<string | null>(null);
+  const shownAsValue = useCallback(
+    (name: string) => tokenOverrides[name] ?? promptView === "contents",
+    [tokenOverrides, promptView]
+  );
+  const toggleToken = useCallback(
+    (name: string) => setTokenOverrides(o => ({ ...o, [name]: !(o[name] ?? promptView === "contents") })),
+    [promptView]
+  );
+  const setView = useCallback((v: "variables" | "contents") => {
+    setPromptView(v);
+    setTokenOverrides({});
+  }, []);
   const promptSegments = useMemo(() => {
     const byName = new Map(variables.map(v => [v.name, v]));
     const out: Array<{ text: string; variable?: PromptVariable }> = [];
@@ -317,17 +335,20 @@ export default function PromptGeneratorView({
        wording, re-deriving from the slots would quietly throw their sentence
        away the next time a variable changed. null means "not edited" — an
        empty string is a deliberate edit and must survive. */
-    if (promptView === "contents" && editedPrompt !== null) return editedPrompt;
+    if (editedPrompt !== null) return editedPrompt;
+    /* Reads the SAME per-slot state the eye does, so Copy and Generate can
+       never take a different sentence from the one on screen — including when
+       individual slots have been flipped against the slider. */
     return promptSegments
       .map(seg =>
         seg.variable
-          ? promptView === "contents" && vars[seg.variable.name]
+          ? shownAsValue(seg.variable.name) && vars[seg.variable.name]
             ? vars[seg.variable.name]
             : `[${seg.variable.name}]`
           : seg.text
       )
       .join("");
-  }, [promptSegments, promptView, vars, editedPrompt]);
+  }, [promptSegments, vars, editedPrompt, shownAsValue]);
 
   /* Fetch user's generations — API returns { data: { generations, total } } via createSuccessResponse */
   const genQueryKey = ["user-generations", userKey, promptId];
@@ -968,7 +989,7 @@ export default function PromptGeneratorView({
                     <button
                       type="button"
                       className={`pgv-viewtoggle-opt${promptView === "variables" ? " on" : ""}`}
-                      onClick={() => setPromptView("variables")}
+                      onClick={() => setView("variables")}
                       aria-pressed={promptView === "variables"}
                       title="Show the variable slots"
                       aria-label="Show the variable slots"
@@ -978,7 +999,7 @@ export default function PromptGeneratorView({
                     <button
                       type="button"
                       className={`pgv-viewtoggle-opt${promptView === "contents" ? " on" : ""}`}
-                      onClick={() => setPromptView("contents")}
+                      onClick={() => setView("contents")}
                       aria-pressed={promptView === "contents"}
                       title="Show the values that will be sent"
                       aria-label="Show the values that will be sent"
@@ -1004,32 +1025,77 @@ export default function PromptGeneratorView({
                   in it, generate from it. The two views therefore also mean
                   "theirs" and "yours", which is why editing belongs on one and
                   not the other. */}
-              {promptView === "variables" ? (
+              {/* The slider moves ALL the slots at once; a click moves ONE.
+                  So the two controls are the same gesture at two scales, and
+                  a reader can hold most of the sentence in slot form while
+                  reading one value in place — which is the state you are in
+                  while deciding what that one word should be. */}
+              {editedPrompt === null ? (
                 <p className="pgv-prompt-live">
-                  {promptSegments.map((seg, i) =>
-                    seg.variable ? (
+                  {promptSegments.map((seg, i) => {
+                    if (!seg.variable) return <span key={`t-${i}`}>{seg.text}</span>;
+                    const name = seg.variable.name;
+                    const value = vars[name] || "";
+                    const key = `${name}-${i}`;
+
+                    if (editingVar === key) {
+                      /* Edited IN the sentence — no popup (Kev). The field is
+                         sized to its own content so the words around it do not
+                         jump apart while typing. */
+                      return (
+                        <input
+                          key={key}
+                          autoFocus
+                          className="pgv-tok-input"
+                          value={value}
+                          size={Math.max(6, value.length + 1)}
+                          placeholder={name}
+                          onChange={e => onVarChange(name, e.target.value)}
+                          onBlur={() => setEditingVar(null)}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingVar(null); }}
+                        />
+                      );
+                    }
+
+                    return (
                       <button
-                        key={`${seg.variable.name}-${i}`}
+                        key={key}
                         type="button"
-                        className={
-                          `pgv-tok${vars[seg.variable.name] ? " filled" : ""}` +
-                          (openVar === seg.variable.name ? " active" : "")
+                        className={`pgv-tok${value ? " filled" : ""}`}
+                        /* Single click flips just this one between its name and
+                           its value. Double click opens it for editing — the
+                           two clicks it contains cancel each other out, so the
+                           slot is left in whatever form you double-clicked it.
+                           A free text field is only the right editor for a text
+                           variable; a select or a slider opens in full below the
+                           sentence instead, so its choices survive. Still no
+                           popup either way. */
+                        onClick={() => toggleToken(name)}
+                        onDoubleClick={() => {
+                          /* What you edit is the value, so the slot is put into
+                             value form as it opens — otherwise you type a word
+                             and the sentence closes back over it showing the
+                             name, and you never see what you wrote. */
+                          setTokenOverrides(o => ({ ...o, [name]: true }));
+                          if (seg.variable!.type === "text" || !seg.variable!.type) setEditingVar(key);
+                          else setOpenVar(v => (v === name ? null : name));
+                        }}
+                        title={
+                          shownAsValue(name)
+                            ? `${seg.variable.label || name} — click for the slot, double-click to edit`
+                            : `${seg.variable.label || name} — click for the value, double-click to edit`
                         }
-                        onClick={() => setOpenVar(o => (o === seg.variable!.name ? null : seg.variable!.name))}
-                        title={`Set ${seg.variable.label || seg.variable.name}`}
                       >
-                        {`[${seg.variable.name}]`}
+                        {shownAsValue(name) && value ? value : `[${name}]`}
                       </button>
-                    ) : (
-                      <span key={`t-${i}`}>{seg.text}</span>
-                    )
-                  )}
+                    );
+                  })}
                 </p>
               ) : (
                 <>
                   <textarea
                     className="pgv-prompt-edit"
-                    value={promptForClipboard}
+                    value={editedPrompt}
                     onChange={e => setEditedPrompt(e.target.value)}
                     rows={5}
                     spellCheck={false}
@@ -1037,11 +1103,9 @@ export default function PromptGeneratorView({
                   />
                   {/* Only offered once there is something to undo, and it says
                       what it restores rather than just "reset". */}
-                  {editedPrompt !== null && (
-                    <button type="button" className="pgv-prompt-revert" onClick={() => setEditedPrompt(null)}>
-                      Back to the artist&apos;s wording
-                    </button>
-                  )}
+                  <button type="button" className="pgv-prompt-revert" onClick={() => setEditedPrompt(null)}>
+                    Back to the artist&apos;s wording
+                  </button>
                 </>
               )}
             </div>

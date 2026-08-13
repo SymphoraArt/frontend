@@ -1218,3 +1218,19 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   text-underline-offset: 2px;
 }
 .pgv-prompt-revert:hover { color: var(--pgv-accent); }
+
+/* Editing a slot inside the sentence. Sized to its own content by the `size`
+   attribute so the words around it do not jump apart while typing — a field
+   that grows in place is the difference between editing the sentence and
+   replacing it. */
+.pgv-tok-input {
+  font: inherit;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border-radius: 5px;
+  border: 1px solid var(--pgv-accent);
+  background: var(--pgv-input-bg);
+  color: var(--pgv-text);
+  outline: none;
+  min-width: 60px;
+}
