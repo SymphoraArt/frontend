@@ -4,7 +4,7 @@ import { generateImagesWithWaveSpeed } from "@/backend/services/wavespeed-image-
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
 import { generateImagesWithOpenAI } from "@/backend/services/openai-image-generation";
 import type { ChainKey } from "@/shared/payment-config";
-import { isSolanaChain, PAYMENT_CHAINS } from "@/shared/payment-config";
+import { isSolanaChain, isChainKey } from "@/shared/payment-config";
 import {
   buildSolana402Response,
   checkAndRecordSolanaSignature,
@@ -202,7 +202,10 @@ export async function POST(request: NextRequest) {
    * 500 on a payment route from a one-word query parameter. A value that is
    * not a chain is a bad request and now says so. */
   const requestedChain = searchParams.get('chain');
-  if (requestedChain !== null && !(requestedChain in PAYMENT_CHAINS)) {
+  // An empty parameter means "no preference", not "a chain called nothing" —
+  // the first version of this check turned `?chain=` into a 400 and made its
+  // own default unreachable.
+  if (requestedChain && !isChainKey(requestedChain)) {
     return NextResponse.json(
       { error: `Unknown chain ${JSON.stringify(requestedChain)}` },
       { status: 400 },

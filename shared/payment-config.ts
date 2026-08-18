@@ -123,6 +123,27 @@ export const PAYMENT_CHAINS = {
 export type ChainKey = keyof typeof PAYMENT_CHAINS;
 
 /**
+ * Is this string a chain we actually configured?
+ *
+ * Object.hasOwn, never `key in PAYMENT_CHAINS`. The `in` operator walks the
+ * prototype chain, so it answers TRUE for "constructor", "toString",
+ * "valueOf", "hasOwnProperty" and "__proto__" — every one of which would then
+ * be looked up as a chain. That does not even fail loudly: PAYMENT_CHAINS
+ * ["constructor"] is a function, its .isSolana is undefined, and the request
+ * proceeds down the EVM path with a chain that does not exist.
+ *
+ * Membership only. Whether an ABSENT chain is an error is the caller's
+ * question, not this one's: `?chain=` with no value means "no preference" and
+ * the routes handle it by truthiness before asking here. An earlier draft
+ * carried a `value !== ""` clause for it, which a mutation probe showed to be
+ * dead — hasOwn already refuses "" — so it was removed rather than left
+ * looking load-bearing.
+ */
+export function isChainKey(value: unknown): value is ChainKey {
+  return typeof value === "string" && Object.hasOwn(PAYMENT_CHAINS, value);
+}
+
+/**
  * Check if a chain is Solana (non-EVM)
  */
 export function isSolanaChain(chainKey: ChainKey): boolean {

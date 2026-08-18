@@ -24,7 +24,10 @@ describe("the caller cannot choose the settlement chain", () => {
     // isSolanaChain does PAYMENT_CHAINS[key].isSolana — on an unknown key that
     // is a TypeError, i.e. a 500 on a payment route from one query parameter.
     expect(() => isSolanaChain("not-a-chain" as never)).toThrow();
-    expect(ROUTE).toMatch(/requestedChain in PAYMENT_CHAINS/);
+    // isChainKey, not `in`: the membership test must not walk the prototype
+    // chain. See lib/payments/__tests__/chain-key.test.ts for why.
+    expect(ROUTE).toMatch(/!isChainKey\(requestedChain\)/);
+    expect(ROUTE).not.toMatch(/requestedChain in PAYMENT_CHAINS/);
     expect(ROUTE).toMatch(/Unknown chain/);
   });
 

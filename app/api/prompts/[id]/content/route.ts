@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
-import type { ChainKey } from "@/shared/payment-config";
+import { isChainKey, type ChainKey } from "@/shared/payment-config";
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,20 @@ export async function GET(
 ) {
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
-  const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
+  /* Same validation as app/api/generate-image: this route runs the same
+     paymentEngine.settle flow, and it was left with the pre-fix line verbatim
+     — an unchecked query parameter asserted into ChainKey. isChainKey uses
+     Object.hasOwn, so "constructor" and friends are refused rather than looked
+     up as chains; an EMPTY parameter means no preference and keeps the
+     default. */
+  const requestedChain = searchParams.get('chain');
+  if (requestedChain && !isChainKey(requestedChain)) {
+    return NextResponse.json(
+      { error: `Unknown chain ${JSON.stringify(requestedChain)}` },
+      { status: 400 },
+    );
+  }
+  const chain = (requestedChain || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
   const { id } = await params;
 
