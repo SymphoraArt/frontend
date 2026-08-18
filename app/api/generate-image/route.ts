@@ -21,7 +21,7 @@ import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/ra
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, chooseRoute } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
-import { toModelFamily } from "@/lib/generation-checkout";
+import { toModelFamily } from "@/lib/generation/model-family";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
 import { solanaChainKey } from "@/lib/payments/solana";

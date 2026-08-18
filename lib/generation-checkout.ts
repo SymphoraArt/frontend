@@ -21,13 +21,9 @@ import { sessionAuthHeaders } from "@/lib/session-headers";
 import { requestCdpSign } from "@/lib/cdp-bridge";
 
 /** The models table stores display names; pricing keys are their slugs. */
-export function toModelFamily(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/\(.*?\)/g, "") // "GPT-Image-2 (coming soon)" → "gpt-image-2"
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+/* Re-exported, not redefined: the server enforces the same key and cannot
+   import this file (see lib/generation/model-family.ts). */
+export { toModelFamily } from "@/lib/generation/model-family";
 
 /** Integer micro-USDC (string, as the API serialises u64s) → display dollars. */
 export function microToUsd(micro: string | number): string {
