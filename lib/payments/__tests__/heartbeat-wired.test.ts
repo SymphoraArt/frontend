@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readSource } from "@/lib/__tests__/_read-source";
 import { join } from "node:path";
 
 /**
@@ -14,7 +14,7 @@ import { join } from "node:path";
  */
 
 const ROOT = join(__dirname, "..", "..", "..");
-const ROUTE = readFileSync(join(ROOT, "app", "api", "generate-image", "route.ts"), "utf8").split("\r\n").join("\n");
+const ROUTE = readSource(join(ROOT, "app", "api", "generate-image", "route.ts"));
 
 describe("the generate route keeps its authorisation alive", () => {
   it("starts a heartbeat when it claims one", () => {

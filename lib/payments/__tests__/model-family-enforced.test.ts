@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readSource } from "@/lib/__tests__/_read-source";
 import { join } from "node:path";
 import { toModelFamily } from "@/lib/generation-checkout";
 
@@ -15,7 +15,7 @@ import { toModelFamily } from "@/lib/generation-checkout";
  */
 
 const ROOT = join(__dirname, "..", "..", "..");
-const ROUTE = readFileSync(join(ROOT, "app", "api", "generate-image", "route.ts"), "utf8").split("\r\n").join("\n");
+const ROUTE = readSource(join(ROOT, "app", "api", "generate-image", "route.ts"));
 
 describe("the paid model family is enforced before generating", () => {
   it("compares what was paid for against what would run", () => {
