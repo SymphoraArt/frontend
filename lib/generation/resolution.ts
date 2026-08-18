@@ -93,3 +93,18 @@ export function clampTier(
 export function tiersUpTo(cap: ResolutionTier): ResolutionTier[] {
   return RESOLUTION_TIERS.filter(t => RANK[t] <= RANK[cap]);
 }
+
+/**
+ * The tiers each audience can honestly be offered.
+ *
+ * Exported rather than re-declared per surface: six pickers used to carry
+ * their own ["1K","2K","4K"] literal, so making one honest left five still
+ * promising a size the route cannot render.
+ */
+export const FREE_TIERS: ResolutionTier[] = tiersUpTo(maxTier("pollinations", "flux"));
+/**
+ * The paid checkout starts at 2K, not 1K. app/api/payments/generation/quote
+ * and .../intent both validate with z.enum(["2K","4K"]), so a 1K pick was
+ * quoted, charged AND rendered at 2K — an option that never existed.
+ */
+export const PAID_TIERS: ResolutionTier[] = ["2K", "4K"];

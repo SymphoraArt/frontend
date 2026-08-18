@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
+import { FREE_TIERS } from "@/lib/generation/resolution";
 
 const QC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", cost: 0.04 },
@@ -15,7 +16,9 @@ const QC_MODELS = [
 ];
 
 const QC_RATIOS = ["1:1", "4:5", "3:4", "16:9", "9:16"];
-const QC_RESOLUTIONS = ["1K", "2K", "4K"];
+/* Quick Create posts to /api/generate-free — Flux, capped at 0.59 MP.
+   Offering 4K here charged nothing but promised a size that never arrived. */
+const QC_RESOLUTIONS = FREE_TIERS;
 const QC_QTY = [1, 2, 4, 8];
 
 export default function EnkiQuickCreate() {

@@ -7,6 +7,7 @@
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue } from "@/hooks/useModelLimits";
+import { FREE_TIERS, PAID_TIERS } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
@@ -85,7 +86,16 @@ export type St = {
   title: string; mode: "free" | "premium"; models: string[]; cat: string; ratio: string; quality: string;
   price: number; body: string; cons: Con[]; conSeq: number; genCount: number; nodes: NodeT[];
 };
-export const NC_QUALITIES = ["1K", "2K", "4K"];
+/**
+ * The sizes this prompt's mode can actually produce.
+ *
+ * A flat ["1K","2K","4K"] here offered 4K to a FREE prompt, whose route is
+ * Flux — capped at 0.59 MP, so the 4K entry could only ever return the 2K
+ * image under a bigger name, and NC_QUALITY_MULT below charged x2 for it.
+ * Premium starts at 2K because the quote and intent schemas do.
+ */
+export const ncQualities = (mode: St["mode"]): readonly string[] =>
+  mode === "free" ? FREE_TIERS : PAID_TIERS;
 // price multiplier per quality (relative to the model's base 2K price)
 export const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
 export type TextNode = NodeT & { name: string; kind: Kind; value: string };
@@ -1627,7 +1637,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={104} title="Aspect ratio · does not affect grouping"
                     options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
                   <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.quality} width={88} title="Quality · does not affect grouping"
-                    options={NC_QUALITIES.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
+                    options={ncQualities(st.mode).map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                 </div>
                 {/* Dice + Generate as one cluster: the row is space-between,
                     so a bare sibling would strand the dice mid-row. */}

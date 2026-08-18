@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { FREE_TIERS } from "@/lib/generation/resolution";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1093,7 +1094,8 @@ export default function GeneratorInterface({
                   <div className="space-y-1.5">
                     <Label className="text-xs">Resolution</Label>
                     <div className="grid grid-cols-3 gap-1">
-                      {["1K", "2K", "4K"].map((res) => (
+                      {/* Posts to /api/generate-free. See FREE_TIERS for why 4K is absent. */}
+                      {FREE_TIERS.map((res) => (
                         <Button
                           key={res}
                           variant={resolution === res ? "default" : "outline"}

@@ -1,4 +1,5 @@
 "use client";
+import { FREE_TIERS } from "@/lib/generation/resolution";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -208,7 +209,10 @@ export default function GeneratePage() {
                     Resolution
                   </Label>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {["1K", "2K", "4K"].map((res) => (
+                    {/* This page posts to /api/generate-free, whose model is Flux. Flux
+                        clamps on total pixels, so a 4K button here could only ever
+                        return the 2K image under a different name. */}
+                    {FREE_TIERS.map((res) => (
                       <Button
                         key={res}
                         variant={resolution === res ? "default" : "outline"}

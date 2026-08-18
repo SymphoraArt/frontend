@@ -18,6 +18,7 @@
  * numbers here and both the price label and any breakdown update everywhere.
  */
 import { PLATFORM_FEE_PERCENT } from "@/shared/app-config";
+import { normalizeTier } from "@/lib/generation/resolution";
 
 export { PLATFORM_FEE_PERCENT };
 
@@ -38,9 +39,20 @@ export const DEFAULT_IMAGE_PRICING: Record<ResolutionTier, number> = {
   "4K": 0.24,
 };
 
-/** Normalize an arbitrary resolution string to a known tier. */
+/**
+ * Normalize an arbitrary resolution string to a priced tier.
+ *
+ * The old body was `resolution === "4K" ? "4K" : "2K"`, which priced EVERY
+ * other spelling as 2K — including the lowercase "4k" that the editor surfaces
+ * send. WaveSpeed's adapter reads that same "4k" through a map that falls back
+ * to '1k', so one input produced two different wrong answers: billed at 2K,
+ * rendered at the smallest tier. Case is repaired here rather than defaulted,
+ * and 1K is priced as 2K because Google charges the same 1120 tokens for both
+ * — a real fact, not a shrug.
+ */
 export function toResolutionTier(resolution: string | undefined): ResolutionTier {
-  return resolution === "4K" ? "4K" : "2K";
+  const tier = normalizeTier(resolution);
+  return tier === "4K" ? "4K" : "2K";
 }
 
 /** Published API cost (USD) for a single image at the given model + resolution. */

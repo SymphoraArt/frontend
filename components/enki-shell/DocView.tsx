@@ -15,7 +15,7 @@ import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import {
-  EditName, NcSelect, NC_QUALITIES, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
+  EditName, NcSelect, ncQualities, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
 } from "./NodeCreator";
 
@@ -599,7 +599,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   <NcSelect value={st.ratio} width={85} title="Aspect ratio"
                     options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
                   <NcSelect value={st.quality} width={85} title="Quality"
-                    options={NC_QUALITIES.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
+                    options={ncQualities(st.mode).map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
                     onChange={api.setQuality} />
                 </div>
               </div>
