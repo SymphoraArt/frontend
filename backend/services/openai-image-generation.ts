@@ -22,6 +22,7 @@
 import type { ImageGenerationRequest, ImageGenerationResult } from './types';
 import { readImageDimensions } from './gemini-image-generation';
 import { referenceImageLimit } from '@/lib/generation/provider-capabilities';
+import { normalizeTier } from '@/lib/generation/resolution';
 
 const ENDPOINT = 'https://api.openai.com/v1/images/generations';
 /** Reference images go here instead — multipart, one `image[]` part each. */
@@ -96,6 +97,7 @@ class UnreadableReferenceError extends Error {
 const MIN_PIXELS = 655_360;
 const MAX_PIXELS = 8_294_400;
 const MAX_EDGE = 3840;
+
 const STEP = 16;
 
 /** Target pixel counts per tier, inside the allowed band. */
@@ -131,7 +133,14 @@ const roundTo = (n: number, step: number) => Math.max(step, Math.round(n / step)
  */
 export function sizeFor(ratio: string | undefined, tier: string | undefined): string {
   const r = parseRatio(ratio);
-  let target = TIER_PIXELS[tier ?? '2K'] ?? TIER_PIXELS['2K'];
+  /* Case is repaired, not defaulted. An unrecognised tier used to fall to the
+     2K target — 4,200,000 px against 4K's 8,294,400 — so a "4k" request came
+     back at roughly half the pixels it was charged for, with no error. An
+     absent tier is still 2K, which is the documented default; a PRESENT but
+     unreadable one is a bug in the caller and must not be smoothed over. */
+  const norm = tier == null ? '2K' : normalizeTier(tier);
+  if (!norm) throw new Error(`Unsupported resolution tier "${tier}" — expected 1K, 2K or 4K`);
+  let target = TIER_PIXELS[norm];
 
   const build = (pixels: number) => {
     const h = Math.sqrt(pixels / r);
@@ -205,7 +214,11 @@ export async function generateImagesWithOpenAI(
   // The user's choice wins. Deriving it from the resolution tier was a guess:
   // size and quality are separate parameters here, and quality is the one that
   // moves the price by a factor of 35.
-  const quality = request.quality ?? TIER_QUALITY[request.imageSize ?? '2K'] ?? 'medium';
+  /* Same repair as sizeFor: an unreadable tier fell to 'medium' here, so the
+     lever that moves the OpenAI price by a factor of 35 was picked by a
+     spelling accident. */
+  const quality =
+    request.quality ?? TIER_QUALITY[normalizeTier(request.imageSize) ?? '2K'] ?? 'medium';
 
   try {
     /* Two different calls behind one adapter. Without references this is the

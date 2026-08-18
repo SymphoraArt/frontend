@@ -113,7 +113,21 @@ export async function generateImagesWithWaveSpeed(
        own. (docs: "Accepts public URLs or Base64-encoded Data URLs".) */
     if (refs > 0) input.images = refImages;
     if (request.aspectRatio) input.aspect_ratio = request.aspectRatio;
-    if (request.imageSize) input.resolution = RESOLUTION_MAP[request.imageSize] ?? '1k';
+    /* An unmapped tier is refused, not downgraded. `?? '1k'` sent the
+       SMALLEST size for any spelling this map did not know — a lowercase "4k"
+       among them — while the caller's price ladder had already charged for the
+       largest. Failing the request costs one retry; guessing costs the buyer
+       the difference and tells nobody. */
+    if (request.imageSize) {
+      const mapped = RESOLUTION_MAP[request.imageSize];
+      if (!mapped) {
+        return {
+          success: false,
+          error: `Unsupported resolution "${request.imageSize}" — expected one of ${Object.keys(RESOLUTION_MAP).join(', ')}`,
+        };
+      }
+      input.resolution = mapped;
+    }
     // Accepted by WaveSpeed's gpt-image-2 with exactly OpenAI's three values —
     // verified live. Models that do not know the field ignore it.
     if (request.quality) input.quality = request.quality;

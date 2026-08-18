@@ -183,14 +183,38 @@ export async function generateImagesWithGemini(
         };
       }
 
-      // Extract image data from parts
+      /* Extract image data from parts, keeping the model's own drafts out.
+         Thinking is on by default for the Gemini 3 image models and cannot be
+         switched off through the API, and the docs say it "generates up to two
+         interim images to test composition and logic". Those parts arrive
+         marked thought: true. This loop took every inlineData part, so one
+         generation could hand the buyer three images and — worse — make
+         imageBuffers[0] a draft, which is the buffer the caller delivers and
+         measures for output_width/height.
+
+         The drafts are a FALLBACK rather than a hard filter, because the same
+         page says "the last image within Thinking is also the final rendered
+         image": if a response somehow carries nothing else, the last draft is
+         the picture, and returning it beats failing the generation. */
       if (candidate.content && candidate.content.parts) {
+        const drafts: Buffer[] = [];
         for (const part of candidate.content.parts) {
           if (part.inlineData && part.inlineData.data && typeof part.inlineData.data === 'string') {
             const buffer = Buffer.from(part.inlineData.data, 'base64');
+            if ((part as { thought?: boolean }).thought) {
+              drafts.push(buffer);
+              continue;
+            }
             imageBuffers.push(buffer);
             console.log(`[Gemini] Extracted image: ${buffer.length} bytes`);
           }
+        }
+        if (imageBuffers.length === 0 && drafts.length > 0) {
+          const last = drafts[drafts.length - 1];
+          imageBuffers.push(last);
+          console.log(`[Gemini] No final part; using the last thinking image: ${last.length} bytes`);
+        } else if (drafts.length > 0) {
+          console.log(`[Gemini] Skipped ${drafts.length} thinking image(s)`);
         }
       }
     }
