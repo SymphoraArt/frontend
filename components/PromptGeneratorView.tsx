@@ -135,6 +135,11 @@ export default function PromptGeneratorView({
   const [activeTab, setActiveTab] = useState<"comments" | "reviews">("comments");
   const [localHistory, setLocalHistory] = useState<string[]>([]);
   const [savedToGallery, setSavedToGallery] = useState(false);
+  /* What the last generation actually measured, straight from the server.
+     Not derived from the resolution the reader picked: on the free route those
+     two disagree by design, and showing the request back as if it were the
+     result is the lie this exists to end. */
+  const [resultSize, setResultSize] = useState<{ w: number; h: number; asked: string } | null>(null);
   /* Set only by the server's own answer. Deriving it in the browser would mean
      a second count that can disagree with the one the route enforces. */
   const [freeQuota, setFreeQuota] = useState<{ used: number; limit: number; signIn: boolean } | null>(null);
@@ -731,6 +736,11 @@ export default function PromptGeneratorView({
       const data = await res.json();
       if (!data.imageUrl) throw new Error("No image returned");
       setResultUrl(data.imageUrl);
+      setResultSize(
+        typeof data.width === "number" && typeof data.height === "number"
+          ? { w: data.width, h: data.height, asked: String(data.requestedResolution ?? resolution) }
+          : null,
+      );
       setSavedToGallery(false);
       /* Immediately add to local history so it shows up regardless of auth type */
       setLocalHistory(prev => [data.imageUrl, ...prev].slice(0, 20));
@@ -1520,6 +1530,22 @@ export default function PromptGeneratorView({
             </div>
           )}
         </div>
+
+        {/* The size that came back, next to the picture it describes.
+            Stated because the free worker clamps on total pixels, so what a
+            reader asked for and what they hold are routinely different — and
+            until now the app showed only the request. When the two disagree
+            the ask is named too, so the number reads as an explanation rather
+            than as a complaint. */}
+        {resultSize && (
+          <div className="pgv-size-note">
+            {resultSize.w} x {resultSize.h}
+            {resultSize.w * resultSize.h < 1_000_000
+              ? ` (${(resultSize.w * resultSize.h / 1_000_000).toFixed(2)} MP)`
+              : ` (${(resultSize.w * resultSize.h / 1_000_000).toFixed(1)} MP)`}
+            {noCharge && <span className="pgv-size-asked"> · {resultSize.asked} requested, the free generator caps below it</span>}
+          </div>
+        )}
 
         {/* Thumbnail strip with arrows */}
         <div className="pgv-thumb-row">
