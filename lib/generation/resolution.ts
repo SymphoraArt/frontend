@@ -22,10 +22,16 @@
  *  - openai / gpt-image-2 — `size` takes arbitrary "WIDTHxHEIGHT" with a max
  *    edge of 3840 and a max total of 8,294,400 px, so 3840x2160 is the top.
  *  - pollinations / flux — the docs state no maximum at all; the real ceiling
- *    lives in the GPU worker as a total-pixel budget. Measured against the host
- *    we actually call: a 4K request and a 2K request come back byte-identical
- *    at every aspect ratio the UI offers, 686x858 for 4:5. So its honest
- *    ceiling is 2K, and offering 4K there is a promise nothing can keep.
+ *    lives in the GPU worker as a total-pixel budget (MAX_PIXELS, 589,824).
+ *    Nothing it returns can exceed 0.59 MP, so "4K" there is at most a
+ *    fourteenth of a 4K frame. Running the adapter's own arithmetic against
+ *    today's 512/768/1024 ladder: at 1:1 and 16:9 the 2K and 4K requests
+ *    collapse onto the SAME image (768x768, 1024x576) because both overshoot
+ *    the budget; at 4:5 they still differ, 614x768 against 687x859. The live
+ *    rows show them fully identical at 4:5 too (686x858 for both), but those
+ *    were recorded before the base ladder was restored, so treat them as
+ *    history rather than as the current mapping. Either way the honest
+ *    ceiling is 2K and offering 4K is a promise nothing can keep.
  */
 
 export type ResolutionTier = "1K" | "2K" | "4K";

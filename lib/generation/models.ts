@@ -61,8 +61,8 @@ export interface ResolvedModel {
   supportsResolution: boolean;
   /**
    * The largest tier this model genuinely renders, so a picker can offer the
-   * sizes that exist instead of a fixed 1K/2K/4K list. Flux caps at 2K: a 4K
-   * request there comes back byte-identical to a 2K one.
+   * sizes that exist instead of a fixed 1K/2K/4K list. Flux caps at 2K: its
+   * worker clamps on total pixels, so a 4K request there never exceeds 0.59 MP.
    */
   maxResolution: ResolutionTier;
   /**
@@ -144,9 +144,9 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     normal: { provider: "pollinations", providerModel: "flux" },
     boost: { provider: "pollinations", providerModel: "flux" },
     /* "Honoured in spirit" was the old claim here, and it is false. The
-       worker clamps on TOTAL pixels before diffusing, so 4K and 2K return
-       byte-identical images at every ratio the UI offers — 686x858 at 4:5,
-       measured against the live rows. The ceiling that matters now lives in
+       worker clamps on TOTAL pixels before diffusing, so nothing this route
+       returns exceeds 0.59 MP — at 1:1 and 16:9 a 2K and a 4K request come
+       back as the very same image. The ceiling that matters now lives in
        lib/generation/resolution.ts, which caps this route at 2K. */
     supportsResolution: true,
     supportsQuality: false,
