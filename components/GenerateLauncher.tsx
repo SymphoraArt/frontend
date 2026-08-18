@@ -12,6 +12,7 @@ import PromptEngagement from "@/components/PromptEngagement";
 import { addCreation } from "@/lib/creations";
 import EnkiMobileGenerateModal from "@/components/EnkiMobileGenerateModal";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 
 // Per-render display price (USD). This build generates via the free Pollinations
 // endpoint, so the price is cosmetic — it mirrors the editor's $0.10 label.
@@ -152,7 +153,11 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
     try {
       const res = await fetch("/api/generate-free", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        /* The session travels with a FREE generation too. Without it
+           resolveRecordingUserId returns null and the route skips its whole
+           recorder block, so a signed-in user's free images belonged to
+           nobody and never reached their history. */
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
         body: JSON.stringify({
           prompt: final.trim(),
           aspectRatio: ratio,

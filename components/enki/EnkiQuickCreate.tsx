@@ -9,6 +9,7 @@ import { addCreation } from "@/lib/creations";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { FREE_TIERS } from "@/lib/generation/resolution";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 
 const QC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", cost: 0.04 },
@@ -62,7 +63,11 @@ export default function EnkiQuickCreate() {
       });
       const res = await fetch("/api/generate-free", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        /* The session travels with a FREE generation too. Without it
+           resolveRecordingUserId returns null and the route skips its whole
+           recorder block, so a signed-in user's free images belonged to
+           nobody and never reached their history. */
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
         body: JSON.stringify({ prompt: final.trim(), aspectRatio: ratio, resolution, boost, quality }),
       });
       if (!res.ok) throw new Error("Generation failed");

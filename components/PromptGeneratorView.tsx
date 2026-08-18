@@ -699,7 +699,11 @@ export default function PromptGeneratorView({
       } else {
         res = await fetch("/api/generate-free", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          /* The session travels with a FREE generation too. Without it
+             resolveRecordingUserId returns null and the route skips its whole
+             recorder block, so a signed-in user's free images belonged to
+             nobody and never reached their history. */
+          headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
           /* promptId travels even when the wording was edited: the image is
              still that prompt's descendant, and without it the record said the
              generation came from nowhere. */

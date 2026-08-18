@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ENKI_CATEGORIES } from "@/components/enki/EnkiFilters";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 import {
   loadEditorVersions,
   saveEditorVersions,
@@ -2536,7 +2537,11 @@ export default function EnkiPromptEditor() {
       if (isFreePrompt) {
         const res = await fetch("/api/generate-free", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          /* The session travels with a FREE generation too. Without it
+             resolveRecordingUserId returns null and the route skips its whole
+             recorder block, so a signed-in user's free images belonged to
+             nobody and never reached their history. */
+          headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
           body: JSON.stringify({
             prompt: previewText,
             resolution: "2K",

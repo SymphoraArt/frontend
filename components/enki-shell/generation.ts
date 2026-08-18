@@ -12,6 +12,7 @@
  */
 
 import { addCreation } from "@/lib/creations";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 
 /**
  * ── What this file used to claim, and what it did ───────────────────────
@@ -112,7 +113,11 @@ export async function generateNanoBanana(
   try {
     const res = await fetch("/api/generate-free", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      /* The session travels with a FREE generation too. Without it
+         resolveRecordingUserId returns null and the route skips its whole
+         recorder block, so a signed-in user's free images belonged to
+         nobody and never reached their history. */
+      headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
       body: JSON.stringify({ prompt, aspectRatio, workflow }),
     });
     if (!res.ok) { console.warn("[node-creator] generation failed:", res.status); return null; }

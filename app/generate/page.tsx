@@ -13,6 +13,7 @@ import Navbar from "@/components/Navbar";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
+import { sessionAuthHeaders } from "@/lib/session-headers";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -68,7 +69,11 @@ export default function GeneratePage() {
 
       const response = await fetch("/api/generate-free", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        /* The session travels with a FREE generation too. Without it
+           resolveRecordingUserId returns null and the route skips its whole
+           recorder block, so a signed-in user's free images belonged to
+           nobody and never reached their history. */
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
         body: JSON.stringify({
           prompt: prompt.trim(),
           aspectRatio,
