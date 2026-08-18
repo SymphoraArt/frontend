@@ -135,6 +135,9 @@ export default function PromptGeneratorView({
   const [activeTab, setActiveTab] = useState<"comments" | "reviews">("comments");
   const [localHistory, setLocalHistory] = useState<string[]>([]);
   const [savedToGallery, setSavedToGallery] = useState(false);
+  /* Set only by the server's own answer. Deriving it in the browser would mean
+     a second count that can disagree with the one the route enforces. */
+  const [freeQuota, setFreeQuota] = useState<{ used: number; limit: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* Fetch available models from DB */
@@ -710,7 +713,17 @@ export default function PromptGeneratorView({
           body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution, promptId }),
         });
       }
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Generation failed"); }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        /* The free allowance is a state, not a failure. A red "Generation
+           Failed" toast that vanishes would leave the reader pressing the
+           button again, so it is kept on screen next to the button instead. */
+        if (res.status === 402 && d?.freeQuotaExhausted) {
+          setFreeQuota({ used: Number(d.used) || 0, limit: Number(d.limit) || 0 });
+          return;
+        }
+        throw new Error(d.error || "Generation failed");
+      }
       const data = await res.json();
       if (!data.imageUrl) throw new Error("No image returned");
       setResultUrl(data.imageUrl);
@@ -1405,6 +1418,14 @@ export default function PromptGeneratorView({
               cost and fees included. boostedCost(price) was the artist price
               alone and understated every paid generation. A paid prompt with
               no quote yet cannot promise a number, so it cannot be clicked. */}
+          {freeQuota && (
+            <div className="pgv-quota-note" role="status">
+              <strong>{freeQuota.used}/{freeQuota.limit} free generations used.</strong>{" "}
+              {noCharge
+                ? "This prompt only runs on the free generator, so there is nothing left to spend here."
+                : "Pick a paid generator below to keep going."}
+            </div>
+          )}
           <div className="pgv-generate-wrap">
             <button
               className="pgv-generate-btn"

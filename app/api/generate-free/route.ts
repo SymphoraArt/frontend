@@ -9,6 +9,7 @@ import { resolveModelByName } from "@/lib/generation/models";
 import { stripWorkflowImages } from "@/lib/generation/workflow";
 import { storeReferenceImages } from "@/lib/generation/reference-images";
 import { readImageDimensions } from "@/backend/services/gemini-image-generation";
+import { freeQuotaFor } from "@/lib/generation/free-quota";
 
 /**
  * Free image generation endpoint (dev/testing)
@@ -66,6 +67,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
     }
 
+    /* The free allowance, checked BEFORE the provider is called.
+     *
+     * Three images per account (Kev, 2026-08-18) — free usage is an onboarding
+     * allowance for new accounts, not a permanent tier. Checked here rather
+     * than after generating so an account over its limit does not cost a
+     * render, and so the answer arrives in a second rather than a minute.
+     *
+     * Signed-out callers are deliberately NOT limited here, because they
+     * cannot be counted: this route stays unauthenticated, and the only thing
+     * standing behind an anonymous caller is the per-IP rate limit above.
+     * That is a real gap in the allowance and it is named rather than papered
+     * over — closing it means requiring a session, which is a product
+     * decision, not a patch.
+     */
+    const quotaClient = getSupabaseServerClientSafe();
+    const quotaUserId = await resolveRecordingUserId(quotaClient, request);
+    if (quotaClient && quotaUserId) {
+      const quota = await freeQuotaFor(quotaClient, quotaUserId);
+      if (quota.exhausted) {
+        return NextResponse.json(
+          {
+            error: `You have used all ${quota.limit} free generations on this account.`,
+            freeQuotaExhausted: true,
+            used: quota.used,
+            limit: quota.limit,
+          },
+          { status: 402 },
+        );
+      }
+    }
+
     // Never log the prompt itself — this is shared log output, and a blocked
     // prompt is exactly the text we must not spray around in the clear.
     console.log('🎨 Free generation request:', {
@@ -109,8 +141,10 @@ export async function POST(request: NextRequest) {
     // was before the recorder existed. Signed-out callers are not recorded —
     // there is nobody to show the row back to.
     {
-      const supabase = getSupabaseServerClientSafe();
-      const recUserId = await resolveRecordingUserId(supabase, request);
+      // Same client and same identity the allowance was checked against, so
+      // the row that gets written is the row that was counted.
+      const supabase = quotaClient;
+      const recUserId = quotaUserId;
       if (supabase && recUserId) {
         const stripped = stripWorkflowImages(body?.workflow ?? {});
         const model = await resolveModelByName(supabase, "Flux (free)");
