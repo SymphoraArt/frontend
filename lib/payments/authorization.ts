@@ -265,6 +265,46 @@ export async function voidAuthorization(
 }
 
 /**
+ * Void a row ONLY IF it is still stale at the moment of the write.
+ *
+ * sweepAbandoned picks its victims with a heartbeat cutoff and then had to
+ * kill them through voidAuthorization, whose WHERE knows nothing about
+ * heartbeats. So a worker that beat successfully between the SELECT and the
+ * UPDATE was killed anyway — exactly the race the sweep's own comment claimed
+ * per-row voiding prevented. The predicate is repeated here verbatim, OR
+ * branch included, so selection and execution agree; a NULL heartbeat does not
+ * satisfy `lt`, which is why the second branch cannot be dropped.
+ *
+ * voidAuthorization stays heartbeat-blind on purpose: an explicit void
+ * (provider failed, buyer cancelled) is a decision, not an observation, and
+ * must not be second-guessed by a timestamp.
+ */
+async function voidIfStale(
+  supabase: SupabaseClient,
+  intentId: string,
+  cutoff: string,
+): Promise<{ intentId: string; nonceAccount: string | null } | null> {
+  const now = nowIso();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ voided_at: now, void_reason: "abandoned" as VoidReason, status: "voided", updated_at: now })
+    .eq("id", intentId)
+    .not("authorized_at", "is", null)
+    .is("captured_at", null)
+    .is("voided_at", null)
+    .or(`heartbeat_at.lt.${cutoff},and(heartbeat_at.is.null,authorized_at.lt.${cutoff})`)
+    .select("id, nonce_account")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[payments/auth] stale void failed:", error.message);
+    return null;
+  }
+  if (!data) return null;
+  return { intentId, nonceAccount: data.nonce_account as string | null };
+}
+
+/**
  * Void every authorisation whose worker went quiet.
  *
  * Opportunistic, not scheduled: there is no cron on this deployment, so each
@@ -272,8 +312,10 @@ export async function voidAuthorization(
  * uses. Under load that runs constantly; with no traffic there is also nobody
  * whose nonce could be misused.
  *
- * Each row is voided through voidAuthorization rather than in one bulk UPDATE,
- * so a worker that woke up between the SELECT and the write keeps its claim.
+ * Each row is voided through voidIfStale rather than in one bulk UPDATE, so a
+ * worker that woke up between the SELECT and the write keeps its claim. That
+ * sentence used to name voidAuthorization and was simply false: its WHERE
+ * carried no heartbeat condition, so the recheck it promised never happened.
  */
 export async function sweepAbandoned(
   supabase: SupabaseClient,
@@ -299,7 +341,9 @@ export async function sweepAbandoned(
 
   const flushed: { intentId: string; nonceAccount: string | null }[] = [];
   for (const row of data ?? []) {
-    const won = await voidAuthorization(supabase, row.id as string, "abandoned");
+    // Re-checked at write time against the same cutoff the SELECT used, so a
+    // beat that landed in between saves the row.
+    const won = await voidIfStale(supabase, row.id as string, cutoff);
     if (won) flushed.push(won);
   }
   return flushed;

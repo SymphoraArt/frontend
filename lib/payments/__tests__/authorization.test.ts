@@ -321,3 +321,83 @@ describe("the abort condition is silence, not elapsed time", () => {
     expect(await sweepAbandoned(fakeClient(rows))).toEqual([]);
   });
 });
+
+/**
+ * The sweep selects on the heartbeat and then has to kill through a separate
+ * write. If that write does not repeat the condition, a worker that beat in
+ * between is killed anyway — its generation runs to completion against a dead
+ * authorisation, captureAndBroadcast returns null, and the image ships free.
+ *
+ * The file's own comment claimed per-row voiding prevented exactly this. It
+ * did not: voidAuthorization's WHERE carried no heartbeat condition at all.
+ */
+describe("a beat that lands mid-sweep saves the row", () => {
+  beforeEach(async () => {
+    process.env.FIELD_ENCRYPTION_KEY_B64 = crypto.randomBytes(32).toString("base64");
+    (await import("@/lib/crypto")).resetKeyringCache();
+  });
+
+  /** A client that lets the worker beat once, right after the sweep's SELECT. */
+  function racingClient(rows: Row[], onFirstResolve: () => void): SupabaseClient {
+    let n = 0;
+    return {
+      from: () => {
+        const b = new Builder(rows);
+        const original = b.then.bind(b);
+        (b as unknown as { then: unknown }).then = (
+          onfulfilled?: ((v: { data: unknown; error: unknown }) => unknown) | null,
+          onrejected?: ((reason: unknown) => unknown) | null,
+        ) =>
+          original((res: { data: unknown; error: unknown }) => {
+            if (n++ === 0) onFirstResolve();
+            return onfulfilled ? onfulfilled(res) : res;
+          }, onrejected);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+  }
+
+  it("leaves the row alone when the heartbeat refreshed after the SELECT", async () => {
+    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const rows = [quotedRow()];
+    const row = await authorized(rows);
+    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS * 2); // stale, so the SELECT takes it
+
+    // The worker wakes up between the SELECT and the write — the exact race
+    // the sweep's comment promised was handled.
+    const flushed = await sweepAbandoned(racingClient(rows, () => {
+      row.heartbeat_at = new Date().toISOString();
+    }));
+
+    expect(flushed).toEqual([]);
+    expect(row.voided_at ?? null).toBeNull();
+    expect(row.void_reason ?? null).toBeNull();
+  });
+
+  it("still voids a row that is genuinely silent — the fix must not disable the sweep", async () => {
+    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const rows = [quotedRow()];
+    const row = await authorized(rows);
+    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS * 2);
+
+    const flushed = await sweepAbandoned(fakeClient(rows));
+
+    expect(flushed.map((f) => f.intentId)).toEqual([INTENT]);
+    expect(row.void_reason).toBe("abandoned");
+  });
+
+  it("still voids an authorised row that never beat at all", async () => {
+    // The OR's second branch: a NULL heartbeat does not satisfy `lt`, so
+    // dropping it from the write would make this row immortal.
+    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const rows = [quotedRow()];
+    const row = await authorized(rows);
+    row.heartbeat_at = null;
+    row.authorized_at = ago(HEARTBEAT_GRACE_MS * 2);
+
+    const flushed = await sweepAbandoned(fakeClient(rows));
+
+    expect(flushed.map((f) => f.intentId)).toEqual([INTENT]);
+    expect(row.void_reason).toBe("abandoned");
+  });
+});
