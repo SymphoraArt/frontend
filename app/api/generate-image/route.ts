@@ -21,6 +21,7 @@ import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/ra
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, chooseRoute } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
+import { toModelFamily } from "@/lib/generation-checkout";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
 import { solanaChainKey } from "@/lib/payments/solana";
@@ -546,6 +547,42 @@ export async function POST(request: NextRequest) {
       }
       consumedIntent = { supabase, id: intentId, mode: redemption.mode };
       paidResolution = redemption.resolution;
+
+      /* The buyer must receive the model they paid for.
+       *
+       * model_family is written onto the intent when the quote is taken and
+       * priced from it — nano-banana-pro and gpt-image-2 are $0.134 and $0.167
+       * at 2K, and $0.24 and $0.25 at 4K. Which model actually RUNS comes from
+       * body.modelIds via resolveModel() above, a completely separate input
+       * that nothing compared to the intent. `modelFamily` appeared exactly
+       * once in this file, as a field on the metadata literal below, and was
+       * never read again.
+       *
+       * So quoting the cheap family and then sending the expensive one in
+       * modelIds cost the difference on every generation, and the reverse —
+       * paying for the dear one and being served the cheap one — was equally
+       * silent. Both end here: the intent decides, and a mismatch is refused
+       * before anything is generated, with the intent released so the buyer
+       * can retry rather than losing the payment. */
+      const runningFamily = toModelFamily(preflightModel.name);
+      if (redemption.modelFamily && runningFamily !== redemption.modelFamily) {
+        console.warn(
+          "[generate] model family mismatch:",
+          { intentId, paidFor: redemption.modelFamily, wouldRun: runningFamily },
+        );
+        /* releaseIfConsumed, not a hand-rolled undo: it already knows that an
+           AUTHORIZED intent must be voided rather than released — returning
+           the claim would leave a live signature on a generation we refused.
+           "rejected" is the reason that fits; the provider never failed, we
+           declined to run. */
+        await releaseIfConsumed("rejected");
+        return NextResponse.json(
+          {
+            error: `This payment is for ${redemption.modelFamily}, but the request would generate with ${runningFamily}.`,
+          },
+          { status: 400 },
+        );
+      }
       paymentResult = {
         success: true,
         status: 200,
