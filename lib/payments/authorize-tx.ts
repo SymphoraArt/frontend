@@ -151,3 +151,36 @@ export function matchesBuiltTransaction(signedBase64: string, built: Transaction
     return false;
   }
 }
+
+/**
+ * Did the buyer actually sign it?
+ *
+ * matchesBuiltTransaction above answers a different question and says so: it
+ * compares the MESSAGE and deliberately ignores signatures, because those are
+ * the only part that legitimately differs. That reasoning is sound for the
+ * attack it was written against — a returned transaction with the transfers
+ * redirected or shrunk — and it has a blind spot the size of the whole
+ * product: a signature can simply be ABSENT.
+ *
+ * The authorize route hands the buyer a transaction Enki has already
+ * partial-signed. Echoing it back unchanged therefore passes a message
+ * comparison perfectly, because it IS our message. Nothing else in the stack
+ * looked at signatures — `verifySignatures` appeared nowhere in the codebase —
+ * so the intent was marked authorised, the generation ran, and the buyer got
+ * their image. The failure only surfaced later, inside settle(), where
+ * Transaction.serialize() throws "Signature verification failed" — after
+ * captureAuthorization has already written captured_at, and inside a try whose
+ * catch returns null. The route logs "delivered but not captured" and returns
+ * the image anyway.
+ *
+ * verifySignatures() defaults to requiring ALL signers, which here is Enki as
+ * fee payer plus the buyer as the owner of every transferChecked. So one call
+ * covers both "is it signed" and "is the signature valid over this message".
+ */
+export function hasRequiredSignatures(signedBase64: string): boolean {
+  try {
+    return Transaction.from(Buffer.from(signedBase64, "base64")).verifySignatures();
+  } catch {
+    return false;
+  }
+}

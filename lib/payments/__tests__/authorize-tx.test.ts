@@ -9,6 +9,7 @@ import {
   buildAuthorizationTx,
   signAsEnki,
   matchesBuiltTransaction,
+  hasRequiredSignatures,
   USDC_DECIMALS,
 } from "@/lib/payments/authorize-tx";
 
@@ -180,5 +181,76 @@ describe("the returned transaction must be the one we built", () => {
   it("rejects rubbish instead of throwing", () => {
     const { transaction } = build();
     expect(matchesBuiltTransaction("not-base64-at-all", transaction)).toBe(false);
+  });
+});
+
+/**
+ * The message comparison above is not a payment check.
+ *
+ * /payments/generation/authorize hands the buyer a transaction Enki has
+ * already partial-signed. Echoing it back unchanged passes a message
+ * comparison PERFECTLY — it is our own message — so for as long as nothing
+ * looked at signatures, an authorisation could be obtained without paying,
+ * the generation ran, and the image shipped. The throw only arrived later,
+ * inside settle(), after captured_at had been written, where the catch turned
+ * it into "delivered but not captured".
+ */
+describe("an authorisation requires a real signature, not a matching shape", () => {
+  it("REFUSES the echo attack: our own partial-signed transaction, returned unchanged", () => {
+    const { transaction } = build();
+    const echoed = signAsEnki(transaction, enki);
+
+    // It passes the shape check, which is exactly why that check is not enough.
+    expect(matchesBuiltTransaction(echoed, transaction)).toBe(true);
+    expect(hasRequiredSignatures(echoed)).toBe(false);
+  });
+
+  it("refuses a transaction nobody signed at all", () => {
+    const { transaction } = build();
+    const unsigned = transaction.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
+    expect(hasRequiredSignatures(unsigned)).toBe(false);
+  });
+
+  it("refuses the buyer's signature without ours", () => {
+    // Both are required signers: Enki as fee payer, the buyer as the owner of
+    // every transferChecked. One of the two is not an authorisation.
+    const half = build().transaction;
+    half.partialSign(buyer);
+    expect(hasRequiredSignatures(half.serialize({ requireAllSignatures: false }).toString("base64"))).toBe(false);
+  });
+
+  it("accepts the transaction once BOTH have signed", () => {
+    const full = build().transaction;
+    full.partialSign(enki);
+    full.partialSign(buyer);
+    const b64 = full.serialize().toString("base64");
+    expect(hasRequiredSignatures(b64)).toBe(true);
+    expect(matchesBuiltTransaction(b64, build().transaction)).toBe(true);
+  });
+
+  it("refuses a signature lifted from a DIFFERENT transaction", () => {
+    // A valid buyer signature over another message must not authorise this one.
+    const other = build({ legs: [{ recipient: artist.toBase58(), amountMicro: 1 }] }).transaction;
+    other.partialSign(enki);
+    other.partialSign(buyer);
+
+    const target = build().transaction;
+    target.partialSign(enki);
+    target.signatures = target.signatures.map((s) =>
+      s.publicKey.equals(buyer.publicKey)
+        ? { publicKey: s.publicKey, signature: other.signatures.find((o) => o.publicKey.equals(buyer.publicKey))!.signature }
+        : s,
+    );
+    // verifySignatures:false is needed to BUILD the payload at all — web3.js
+    // refuses to serialise a transaction carrying a signature that does not
+    // verify. That refusal is the same protection this asserts, reached from
+    // the other side: an attacker sends bytes, not a Transaction object.
+    const forged = target.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
+    expect(hasRequiredSignatures(forged)).toBe(false);
+  });
+
+  it("refuses malformed input rather than throwing", () => {
+    expect(hasRequiredSignatures("not-base64-at-all")).toBe(false);
+    expect(hasRequiredSignatures("")).toBe(false);
   });
 });

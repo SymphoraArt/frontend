@@ -18,7 +18,7 @@ import { z } from "zod";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
-import { matchesBuiltTransaction } from "@/lib/payments/authorize-tx";
+import { matchesBuiltTransaction, hasRequiredSignatures } from "@/lib/payments/authorize-tx";
 import { readNonce } from "@/lib/payments/nonce";
 import { solanaConnection, feePayerKeypair } from "@/lib/payments/solana";
 import { storeAuthorization } from "@/lib/payments/authorization";
@@ -93,6 +93,16 @@ export async function POST(req: NextRequest) {
     if (!matchesBuiltTransaction(parsed.data.signedTransaction, transaction)) {
       console.warn("[payments/submit] returned transaction does not match ours:", intent.id);
       return NextResponse.json({ error: "Signed transaction does not match the quote" }, { status: 400 });
+    }
+    /* Checked separately from the message, and logged separately, because the
+       two failures mean opposite things: a mismatch is someone trying to
+       redirect the money, a missing signature is someone trying to skip paying
+       for it. Echoing our own partial-signed transaction back satisfies the
+       comparison above perfectly — it is our message — so without this the
+       generation ran and the image shipped for free. */
+    if (!hasRequiredSignatures(parsed.data.signedTransaction)) {
+      console.warn("[payments/submit] transaction is not fully signed:", intent.id);
+      return NextResponse.json({ error: "Signed transaction is missing a required signature" }, { status: 400 });
     }
 
     const stored = await storeAuthorization(supabase, {
