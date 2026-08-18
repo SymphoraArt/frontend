@@ -193,6 +193,12 @@
 .ek-earn-rule { flex: 1; border-top: 1px dashed var(--enki-rule); }
 .ek-earn-row { position: relative; display: flex; align-items: center; gap: 13px; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--enki-ink); font-size: 13.5px; width: 100%; text-align: left; cursor: pointer; }
 .ek-earn-row:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+/* Railed, these must sit on the same vertical axis as the nav icons above
+   them. .ek-nav-item got that treatment and .ek-earn-row never did, so it kept
+   `padding: 0 12px` and `width: 100%`: its icon sat 12px from the edge of a
+   78px rail while every icon above it was centred at 39 (Kev, 2026-08-19).
+   Height stays 36 — only the horizontal alignment was wrong. */
+.ek-root--rail .ek-earn-row { width: 50px; padding: 0; justify-content: center; gap: 0; border-radius: 50%; margin: 0 auto; }
 .ek-earn-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ek-earn-chip { font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.1); border: 1px solid rgba(var(--ember-rgb), 0.4); border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
 

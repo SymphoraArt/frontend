@@ -68,8 +68,12 @@ export function DiceButton({
         body: JSON.stringify(promptId ? { promptId } : { variables: rollable, context }),
       });
       if (res.status === 501) {
-        // Not configured on this deployment — vanish rather than error on
-        // every click from here on.
+        /* Not configured on this deployment (no XAI_API_KEY). It used to
+           VANISH here, which is what a user actually saw: press the dice, the
+           button is gone, and the row re-flows so Generate suddenly grows
+           (Kev, 2026-08-19). A control that deletes itself on click is worse
+           than one that says it cannot help — the layout jump reads as a bug
+           in the thing you pressed. It stays put and goes quiet instead. */
         setUnavailable(true);
         return;
       }
@@ -84,15 +88,19 @@ export function DiceButton({
     }
   }, [rollable, context, headers, disabled, onValues]);
 
-  if (rollable.length === 0 || unavailable) return null;
+  /* Nothing to roll means nothing to show — a control that could never do
+     anything is the same lie as a quality dropdown on a host that ignores it.
+     But "the server has no key today" is a different statement, and it is made
+     in place rather than by disappearing. */
+  if (rollable.length === 0) return null;
 
   return (
     <button
       type="button"
       onClick={roll}
-      disabled={disabled || rolling}
-      aria-label={title}
-      title={title}
+      disabled={disabled || rolling || unavailable}
+      aria-label={unavailable ? "Dice unavailable on this deployment" : title}
+      title={unavailable ? "The dice is not configured on this deployment" : title}
       className={className}
       style={{
         display: "inline-flex",
@@ -103,8 +111,10 @@ export function DiceButton({
         border: "1px solid var(--enki-rule-2, rgba(127,127,127,0.35))",
         borderRadius: 8,
         color: "var(--enki-ink-2, currentColor)",
-        cursor: disabled || rolling ? "default" : "pointer",
-        opacity: disabled ? 0.5 : 1,
+        cursor: disabled || rolling || unavailable ? "default" : "pointer",
+        // Dimmed like any other disabled control, so "cannot help right now"
+        // is visible without reading the tooltip.
+        opacity: disabled || unavailable ? 0.5 : 1,
         transition: "transform 0.15s ease, opacity 0.2s ease",
       }}
     >

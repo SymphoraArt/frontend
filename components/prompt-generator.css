@@ -64,10 +64,15 @@
   background: var(--pgv-bg);
   transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* On the history header's line, not floating above it.
+   It read as a second way to close the HISTORY: a big round X hovering over a
+   panel that already carries its own small X in its header (Kev, 2026-08-19).
+   11px matches .pgv-history-header's padding-top, so the two sit on one
+   baseline and this one clearly belongs to the view, not to the column. */
 .pgv-detail-close {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  top: 11px;
+  right: 12px;
   z-index: 1;
   width: 32px;
   height: 32px;

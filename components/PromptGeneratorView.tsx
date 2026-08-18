@@ -296,7 +296,6 @@ export default function PromptGeneratorView({
    * button that writes nowhere would be a control that lies about what it
    * does. Unknown brackets stay plain text.
    */
-  const [openVar, setOpenVar] = useState<string | null>(null);
   /* Which form the sentence is shown in. "variables" is the default because
      it is what the text IS — the values are this reader's copy of it, and
      starting on those would hide the thing the artist actually wrote. */
@@ -360,10 +359,6 @@ export default function PromptGeneratorView({
   /* The variable whose full control is showing, if any. Resolved from the
      name rather than stored as an object so it cannot go stale when the
      prompt reloads and hands back fresh variable objects. */
-  const openVarDef = useMemo(
-    () => (openVar ? variables.find(v => v.name === openVar) ?? null : null),
-    [openVar, variables]
-  );
 
   /* What Copy puts on the clipboard: exactly what is on screen.
      In "variables" that is the artist's text with its slots intact, which is
@@ -1139,19 +1134,19 @@ export default function PromptGeneratorView({
                            its value. Double click opens it for editing — the
                            two clicks it contains cancel each other out, so the
                            slot is left in whatever form you double-clicked it.
-                           A free text field is only the right editor for a text
-                           variable; a select or a slider opens in full below the
-                           sentence instead, so its choices survive. Still no
-                           popup either way. */
+                           Text only: an inline field cannot honour a select's
+                           options or a slider's range, and a free prompt does
+                           not need it to — the whole sentence is editable in
+                           the box above. */
                         onClick={() => toggleToken(name)}
                         onDoubleClick={() => {
+                          if (seg.variable!.type && seg.variable!.type !== "text") return;
                           /* What you edit is the value, so the slot is put into
                              value form as it opens — otherwise you type a word
                              and the sentence closes back over it showing the
                              name, and you never see what you wrote. */
                           setTokenOverrides(o => ({ ...o, [name]: true }));
-                          if (seg.variable!.type === "text" || !seg.variable!.type) setEditingVar(key);
-                          else setOpenVar(v => (v === name ? null : name));
+                          setEditingVar(key);
                         }}
                         title={
                           shownAsValue(name)
@@ -1189,56 +1184,13 @@ export default function PromptGeneratorView({
             </div>
           )}
 
-          {/* The prompt's named parts.
-              Optional by construction: a free prompt is allowed to be nothing
-              but text, and then this renders nothing at all rather than an
-              empty header (Kev, 2026-08-13). It exists for the other case —
-              an artist who names a slot to say what a passage IS, "this part
-              here is character design" — so the name and the artist's note
-              are what the row leads with, and the value follows. Reading the
-              list is also how you reach a select or a slider: the row opens
-              the full control below, which a click in the sentence cannot do
-              for those types. */}
-          {isFree && variables.length > 0 && (
-            <div className="pgv-block">
-              <span className="pgv-section-label">Parts of this prompt</span>
-              <ul className="pgv-varlist">
-                {variables.map(v => {
-                  const val = vars[v.name] || "";
-                  const open = openVar === v.name;
-                  return (
-                    <li key={v.id || v.name}>
-                      <button
-                        type="button"
-                        className={`pgv-varlist-row${open ? " on" : ""}`}
-                        aria-expanded={open}
-                        /* Opening a part also puts its slot into value form, so
-                           the sentence above shows the thing you are editing
-                           instead of leaving you to match a name to a box. */
-                        onClick={() => {
-                          setTokenOverrides(o => ({ ...o, [v.name]: true }));
-                          setOpenVar(x => (x === v.name ? null : v.name));
-                        }}
-                      >
-                        <span className="pgv-varlist-head">
-                          <span className="pgv-varlist-name">{v.label || v.name}</span>
-                        </span>
-                        {v.description && <span className="pgv-varlist-note">{v.description}</span>}
-                        <span className={`pgv-varlist-val${val ? "" : " empty"}`}>{val || "not set"}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {/* The open part, in full, below the list. It is the SAME renderer a
-              paid prompt uses, so a select stays a select and a slider stays a
-              slider — the popover this replaces could only ever hold a text
-              box, which left those two types with nowhere to go. */}
-          {isFree && openVarDef && renderVariable(openVarDef)}
-
+          {/* No list of "parts" here any more (Kev, 2026-08-19).
+              For a FREE prompt the text box above already IS the editor — the
+              slots are clickable and editable in the sentence, so a second
+              list underneath was the same value in two places. For a PAID
+              prompt the type-aware inputs below are the list: they show what
+              each variable is and let it be changed directly, which is what a
+              buyer actually needs. */}
           {/* Variable inputs — type-aware, one block per variable.
               Skipped for a free prompt: its variables are already editable
               inside the text above, and showing both would be two controls
@@ -1415,7 +1367,13 @@ export default function PromptGeneratorView({
             the dice in particular was easy to mistake for a post-generation
             action out on the right. */}
         <div className="pgv-sidebar-footer" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />
+          {/* Boost buys a FASTER PAID HOST for the same model. On a free
+              generation there is no paid host to buy — the free branch does
+              not even send the flag — so offering it promised a speed-up that
+              could not happen, on a button labelled "Generate free" (Kev,
+              2026-08-19). A control that changes nothing is the lie this
+              codebase keeps relearning. */}
+          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />}
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
               over-long context rather than clipping it. */}
