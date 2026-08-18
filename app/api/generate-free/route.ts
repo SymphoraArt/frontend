@@ -161,7 +161,9 @@ export async function POST(request: NextRequest) {
       if (supabase && recUserId) {
         const stripped = stripWorkflowImages(body?.workflow ?? {});
         const model = await resolveModelByName(supabase, "Flux (free)");
-        const dims = readImageDimensions(result.imageBuffers[0]);
+        // Measured once, above, for the media type. Measuring the same
+        // buffer a second time here could only ever agree with itself.
+        const dims = measured;
         after(
           recordGeneration(supabase, {
             userId: recUserId,
@@ -214,6 +216,21 @@ export async function POST(request: NextRequest) {
       model: "flux",
       generationTime: result.generationTime,
       free: true,
+      /* The size that actually came back, measured from the bytes.
+       *
+       * The route threw this away while the adapter had already computed it,
+       * so nothing downstream could tell a reader what they had received. The
+       * free worker clamps on TOTAL pixels before diffusing, so a request and
+       * its result routinely disagree — a 2K ask returns 686x858 at 4:5 — and
+       * for months the only place that disagreement was visible was a database
+       * column nobody reads. requestedResolution travels beside it precisely so
+       * the two can be compared rather than conflated.
+       */
+      width: measured?.width ?? null,
+      height: measured?.height ?? null,
+      bytes: buffer.length,
+      format: measured?.format ?? null,
+      requestedResolution: body.resolution || "2K",
     });
 
   } catch (e: unknown) {
