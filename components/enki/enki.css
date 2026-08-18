@@ -1382,16 +1382,16 @@
 }
 
 /* Dark Mode Overrides V3 */
-[data-theme="dark"] .enki-qc-panel-v3 { background: #121214; border-color: #222; }
-[data-theme="dark"] .enki-qc-header-title-v3 { color: #fff; }
-[data-theme="dark"] .enki-qc-col-right-v3 { background: #121214; }
-[data-theme="dark"] .enki-qc-textarea-v3 { color: #fff; }
-[data-theme="dark"] .enki-qc-var-input-v3 { color: #fff; }
-[data-theme="dark"] .enki-qc-source-toggle-v3 { background: #1a1a1c; }
-[data-theme="dark"] .enki-qc-source-toggle-btn-v3.active { background: #222; }
-[data-theme="dark"] .enki-qc-asset-slot-v3 { background: #1a1a1c; border-color: #333; }
-[data-theme="dark"] .enki-qc-summary-text-v3 { color: #fff; }
-[data-theme="dark"] .enki-qc-selector-v3 select { color: #aaa; }
+.dark .enki-qc-panel-v3 { background: #121214; border-color: #222; }
+.dark .enki-qc-header-title-v3 { color: #fff; }
+.dark .enki-qc-col-right-v3 { background: #121214; }
+.dark .enki-qc-textarea-v3 { color: #fff; }
+.dark .enki-qc-var-input-v3 { color: #fff; }
+.dark .enki-qc-source-toggle-v3 { background: #1a1a1c; }
+.dark .enki-qc-source-toggle-btn-v3.active { background: #222; }
+.dark .enki-qc-asset-slot-v3 { background: #1a1a1c; border-color: #333; }
+.dark .enki-qc-summary-text-v3 { color: #fff; }
+.dark .enki-qc-selector-v3 select { color: #aaa; }
 
 .enki-qc-source-tabs {
   display: flex;
@@ -1570,18 +1570,18 @@
   background: #000;
 }
 
-[data-theme="dark"] .enki-qc-panel-large { background: #121212; border-color: #222; }
-[data-theme="dark"] .enki-qc-header-bar { background: #121212; border-color: #222; }
-[data-theme="dark"] .enki-qc-header-title { color: #fff; }
-[data-theme="dark"] .enki-qc-collapse-btn { background: #1a1a1a; border-color: #333; color: #888; }
-[data-theme="dark"] .enki-qc-textarea-ref { background: #1a1a1a; border-color: #333; color: #ddd; }
-[data-theme="dark"] .enki-qc-col-right { background: #0a0a0a; border-color: #222; }
-[data-theme="dark"] .enki-qc-var-card { background: #1a1a1a; border-color: #333; }
-[data-theme="dark"] .enki-qc-var-card-input { background: #121212; border-color: #222; color: #aaa; }
-[data-theme="dark"] .enki-qc-setting-pill { background: #1a1a1a; border-color: #333; color: #fff; }
-[data-theme="dark"] .enki-qc-qty-stepper button { background: #1a1a1a; border-color: #333; color: #fff; }
-[data-theme="dark"] .enki-qc-source-tab { background: #1a1a1a; border-color: #333; color: #888; }
-[data-theme="dark"] .enki-qc-source-tab.active { background: #222; border-color: #ff5f38; }
+.dark .enki-qc-panel-large { background: #121212; border-color: #222; }
+.dark .enki-qc-header-bar { background: #121212; border-color: #222; }
+.dark .enki-qc-header-title { color: #fff; }
+.dark .enki-qc-collapse-btn { background: #1a1a1a; border-color: #333; color: #888; }
+.dark .enki-qc-textarea-ref { background: #1a1a1a; border-color: #333; color: #ddd; }
+.dark .enki-qc-col-right { background: #0a0a0a; border-color: #222; }
+.dark .enki-qc-var-card { background: #1a1a1a; border-color: #333; }
+.dark .enki-qc-var-card-input { background: #121212; border-color: #222; color: #aaa; }
+.dark .enki-qc-setting-pill { background: #1a1a1a; border-color: #333; color: #fff; }
+.dark .enki-qc-qty-stepper button { background: #1a1a1a; border-color: #333; color: #fff; }
+.dark .enki-qc-source-tab { background: #1a1a1a; border-color: #333; color: #888; }
+.dark .enki-qc-source-tab.active { background: #222; border-color: #ff5f38; }
 
 @keyframes enki-panel-slide-up {
   from { transform: translate(-50%, -40%); opacity: 0; }

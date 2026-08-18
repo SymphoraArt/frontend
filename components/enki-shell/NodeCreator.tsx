@@ -176,8 +176,15 @@ export function NcSelect({ value, options, onChange, width, title, align = "left
   };
   const cur = options.find((o) => o.value === value);
   return (
-    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "")} ref={ref} style={width ? { width } : undefined} onPointerDown={(e) => e.stopPropagation()}>
-      <button ref={trigRef} className={"nc-pm-trigger" + (open ? " open" : "")} title={title} onClick={(e) => { e.stopPropagation(); toggle(); }}>
+    /* minWidth, not width. A hard pixel box plus the ellipsis on .nc-pm-name
+       meant any label longer than its box was silently cut — "abgeschnitten
+       und nicht vollständig lesbar" (Kev). As a minimum it still lines the
+       controls up at their common size and simply grows for the values that
+       need it, and the ellipsis stays as the last resort for extreme ones. */
+    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "")} ref={ref} style={width ? { minWidth: width } : undefined} onPointerDown={(e) => e.stopPropagation()}>
+      {/* The title names the field AND the current value, so even a label that
+          does hit the ellipsis is readable in full without opening the list. */}
+      <button ref={trigRef} className={"nc-pm-trigger" + (open ? " open" : "")} title={title ? `${title} — ${cur ? cur.label : value}` : (cur ? cur.label : value)} onClick={(e) => { e.stopPropagation(); toggle(); }}>
         {icon && <span className="nc-pm-ico">{icon}</span>}
         <span className="nc-pm-name">{cur ? cur.label : value}</span>
         {cur?.sub && <span className="nc-pm-price">{cur.sub}</span>}
