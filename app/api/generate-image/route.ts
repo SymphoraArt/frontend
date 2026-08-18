@@ -508,6 +508,37 @@ export async function POST(request: NextRequest) {
 
     const isSolanaPayment = isSolanaChain(chain);
 
+    /* Enki settles on Solana, and only on Solana (Kev, 2026-08-19:
+       "wir haben KEINE evm abrechnung, das soll als code existieren, aber
+       nicht implementiert sein").
+     *
+     * The EVM half of this route is real and reachable — useX402PaymentProduction
+     * is mounted in four components and defaults to base-sepolia — so leaving it
+     * merely unused is not the same as switching it off. It carries three
+     * verified defects that are pointless to repair on a rail we do not bill on:
+     * the caller picks the chain, that caller-supplied string is what lands in
+     * the generation record, and shared/payment-config declares "unichain" as
+     * mainnet while giving it Unichain SEPOLIA's chain id (1301; mainnet is 130).
+     *
+     * So the decision is enforced where the money is rather than only in the UI.
+     * The code stays — this is a switch, not a deletion — and turning it back on
+     * means reading the chain from the user's stored preference server-side,
+     * never from a query parameter, with that chain id corrected first.
+     *
+     * Nothing regresses: no payment has ever settled on this branch. The live
+     * generations table holds 9 rows, every one provider=pollinations.
+     */
+    if (!intentId && !isSolanaPayment) {
+      return NextResponse.json(
+        {
+          error: "Enki settles on Solana only. EVM payment is not enabled.",
+          chain,
+          solanaOnly: true,
+        },
+        { status: 501 },
+      );
+    }
+
     if (!intentId) {
       console.log('💳 X402 Payment Request:', {
         resourceUrl,

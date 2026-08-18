@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { paymentEngine } from "@/backend/x402-engine";
-import { isChainKey, type ChainKey } from "@/shared/payment-config";
+import { isChainKey, isSolanaChain, type ChainKey } from "@/shared/payment-config";
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +22,15 @@ export async function GET(
     );
   }
   const chain = (requestedChain || 'base-sepolia') as ChainKey;
+  /* Solana only, same as app/api/generate-image. This route runs the same
+     paymentEngine.settle flow, so switching the other one off and leaving this
+     one open would be a switch with a hole in it. */
+  if (!isSolanaChain(chain)) {
+    return NextResponse.json(
+      { error: "Enki settles on Solana only. EVM payment is not enabled.", chain, solanaOnly: true },
+      { status: 501 },
+    );
+  }
   const paymentHeader = request.headers.get('X-Payment');
   const { id } = await params;
 
