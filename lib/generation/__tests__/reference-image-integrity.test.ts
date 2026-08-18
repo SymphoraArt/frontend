@@ -211,12 +211,20 @@ describe("OpenAI actually sends the reference images", () => {
   });
 });
 
+const POLL_INTERVAL_MS = 2000; // mirrors backend/services/wavespeed-image-generation.ts
+
 describe("WaveSpeed polling stops on every terminal status, not just failure", () => {
   /* WaveSpeed documents six statuses and only created/processing mean "keep
      waiting". Treating cancelled and timeout as non-terminal left the loop
      spinning for its full 240s before reporting a timeout of our own — four
      minutes of the buyer's wait to be told the wrong reason for a job that
      had already ended. */
+  /* Fake timers, so the adapter's 2s poll interval costs nothing.
+     These two cases used to sleep for real — 2011ms each, measured — which is
+     four seconds of every suite run spent waiting, and four seconds during
+     which every other vitest worker competes for the machine. The property
+     under test is "does it stop at a terminal status", never "how long does a
+     sleep take". */
   async function pollOnce(terminalStatus: string) {
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       if (String(input).includes("/predictions/")) {
@@ -225,23 +233,33 @@ describe("WaveSpeed polling stops on every terminal status, not just failure", (
       return new Response(JSON.stringify({ data: { id: "p1" } }), { status: 200 });
     });
     const generate = await waveSpeed();
+    vi.useFakeTimers();
     const started = Date.now();
-    const result = await generate({ prompt: "a teapot" });
-    return { result, elapsed: Date.now() - started };
+    // Started, not awaited: the adapter is sitting on setTimeout, so the
+    // timers have to move before the promise can settle.
+    const pending = generate({ prompt: "a teapot" });
+    // Well past one interval and nowhere near MAX_POLL_MS (240s) — if the
+    // status were treated as non-terminal this would NOT be enough.
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    const result = await pending;
+    const elapsed = Date.now() - started;
+    vi.useRealTimers();
+    return { result, elapsed };
   }
 
   it("returns as soon as the provider says cancelled", async () => {
     const { result, elapsed } = await pollOnce("cancelled");
     expect(result.success).toBe(false);
     expect(result.retryable).toBe(false);
+    // The loop's own ceiling is 240s; anything near it means it kept spinning.
     expect(elapsed).toBeLessThan(30_000);
-  }, 40_000);
+  });
 
   it("returns as soon as the provider says timeout", async () => {
     const { result, elapsed } = await pollOnce("timeout");
     expect(result.success).toBe(false);
     expect(elapsed).toBeLessThan(30_000);
-  }, 40_000);
+  });
 });
 
 describe("routing picks a host by how many images it can take", () => {
