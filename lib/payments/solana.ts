@@ -23,6 +23,25 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { PAYMENT_CHAINS, isSolanaChain, type ChainKey } from "@/shared/payment-config";
 
+/**
+ * WHICH Solana chain this deployment settles on — the key, not the config.
+ *
+ * Exported because the generate route was taking it from the client instead:
+ * `chain as "solana" | "solana-devnet"` straight off a query parameter, while
+ * the fee payer, the RPC connection and the USDC mint all came from here. Two
+ * sources of truth for one decision, and the one a stranger controls was
+ * winning for the half of the code that read the query string.
+ */
+export function solanaChainKey(): ChainKey {
+  const key = (process.env.SOLANA_PAYMENT_CHAIN ||
+    process.env.SOLANA_FUND_CHAIN ||
+    "solana-devnet") as ChainKey;
+  if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key)) {
+    throw new Error(`Not a Solana chain key: ${key}`);
+  }
+  return key;
+}
+
 export function solanaChain(): { rpcUrl: string; usdc: string } {
   // || rather than ??: a `.env` line reading `SOLANA_PAYMENT_CHAIN=` puts an
   // EMPTY STRING in the environment, and ?? treats that as a real value —

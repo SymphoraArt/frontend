@@ -4,7 +4,7 @@ import { generateImagesWithWaveSpeed } from "@/backend/services/wavespeed-image-
 import { generateImageWithPollinations } from "@/backend/services/pollinations-image-generation";
 import { generateImagesWithOpenAI } from "@/backend/services/openai-image-generation";
 import type { ChainKey } from "@/shared/payment-config";
-import { isSolanaChain } from "@/shared/payment-config";
+import { isSolanaChain, PAYMENT_CHAINS } from "@/shared/payment-config";
 import {
   buildSolana402Response,
   checkAndRecordSolanaSignature,
@@ -23,6 +23,7 @@ import { resolveModel, chooseRoute } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
+import { solanaChainKey } from "@/lib/payments/solana";
 import type { VoidReason } from "@/lib/payments/authorization";
 import { reportSuccess, reportFailure } from "@/lib/generation/provider-health";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
@@ -192,7 +193,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 export async function POST(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
-  const chain = (searchParams.get('chain') || 'base-sepolia') as ChainKey;
+  /* The chain a payment settles on is validated, not cast.
+   *
+   * This read the raw query string and asserted it into ChainKey, so an
+   * unknown value reached isSolanaChain() below, which does
+   * PAYMENT_CHAINS[key].isSolana on an undefined entry — a TypeError, i.e. a
+   * 500 on a payment route from a one-word query parameter. A value that is
+   * not a chain is a bad request and now says so. */
+  const requestedChain = searchParams.get('chain');
+  if (requestedChain !== null && !(requestedChain in PAYMENT_CHAINS)) {
+    return NextResponse.json(
+      { error: `Unknown chain ${JSON.stringify(requestedChain)}` },
+      { status: 400 },
+    );
+  }
+  const chain = (requestedChain || 'base-sepolia') as ChainKey;
   const paymentHeader = request.headers.get('X-Payment');
 
   // Set after a successful intent redemption (client captured then, so this
@@ -554,7 +569,13 @@ export async function POST(request: NextRequest) {
         usedGemini = false;
       }
     } else if (isSolanaPayment) {
-      const solanaChain = chain as "solana" | "solana-devnet";
+      /* The SERVER's chain, not the caller's. The fee payer, the RPC
+         connection and the USDC mint are all resolved from
+         SOLANA_PAYMENT_CHAIN; taking the key from the query string as well
+         meant a caller could ask to be verified against mainnet while every
+         other part of the transaction was built on devnet. One decision, one
+         source. */
+      const solanaChain = solanaChainKey() as "solana" | "solana-devnet";
       const solanaPlatformWallet = process.env.SOLANA_PLATFORM_WALLET;
       if (!solanaPlatformWallet) {
         return NextResponse.json(
