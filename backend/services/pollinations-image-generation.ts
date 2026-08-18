@@ -113,22 +113,60 @@ export async function generateImageWithPollinations(
 
     const { width, height } = getDimensions(aspectRatio, resolution);
 
+    /* Anonymous traffic is throttled to roughly one queued request per IP —
+       the ~41s wait a user sees on the free path — and Pollinations now answers
+       402 for some of it outright. A free token from https://auth.pollinations.ai
+       lifts the queue; POLLINATIONS_REFERRER only identifies the app.
+
+       The token is a credential: it is never logged, never put in an error
+       message, and only its PRESENCE is ever printed. */
+    const token = process.env.POLLINATIONS_TOKEN?.trim();
+    const referrer = process.env.POLLINATIONS_REFERRER?.trim();
+
     // Pollinations.ai URL-based API - returns image directly
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 999999);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true&model=flux`;
+    const params = new URLSearchParams({
+      width: String(width),
+      height: String(height),
+      seed: String(seed),
+      enhance: 'true',
+      model: 'flux',
+    });
+    // nologo is a paid-tier feature; asking for it anonymously is noise.
+    if (token) params.set('nologo', 'true');
+    if (referrer) params.set('referrer', referrer);
+    // Sent both ways deliberately: the query parameter is what Pollinations
+    // documents for its URL API, the Bearer header is the form its newer auth
+    // accepts. Neither is logged.
+    if (token) params.set('token', token);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
 
-    console.log(`[Pollinations] Generating image: ${width}x${height}`);
+    console.log(`[Pollinations] Generating image: ${width}x${height}${token ? ' (token)' : ' (anonymous)'}`);
     console.log(`[Pollinations] Prompt: ${prompt.substring(0, 100)}...`);
 
     // Fetch the image to get the buffer (Pollinations returns the image directly)
     const response = await fetch(imageUrl, {
       headers: {
         'Accept': 'image/*',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
 
     if (!response.ok) {
+      /* 402 means the anonymous tier refused outright. Saying so is the whole
+         point: without this the caller reported a generic 500 and nobody could
+         tell a throttle from a misconfiguration. */
+      if (response.status === 402) {
+        return {
+          success: false,
+          error: token
+            ? 'Pollinations rejected the request (402). The token may be invalid or out of quota.'
+            : 'The free generator now needs an API token. Set POLLINATIONS_TOKEN (free at https://auth.pollinations.ai).',
+          generationTime: Date.now() - startTime,
+          retryable: false,
+        };
+      }
       // 429 is the free tier's normal answer to a burst — measured
       // 2026-08-12, three requests in a row after a handful of renders. It is
       // the most retryable failure there is, and reporting it as a plain
