@@ -19,7 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
-import { resolveModel, chooseRoute } from "@/lib/generation/models";
+import { resolveModel, resolveModelByFamily, chooseRoute, type ResolvedModel } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
 import { toModelFamily } from "@/lib/generation/model-family";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
@@ -356,7 +356,67 @@ export async function POST(request: NextRequest) {
     // provider's model id, which Gemini rejects with an opaque error after the
     // money has moved. GPT-Image-2 is exactly that case today: its row is
     // honest about pointing at OpenAI, and there is no OpenAI path yet.
-    const preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
+    /* A PAID request is told which model it bought; it does not get to pick
+     * one here.
+     *
+     * The buyer surface sends { intentId, prompt, aspectRatio } and no
+     * modelIds — it already named the model when it took the quote, and
+     * model_family was written onto the intent and PRICED from it. Resolving
+     * from body.modelIds anyway meant falling back to DEFAULT_MODEL
+     * ("Nano Banana Pro"), so the later family comparison refused every
+     * GPT-Image-2 purchase and voided its authorisation.
+     *
+     * Read before the preflight on purpose: this same object decides the
+     * routing, the reference-image eligibility and the quote below, so
+     * learning the family after those were settled would only have let us
+     * complain about them rather than get them right. The read is by intent id
+     * alone — it selects which model to OFFER, and claimForGeneration binds to
+     * the buyer's wallet before anything is consumed, so a stolen id buys a
+     * wasted preflight and nothing else. */
+    const intentId = typeof body.intentId === "string" ? body.intentId.trim() : "";
+    if (intentId && !UUID_RE.test(intentId)) {
+      return NextResponse.json({ error: "intentId must be a UUID" }, { status: 400 });
+    }
+
+    let paidFamily: string | null = null;
+    if (intentId) {
+      const { data: intentRow } = await (getSupabaseServerClientSafe()
+        ?.from("generation_payment_intents")
+        .select("model_family")
+        .eq("id", intentId)
+        .maybeSingle() ?? Promise.resolve({ data: null }));
+      paidFamily = (intentRow as { model_family?: string } | null)?.model_family ?? null;
+    }
+
+    let preflightModel: ResolvedModel;
+    if (paidFamily) {
+      const paidModel = await resolveModelByFamily(getSupabaseServerClientSafe(), paidFamily);
+      if (!paidModel) {
+        // The family names nothing active. Generating on anything else would
+        // be the exact substitution this whole path exists to prevent.
+        return NextResponse.json(
+          { error: `This payment is for ${paidFamily}, which is not available right now.` },
+          { status: 409 },
+        );
+      }
+      /* An explicitly requested model that disagrees with the purchase is the
+         fraud case, and the only one left worth refusing: pay for the cheap
+         family, ask for the dear one. */
+      if (body.modelIds?.length) {
+        const asked = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
+        if (toModelFamily(asked.name) !== paidFamily) {
+          return NextResponse.json(
+            {
+              error: `This payment is for ${paidFamily}, but the request asks for ${toModelFamily(asked.name)}.`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+      preflightModel = paidModel;
+    } else {
+      preflightModel = await resolveModel(getSupabaseServerClientSafe(), body.modelIds);
+    }
     // Chosen HERE and nowhere else, because the quote below carries the price
     // of a specific host: quoting AceData and then generating on WaveSpeed
     // would charge the wrong amount. This also skips hosts whose breaker is
@@ -436,10 +496,8 @@ export async function POST(request: NextRequest) {
     // Server-built payments (backlog #2, step 4): a confirmed intent replaces
     // the whole x402 header flow, so the x402 env/URL plumbing below is only
     // required on the legacy paths.
-    const intentId = typeof body.intentId === "string" ? body.intentId.trim() : "";
-    if (intentId && !UUID_RE.test(intentId)) {
-      return NextResponse.json({ error: "intentId must be a UUID" }, { status: 400 });
-    }
+    // intentId is parsed above, before the model is resolved — the intent
+    // decides which model runs, so it cannot be read after that decision.
     // The paid resolution from the intent row overrides the request body.
     let paidResolution: string | null = null;
 
@@ -615,6 +673,10 @@ export async function POST(request: NextRequest) {
        * silent. Both end here: the intent decides, and a mismatch is refused
        * before anything is generated, with the intent released so the buyer
        * can retry rather than losing the payment. */
+      /* Belt and braces. preflightModel was SELECTED from the intent's family
+         above, so this can only fire if the two reads disagreed — a row
+         changing under us between them. Cheap, and the failure it guards
+         against is a buyer receiving a model they did not buy. */
       const runningFamily = toModelFamily(preflightModel.name);
       if (redemption.modelFamily && runningFamily !== redemption.modelFamily) {
         console.warn(

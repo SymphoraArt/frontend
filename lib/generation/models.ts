@@ -17,6 +17,7 @@ import { eligibleRoutes, pickRoute, type RouteLink, type RouteCandidate } from "
 import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-health";
 import { canCarryReferenceImages } from "@/lib/generation/provider-capabilities";
 import { maxTier, type ResolutionTier } from "@/lib/generation/resolution";
+import { toModelFamily } from "@/lib/generation/model-family";
 
 export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
@@ -273,6 +274,46 @@ export async function resolveModelByName(
     return fromRow(data[0] as unknown as ModelRow, audience);
   } catch {
     return DEFAULT_MODEL;
+  }
+}
+
+/**
+ * The model a PAYMENT is for, resolved from the family key on its intent.
+ *
+ * The paid caller sends { intentId, prompt, aspectRatio } and NO modelIds — it
+ * already told the server which model it was buying when it took the quote.
+ * resolveModel() with no ids falls back to DEFAULT_MODEL, so comparing that
+ * fallback against the paid family refused every purchase of anything except
+ * the default. The intent is the source of truth; this reads it.
+ *
+ * Returns null rather than a default when the family names nothing active.
+ * Quietly generating on some other model is precisely the failure the family
+ * check exists to prevent, and a default here would reintroduce it.
+ */
+export async function resolveModelByFamily(
+  supabase: SupabaseClient | null,
+  family: string,
+  audience: Audience = "public",
+): Promise<ResolvedModel | null> {
+  if (!supabase || !family) return null;
+  try {
+    const { data, error } = await supabase
+      .from("models")
+      .select(
+        "id, name, allowed_ratios, max_reference_images, " +
+        "model_providers(id, role, provider_model, active, priority, applies_when, provider_id, providers(id, key, audience, active))",
+      )
+      .eq("active", true);
+    if (error || !data?.length) return null;
+    /* Matched on the slug, not the display name: "GPT-Image-2 (coming soon)"
+       and "GPT-Image-2" are the same purchase, and the quote stored the slug
+       precisely so that editing a label is not a pricing event. */
+    const row = (data as unknown as ModelRow[]).find(
+      (r) => toModelFamily(String(r.name ?? "")) === family,
+    );
+    return row ? fromRow(row, audience) : null;
+  } catch {
+    return null;
   }
 }
 
