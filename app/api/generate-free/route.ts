@@ -9,7 +9,7 @@ import { resolveModelByName } from "@/lib/generation/models";
 import { stripWorkflowImages } from "@/lib/generation/workflow";
 import { storeReferenceImages } from "@/lib/generation/reference-images";
 import { readImageDimensions } from "@/backend/services/gemini-image-generation";
-import { freeQuotaFor } from "@/lib/generation/free-quota";
+import { freeGenerationDecision } from "@/lib/generation/free-quota";
 
 /**
  * Free image generation endpoint (dev/testing)
@@ -17,12 +17,15 @@ import { freeQuotaFor } from "@/lib/generation/free-quota";
  * Uses Pollinations.ai (free, no API key needed)
  * No payment required, no database needed.
  *
- * UNAUTHENTICATED — and therefore the easiest possible abuse vector: an
- * attacker needs no account at all. Today it is shielded only by the
- * private-beta proxy gate; the moment TEAM_ACCESS_CODE is unset at launch it
- * becomes a fully open image generator. So it gets the same moderation as the
- * paid path, plus a per-IP rate limit, and violations are attributed by hashed
- * IP since there is no session to key on.
+ * REQUIRES A SESSION as of 2026-08-18. It used to be deliberately
+ * unauthenticated, which made the per-account free allowance decorative: the
+ * way around three-per-account was to log out, because an anonymous caller has
+ * no user_id for an allowance to count against and an IP is neither stable nor
+ * personal. Free generation is now: team roles without a limit, every other
+ * account three images, nobody else.
+ *
+ * The other guards stay exactly as they were — the same moderation the paid
+ * path gets, a per-IP rate limit, and violations attributed by hashed IP.
  *
  * POST /api/generate-free
  * Body: { prompt, aspectRatio?, resolution?, workflow? }
@@ -83,15 +86,25 @@ export async function POST(request: NextRequest) {
      */
     const quotaClient = getSupabaseServerClientSafe();
     const quotaUserId = await resolveRecordingUserId(quotaClient, request);
-    if (quotaClient && quotaUserId) {
-      const quota = await freeQuotaFor(quotaClient, quotaUserId);
-      if (quota.exhausted) {
+    if (quotaClient) {
+      const decision = await freeGenerationDecision(quotaClient, quotaUserId);
+      if (!decision.allowed && decision.reason === "sign-in") {
         return NextResponse.json(
           {
-            error: `You have used all ${quota.limit} free generations on this account.`,
+            error: "Sign in to generate for free.",
+            signInRequired: true,
+          },
+          { status: 401 },
+        );
+      }
+      if (!decision.allowed) {
+        const q = decision.quota;
+        return NextResponse.json(
+          {
+            error: `You have used all ${q?.limit ?? 0} free generations on this account.`,
             freeQuotaExhausted: true,
-            used: quota.used,
-            limit: quota.limit,
+            used: q?.used ?? 0,
+            limit: q?.limit ?? 0,
           },
           { status: 402 },
         );

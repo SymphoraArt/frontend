@@ -57,3 +57,79 @@ describe("freeQuotaFor", () => {
     await expect(freeQuotaFor(client as any, "u1")).rejects.toThrow(/free quota lookup failed/);
   });
 });
+
+import { freeGenerationDecision } from "@/lib/generation/free-quota";
+
+/** Stub covering both queries the decision issues: users.role, then the count. */
+function decisionStub(opts: { role?: string | null; roleError?: boolean; count?: number }) {
+  const seen: string[] = [];
+  const usersChain = {
+    select: () => usersChain,
+    eq: () => usersChain,
+    is: () => usersChain,
+    maybeSingle: () =>
+      Promise.resolve(
+        opts.roleError
+          // Error AND a role that WOULD grant the exemption. With data:null the
+          // case proves nothing — the `data &&` guard alone would pass it, so
+          // the `!error` half of the check would be untested.
+          ? { data: { role: "admin" }, error: { message: "boom" } }
+          : { data: opts.role === undefined ? null : { role: opts.role }, error: null },
+      ),
+  };
+  const genChain = {
+    select: () => genChain,
+    eq: () => genChain,
+    is: () => Promise.resolve({ count: opts.count ?? 0, error: null }) as never,
+  };
+  return {
+    from: (t: string) => { seen.push(t); return t === "users" ? usersChain : genChain; },
+    seen,
+  };
+}
+
+describe("freeGenerationDecision", () => {
+  it("refuses an anonymous caller — there is no account to count against", async () => {
+    // This is the hole: without it, the way around three-per-account was to log out.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = await freeGenerationDecision(decisionStub({}) as any, null);
+    expect(d).toEqual({ allowed: false, reason: "sign-in", quota: null });
+  });
+
+  it("lets the team through without a limit", async () => {
+    for (const role of ["admin", "mod"]) {
+      const stub = decisionStub({ role, count: 999 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = await freeGenerationDecision(stub as any, "kev");
+      expect(d).toEqual({ allowed: true, quota: null });
+      // and it never even counts — the exemption is not a large allowance
+      expect(stub.seen).not.toContain("generations");
+    }
+  });
+
+  it("holds an ordinary account to the allowance", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const under = await freeGenerationDecision(decisionStub({ role: "beta", count: 1 }) as any, "u");
+    expect(under.allowed).toBe(true);
+    expect(under.quota?.remaining).toBe(2);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const over = await freeGenerationDecision(decisionStub({ role: "beta", count: 3 }) as any, "u");
+    expect(over.allowed).toBe(false);
+    expect(over).toMatchObject({ reason: "quota" });
+  });
+
+  it("does not grant the team exemption when the role lookup fails", async () => {
+    // An outage must not hand anyone unlimited free generation.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = await freeGenerationDecision(decisionStub({ roleError: true, count: 3 }) as any, "u");
+    expect(d.allowed).toBe(false);
+    expect(d).toMatchObject({ reason: "quota" });
+  });
+
+  it("treats an unknown role as an ordinary account, not as team", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = await freeGenerationDecision(decisionStub({ role: "administrator", count: 3 }) as any, "u");
+    expect(d.allowed).toBe(false);
+  });
+});

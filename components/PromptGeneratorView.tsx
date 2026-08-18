@@ -137,7 +137,7 @@ export default function PromptGeneratorView({
   const [savedToGallery, setSavedToGallery] = useState(false);
   /* Set only by the server's own answer. Deriving it in the browser would mean
      a second count that can disagree with the one the route enforces. */
-  const [freeQuota, setFreeQuota] = useState<{ used: number; limit: number } | null>(null);
+  const [freeQuota, setFreeQuota] = useState<{ used: number; limit: number; signIn: boolean } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* Fetch available models from DB */
@@ -718,8 +718,12 @@ export default function PromptGeneratorView({
         /* The free allowance is a state, not a failure. A red "Generation
            Failed" toast that vanishes would leave the reader pressing the
            button again, so it is kept on screen next to the button instead. */
+        if (res.status === 401 && d?.signInRequired) {
+          setFreeQuota({ used: 0, limit: 0, signIn: true });
+          return;
+        }
         if (res.status === 402 && d?.freeQuotaExhausted) {
-          setFreeQuota({ used: Number(d.used) || 0, limit: Number(d.limit) || 0 });
+          setFreeQuota({ used: Number(d.used) || 0, limit: Number(d.limit) || 0, signIn: false });
           return;
         }
         throw new Error(d.error || "Generation failed");
@@ -1420,10 +1424,19 @@ export default function PromptGeneratorView({
               no quote yet cannot promise a number, so it cannot be clicked. */}
           {freeQuota && (
             <div className="pgv-quota-note" role="status">
-              <strong>{freeQuota.used}/{freeQuota.limit} free generations used.</strong>{" "}
-              {noCharge
-                ? "This prompt only runs on the free generator, so there is nothing left to spend here."
-                : "Pick a paid generator below to keep going."}
+              {freeQuota.signIn ? (
+                <>
+                  <strong>Sign in to generate for free.</strong>{" "}
+                  A free generation belongs to an account — without one there is nothing to count it against.
+                </>
+              ) : (
+                <>
+                  <strong>{freeQuota.used}/{freeQuota.limit} free generations used.</strong>{" "}
+                  {noCharge
+                    ? "This prompt only runs on the free generator, so there is nothing left to spend here."
+                    : "Pick a paid generator below to keep going."}
+                </>
+              )}
             </div>
           )}
           <div className="pgv-generate-wrap">

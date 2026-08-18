@@ -51,3 +51,52 @@ export async function freeQuotaFor(
   const limit = FREE_GENERATIONS_PER_ACCOUNT;
   return { used, limit, remaining: Math.max(0, limit - used), exhausted: used >= limit };
 }
+
+/** Roles that carry the team's own access. Same set app/api/admin gates on. */
+const TEAM_ROLES = new Set(["admin", "mod"]);
+
+export type FreeDecision =
+  | { allowed: true; quota: FreeQuota | null }
+  | { allowed: false; reason: "sign-in" | "quota"; quota: FreeQuota | null };
+
+/**
+ * May this caller generate for free, and what is left.
+ *
+ * Three rules, in this order:
+ *
+ *  1. No session, no free generation. Not a policy preference — an anonymous
+ *     caller has no user_id, so there is nothing for a per-account allowance
+ *     to count against. The only handle on them is an IP, which whole offices
+ *     and mobile networks share and which anyone can change by toggling
+ *     flight mode. Leaving them unlimited made the allowance decorative:
+ *     the way around three-per-account was to log out.
+ *  2. The team generates without a limit while the beta runs (Kev,
+ *     2026-08-18). Read from users.role, the same marker app/api/admin gates
+ *     on, so granting it to someone else is a role change rather than a
+ *     deploy.
+ *  3. Everyone else gets the allowance.
+ */
+export async function freeGenerationDecision(
+  supabase: SupabaseClient,
+  userId: string | null,
+): Promise<FreeDecision> {
+  if (!userId) return { allowed: false, reason: "sign-in", quota: null };
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  /* A failed role lookup falls through to the allowance rather than granting
+     the team's exemption — an outage must not hand anyone unlimited free
+     generation, and the allowance below still protects the account. */
+  if (!error && data && TEAM_ROLES.has(String((data as { role?: string }).role ?? ""))) {
+    return { allowed: true, quota: null };
+  }
+
+  const quota = await freeQuotaFor(supabase, userId);
+  return quota.exhausted
+    ? { allowed: false, reason: "quota", quota }
+    : { allowed: true, quota };
+}
