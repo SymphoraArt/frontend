@@ -20,6 +20,7 @@ import { requireAuth, checkRateLimit } from "@/lib/auth";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, chooseRoute } from "@/lib/generation/models";
+import { normalizeTier, clampTier } from "@/lib/generation/resolution";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
 import type { VoidReason } from "@/lib/payments/authorization";
@@ -249,6 +250,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
+    /* The resolution is validated ONCE, here, and every read below uses the
+       result. It used to travel as the raw client string and get cast to the
+       tier union unchecked at the point of use — this route has no schema, only
+       prompt and intentId are shape-checked. So a lowercase "4k", which the
+       editor surfaces genuinely send, reached WaveSpeed's RESOLUTION_MAP, missed
+       every key, and fell back to '1k' — the SMALLEST tier — while the price
+       ladder below read the same string and charged for 4K. Refusing an
+       unreadable value is the only answer that cannot end in a buyer paying for
+       pixels nobody asked the provider for. */
+    const askedResolution = body.resolution == null ? null : normalizeTier(body.resolution);
+    if (body.resolution != null && askedResolution === null) {
+      return NextResponse.json(
+        { error: `resolution must be one of 1K, 2K, 4K (received ${JSON.stringify(body.resolution)})` },
+        { status: 400 },
+      );
+    }
+
     // --- SECURITY GUARDS ---
     // 1. Prompt length cap
     if (prompt.length > 4000) {
@@ -323,7 +341,7 @@ export async function POST(request: NextRequest) {
         boost: body.boost,
         quality: preflightModel.supportsQuality ? body.quality : null,
         resolution: preflightModel.supportsResolution
-          ? (body.resolution ?? null)
+          ? askedResolution
           : null,
         referenceImages: attachedRefs,
       },
@@ -443,7 +461,7 @@ export async function POST(request: NextRequest) {
       '2K': '$0.10',
       '4K': '$0.25',
     };
-    const basePrice = prices[body.resolution || '2K'] || '$0.10';
+    const basePrice = prices[askedResolution || '2K'] || '$0.10';
 
     // For upto scheme: max price is base price + 50% buffer for Gemini tokens
     // Min price is base price (for Pollinations image generation)
@@ -550,7 +568,7 @@ export async function POST(request: NextRequest) {
         const solana402 = buildSolana402Response({
           chainKey: solanaChain,
           resource: resourceUrl,
-          description: `Generate ${body.resolution || "2K"} image`,
+          description: `Generate ${askedResolution || "2K"} image`,
           priceUsdc: basePrice,
           payTo: solanaPlatformWallet,
           mimeType: "application/json",
@@ -650,7 +668,7 @@ export async function POST(request: NextRequest) {
           scheme: 'upto',
           maxPrice: maxPrice,
           minPrice: minPrice,
-          description: `Generate ${body.resolution || '2K'} image with AI enhancement`,
+          description: `Generate ${askedResolution || '2K'} image with AI enhancement`,
           payToAddress: serverWalletAddress,
           category: 'image-generation',
         },
@@ -710,7 +728,7 @@ export async function POST(request: NextRequest) {
         paymentHeader: paymentHeader || undefined,
         chainKey: chain,
         price: basePrice,
-        description: `Generate ${body.resolution || '2K'} image`,
+        description: `Generate ${askedResolution || '2K'} image`,
         payToAddress: serverWalletAddress,
         category: 'image-generation',
       });
@@ -848,8 +866,16 @@ export async function POST(request: NextRequest) {
         aspectRatio: (body.aspectRatio || body.ratio || "1:1") as ImageGenerationRequest["aspectRatio"],
         // Only sent to models that honour it. Asking gemini-2.5-flash-image for
         // 2K silently returns 1024² — and we would still have charged for 2K.
+        /* Clamped to what the CHOSEN route renders, not to what was asked.
+           The router can fail over to a different host mid-request, and asking
+           a host for a tier it does not have is how a 4K charge came back as a
+           1K picture with nothing reporting it. */
         imageSize: chosen.supportsResolution
-          ? ((paidResolution || body.resolution || "2K") as ImageGenerationRequest["imageSize"])
+          ? (clampTier(
+              normalizeTier(paidResolution) ?? askedResolution ?? "2K",
+              route.provider,
+              route.providerModel,
+            ) as ImageGenerationRequest["imageSize"])
           : undefined,
         // Reference images reached the model for the first time here: they were
         // uploaded, counted against the per-model cap and stored, and then
@@ -879,7 +905,7 @@ export async function POST(request: NextRequest) {
             ? generateImageWithPollinations(
                 shared.prompt,
                 shared.aspectRatio ?? "1:1",
-                (paidResolution || body.resolution || "2K") as string,
+                (normalizeTier(paidResolution) ?? askedResolution ?? "2K") as string,
               )
             : generateImagesWithGemini(shared);
 
@@ -1028,7 +1054,7 @@ export async function POST(request: NextRequest) {
             route: preflightRoute,
             boost: !!body.boost,
             aspectRatio: body.aspectRatio || body.ratio || null,
-            resolution: paidResolution || body.resolution || null,
+            resolution: normalizeTier(paidResolution) ?? askedResolution ?? null,
             // Only Pollinations exposes one, and it currently discards it.
             seed: null,
             output:
