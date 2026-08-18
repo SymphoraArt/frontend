@@ -104,7 +104,7 @@ export async function claimForGeneration(
   const now = new Date().toISOString();
   const { data: claimed, error: claimError } = await supabase
     .from(TABLE)
-    .update({ consumed_at: now, heartbeat_at: now, updated_at: now })
+    .update({ consumed_at: now, updated_at: now })
     .eq("id", intentId)
     .eq("buyer_wallet", buyerWallet)
     .not("authorized_at", "is", null)

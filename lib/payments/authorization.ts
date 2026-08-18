@@ -18,36 +18,54 @@
  * same nonce is the one outcome this file exists to make impossible.
  *
  * ── The abort condition ─────────────────────────────────────────────────
- * The authorisation dies at the first terminal state that is not delivery.
- * There is deliberately no deadline on the order: a durable nonce does not
- * expire, and inventing an expiry for it would kill slow-but-legitimate
- * generations while leaving finished ones armed.
+ * The authorisation dies at the first terminal state that is not delivery,
+ * and otherwise at a DEADLINE measured from the moment work started.
  *
- * What replaces it is a heartbeat. The running job says "still here" every
- * HEARTBEAT_INTERVAL_MS; an authorisation whose job has gone quiet for
- * HEARTBEAT_GRACE_MS is abandoned and gets voided by whoever notices. This is
- * state-driven in the way a deadline is not: the clock measures SILENCE, never
- * elapsed work, so a generation may take as long as it takes.
+ * This used to be a heartbeat: the running job renewed its claim every 15s and
+ * three missed beats meant abandoned. The argument for it was that a deadline
+ * would kill slow-but-legitimate generations. On this platform that argument
+ * does not hold — the generate route's own budget ladder makes the upper bound
+ * a fact rather than a guess:
  *
- * And silence really is proof of death here rather than a guess — past the
- * route's maxDuration the platform has already killed the process. The grace
- * is three missed beats, not a guessed duration.
+ *     285s  the route's in-process timeout
+ *     300s  maxDuration — Vercel kills the function here
+ *     330s  SLOT_TTL_MS
+ *     360s  everything above has expired; the worker is provably gone
+ *
+ * A generation CANNOT run past 300s, so nothing legitimate is ever cut short
+ * by waiting 360. The heartbeat was solving a problem the platform already
+ * solves, and it cost more than it bought: it needed a beat, a timer, a
+ * lost() signal nobody branched on, and it made the sweep's SELECT and its
+ * write disagree about a moving value — a race that voided live authorisations
+ * and shipped their images free.
+ *
+ * consumed_at is the anchor instead, set once by claimForGeneration when the
+ * work actually starts. It never moves, so selection and execution cannot
+ * disagree. Same rule generation-redemption.ts already used to decide a claim
+ * is provably dead.
+ *
+ * IF ENKI EVER LEAVES VERCEL this reasoning goes with it (Kev, 2026-08-19).
+ * Without a platform-enforced maxDuration there is no upper bound to derive a
+ * deadline from, and the heartbeat has to come back — it is in the history of
+ * this file, not lost.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptString, decryptString } from "@/lib/crypto";
 
 const TABLE = "generation_payment_intents";
 
-/** How often a running generation renews its claim. */
-export const HEARTBEAT_INTERVAL_MS = 15_000;
-
 /**
- * Three missed beats. Below that a GC pause or a slow DB write could void a
- * live job out from under itself; far above it, an orphaned authorisation
- * lingers for no reason. It is a liveness threshold, not a business rule —
- * nothing about the product changes if it moves.
+ * Past this, the worker that claimed an authorisation is provably gone: the
+ * route's function budget (maxDuration 300s) and the concurrency slot TTL
+ * (330s) have both expired. The same number and the same reasoning as
+ * STALE_CLAIM_MS in generation-redemption.ts, which decides the identical
+ * question for the prepaid path.
+ *
+ * Lower than this and the sweep races a generation that is still running,
+ * which either lets one payment buy two images or hands the first one over
+ * unpaid.
  */
-export const HEARTBEAT_GRACE_MS = 3 * HEARTBEAT_INTERVAL_MS;
+export const ABANDONED_AFTER_MS = 360_000;
 
 export type VoidReason =
   | "provider_failed"
@@ -68,15 +86,15 @@ export interface HeldAuthorization {
 const aadFor = (intentId: string) => `intent:${intentId}`;
 
 const nowIso = () => new Date().toISOString();
-const staleCutoff = () => new Date(Date.now() - HEARTBEAT_GRACE_MS).toISOString();
+const staleCutoff = () => new Date(Date.now() - ABANDONED_AFTER_MS).toISOString();
 
 /**
  * Record the buyer's signature and start beating in one write.
  *
- * heartbeat_at is set together with authorized_at on purpose: an authorised
- * row that never beat once would be invisible to a sweeper keyed on the
- * heartbeat, and a signature nobody is working on is exactly the thing that
- * must not survive.
+ * consumed_at stays NULL until claimForGeneration takes the work. An
+ * authorisation that is signed and never claimed is swept on authorized_at
+ * instead — a signature nobody is working on is exactly the thing that must
+ * not sit armed indefinitely.
  */
 export async function storeAuthorization(
   supabase: SupabaseClient,
@@ -101,7 +119,6 @@ export async function storeAuthorization(
     .from(TABLE)
     .update({
       authorized_at: now,
-      heartbeat_at: now,
       nonce_account: nonceAccount,
       nonce_authority: nonceAuthority,
       authorized_tx_ct: sealed.encrypted,
@@ -126,58 +143,6 @@ export async function storeAuthorization(
     return false;
   }
   return Boolean(data);
-}
-
-/**
- * Renew the claim. Returns false when the row is no longer ours to work on —
- * swept as abandoned, cancelled, or already terminal.
- *
- * A false here means STOP: something else has taken the decision, and carrying
- * on would produce an image against an authorisation that has been flushed.
- */
-export async function beat(supabase: SupabaseClient, intentId: string): Promise<boolean> {
-  const now = nowIso();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .update({ heartbeat_at: now, updated_at: now })
-    .eq("id", intentId)
-    .not("authorized_at", "is", null)
-    .is("captured_at", null)
-    .is("voided_at", null)
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    // A dropped beat is not proof of anything — the grace covers two more.
-    console.warn("[payments/auth] heartbeat failed:", error.message);
-    return true;
-  }
-  return Boolean(data);
-}
-
-/**
- * Beat in the background for the length of a generation.
- *
- * `lost()` goes true the moment a beat is refused, which the caller should
- * check before delivering: past that point the authorisation is gone.
- */
-export function startHeartbeat(
-  supabase: SupabaseClient,
-  intentId: string,
-): { stop: () => void; lost: () => boolean } {
-  let lost = false;
-  const timer = setInterval(() => {
-    void beat(supabase, intentId).then((ok) => {
-      if (!ok) lost = true;
-    });
-  }, HEARTBEAT_INTERVAL_MS);
-  // Never hold the process open for a heartbeat.
-  if (typeof timer.unref === "function") timer.unref();
-
-  return {
-    stop: () => clearInterval(timer),
-    lost: () => lost,
-  };
 }
 
 /**
@@ -267,15 +232,18 @@ export async function voidAuthorization(
 /**
  * Void a row ONLY IF it is still stale at the moment of the write.
  *
- * sweepAbandoned picks its victims with a heartbeat cutoff and then had to
- * kill them through voidAuthorization, whose WHERE knows nothing about
- * heartbeats. So a worker that beat successfully between the SELECT and the
- * UPDATE was killed anyway — exactly the race the sweep's own comment claimed
- * per-row voiding prevented. The predicate is repeated here verbatim, OR
- * branch included, so selection and execution agree; a NULL heartbeat does not
- * satisfy `lt`, which is why the second branch cannot be dropped.
+ * The predicate is repeated here verbatim, OR branch included, so selection
+ * and execution agree. A NULL consumed_at does not satisfy `lt`, which is why
+ * the second branch cannot be dropped: an authorisation that was signed and
+ * never claimed would otherwise be immortal.
  *
- * voidAuthorization stays heartbeat-blind on purpose: an explicit void
+ * With consumed_at this is belt and braces rather than a fix — the timestamp
+ * is written once by claimForGeneration and never moves, so the SELECT and the
+ * UPDATE cannot disagree about it. Under the heartbeat they could, and did:
+ * a beat landing between the two was ignored by the write, which voided live
+ * authorisations and shipped their images unpaid.
+ *
+ * voidAuthorization stays deadline-blind on purpose: an explicit void
  * (provider failed, buyer cancelled) is a decision, not an observation, and
  * must not be second-guessed by a timestamp.
  */
@@ -292,7 +260,7 @@ async function voidIfStale(
     .not("authorized_at", "is", null)
     .is("captured_at", null)
     .is("voided_at", null)
-    .or(`heartbeat_at.lt.${cutoff},and(heartbeat_at.is.null,authorized_at.lt.${cutoff})`)
+    .or(`consumed_at.lt.${cutoff},and(consumed_at.is.null,authorized_at.lt.${cutoff})`)
     .select("id, nonce_account")
     .maybeSingle();
 
@@ -312,10 +280,11 @@ async function voidIfStale(
  * uses. Under load that runs constantly; with no traffic there is also nobody
  * whose nonce could be misused.
  *
- * Each row is voided through voidIfStale rather than in one bulk UPDATE, so a
- * worker that woke up between the SELECT and the write keeps its claim. That
- * sentence used to name voidAuthorization and was simply false: its WHERE
- * carried no heartbeat condition, so the recheck it promised never happened.
+ * Each row is voided through voidIfStale rather than in one bulk UPDATE, so
+ * the staleness is re-checked at the moment of the write. Under the heartbeat
+ * that recheck was the difference between correct and catastrophic; with
+ * consumed_at it is cheap insurance, because the value cannot change between
+ * the two statements.
  */
 export async function sweepAbandoned(
   supabase: SupabaseClient,
@@ -328,10 +297,10 @@ export async function sweepAbandoned(
     .not("authorized_at", "is", null)
     .is("captured_at", null)
     .is("voided_at", null)
-    // The null branch is defence in depth: storeAuthorization always writes a
-    // first beat, so a null heartbeat on an authorised row is a bug, and this
-    // makes the bug self-clearing instead of permanent.
-    .or(`heartbeat_at.lt.${cutoff},and(heartbeat_at.is.null,authorized_at.lt.${cutoff})`)
+    // The null branch is the normal case, not defence in depth: consumed_at
+    // is NULL for every authorisation that was signed and never claimed, and
+    // those are swept on how long ago they were authorised.
+    .or(`consumed_at.lt.${cutoff},and(consumed_at.is.null,authorized_at.lt.${cutoff})`)
     .limit(limit);
 
   if (error) {
@@ -341,8 +310,7 @@ export async function sweepAbandoned(
 
   const flushed: { intentId: string; nonceAccount: string | null }[] = [];
   for (const row of data ?? []) {
-    // Re-checked at write time against the same cutoff the SELECT used, so a
-    // beat that landed in between saves the row.
+    // Re-checked at write time against the same cutoff the SELECT used.
     const won = await voidIfStale(supabase, row.id as string, cutoff);
     if (won) flushed.push(won);
   }

@@ -25,7 +25,7 @@ import { toModelFamily } from "@/lib/generation/model-family";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
 import { solanaChainKey } from "@/lib/payments/solana";
-import { startHeartbeat, type VoidReason } from "@/lib/payments/authorization";
+import type { VoidReason } from "@/lib/payments/authorization";
 import { reportSuccess, reportFailure } from "@/lib/generation/provider-health";
 import { recordModerationEvent } from "@/lib/moderation-enforcement";
 import { recordGeneration, resolveRecordingUserId } from "@/lib/generation/record";
@@ -219,18 +219,6 @@ export async function POST(request: NextRequest) {
   // catch-all below — must release it so the buyer retries without paying
   // again.
   let consumedIntent: { supabase: SupabaseClient; id: string; mode: ClaimMode } | null = null;
-  /* Keeps an authorisation alive for as long as this request is working on it.
-   *
-   * sweepAbandoned() voids any authorised intent whose heartbeat is older than
-   * HEARTBEAT_GRACE_MS (45s), and a nano-banana-pro generation takes 73-78s.
-   * startHeartbeat existed for exactly this and had ZERO callers — no route
-   * ever started one, so every authorisation was already 30 seconds past the
-   * grace by the time its own image was ready. Any second request to this
-   * route sweeps opportunistically on the way in (see after(sweepAndFlush)
-   * below), so a live generation was voided by ordinary concurrent traffic,
-   * its nonce account closed, and the image delivered uncaptured. */
-  let heartbeat: { stop: () => void; lost: () => boolean } | null = null;
-  const stopHeartbeat = () => { heartbeat?.stop(); heartbeat = null; };
   /**
    * Give the payment back. What that MEANS depends on the model, and the two
    * are not interchangeable:
@@ -245,8 +233,6 @@ export async function POST(request: NextRequest) {
     if (!consumedIntent) return;
     const held = consumedIntent;
     consumedIntent = null;
-    // The claim is going away; beating for it would keep a dead row warm.
-    stopHeartbeat();
     if (held.mode === "authorized") {
       await voidAndFlush(held.supabase, held.id, reason).catch((e) =>
         console.error("[generate] void failed:", held.id, e instanceof Error ? e.message : e),
@@ -652,9 +638,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: redemption.error }, { status: redemption.status });
       }
       consumedIntent = { supabase, id: intentId, mode: redemption.mode };
-      // Only an AUTHORIZED intent can be swept — a prepaid one has already
-      // settled and has nothing left to lose.
-      if (redemption.mode === "authorized") heartbeat = startHeartbeat(supabase, intentId);
       paidResolution = redemption.resolution;
 
       /* The buyer must receive the model they paid for.
@@ -1179,13 +1162,7 @@ export async function POST(request: NextRequest) {
           // Either way the buyer keeps the image: a durable-nonce transaction
           // does not expire, so a failed broadcast stays rebroadcastable, and
           // only we can invalidate that nonce.
-          /* Which of the two it was, said out loud. A lost heartbeat means the
-             sweeper took the row out from under a live generation, and that is
-             a different postmortem from a broadcast that failed on the network
-             — one is our own concurrency, the other is the cluster. */
-          console.error("[generate] delivered but not captured:", settled.id, {
-            heartbeatLost: heartbeat?.lost() ?? null,
-          });
+          console.error("[generate] delivered but not captured:", settled.id);
         }
       }
       // Marks the intent delivered so the stale-claim rescue can never mistake
@@ -1305,9 +1282,5 @@ export async function POST(request: NextRequest) {
     // the retry it just paid for. releaseHeldSlot() nulls its own reference,
     // so the explicit calls on the success and failure paths stay correct.
     await releaseHeldSlot();
-    // Same reason as the slot: the early returns between claiming and
-    // answering are the ones that matter, and a timer left beating would
-    // renew a claim nobody is working on.
-    stopHeartbeat();
   }
 }

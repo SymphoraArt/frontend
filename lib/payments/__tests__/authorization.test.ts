@@ -126,7 +126,7 @@ const quotedRow = (over: Row = {}): Row => ({
   total_micro: 250_000,
   status: "quoted",
   authorized_at: null,
-  heartbeat_at: null,
+  consumed_at: null,
   captured_at: null,
   voided_at: null,
   void_reason: null,
@@ -160,14 +160,17 @@ describe("generation authorisation", () => {
     (await import("@/lib/crypto")).resetKeyringCache();
   });
 
-  it("starts beating in the same write that records the signature", async () => {
+  it("records the signature without claiming the work", async () => {
     const rows = [quotedRow()];
     const row = await authorized(rows);
 
-    // A signature with no first beat would be invisible to the sweeper, and a
-    // signature nobody is working on is exactly what must not survive.
     expect(row.authorized_at).toBeTruthy();
-    expect(row.heartbeat_at).toBe(row.authorized_at);
+    /* consumed_at is the in-flight marker and belongs to claimForGeneration,
+       not to this write. Setting it here would tell the sweeper a generation
+       was already running the moment the buyer signed, and start its 360s
+       deadline against work that had not begun. The unclaimed case is swept on
+       authorized_at instead. */
+    expect(row.consumed_at ?? null).toBeNull();
     expect(row.status).toBe("generating");
   });
 
@@ -245,14 +248,19 @@ describe("capture and void are mutually exclusive", () => {
     expect(await captureAuthorization(fakeClient(rows), INTENT)).toBeNull();
   });
 
-  it("tells a running job it lost, so it stops", async () => {
-    const { beat, voidAuthorization } = await mod();
+  it("a voided authorisation can no longer be captured", async () => {
+    /* This replaces a test of beat(), which told a running job it had lost so
+       it could stop. There is no beat any more: the abort condition is a
+       deadline on consumed_at, not silence. What still has to hold is the part
+       that protected the money — once something else has taken the decision,
+       the capture must not go through. */
+    const { captureAuthorization, voidAuthorization } = await mod();
     const rows = [quotedRow()];
     await authorized(rows);
 
-    expect(await beat(fakeClient(rows), INTENT)).toBe(true);
     await voidAuthorization(fakeClient(rows), INTENT, "cancelled");
-    expect(await beat(fakeClient(rows), INTENT)).toBe(false);
+    expect(await captureAuthorization(fakeClient(rows), INTENT)).toBeNull();
+    expect(rows[0].captured_at ?? null).toBeNull();
   });
 });
 
@@ -263,7 +271,7 @@ describe("the abort condition is silence, not elapsed time", () => {
   });
 
   it("leaves a two-hour-old authorisation alone while it is still beating", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
 
@@ -271,17 +279,17 @@ describe("the abort condition is silence, not elapsed time", () => {
     // because the worker is still there. This is the whole point of the
     // design: no generation dies of taking long.
     row.authorized_at = ago(2 * 60 * 60_000);
-    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS / 3);
+    row.consumed_at = ago(ABANDONED_AFTER_MS / 3);
 
     expect(await sweepAbandoned(fakeClient(rows))).toEqual([]);
     expect(rows[0].voided_at).toBeNull();
   });
 
   it("voids one that went quiet, and says which nonce to flush", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
-    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS + 1000);
+    row.consumed_at = ago(ABANDONED_AFTER_MS + 1000);
 
     const flushed = await sweepAbandoned(fakeClient(rows));
     expect(flushed).toEqual([{ intentId: INTENT, nonceAccount: "NonceAcc111" }]);
@@ -293,29 +301,29 @@ describe("the abort condition is silence, not elapsed time", () => {
     const rows = [quotedRow()];
     const row = await authorized(rows);
     // One missed beat is a slow DB write, not a death. The grace is three.
-    row.heartbeat_at = ago(20_000);
+    row.consumed_at = ago(20_000);
 
     expect(await sweepAbandoned(fakeClient(rows))).toEqual([]);
   });
 
   it("clears an authorised row that never beat, rather than leaving it forever", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
     // storeAuthorization always writes a first beat, so this state is a bug —
     // the sweep makes the bug self-clearing instead of a permanent live nonce.
-    row.heartbeat_at = null;
-    row.authorized_at = ago(HEARTBEAT_GRACE_MS + 1000);
+    row.consumed_at = null;
+    row.authorized_at = ago(ABANDONED_AFTER_MS + 1000);
 
     expect(await sweepAbandoned(fakeClient(rows))).toHaveLength(1);
   });
 
   it("leaves settled rows out of the sweep entirely", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
-    const stale = ago(HEARTBEAT_GRACE_MS + 1000);
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
+    const stale = ago(ABANDONED_AFTER_MS + 1000);
     const rows = [
-      quotedRow({ id: "a", authorized_at: stale, heartbeat_at: stale, captured_at: stale }),
-      quotedRow({ id: "b", authorized_at: stale, heartbeat_at: stale, voided_at: stale }),
+      quotedRow({ id: "a", authorized_at: stale, consumed_at: stale, captured_at: stale }),
+      quotedRow({ id: "b", authorized_at: stale, consumed_at: stale, voided_at: stale }),
       quotedRow({ id: "c" }), // never authorised: only a quote, no signature to flush
     ];
     expect(await sweepAbandoned(fakeClient(rows))).toEqual([]);
@@ -358,15 +366,15 @@ describe("a beat that lands mid-sweep saves the row", () => {
   }
 
   it("leaves the row alone when the heartbeat refreshed after the SELECT", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
-    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS * 2); // stale, so the SELECT takes it
+    row.consumed_at = ago(ABANDONED_AFTER_MS * 2); // stale, so the SELECT takes it
 
     // The worker wakes up between the SELECT and the write — the exact race
     // the sweep's comment promised was handled.
     const flushed = await sweepAbandoned(racingClient(rows, () => {
-      row.heartbeat_at = new Date().toISOString();
+      row.consumed_at = new Date().toISOString();
     }));
 
     expect(flushed).toEqual([]);
@@ -375,10 +383,10 @@ describe("a beat that lands mid-sweep saves the row", () => {
   });
 
   it("still voids a row that is genuinely silent — the fix must not disable the sweep", async () => {
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
-    row.heartbeat_at = ago(HEARTBEAT_GRACE_MS * 2);
+    row.consumed_at = ago(ABANDONED_AFTER_MS * 2);
 
     const flushed = await sweepAbandoned(fakeClient(rows));
 
@@ -389,11 +397,11 @@ describe("a beat that lands mid-sweep saves the row", () => {
   it("still voids an authorised row that never beat at all", async () => {
     // The OR's second branch: a NULL heartbeat does not satisfy `lt`, so
     // dropping it from the write would make this row immortal.
-    const { sweepAbandoned, HEARTBEAT_GRACE_MS } = await mod();
+    const { sweepAbandoned, ABANDONED_AFTER_MS } = await mod();
     const rows = [quotedRow()];
     const row = await authorized(rows);
-    row.heartbeat_at = null;
-    row.authorized_at = ago(HEARTBEAT_GRACE_MS * 2);
+    row.consumed_at = null;
+    row.authorized_at = ago(ABANDONED_AFTER_MS * 2);
 
     const flushed = await sweepAbandoned(fakeClient(rows));
 
