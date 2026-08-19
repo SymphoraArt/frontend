@@ -14,6 +14,7 @@ import { useModelCatalogue } from "@/hooks/useModelLimits";
 import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
+import { railVars as railVarsOf } from "@/lib/editor/rail-vars";
 import {
   EditName, NcSelect, ncQualities, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
@@ -273,30 +274,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
     api.onToast(`"${seg}" is now a variable.`);
   };
 
-  /* ── rail cards: body order, overridden by the user's manual order ── */
-  const railVars = useMemo(() => {
-    const order = new Map<string, number>();
-    let m: RegExpExecArray | null;
-    const re = new RegExp(TOKEN_RE.source, "g");
-    while ((m = re.exec(st.body)) !== null) if (!order.has(m[0])) order.set(m[0], m.index);
-    /* One card per NAME. addText no longer mints a second node for a name in
-       use, but a draft saved before that fix can still carry two nodes with one
-       name, and the rail keys everything — cards, tops, connector lines — by
-       "[name]". Two nodes under one key is the duplicate-key error Kev hit,
-       plus a phantom card with no chip to anchor to. First occurrence wins;
-       the second node is not deleted here (that is the editor's decision, not
-       the view's), it is simply not drawn twice. */
-    const seen = new Set<string>();
-    return texts
-      .filter((t) => (seen.has(t.name) ? false : (seen.add(t.name), true)))
-      .sort((a, b) => (order.get("[" + a.name + "]") ?? 1e9) - (order.get("[" + b.name + "]") ?? 1e9));
-  }, [st.body, texts]);
-  const orderedVars = useMemo(() => {
-    if (!varOrder) return railVars;
-    const idx = new Map(varOrder.map((n, i) => [n, i]));
-    // manual order wins; unknown (new) vars keep body order at the end
-    return railVars.slice().sort((a, b) => (idx.get(a.name) ?? 1e9) - (idx.get(b.name) ?? 1e9));
-  }, [railVars, varOrder]);
+  /* ── rail cards: body order, overridden by the user's manual order ──
+     The rule lives in lib/editor/rail-vars.ts so it can be tested without a
+     DOM; it is the list every card, top and connector line keys on. */
+  const orderedVars = useMemo(() => railVarsOf(st.body, texts, varOrder), [st.body, texts, varOrder]);
   const orderedVarsRef = useRef(orderedVars); orderedVarsRef.current = orderedVars;
 
   const needsSetup = (t: TextNode) => (t.kind === "bool" ? !(t.str && t.str.trim()) : !t.value.trim());
