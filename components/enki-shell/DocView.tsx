@@ -279,8 +279,16 @@ export default function DocView({ api }: { api: DocViewApi }) {
     let m: RegExpExecArray | null;
     const re = new RegExp(TOKEN_RE.source, "g");
     while ((m = re.exec(st.body)) !== null) if (!order.has(m[0])) order.set(m[0], m.index);
+    /* One card per NAME. addText no longer mints a second node for a name in
+       use, but a draft saved before that fix can still carry two nodes with one
+       name, and the rail keys everything — cards, tops, connector lines — by
+       "[name]". Two nodes under one key is the duplicate-key error Kev hit,
+       plus a phantom card with no chip to anchor to. First occurrence wins;
+       the second node is not deleted here (that is the editor's decision, not
+       the view's), it is simply not drawn twice. */
+    const seen = new Set<string>();
     return texts
-      .slice()
+      .filter((t) => (seen.has(t.name) ? false : (seen.add(t.name), true)))
       .sort((a, b) => (order.get("[" + a.name + "]") ?? 1e9) - (order.get("[" + b.name + "]") ?? 1e9));
   }, [st.body, texts]);
   const orderedVars = useMemo(() => {
@@ -522,7 +530,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     const alive = refTok ? refN >= 1 && refN <= liveRefCount : liveTokNames.has(name);
                     if (!alive) return <span key={i}>{part}</span>;
                     const c = colorForTok(part);
-                    const isPub = pubNames.has(name);
+                    // Same rule as NodeCreator: a reference image marked as
+                    // user input gets the ring on its token too, not just on
+                    // its card. Ref tokens are numbered by position.
+                    const isPub = refTok ? !!refs[refN - 1]?.userInput : pubNames.has(name);
                     return (
                       <span key={i}
                         data-tok={refTok ? undefined : part}

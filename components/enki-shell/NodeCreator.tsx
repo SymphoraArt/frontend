@@ -838,6 +838,16 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const existing = p.nodes.filter((n) => n.type === "text");
     const k = existing.length + 1;
     const used = new Set(existing.map((n) => n.name));
+    /* A preset name that already backs a node is a no-op, not a second node.
+       Only the AUTO name was deduplicated; a presetName — the in-place token
+       editor spawning a node for a typed [token] — went straight through, so
+       typing [foo] twice, or renaming a token onto a name in use, produced two
+       nodes with one name. Downstream that is two rail cards for one token,
+       one of them with no chip to anchor to (it floats at the rail's bottom —
+       Kev's "viel zu viel Abstand"), and React's duplicate-key error on the
+       connector lines. The token is already in the body and the node already
+       exists; there is nothing left to add. */
+    if (presetName && used.has(presetName)) return p;
     // presetName: the in-place token editor spawns the node for an already
     // typed [token], so the node must carry exactly that name.
     let name = presetName ?? "var_" + k;
@@ -1610,7 +1620,16 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                       // [bracketed] text comes back, no chip.
                       const alive = ref ? refN >= 1 && refN <= liveRefCount : liveTokNames.has(name);
                       if (!alive) return <span key={i}>{part}</span>;
-                      const c = colorForTok(part); const isPub = pubNames.has(name);
+                      const c = colorForTok(part);
+                      /* The turquoise ring means "the buyer supplies this",
+                         and a reference image can be user input exactly like a
+                         text variable can — its card already shows the ring via
+                         .nc-refcard.ui. The token in the SENTENCE never did,
+                         because isPub only ever consulted pubNames, which holds
+                         text-variable names (Kev, 2026-08-19). Ref tokens are
+                         numbered by POSITION — deleting or reordering renumbers
+                         them — so token N is refs[N-1]. */
+                      const isPub = ref ? !!refs[refN - 1]?.userInput : pubNames.has(name);
                       const tokStyle = {
                         "--tok-bg": c.bg,
                         "--tok-ring": isPub

@@ -942,6 +942,33 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
 }
 .pgv-lightbox-close:hover { background: rgba(255,255,255,0.16); }
 
+/* Paging arrows at the edges, same chrome as the close button so the three
+   read as one control set. Only rendered when there is more than one image —
+   a dead arrow on a single picture is a promise of something that is not
+   there. Large hit target, because the lightbox is a place you look, not a
+   place you aim. */
+.pgv-lightbox-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 72px; border-radius: 10px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--pgv-text);
+  transition: background 0.15s;
+}
+.pgv-lightbox-nav:hover { background: rgba(255,255,255,0.16); }
+.pgv-lightbox-nav--prev { left: 18px; }
+.pgv-lightbox-nav--next { right: 18px; }
+/* The lightbox is white-on-near-black regardless of theme; var(--pgv-text)
+   would be near-black in light mode and vanish here. */
+.pgv-lightbox-nav, .pgv-lightbox-close { color: #f4f1eb; }
+.pgv-lightbox-count {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  padding: 4px 10px; border-radius: 999px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  color: #f4f1eb; font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px;
+  pointer-events: none;
+}
+
 /* ── Responsive ──
    The history is NOT dropped when the window narrows. It used to be
    `display: none` below 960px with nothing in its place, so every generated

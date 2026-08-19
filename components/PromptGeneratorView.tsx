@@ -24,6 +24,8 @@ import {
   Image as ImageIcon,
   MessageSquare,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Crop,
   Maximize2,
   Link2 as LinkIcon,
@@ -129,7 +131,35 @@ export default function PromptGeneratorView({
 
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  /* The lightbox holds a COLLECTION and a position in it, not a lone url, so
+     the arrows and the keyboard can page through whatever was opened — the
+     reference deck, the history, or the single result (Kev, 2026-08-19). */
+  const [lightbox, setLightbox] = useState<{ urls: string[]; at: number } | null>(null);
+  const openLightbox = useCallback((urls: string[], at: number) => {
+    if (urls.length === 0) return;
+    setLightbox({ urls, at: Math.max(0, Math.min(at, urls.length - 1)) });
+  }, []);
+  const stepLightbox = useCallback((dir: 1 | -1) => {
+    setLightbox(lb => {
+      if (!lb || lb.urls.length < 2) return lb;
+      // Wrap rather than stop: on a deck of 4, going "right" from the last
+      // one is a clearer "back to the first" than a dead arrow.
+      const at = (lb.at + dir + lb.urls.length) % lb.urls.length;
+      return { ...lb, at };
+    });
+  }, []);
+  // Arrow keys page, Escape closes. Bound only while the lightbox is open so
+  // the rest of the view keeps its own keyboard handling.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") { e.preventDefault(); stepLightbox(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); stepLightbox(-1); }
+      else if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, stepLightbox]);
   const [activeThumb, setActiveThumb] = useState(0);
   const [thumbOffset, setThumbOffset] = useState(0);
   const [activeTab, setActiveTab] = useState<"comments" | "reviews">("comments");
@@ -1293,7 +1323,16 @@ export default function PromptGeneratorView({
                       }}
                       onDragEnd={endRefDrag}
                     >
-                      <img src={img} alt={`Reference ${idx + 1}`} draggable={false} />
+                      {/* Click zooms, and the zoom pages through the whole
+                          deck. Drag still reorders — a drag never fires the
+                          click, so the two gestures do not collide. */}
+                      <img
+                        src={img}
+                        alt={`Reference ${idx + 1}`}
+                        draggable={false}
+                        onClick={() => openLightbox(refs, idx)}
+                        style={{ cursor: "zoom-in" }}
+                      />
                       <span className="pgv-ref-num" aria-hidden="true">{idx + 1}</span>
                       <button
                         type="button"
@@ -1456,7 +1495,7 @@ export default function PromptGeneratorView({
             </div>
           )}
           {displayImage
-            ? <img src={displayImage} alt={title} onClick={() => setLightbox(displayImage)} style={{ cursor: "pointer" }} />
+            ? <img src={displayImage} alt={title} onClick={() => openLightbox([displayImage], 0)} style={{ cursor: "pointer" }} />
             : <ImageIcon size={56} color="#333" />
           }
           {/* Action buttons — appear on hover when result is ready */}
@@ -1606,7 +1645,7 @@ export default function PromptGeneratorView({
             <div
               key={idx}
               className="pgv-history-item"
-              onClick={() => setLightbox(url)}
+              onClick={() => openLightbox(history, idx)}
             >
               <img src={url} alt="" />
               <span className="pgv-history-status success">✓</span>
@@ -1623,10 +1662,35 @@ export default function PromptGeneratorView({
       {/* Lightbox */}
       {lightbox && (
         <div className="pgv-lightbox" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="Expanded" />
-          <button className="pgv-lightbox-close" onClick={() => setLightbox(null)}>
+          <img src={lightbox.urls[lightbox.at]} alt={`Expanded ${lightbox.at + 1} of ${lightbox.urls.length}`} />
+          <button className="pgv-lightbox-close" onClick={() => setLightbox(null)} aria-label="Close">
             <X size={18} />
           </button>
+          {lightbox.urls.length > 1 && (
+            <>
+              {/* Edge arrows, stopPropagation so the backdrop's close does not
+                  swallow the click. The same step the arrow keys take. */}
+              <button
+                type="button"
+                className="pgv-lightbox-nav pgv-lightbox-nav--prev"
+                onClick={e => { e.stopPropagation(); stepLightbox(-1); }}
+                aria-label="Previous image"
+              >
+                <ChevronLeft size={26} />
+              </button>
+              <button
+                type="button"
+                className="pgv-lightbox-nav pgv-lightbox-nav--next"
+                onClick={e => { e.stopPropagation(); stepLightbox(1); }}
+                aria-label="Next image"
+              >
+                <ChevronRight size={26} />
+              </button>
+              <span className="pgv-lightbox-count" aria-live="polite">
+                {lightbox.at + 1} / {lightbox.urls.length}
+              </span>
+            </>
+          )}
         </div>
       )}
     </div>
