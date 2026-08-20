@@ -5,12 +5,12 @@
    Nano Banana Pro generation (Puter.js) + best-effort DB persistence. */
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
-import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
+import { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue } from "@/hooks/useModelLimits";
 import { FREE_TIERS, PAID_TIERS, tiersUpTo } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
+import { Ratio as RatioIcon, Maximize2, Gem } from "lucide-react";
 import { Icon } from "./icons";
 import { generateWithModel, persistCreation, placeholderArt } from "./generation";
 import { useModelLimits } from "@/hooks/useModelLimits";
@@ -1684,8 +1684,28 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   {/* Model-specific settings belong to the PROMPT, so they are
                       set where the prompt is written (Kev, 2026-08-19) — not
                       discovered later on the generate panel. Only models that
-                      honour the lever show it. */}
-                  {supportsQuality && <QualitySelect value={quality} onChange={setQuality} available />}
+                      honour the lever show it.
+
+                      An NcSelect like its neighbours, not the shared
+                      QualitySelect: that one is a native <select>, so its
+                      trigger could never match this row and its dropdown was
+                      the browser's own washed-out popup (Kev's screenshot).
+                      The price spread is the sub text — it is the point of
+                      the lever: ~35x between low and high. */}
+                  {supportsQuality && (
+                    <NcSelect
+                      icon={<Gem size={13} style={{ color: "var(--enki-ink-3)" }} />}
+                      value={quality}
+                      width={84}
+                      title="Quality — the gpt-image price lever (low ≈ $0.006, mid ≈ $0.053, high ≈ $0.211 per image at 1024²)"
+                      options={[
+                        { value: "low", label: "Low", sub: "$" },
+                        { value: "medium", label: "Mid", sub: "$$" },
+                        { value: "high", label: "High", sub: "$$$" },
+                      ]}
+                      onChange={(v) => setQuality(v as Quality)}
+                    />
+                  )}
                 </div>
                 {/* Dice + Generate as one cluster: the row is space-between,
                     so a bare sibling would strand the dice mid-row. */}
