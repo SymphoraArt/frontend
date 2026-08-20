@@ -619,7 +619,13 @@ p {
 }
 
 html {
-  scrollbar-gutter: stable;
+  /* No reserved gutter. `scrollbar-gutter: stable` held a scrollbar-wide
+     column on the right edge of EVERY page, scrollbar or not — and in the
+     shell most surfaces scroll in inner containers, so the page-level bar
+     rarely exists and the column read as dead space (Kev, 2026-08-19,
+     screenshot). The cost of removing it is a small layout shift on the
+     transition between scrolling and non-scrolling pages, which is the
+     honest trade: space when and only when the bar is real. */
   scrollbar-color: hsl(var(--border) / 0.8) transparent;
 }
 

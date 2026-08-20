@@ -616,3 +616,26 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-res-status{flex:1;min-width:0;font-family:var(--font-mono),monospace;font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--enki-ink-3);line-height:1.4;}
 .ncd-res-status.ready{color:#1f8a5b;}
 @media (max-width:960px){.ncd-results,.ncd-lever--edge{display:none;}}
+
+/* ── Price stepper (ribbon) ──────────────────────────────────────────────
+   The native number spinner is the browser's own widget and matches nothing
+   here (Kev, 2026-08-19, screenshot) — hidden, and replaced by two ordinary
+   Enki buttons. Stepping plays a quick roll of the number in the step's
+   direction: up slides the value in from below, down from above, so the
+   motion agrees with which way the price moved. */
+.nc-rb-price input::-webkit-outer-spin-button,
+.nc-rb-price input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.nc-rb-price input { -moz-appearance: textfield; appearance: textfield; }
+.nc-price-steps { display: flex; flex-direction: column; flex-shrink: 0; margin-right: -4px; }
+.nc-price-steps button {
+  display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 13px; padding: 0; border: none; border-radius: 4px;
+  background: none; color: var(--enki-ink-3); cursor: pointer;
+  transition: color .12s ease, background .12s ease;
+}
+.nc-price-steps button:hover:not(:disabled) { color: var(--enki-ember); background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.nc-price-steps button:disabled { opacity: .35; cursor: default; }
+@keyframes nc-price-up { from { transform: translateY(55%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes nc-price-down { from { transform: translateY(-55%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.nc-rb-price input.nc-price-roll-up { animation: nc-price-up .16s ease-out; }
+.nc-rb-price input.nc-price-roll-down { animation: nc-price-down .16s ease-out; }

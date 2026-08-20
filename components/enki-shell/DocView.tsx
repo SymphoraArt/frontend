@@ -278,6 +278,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
      The rule lives in lib/editor/rail-vars.ts so it can be tested without a
      DOM; it is the list every card, top and connector line keys on. */
   const orderedVars = useMemo(() => railVarsOf(st.body, texts, varOrder), [st.body, texts, varOrder]);
+  /* Same derivation as the node view: the tiers the selected model genuinely
+     renders, from /api/models, not a hardcoded list. */
+  const docCatalogue = useModelCatalogue();
+  const docTiers = ncQualities(st.mode, docCatalogue.find((m) => m.id === st.models[0])?.maxResolution);
   const orderedVarsRef = useRef(orderedVars); orderedVarsRef.current = orderedVars;
 
   const needsSetup = (t: TextNode) => (t.kind === "bool" ? !(t.str && t.str.trim()) : !t.value.trim());
@@ -590,9 +594,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <div className="ncd-genrow2">
                   <NcSelect value={st.ratio} width={85} title="Aspect ratio"
                     options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
-                  <NcSelect value={st.quality} width={85} title="Quality"
-                    options={ncQualities(st.mode).map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
-                    onChange={api.setQuality} />
+                  {docTiers.length > 0 && (
+                    <NcSelect value={docTiers.includes(st.quality) ? st.quality : docTiers[docTiers.length - 1]} width={85} title="Resolution"
+                      options={docTiers.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
+                      onChange={api.setQuality} />
+                  )}
                 </div>
               </div>
               </div>

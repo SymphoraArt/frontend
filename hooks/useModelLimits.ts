@@ -45,6 +45,9 @@ interface ModelRow {
   max_reference_images?: number;
   allowed_filetypes?: string[];
   allowed_ratios?: string[];
+  /** Resolved server-side by /api/models via withCapabilities(). */
+  maxResolution?: string;
+  supportsQuality?: boolean;
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -117,11 +120,19 @@ export interface CatalogueEntry {
    * setting in front of the user that changes nothing.
    */
   supportsQuality: boolean;
+  /**
+   * The largest resolution tier this model genuinely renders, resolved
+   * SERVER-SIDE from its provider route — the same answer the generation
+   * enforces. The pickers used to hardcode their tier lists instead, which is
+   * how "2K/4K" appeared for models that cannot do either (Kev, 2026-08-19:
+   * "das soll doch eher derived from the database sein").
+   */
+  maxResolution: "1K" | "2K" | "4K";
 }
 
 /** Kept for the window before /api/models answers, and if it never does. */
 export const FALLBACK_CATALOGUE: CatalogueEntry[] = [
-  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04, supportsQuality: false },
+  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04, supportsQuality: false, maxResolution: "4K" },
 ];
 
 export function useModelCatalogue(): CatalogueEntry[] {
@@ -145,10 +156,16 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
       // A missing price is 0 and therefore free — never a guessed number,
       // because a guessed price is one a user might be charged.
       price: typeof r.price === "number" ? r.price : 0,
-      // Kept in step with BY_SLUG in lib/generation/models.ts, which is what
-      // the server enforces. The client only decides whether to SHOW the
-      // control; the server decides whether to send the value.
-      supportsQuality: /gpt.?image/i.test(String(r.name)),
+      /* Server-resolved when present (/api/models runs withCapabilities, the
+         same code the generation enforces); the old client-side derivations
+         only cover the window where a cached pre-upgrade response is still in
+         flight. A name regex and a hardcoded tier list are exactly the
+         split-brain that put "2K/4K" in front of models that can do neither. */
+      supportsQuality:
+        typeof r.supportsQuality === "boolean" ? r.supportsQuality : /gpt.?image/i.test(String(r.name)),
+      maxResolution: (r.maxResolution === "1K" || r.maxResolution === "2K" || r.maxResolution === "4K"
+        ? r.maxResolution
+        : "2K") as CatalogueEntry["maxResolution"],
     }));
   return out.length ? out : FALLBACK_CATALOGUE;
 }

@@ -7,7 +7,7 @@
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue } from "@/hooks/useModelLimits";
-import { FREE_TIERS, PAID_TIERS } from "@/lib/generation/resolution";
+import { FREE_TIERS, PAID_TIERS, tiersUpTo } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2 } from "lucide-react";
@@ -94,8 +94,19 @@ export type St = {
  * image under a bigger name, and NC_QUALITY_MULT below charged x2 for it.
  * Premium starts at 2K because the quote and intent schemas do.
  */
-export const ncQualities = (mode: St["mode"]): readonly string[] =>
-  mode === "free" ? FREE_TIERS : PAID_TIERS;
+export const ncQualities = (mode: St["mode"], maxResolution?: "1K" | "2K" | "4K"): readonly string[] => {
+  if (mode === "free") return FREE_TIERS;
+  /* Premium: the tiers the SELECTED MODEL genuinely renders, intersected with
+     what the paid checkout accepts (2K floor — the quote and intent schemas
+     are z.enum(["2K","4K"])). The list used to be hardcoded, so "2K/4K" showed
+     for models whose route caps below that; the ceiling now arrives from
+     /api/models, resolved by the same code the generation enforces (Kev,
+     2026-08-19). No ceiling yet (catalogue still loading) reads as 2K-only —
+     the floor — rather than promising 4K on a guess. An empty list means the
+     model takes no resolution at all, and the caller hides the control. */
+  const cap = maxResolution ?? "2K";
+  return tiersUpTo(cap).filter((t) => (PAID_TIERS as readonly string[]).includes(t));
+};
 // price multiplier per quality (relative to the model's base 2K price)
 export const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
 export type TextNode = NodeT & { name: string; kind: Kind; value: string };
@@ -315,6 +326,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   // The real generator list, from the database. NC_MODELS is only the window
   // before /api/models answers.
   const catalogue = useModelCatalogue();
+  /* Which way the price is rolling, for the step animation; cleared by
+     onAnimationEnd so a held click can re-trigger. */
+  const [priceRoll, setPriceRoll] = useState<"up" | "down" | null>(null);
   // Refs, because finalizeOutput is a useCallback: reading these from the
   // render scope would pin it to whatever the catalogue was on first paint.
   const catalogueRef = useRef(catalogue);
@@ -328,8 +342,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const [quality, setQuality] = useState<Quality>("medium");
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
-  const supportsQuality =
-    catalogue.find((m) => m.id === st.models[0])?.supportsQuality ?? false;
+  const selectedModel = catalogue.find((m) => m.id === st.models[0]);
+  const supportsQuality = selectedModel?.supportsQuality ?? false;
+  const qualityTiers = ncQualities(st.mode, selectedModel?.maxResolution);
   const mockModeRef = useRef(false); mockModeRef.current = mockMode;
   // canvas tool: "select" (left = marquee, right = pan) or "hand" (left = pan)
   const [tool, setTool] = useState<"select" | "hand">("select");
@@ -1662,8 +1677,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                 <div className="nc-genopts">
                   <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={104} title="Aspect ratio · does not affect grouping"
                     options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
-                  <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.quality} width={88} title="Quality · does not affect grouping"
-                    options={ncQualities(st.mode).map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
+                  {qualityTiers.length > 0 && (
+                    <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={qualityTiers.includes(st.quality) ? st.quality : qualityTiers[qualityTiers.length - 1]} width={88} title="Resolution · does not affect grouping"
+                      options={qualityTiers.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
+                  )}
+                  {/* Model-specific settings belong to the PROMPT, so they are
+                      set where the prompt is written (Kev, 2026-08-19) — not
+                      discovered later on the generate panel. Only models that
+                      honour the lever show it. */}
+                  {supportsQuality && <QualitySelect value={quality} onChange={setQuality} available />}
                 </div>
                 {/* Dice + Generate as one cluster: the row is space-between,
                     so a bare sibling would strand the dice mid-row. */}
@@ -1906,7 +1928,6 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         </div>
         <div className="nc-gp-gen" style={{ marginBottom: 6 }}>
           <BoostToggle boost={boost} onChange={setBoost} />
-          <QualitySelect value={quality} onChange={setQuality} available={supportsQuality} />
         </div>
         <div className="nc-gp-gen">
           <button className="nc-gp-btn" onClick={() => runGenerate(true)} title="Autofill variables & generate"><Icon name="wand" size={12} stroke={2} /> Autofill</button>
@@ -1970,18 +1991,28 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             options={[{ value: "", label: "Any" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]}
             onChange={(v) => setSt((p) => ({ ...p, cat: v }))} />
         </div>
-        <div className="nc-rb-cell">
-          <span className="nc-rb-lab">Ratio</span>
-          <NcSelect value={st.ratio} width={92} title="Aspect ratio"
-            options={NC_RATIOS.map((r) => ({ value: r, label: r }))}
-            onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
-        </div>
         <div className="nc-rb-cell" style={{ opacity: st.mode === "premium" ? 1 : 0.35, transition: "opacity .15s" }}>
           <span className="nc-rb-lab">Price · render</span>
           <div className="nc-rb-price" title={st.mode === "premium" ? "What a buyer pays you per render" : "Price applies in Premium mode only"}>
             <span>$</span>
             <input type="number" step={0.01} min={0} value={st.price} disabled={st.mode !== "premium"}
+              className={priceRoll ? "nc-price-roll-" + priceRoll : undefined}
+              onAnimationEnd={() => setPriceRoll(null)}
               onChange={(e) => setSt((p) => ({ ...p, price: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+            {/* The native spinner is hidden in CSS — it is the browser's
+                widget and matches nothing here (Kev's screenshot). These two
+                are ordinary Enki buttons, and stepping plays a quick roll of
+                the number in the step's direction. */}
+            <span className="nc-price-steps" aria-hidden={st.mode !== "premium"}>
+              <button type="button" tabIndex={-1} disabled={st.mode !== "premium"} title="+ $0.01"
+                onClick={() => { setPriceRoll("up"); setSt((p) => ({ ...p, price: Math.round((p.price + 0.01) * 100) / 100 })); }}>
+                <Icon name="chevronUp" size={10} stroke={2.6} />
+              </button>
+              <button type="button" tabIndex={-1} disabled={st.mode !== "premium"} title="− $0.01"
+                onClick={() => { setPriceRoll("down"); setSt((p) => ({ ...p, price: Math.max(0, Math.round((p.price - 0.01) * 100) / 100) })); }}>
+                <Icon name="chevronDown" size={10} stroke={2.6} />
+              </button>
+            </span>
           </div>
         </div>
       </div>
