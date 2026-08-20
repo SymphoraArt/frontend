@@ -16,6 +16,7 @@ import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { resolveSessionUserId } from "@/lib/session-user";
 import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mailer";
+import { MANUAL_REMINDER_MAX, MANUAL_REMINDER_COOLDOWN_MS } from "@/lib/recovery/manual-reminder";
 import { encryptString, decryptString } from "@/lib/crypto";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "@/lib/totp";
 import { sendSms } from "@/lib/sms";
@@ -43,6 +44,7 @@ type GuardianRow = {
   status: "pending" | "confirmed" | "unresponsive";
   invite_token: string;
   reminder_count?: number;
+  manual_reminder_count?: number;
   last_reminded_at?: string | null;
   created_at?: string;
 };
@@ -58,6 +60,17 @@ function shape(g: GuardianRow) {
     status: g.status,
     inviteToken: linkType && g.status !== "confirmed" ? g.invite_token : null,
     reminderCount: g.reminder_count ?? 0,
+    /* For the "Send reminder" button: how many manual sends remain, and when
+       the next one is allowed. Computed here so the panel renders a disabled
+       state that agrees with what the remind route would answer, instead of
+       letting the user click into a 429. */
+    manualRemindersLeft: Math.max(0, MANUAL_REMINDER_MAX - (g.manual_reminder_count ?? 0)),
+    nextManualReminderAt: (() => {
+      const last = g.last_reminded_at ?? g.created_at ?? null;
+      if (!last) return null;
+      const t = Date.parse(last);
+      return Number.isFinite(t) ? new Date(t + MANUAL_REMINDER_COOLDOWN_MS).toISOString() : null;
+    })(),
   };
 }
 
@@ -119,7 +132,7 @@ export async function GET(req: NextRequest) {
   const [gRes, settingsRes] = await Promise.all([
     supabase
       .from("recovery_guardians")
-      .select("id, guardian_type, value, label, status, invite_token, reminder_count, last_reminded_at, created_at")
+      .select("id, guardian_type, value, label, status, invite_token, reminder_count, manual_reminder_count, last_reminded_at, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
     supabase.from("recovery_settings").select("threshold").eq("user_id", userId).maybeSingle(),

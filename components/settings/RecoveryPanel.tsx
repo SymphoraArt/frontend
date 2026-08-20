@@ -30,6 +30,8 @@ interface Guardian {
   status: "pending" | "confirmed" | "unresponsive";
   inviteToken: string | null; // present while pending or unresponsive
   reminderCount?: number;
+  manualRemindersLeft?: number;
+  nextManualReminderAt?: string | null;
 }
 
 /**
@@ -323,6 +325,32 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
     else toast({ title: "Couldn't save threshold", variant: "destructive" });
   };
 
+  const [remindBusy, setRemindBusy] = useState<string | null>(null);
+  const sendReminder = async (guardianId: string) => {
+    setRemindBusy(guardianId);
+    try {
+      const res = await fetch("/api/recovery/guardians/remind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+        body: JSON.stringify({ guardianId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast({
+          title: "Reminder sent",
+          description: `${d.remindersLeft ?? "?"} of 7 reminders left for this guardian.`,
+        });
+      } else {
+        toast({ title: "Couldn't send the reminder", description: d.error, variant: "destructive" });
+      }
+      // Either way the server state moved (or told us why not) — re-read it so
+      // the button's disabled state stays the server's answer, not our guess.
+      loadGuardians();
+    } finally {
+      setRemindBusy(null);
+    }
+  };
+
   const copyInvite = async (g: Guardian) => {
     if (!g.inviteToken) return;
     const url = `${window.location.origin}/guardian?token=${encodeURIComponent(g.inviteToken)}`;
@@ -493,6 +521,27 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
                 {g.status === "unresponsive" && (
                   <button className="set-btn set-btn-dark" onClick={() => reInvite(g.id)}>Re-invite</button>
                 )}
+                {g.status === "pending" && g.guardianType === "email" && (() => {
+                  /* Disabled states mirror what the remind route would answer,
+                     so the button never clicks into a 429. The limits protect
+                     the guardian — a stranger who never asked for the role —
+                     which is why they live on the server and this only reads
+                     them. */
+                  const left = g.manualRemindersLeft ?? 0;
+                  const readyAt = g.nextManualReminderAt ? Date.parse(g.nextManualReminderAt) : 0;
+                  const cooling = Number.isFinite(readyAt) && readyAt > Date.now();
+                  const disabled = remindBusy === g.id || left <= 0 || cooling;
+                  const title = left <= 0
+                    ? "All 7 reminders for this guardian have been used"
+                    : cooling
+                      ? `A reminder went out in the last 24 hours — next one ${new Date(readyAt).toLocaleString()}`
+                      : `${left} of 7 reminders left`;
+                  return (
+                    <button className="set-btn set-btn-outline" disabled={disabled} title={title} onClick={() => sendReminder(g.id)}>
+                      {remindBusy === g.id ? "Sending…" : "Send reminder"}
+                    </button>
+                  );
+                })()}
                 {g.status === "pending" && (g.guardianType === "email" || g.guardianType === "wallet") && (
                   <button className="set-btn set-btn-outline" onClick={() => copyInvite(g)}>Copy link</button>
                 )}
