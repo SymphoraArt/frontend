@@ -278,6 +278,30 @@ export async function resolveModelByName(
 }
 
 /**
+ * Catalogue rows for /api/models: the raw fields the UI already reads, plus
+ * the CAPABILITY facts resolved the same way the generation itself resolves
+ * them. The pickers were deriving these client-side — supportsQuality from a
+ * name regex, resolution tiers from a hardcoded list — which is exactly the
+ * split-brain this file exists to prevent: the server would honour one answer
+ * while the UI offered another (Kev, 2026-08-19: "das soll doch eher derived
+ * from the database sein").
+ */
+export function withCapabilities(rows: ModelRow[], audience: Audience = "public") {
+  return rows.map((row) => {
+    const m = fromRow(row, audience);
+    // The embed rides in for fromRow and stays out of the response: the UI
+    // needs the answers, not the provider wiring behind them.
+    const { model_providers: _links, ...raw } = row as ModelRow & { model_providers?: unknown };
+    return {
+      ...raw,
+      maxResolution: m.maxResolution,
+      supportsResolution: m.supportsResolution,
+      supportsQuality: m.supportsQuality,
+    };
+  });
+}
+
+/**
  * The model a PAYMENT is for, resolved from the family key on its intent.
  *
  * The paid caller sends { intentId, prompt, aspectRatio } and NO modelIds — it

@@ -1,22 +1,35 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClientSafe } from "@/lib/supabaseServer";
+import { withCapabilities } from "@/lib/generation/models";
 
 export async function GET() {
   try {
     const supabase = getSupabaseServerClientSafe();
 
     if (supabase) {
-      // select("*") so the per-model limits (max_reference_images,
-      // allowed_filetypes — 2026-07-12-model-limits.sql) ride along once the
-      // migration ran, and their absence before it can't break the query.
-      const { data, error } = await supabase
+      // The provider embed lets withCapabilities() resolve maxResolution and
+      // supportsQuality the same way the generation itself does — the pickers
+      // used to derive these client-side and drift from what the server would
+      // honour. Falls back to a plain select("*") when the embed errors (the
+      // window before the providers migration), where the slug bridge inside
+      // fromRow() takes over.
+      const embed =
+        "*, model_providers(id, role, provider_model, active, priority, applies_when, provider_id, providers(id, key, audience, active))";
+      let { data, error } = await supabase
         .from("models")
-        .select("*")
+        .select(embed)
         .eq("active", true)
         .order("price", { ascending: true });
+      if (error) {
+        ({ data, error } = await supabase
+          .from("models")
+          .select("*")
+          .eq("active", true)
+          .order("price", { ascending: true }));
+      }
 
       if (!error && data && data.length > 0) {
-        return NextResponse.json(data);
+        return NextResponse.json(withCapabilities(data as Parameters<typeof withCapabilities>[0]));
       }
 
       if (error) {
