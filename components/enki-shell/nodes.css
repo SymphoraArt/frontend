@@ -548,7 +548,9 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .ncd-genopts{display:flex;flex-direction:column;align-items:stretch;gap:5px;}
 .ncd-genrow2{display:flex;gap:6px;}
 /* compact pickers: smaller trigger, price/sub only inside the open dropdown */
-.ncd-genopts .nc-pm-trigger{height:24px;font-size:11px;padding:0 6px;gap:4px;width:100%;}
+/* 12.5px, not 11: at 11px the whole row read as fine print next to the
+   serif page (Kev, 2026-08-19). Height rises with it so the text has air. */
+.ncd-genopts .nc-pm-trigger{height:28px;font-size:12.5px;padding:0 8px;gap:5px;width:100%;}
 .ncd-genopts .nc-pm-trigger>.nc-pm-price{display:none;}
 .ncd-genopts .nc-pm-trigger .nc-pm-chev{width:11px;height:11px;}
 .ncd-autofill{white-space:nowrap;}

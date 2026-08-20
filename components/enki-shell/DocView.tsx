@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
-import { useModelCatalogue } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
 import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -286,7 +286,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
   /* Same derivation as the node view: the tiers the selected model genuinely
      renders, from /api/models, not a hardcoded list. */
   const docCatalogue = useModelCatalogue();
-  const docTiers = ncQualities(st.mode, docCatalogue.find((m) => m.id === st.models[0])?.maxResolution);
+  /* Resolver, not an exact-id find: drafts carry the model as a slug. */
+  const docModel = resolveCatalogueEntry(docCatalogue, st.models[0]);
+  const docTiers = ncQualities(st.mode, docModel?.maxResolution);
   const orderedVarsRef = useRef(orderedVars); orderedVarsRef.current = orderedVars;
 
   const needsSetup = (t: TextNode) => (t.kind === "bool" ? !(t.str && t.str.trim()) : !t.value.trim());
@@ -598,7 +600,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   (Kev, 2026-08-19: "viel zu kleingedruckt ... model nach
                   links und any und resolution UND QUALITY nebeneinander"). */}
               <div className="ncd-genopts ncd-genopts--row">
-                <NcSelect value={st.models[0]} width={150} title="Model used for this prompt"
+                <NcSelect value={docModel?.id ?? st.models[0]} width={150} title="Model used for this prompt"
                   options={catalogue.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
                 <NcSelect value={st.ratio} width={80} grow={false} title="Aspect ratio"

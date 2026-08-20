@@ -6,7 +6,7 @@
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
-import { useModelCatalogue } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
 import { FREE_TIERS, PAID_TIERS, tiersUpTo } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -364,7 +364,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const [quality, setQuality] = useState<Quality>("medium");
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
-  const selectedModel = catalogue.find((m) => m.id === st.models[0]);
+  /* By id OR by family slug: drafts store "nano-banana-pro" while the DB
+     keys models by UUID, and an exact-id find missed for every draft that
+     never re-picked its model — hiding the gpt lever and zeroing the cost
+     line. */
+  const selectedModel = resolveCatalogueEntry(catalogue, st.models[0]);
   const supportsQuality = selectedModel?.supportsQuality ?? false;
   const qualityTiers = ncQualities(st.mode, selectedModel?.maxResolution);
   const mockModeRef = useRef(false); mockModeRef.current = mockMode;
@@ -1317,7 +1321,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const qualityMult = NC_QUALITY_MULT[st.quality] ?? 1;
   // Priced from the catalogue, so what is shown is what the server will
   // charge. It used to come from a constant with invented numbers.
-  const perImage = st.models.reduce((sum, id) => sum + (catalogue.find((m) => m.id === id)?.price ?? 0), 0) * qualityMult;
+  const perImage = st.models.reduce((sum, id) => sum + (resolveCatalogueEntry(catalogue, id)?.price ?? 0), 0) * qualityMult;
   const imgCount = st.genCount;
   const cost = perImage * imgCount;
   const pickedOuts = outs.filter((o) => o.picked && o.img); // images marked for public release (always one group)
@@ -1591,8 +1595,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               <div className={"nc-pm" + (modelFlipUp ? " nc-pm--up" : "")} onPointerDown={(e) => e.stopPropagation()}>
                 <button ref={modelTrigRef} className={"nc-pm-trigger" + (modelOpen ? " open" : "")} title="Model used for this prompt — price shown is the production cost"
                   onClick={(e) => { e.stopPropagation(); if (!modelOpen) { const r = modelTrigRef.current?.getBoundingClientRect(); const ph = catalogue.length * 38 + 16; if (r) setModelFlipUp(window.innerHeight - r.bottom < ph + 14 && r.top > ph + 14); } setModelOpen((o) => !o); }}>
-                  <span className="nc-pm-name">{(catalogue.find((m) => m.id === st.models[0]) || catalogue[0])?.name ?? "—"}</span>
-                  <span className="nc-pm-price">${((catalogue.find((m) => m.id === st.models[0]) || catalogue[0])?.price ?? 0).toFixed(2)}</span>
+                  <span className="nc-pm-name">{(resolveCatalogueEntry(catalogue, st.models[0]) || catalogue[0])?.name ?? "—"}</span>
+                  <span className="nc-pm-price">${((resolveCatalogueEntry(catalogue, st.models[0]) || catalogue[0])?.price ?? 0).toFixed(2)}</span>
                   <Icon name="chevronDown" size={13} stroke={2.4} className="nc-pm-chev" />
                 </button>
                 {modelOpen && (

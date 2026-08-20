@@ -9,6 +9,7 @@
  * Fail-open to sane defaults so the UIs work before the migration ran.
  */
 import { useEffect, useState } from "react";
+import { toModelFamily } from "@/lib/generation/model-family";
 
 export interface ModelLimits {
   maxRefs: number;
@@ -128,6 +129,36 @@ export interface CatalogueEntry {
    * "das soll doch eher derived from the database sein").
    */
   maxResolution: "1K" | "2K" | "4K";
+}
+
+/**
+ * Find a catalogue entry by whatever id a draft is carrying.
+ *
+ * Drafts and the editor's initial state store the model as a SLUG
+ * ("nano-banana-pro"), while the live models table keys rows by UUID. Every
+ * lookup that compared `m.id === stored` therefore missed for any draft that
+ * never re-picked its model: the doc select rendered the raw slug, the gpt
+ * lever never appeared, and the cost line showed $0.00 for the default model
+ * (Kev's screenshot, 2026-08-19). Matching falls back to the name's family
+ * slug, which is exactly what those stored slugs are.
+ */
+export function resolveCatalogueEntry(
+  catalogue: CatalogueEntry[],
+  idOrSlug: string | undefined,
+): CatalogueEntry | undefined {
+  if (!idOrSlug) return undefined;
+  /* Two slug dialects exist in the wild and a draft may carry either:
+     toModelFamily strips parentheticals ("Flux (free)" -> "flux"), while the
+     BY_SLUG bridge in lib/generation/models.ts keeps them ("flux-free").
+     Found by this function's own test asserting "flux-free" and failing. */
+  const plainSlug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return (
+    catalogue.find((m) => m.id === idOrSlug) ??
+    catalogue.find(
+      (m) => toModelFamily(m.name) === idOrSlug || plainSlug(m.name) === idOrSlug,
+    )
+  );
 }
 
 /** Kept for the window before /api/models answers, and if it never does. */
