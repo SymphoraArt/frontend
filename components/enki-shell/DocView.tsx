@@ -56,6 +56,11 @@ export interface DocViewApi {
   setModel: (id: string) => void;
   setRatio: (v: string) => void;
   setQuality: (v: string) => void;
+  /* The gpt low/medium/high lever — model-specific settings live where the
+     prompt is written, in BOTH views. */
+  gptQuality: string;
+  setGptQuality: (v: string) => void;
+  supportsGptQuality: boolean;
   onToast: (msg: string) => void;
   switchView: (v: EditorView) => void;
 }
@@ -100,7 +105,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
   // Card layout engine: measured tops (null = its token is scrolled out of
   // view), connector lines, manual order override, and the drag in flight.
   const [tops, setTops] = useState<Record<string, number | null>>({});
-  const [lines, setLines] = useState<Array<{ tok: string; d: string; color: string; active: boolean }>>([]);
+  const [lines, setLines] = useState<Array<{ tok: string; d: string; x1: number; x2: number; color: string; active: boolean }>>([]);
   const [railH, setRailH] = useState(280);
   const [varOrder, setVarOrder] = useState<string[] | null>(null);
   const [dragTok, setDragTok] = useState<string | null>(null);
@@ -372,7 +377,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
         const x1 = a.x + 2, y1 = a.cy;
         const x2 = railX - 2, y2 = railY + (nextTops[tk] as number) + 15;
         const mx = (x1 + x2) / 2;
-        return { tok: tk, d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, color: colorForTok(tk).border, active: openVarRef.current === tk };
+        /* x1/x2 ride along for the stroke gradient: the segment over the
+           page text is muted, full strength arrives at the rail. */
+        return { tok: tk, d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, x1, x2, color: colorForTok(tk).border, active: openVarRef.current === tk };
       });
 
     const sig = JSON.stringify([nextTops, nextLines.map((l) => l.d + l.active), maxB]);
@@ -585,21 +592,32 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <button className="ncd-ref-add" title="Upload reference images" onClick={() => refUpRef.current?.click()}>+</button>
                 <input ref={refUpRef} type="file" accept={api.modelAccept} multiple style={{ display: "none" }} onChange={(e) => { api.addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
               </div>
-              <div className="ncd-genopts">
-                <NcSelect value={st.models[0]} width={176} title="Model used for this prompt"
+              {/* ONE row: model leads on the left, then ratio, resolution
+                  and the gpt quality lever side by side. The stacked layout
+                  read as fine print — a wide model box over two small selects
+                  (Kev, 2026-08-19: "viel zu kleingedruckt ... model nach
+                  links und any und resolution UND QUALITY nebeneinander"). */}
+              <div className="ncd-genopts ncd-genopts--row">
+                <NcSelect value={st.models[0]} width={150} title="Model used for this prompt"
                   options={catalogue.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
-                {/* ratio + quality share the row; together they line up with the
-                    model dropdown's right border */}
-                <div className="ncd-genrow2">
-                  <NcSelect value={st.ratio} width={85} title="Aspect ratio"
-                    options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
-                  {docTiers.length > 0 && (
-                    <NcSelect value={docTiers.includes(st.quality) ? st.quality : docTiers[docTiers.length - 1]} width={85} title="Resolution"
-                      options={docTiers.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
-                      onChange={api.setQuality} />
-                  )}
-                </div>
+                <NcSelect value={st.ratio} width={80} grow={false} title="Aspect ratio"
+                  options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
+                {docTiers.length > 0 && (
+                  <NcSelect value={docTiers.includes(st.quality) ? st.quality : docTiers[docTiers.length - 1]} width={70} grow={false} title="Resolution"
+                    options={docTiers.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
+                    onChange={api.setQuality} />
+                )}
+                {api.supportsGptQuality && (
+                  <NcSelect value={api.gptQuality} width={78} grow={false}
+                    title="Quality — how much detail GPT-Image-2 renders. Your price is the same on every setting."
+                    options={[
+                      { value: "low", label: "Low" },
+                      { value: "medium", label: "Mid" },
+                      { value: "high", label: "High" },
+                    ]}
+                    onChange={api.setGptQuality} />
+                )}
               </div>
               </div>
               <div className="ncd-foot-r">
@@ -632,8 +650,23 @@ export default function DocView({ api }: { api: DocViewApi }) {
 
           {/* dashed connectors from each chip to its card */}
           <svg className="ncd-lines" aria-hidden>
-            {lines.map((l) => (
-              <path key={l.tok} className={l.active ? "active" : undefined} d={l.d} stroke={l.color} />
+            {/* The stroke is a gradient in USER SPACE, not a colour: near the
+                chip it runs at ~30% so the words it crosses stay readable
+                (Kev, 2026-08-19), and it reaches full strength by the rail
+                where there is nothing to read underneath. The chips
+                themselves sit ABOVE this layer (z-index in nodes.css), so a
+                line can never cross chip text at all. */}
+            <defs>
+              {lines.map((l, i) => (
+                <linearGradient key={l.tok} id={"ncd-lg-" + i} gradientUnits="userSpaceOnUse" x1={l.x1} y1={0} x2={l.x2} y2={0}>
+                  <stop offset="0%" stopColor={l.color} stopOpacity={0.28} />
+                  <stop offset="55%" stopColor={l.color} stopOpacity={0.55} />
+                  <stop offset="100%" stopColor={l.color} stopOpacity={1} />
+                </linearGradient>
+              ))}
+            </defs>
+            {lines.map((l, i) => (
+              <path key={l.tok} className={l.active ? "active" : undefined} d={l.d} stroke={"url(#ncd-lg-" + i + ")"} />
             ))}
           </svg>
 

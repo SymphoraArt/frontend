@@ -639,3 +639,25 @@ button.nc-out-var:hover{filter:brightness(.96);}
 @keyframes nc-price-down { from { transform: translateY(-55%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .nc-rb-price input.nc-price-roll-up { animation: nc-price-up .16s ease-out; }
 .nc-rb-price input.nc-price-roll-down { animation: nc-price-down .16s ease-out; }
+
+/* The canvas plays the same entry the doc view does. Doc slides in because
+   .ncd carries nc-pm-in; the canvas sat mounted underneath it, so switching
+   back merely removed the overlay and the nodes just popped into place. */
+.nc-canvas--in{animation:nc-pm-in .14s ease;}
+
+/* Chips sit above the connector layer (z-index 3): a line may pass UNDER a
+   chip but never through its text (Kev, 2026-08-19). */
+.ncd .nc-tok{z-index:4;}
+/* Short bounded enums (ratio, tier, Low/Mid/High): the open panel hugs the
+   trigger instead of the 132px floor meant for model names. */
+.nc-sel--fixed .nc-pm-panel{min-width:100%;}
+/* The digit view of the price: same metrics as the input it swaps with, and
+   each span can roll on its own. */
+.nc-price-view{display:inline-flex;border:none;background:none;padding:0;margin:0;width:100%;min-width:0;font-family:var(--font-mono),monospace;font-size:12px;color:var(--enki-ink);cursor:text;text-align:left;}
+.nc-price-view:disabled{cursor:not-allowed;color:var(--enki-ink-3);}
+.nc-price-view span{display:inline-block;}
+.nc-price-view span.nc-price-roll-up{animation:nc-price-up .16s ease-out;}
+.nc-price-view span.nc-price-roll-down{animation:nc-price-down .16s ease-out;}
+
+/* Doc footer: everything on one line — model leads, the enums follow. */
+.ncd-genopts--row{flex-direction:row;align-items:center;gap:7px;flex-wrap:wrap;}

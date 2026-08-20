@@ -107,8 +107,12 @@ export const ncQualities = (mode: St["mode"], maxResolution?: "1K" | "2K" | "4K"
   const cap = maxResolution ?? "2K";
   return tiersUpTo(cap).filter((t) => (PAID_TIERS as readonly string[]).includes(t));
 };
-// price multiplier per quality (relative to the model's base 2K price)
-export const NC_QUALITY_MULT: Record<string, number> = { "1K": 0.5, "2K": 1, "4K": 2 };
+/* Price multiplier per resolution, relative to the model's base 2K price.
+   1K is 1, not 0.5: both hosts charge 1K and 2K identically (Google, 1120
+   tokens either way; WaveSpeed nano-banana-pro, $0.14 either way), and the
+   server prices a 1K request as the 2K tier (lib/pricing.toResolutionTier).
+   Halving it here made the editor's estimate disagree with the real quote. */
+export const NC_QUALITY_MULT: Record<string, number> = { "1K": 1, "2K": 1, "4K": 2 };
 export type TextNode = NodeT & { name: string; kind: Kind; value: string };
 
 const sigOf = (body: string, texts: TextNode[]) => body + "||" + texts.map((t) => t.name + ":" + t.kind).join(",");
@@ -160,9 +164,17 @@ export function EditName({ value, onChange, className, placeholder, title }: { v
 
 /* Custom themed dropdown (same look + animation as the prompt's model picker),
    reused for every select in the editor so they all match. */
-export function NcSelect({ value, options, onChange, width, title, align = "left", icon }: {
+export function NcSelect({ value, options, onChange, width, title, align = "left", icon, grow = true }: {
   value: string; options: { value: string; label: string; sub?: string }[]; onChange: (v: string) => void;
   width?: number; title?: string; align?: "left" | "right"; icon?: ReactNode;
+  /**
+   * true (default): `width` is a MINIMUM and the trigger grows for long labels
+   * — the truncation fix, right for free-form values like model names.
+   * false: `width` is FIXED — right for short bounded enums (ratios, tiers,
+   * Low/Mid/High), where growing per selection makes the control jitter as
+   * you pick (Kev, 2026-08-19: "NICHT groesser oder kleiner beim auswahl").
+   */
+  grow?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [flipUp, setFlipUp] = useState(false);
@@ -192,7 +204,7 @@ export function NcSelect({ value, options, onChange, width, title, align = "left
        und nicht vollständig lesbar" (Kev). As a minimum it still lines the
        controls up at their common size and simply grows for the values that
        need it, and the ellipsis stays as the last resort for extreme ones. */
-    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "")} ref={ref} style={width ? { minWidth: width } : undefined} onPointerDown={(e) => e.stopPropagation()}>
+    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "") + (grow ? "" : " nc-sel--fixed")} ref={ref} style={width ? (grow ? { minWidth: width } : { width }) : undefined} onPointerDown={(e) => e.stopPropagation()}>
       {/* The title names the field AND the current value, so even a label that
           does hit the ellipsis is readable in full without opening the list. */}
       <button ref={trigRef} className={"nc-pm-trigger" + (open ? " open" : "")} title={title ? `${title} — ${cur ? cur.label : value}` : (cur ? cur.label : value)} onClick={(e) => { e.stopPropagation(); toggle(); }}>
@@ -280,7 +292,13 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     return "doc";
   });
   const viewRef = useRef(view); viewRef.current = view;
+  /* Doc view animates in (.ncd carries nc-pm-in); the canvas is mounted
+     UNDERNEATH it the whole time, so switching back merely removed the
+     overlay and the nodes just popped (Kev, 2026-08-19). The same entry
+     plays on the canvas when it becomes the visible view. */
+  const [canvasIn, setCanvasIn] = useState(false);
   const switchView = (v: EditorView) => {
+    if (v === "node") setCanvasIn(true);
     if (v === viewRef.current) return;
     setView(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* noop */ }
@@ -329,6 +347,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   /* Which way the price is rolling, for the step animation; cleared by
      onAnimationEnd so a held click can re-trigger. */
   const [priceRoll, setPriceRoll] = useState<"up" | "down" | null>(null);
+  /* The value BEFORE the step, so the digit view knows which digits changed
+     — only those roll. */
+  const prevPriceRef = useRef(0);
+  const [priceEdit, setPriceEdit] = useState(false);
   // Refs, because finalizeOutput is a useCallback: reading these from the
   // render scope would pin it to whatever the catalogue was on first paint.
   const catalogueRef = useRef(catalogue);
@@ -1532,7 +1554,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     <div className="nc" onDrop={onCanvasDrop} onDragOver={(e) => { if (!e.dataTransfer.types.includes("Files")) return; e.preventDefault(); setDropOn(true); }} onDragLeave={(e) => { if (e.currentTarget === e.target) setDropOn(false); }}>
       {/* canvas — stays MOUNTED in doc view (display:none) so pan/zoom and the
           wheel-handler wiring survive an instant view switch */}
-      <div ref={canvasRef} className={"nc-canvas" + (panning ? " panning" : "") + (tool === "hand" ? " hand" : "")}
+      <div ref={canvasRef} className={"nc-canvas" + (panning ? " panning" : "") + (tool === "hand" ? " hand" : "") + (canvasIn ? " nc-canvas--in" : "")}
+        onAnimationEnd={() => setCanvasIn(false)}
         style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px`, display: view === "node" ? undefined : "none" }}
         onPointerDown={startPan}
         onContextMenu={(e) => { e.preventDefault(); if (rightPan.current.moved) { rightPan.current.moved = false; return; } setCtx({ x: e.clientX, y: e.clientY, wx: (e.clientX - sidebarWRef.current - pan.x) / zoom, wy: (e.clientY - pan.y) / zoom }); }}>
@@ -1675,10 +1698,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </div>
               <div className="nc-addrow nc-addrow--gen">
                 <div className="nc-genopts">
-                  <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={104} title="Aspect ratio · does not affect grouping"
+                  <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={88} grow={false} title="Aspect ratio · does not affect grouping"
                     options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
                   {qualityTiers.length > 0 && (
-                    <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={qualityTiers.includes(st.quality) ? st.quality : qualityTiers[qualityTiers.length - 1]} width={88} title="Resolution · does not affect grouping"
+                    <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={qualityTiers.includes(st.quality) ? st.quality : qualityTiers[qualityTiers.length - 1]} width={72} grow={false} title="Resolution · does not affect grouping"
                       options={qualityTiers.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                   )}
                   {/* Model-specific settings belong to the PROMPT, so they are
@@ -1690,18 +1713,25 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                       QualitySelect: that one is a native <select>, so its
                       trigger could never match this row and its dropdown was
                       the browser's own washed-out popup (Kev's screenshot).
-                      The price spread is the sub text — it is the point of
-                      the lever: ~35x between low and high. */}
+
+                      No price marks on the options. Quality moves OUR provider
+                      cost (~35x spread on OpenAI), but the quote and the
+                      intent do not read the field, so what Kev and his buyers
+                      are CHARGED is identical on every setting — verified
+                      2026-08-19, neither schema knows `quality`. Dollar signs
+                      here claimed a difference that does not exist for the
+                      person looking at them. */}
                   {supportsQuality && (
                     <NcSelect
                       icon={<Gem size={13} style={{ color: "var(--enki-ink-3)" }} />}
                       value={quality}
                       width={84}
-                      title="Quality — the gpt-image price lever (low ≈ $0.006, mid ≈ $0.053, high ≈ $0.211 per image at 1024²)"
+                      grow={false}
+                      title="Quality — how much detail GPT-Image-2 renders. Your price is the same on every setting."
                       options={[
-                        { value: "low", label: "Low", sub: "$" },
-                        { value: "medium", label: "Mid", sub: "$$" },
-                        { value: "high", label: "High", sub: "$$$" },
+                        { value: "low", label: "Low" },
+                        { value: "medium", label: "Mid" },
+                        { value: "high", label: "High" },
                       ]}
                       onChange={(v) => setQuality(v as Quality)}
                     />
@@ -2015,21 +2045,41 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           <span className="nc-rb-lab">Price · render</span>
           <div className="nc-rb-price" title={st.mode === "premium" ? "What a buyer pays you per render" : "Price applies in Premium mode only"}>
             <span>$</span>
-            <input type="number" step={0.01} min={0} value={st.price} disabled={st.mode !== "premium"}
-              className={priceRoll ? "nc-price-roll-" + priceRoll : undefined}
-              onAnimationEnd={() => setPriceRoll(null)}
-              onChange={(e) => setSt((p) => ({ ...p, price: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+            {/* Typing happens in the input; STEPPING shows the digit view,
+                where only the digits that changed roll (Kev, 2026-08-19:
+                "only per digit, not the entire number"). An <input> cannot
+                animate part of its own value, so the two states are two
+                renderings of one number: click the digits to type, blur to
+                get the rolling view back. */}
+            {priceEdit ? (
+              <input type="number" step={0.01} min={0} value={st.price} disabled={st.mode !== "premium"} autoFocus
+                onBlur={() => setPriceEdit(false)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setPriceEdit(false); }}
+                onChange={(e) => setSt((p) => ({ ...p, price: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+            ) : (
+              <button type="button" className="nc-price-view" disabled={st.mode !== "premium"}
+                title="Click to type a price" onClick={() => setPriceEdit(true)}>
+                {(() => {
+                  const cur = st.price.toFixed(2);
+                  const prev = prevPriceRef.current.toFixed(2).padStart(cur.length, " ");
+                  return cur.split("").map((ch, i) => (
+                    <span key={i + "-" + ch} className={priceRoll && ch !== prev[i] ? "nc-price-roll-" + priceRoll : undefined}
+                      onAnimationEnd={() => setPriceRoll(null)}>{ch}</span>
+                  ));
+                })()}
+              </button>
+            )}
             {/* The native spinner is hidden in CSS — it is the browser's
                 widget and matches nothing here (Kev's screenshot). These two
                 are ordinary Enki buttons, and stepping plays a quick roll of
                 the number in the step's direction. */}
             <span className="nc-price-steps" aria-hidden={st.mode !== "premium"}>
               <button type="button" tabIndex={-1} disabled={st.mode !== "premium"} title="+ $0.01"
-                onClick={() => { setPriceRoll("up"); setSt((p) => ({ ...p, price: Math.round((p.price + 0.01) * 100) / 100 })); }}>
+                onClick={() => { prevPriceRef.current = st.price; setPriceRoll("up"); setSt((p) => ({ ...p, price: Math.round((p.price + 0.01) * 100) / 100 })); }}>
                 <Icon name="chevronUp" size={10} stroke={2.6} />
               </button>
               <button type="button" tabIndex={-1} disabled={st.mode !== "premium"} title="− $0.01"
-                onClick={() => { setPriceRoll("down"); setSt((p) => ({ ...p, price: Math.max(0, Math.round((p.price - 0.01) * 100) / 100) })); }}>
+                onClick={() => { prevPriceRef.current = st.price; setPriceRoll("down"); setSt((p) => ({ ...p, price: Math.max(0, Math.round((p.price - 0.01) * 100) / 100) })); }}>
                 <Icon name="chevronDown" size={10} stroke={2.6} />
               </button>
             </span>
@@ -2049,6 +2099,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
           setModel: (id) => setSt((p) => ({ ...p, models: [id] })),
           setRatio: (v) => setSt((p) => ({ ...p, ratio: v })),
           setQuality: (v) => setSt((p) => ({ ...p, quality: v })),
+          gptQuality: quality,
+          setGptQuality: (v) => setQuality(v as Quality),
+          supportsGptQuality: supportsQuality,
           onToast, switchView,
         }} />
       )}
