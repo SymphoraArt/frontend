@@ -203,13 +203,28 @@ export function NcSelect({ value, options, onChange, width, title, align = "left
        meant any label longer than its box was silently cut — "abgeschnitten
        und nicht vollständig lesbar" (Kev). As a minimum it still lines the
        controls up at their common size and simply grows for the values that
-       need it, and the ellipsis stays as the last resort for extreme ones. */
-    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "") + (grow ? "" : " nc-sel--fixed")} ref={ref} style={width ? (grow ? { minWidth: width } : { width }) : undefined} onPointerDown={(e) => e.stopPropagation()}>
-      {/* The title names the field AND the current value, so even a label that
-          does hit the ellipsis is readable in full without opening the list. */}
+       need it.
+
+       FIXED mode does not pin an guessed number either: `width` is a minimum
+       and a hidden sizer holding EVERY option decides the real width. So the
+       control is as wide as its longest label — constant no matter which one
+       is selected, and never cutting the text. Pinning a literal produced
+       "Hi…" for "High" once the gem icon took its space (Kev, 2026-08-19);
+       a label that has to be guessed at is not a label. */
+    <div className={"nc-sel" + (align === "right" ? " nc-sel--r" : "") + (flipUp ? " nc-sel--up" : "") + (grow ? "" : " nc-sel--fixed")} ref={ref} style={width ? { minWidth: width } : undefined} onPointerDown={(e) => e.stopPropagation()}>
       <button ref={trigRef} className={"nc-pm-trigger" + (open ? " open" : "")} title={title ? `${title} — ${cur ? cur.label : value}` : (cur ? cur.label : value)} onClick={(e) => { e.stopPropagation(); toggle(); }}>
         {icon && <span className="nc-pm-ico">{icon}</span>}
-        <span className="nc-pm-name">{cur ? cur.label : value}</span>
+        <span className="nc-pm-name">
+          {cur ? cur.label : value}
+          {/* Zero-height, invisible, and still contributing its intrinsic
+              width: this is what makes the trigger fit the longest option
+              without measuring anything at runtime. */}
+          {!grow && (
+            <span className="nc-pm-sizer" aria-hidden>
+              {options.map((o) => <span key={o.value}>{o.label}</span>)}
+            </span>
+          )}
+        </span>
         {cur?.sub && <span className="nc-pm-price">{cur.sub}</span>}
         <Icon name="chevronDown" size={13} stroke={2.4} className="nc-pm-chev" />
       </button>

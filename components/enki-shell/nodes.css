@@ -105,6 +105,12 @@
 .nc-pm-trigger:hover{border-color:var(--enki-ember);}
 .nc-pm-trigger.open{border-color:var(--enki-ember);box-shadow:0 0 0 2px rgba(var(--ember-rgb),.18);}
 .nc-pm-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}
+/* Fixed-width selects: the label is never abbreviated. The sizer below holds
+   every option at zero height, so the trigger is as wide as its LONGEST label
+   — constant across selections, and always readable (Kev, 2026-08-19). */
+.nc-sel--fixed .nc-pm-name{overflow:visible;text-overflow:clip;position:relative;}
+.nc-pm-sizer{display:block;height:0;overflow:hidden;visibility:hidden;}
+.nc-pm-sizer>span{display:block;white-space:nowrap;}
 .nc-pm-price{flex-shrink:0;color:var(--enki-ink-3);font-weight:600;}
 .nc-pm-chev{flex-shrink:0;color:var(--enki-ink-3);transition:transform .14s;}
 .nc-pm-trigger.open .nc-pm-chev{transform:rotate(180deg);}
