@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
+import { Gem } from "lucide-react";
 import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
 import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
@@ -611,7 +612,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     onChange={api.setQuality} />
                 )}
                 {api.supportsGptQuality && (
-                  <NcSelect value={api.gptQuality} width={78} grow={false}
+                  <NcSelect icon={<Gem size={13} style={{ color: "var(--enki-ink-3)" }} />} value={api.gptQuality} width={78} grow={false}
                     title="Quality — how much detail GPT-Image-2 renders. Your price is the same on every setting."
                     options={[
                       { value: "low", label: "Low" },

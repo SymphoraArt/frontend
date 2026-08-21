@@ -1096,7 +1096,14 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     // buildExportJSON() reads from refs, so calling it here needs no extra
     // dependency. The server pulls the image bytes and the authored text out
     // of it before storing.
-    const picked = catalogueRef.current.find((m) => m.id === stRef.current.models[0]) ?? null;
+    /* resolveCatalogueEntry, not an exact-id find. Drafts carry the model as
+       a slug while the catalogue keys by UUID, and a miss here does not throw
+       — generateWithModel reads `isFree = !model || model.price <= 0`, so a
+       null model silently routes the whole generation to /api/generate-free
+       and drops `quality` with it. The user picks GPT-Image-2, sees its price,
+       and gets a free Flux image: exactly the failure the comment at the top
+       of generation.ts describes. */
+    const picked = resolveCatalogueEntry(catalogueRef.current, stRef.current.models[0]) ?? null;
     const outcome = await generateWithModel({
       prompt: promptText,
       aspectRatio: ratio,
