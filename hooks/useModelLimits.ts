@@ -62,8 +62,15 @@ async function loadModels(): Promise<ModelRow[]> {
     inflight = fetch("/api/models")
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: ModelRow[]) => {
-        cache = { rows: Array.isArray(rows) ? rows : [], at: Date.now() };
-        return cache.rows;
+        const list = Array.isArray(rows) ? rows : [];
+        /* Cache ONLY a real answer. A failure or an empty list must not be
+           remembered: /api/models 401s until the gate cookie is set, and the
+           editor hits this hook on the way in — so caching [] poisoned every
+           picker for five minutes down to the single-entry fallback, which is
+           the "only Nano Banana Pro" Kev saw. Leaving the cache null lets the
+           next mount retry instead. */
+        if (list.length > 0) cache = { rows: list, at: Date.now() };
+        return list.length > 0 ? list : cache?.rows ?? [];
       })
       .catch(() => cache?.rows ?? [])
       .finally(() => { inflight = null; });
@@ -161,10 +168,15 @@ export function resolveCatalogueEntry(
   );
 }
 
-/** Kept for the window before /api/models answers, and if it never does. */
-export const FALLBACK_CATALOGUE: CatalogueEntry[] = [
-  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04, supportsQuality: false, maxResolution: "4K" },
-];
+/**
+ * The list before /api/models answers. Deliberately EMPTY, not a single
+ * hardcoded model: a one-entry fallback made the picker claim "Nano Banana
+ * Pro is the only model" whenever the real list had not loaded (Kev,
+ * 2026-08-19). An empty catalogue renders as "loading…" and cannot be
+ * mistaken for the truth; the real three arrive a beat later and, now that a
+ * failed fetch is no longer cached, they arrive reliably.
+ */
+export const FALLBACK_CATALOGUE: CatalogueEntry[] = [];
 
 export function useModelCatalogue(): CatalogueEntry[] {
   const [rows, setRows] = useState<CatalogueEntry[]>(() =>
@@ -172,8 +184,13 @@ export function useModelCatalogue(): CatalogueEntry[] {
   );
   useEffect(() => {
     let dead = false;
-    loadModels().then((r) => { if (!dead) setRows(toCatalogue(r)); });
-    return () => { dead = true; };
+    const pull = () => loadModels().then((r) => { if (!dead) setRows(toCatalogue(r)); });
+    pull();
+    /* If the first pull landed before the gate cookie (empty → fallback), a
+       later focus refetches, so the list fills itself in without a reload. */
+    const onFocus = () => { if (!cache) pull(); };
+    window.addEventListener("focus", onFocus);
+    return () => { dead = true; window.removeEventListener("focus", onFocus); };
   }, []);
   return rows;
 }
@@ -198,5 +215,5 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
         ? r.maxResolution
         : "2K") as CatalogueEntry["maxResolution"],
     }));
-  return out.length ? out : FALLBACK_CATALOGUE;
+  return out;
 }
