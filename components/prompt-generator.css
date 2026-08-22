@@ -947,9 +947,13 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
    SHARED
 ══════════════════════════════ */
 .pgv-loading {
+  /* Fills whatever hosts it — the standalone page OR the detail panel —
+     and centers in the VISIBLE area. The old fixed 100vh centered against
+     the viewport height inside a smaller panel, which pushed the indicator
+     off-center (mid-left). */
+  position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  height: 100vh; background: var(--pgv-bg);
-  color: var(--pgv-text-muted); font-size: 13px; gap: 10px;
+  background: var(--pgv-bg); color: var(--pgv-text-muted);
 }
 
 .pgv-spinner { animation: pgv-spin 0.75s linear infinite; }

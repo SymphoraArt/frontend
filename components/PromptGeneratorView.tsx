@@ -970,7 +970,10 @@ export default function PromptGeneratorView({
   if (loading) {
     return (
       <div className="pgv-page">
-        <div className="pgv-loading"><Loader2 size={20} className="pgv-spinner" /> Loading prompt…</div>
+        {/* Spinner only, dead center — the text sat mid-left inside the
+            panel because the box centered against 100vh, not the visible
+            area (Kev, 2026-08-22). */}
+        <div className="pgv-loading" role="status" aria-label="Loading"><Loader2 size={26} className="pgv-spinner" /></div>
       </div>
     );
   }
