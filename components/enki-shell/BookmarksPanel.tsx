@@ -31,25 +31,34 @@ export default function BookmarksPanel() {
     listCategories().then(setCats).catch(() => { setCats([]); setFailed(true); });
   }, []);
 
+  /* Epoch guard: entering a category invalidates every response still in
+     flight for the previous one — without it a slow first page of category
+     A landed on top of category B (found by review, 2026-08-22). */
+  const epochRef = useRef(0);
   const loadMore = useCallback(async (cat: BookmarkCategory, cur: number | null) => {
+    const epoch = epochRef.current;
     setLoading(true);
     try {
       const page = await listBookmarks(cat.id, cur);
+      if (epoch !== epochRef.current) return;
       setMarks((m) => (cur == null ? page.bookmarks : [...m, ...page.bookmarks]));
       setCursor(page.nextCursor);
       if (page.nextCursor == null) setDone(true);
     } catch {
+      if (epoch !== epochRef.current) return;
       setFailed(true);
+      setDone(true); // stop the sentinel — otherwise it retries in a tight loop
     } finally {
-      setLoading(false);
+      if (epoch === epochRef.current) setLoading(false);
     }
   }, []);
 
   const enter = (cat: BookmarkCategory) => {
+    epochRef.current += 1;
     setOpen(cat); setMarks([]); setCursor(null); setDone(false); setFailed(false);
     void loadMore(cat, null);
   };
-  const back = () => { setOpen(null); setMarks([]); listCategories().then(setCats).catch(() => {}); };
+  const back = () => { epochRef.current += 1; setOpen(null); setMarks([]); listCategories().then(setCats).catch(() => {}); };
 
   /* Infinite scroll: a sentinel at the list's end asks for the next page.
      The scrolling element is this panel's own root. */
@@ -83,7 +92,10 @@ export default function BookmarksPanel() {
     if (from == null || from === to || !marks[from]) return;
     const next = marks.slice();
     const [m] = next.splice(from, 1);
-    const at = from < to ? to - 1 : to;
+    /* Take-position semantics: the dragged tile lands ON the target's slot.
+       The old to-1 adjustment made one-step-down a no-op and the LAST slot
+       unreachable (found by review, 2026-08-22). */
+    const at = to;
     next.splice(at, 0, m);
     // Midpoint of the new neighbours; falling off either end takes a step.
     const prev = next[at - 1]?.position;

@@ -114,7 +114,14 @@ export default function EnkiHome() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // Balance chip → Payment panel, scrolled to "Add money" with a heartbeat.
   const [payFocus, setPayFocus] = useState(false);
-  const closePanel = () => { setPanel(null); setPayFocus(false); };
+  const closePanel = () => {
+    setPanel(null); setPayFocus(false);
+    /* Whatever the panel covered comes back — a detail hidden by openPanel
+       stayed invisibly mounted when the panel closed via X/scrim/ESC, and
+       every card click after that opened into the hidden panel: dead feed
+       (found by review, 2026-08-22). */
+    window.dispatchEvent(new CustomEvent("enki:show-detail"));
+  };
   // Bumped on every menu click that opens a panel: the panel content REMOUNTS,
   // so re-clicking Settings always starts back on its first page instead of
   // keeping the tab you were on.
@@ -230,6 +237,8 @@ export default function EnkiHome() {
   // Closing Create Prompt 2 restores the menu to how it was before it opened.
   const closeNode = () => {
     setNodeOpen(false);
+    window.dispatchEvent(new CustomEvent("enki:show-detail")); // reveal what the editor covered
+
     setEditPrompt(null);
     if (prevCollapsedRef.current !== null && !narrow) setCollapsed(prevCollapsedRef.current);
     prevCollapsedRef.current = null;

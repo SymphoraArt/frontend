@@ -56,6 +56,11 @@ export default function EnkiQuickCreate() {
   useEffect(() => {
     if (!qcResolutions.includes(resolution as (typeof qcResolutions)[number])) setResolution(qcResolutions[qcResolutions.length - 1]);
   }, [qcResolutions, resolution]);
+  /* Ratio too: switching from a 10-ratio model to the 5-ratio free row kept
+     e.g. 21:9 selected and SENT it (found by review, 2026-08-22). */
+  useEffect(() => {
+    if (!qcRatios.includes(ratio)) setRatio(qcRatios[0]);
+  }, [qcRatios, ratio]);
   const [qty, setQty] = useState(1);
   const [boost, setBoost] = useState(false);
   const [quality, setQuality] = useState<Quality>("medium");
@@ -283,7 +288,7 @@ export default function EnkiQuickCreate() {
                   </div>
                   <div className="enki-qc-source-assets-v3">
                     <button className="enki-qc-asset-slot-v3" title="Add images" onClick={() => imgMode === "nft" && setNftOpen(true)}><Plus size={14} /></button>
-                    {[0, 1, 2].map(i => (
+                    {[0, 1, 2, 3].map(i => (
                       <div key={i} className="enki-qc-asset-slot-v3">
                         {images[i] && <img src={images[i]!} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />}
                       </div>
@@ -370,7 +375,7 @@ export default function EnkiQuickCreate() {
             </div>
           </div>
           {nftOpen && (
-            <NftPickerModal max={images.filter((x) => !x).length || 4} onPick={takeNftImages} onClose={() => setNftOpen(false)} />
+            <NftPickerModal max={images.filter((x) => !x).length} onPick={takeNftImages} onClose={() => setNftOpen(false)} />
           )}
         </>
       )}

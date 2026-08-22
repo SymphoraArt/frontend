@@ -62,6 +62,7 @@ export default function NftPickerModal({ max, onPick, onClose }: {
         {nfts === null && <div className="enki-nftp-note"><Loader2 size={14} className="enki-bmp-spin" /> Loading your wallets…</div>}
         {problem && <div className="enki-nftp-note"><ImageOff size={14} /> {problem}</div>}
         {nfts?.length === 0 && !problem && <div className="enki-nftp-note">No NFTs found in your connected wallets.</div>}
+        {max <= 0 && <div className="enki-nftp-note">All image slots are full — remove one first.</div>}
         {!!nfts?.length && (
           <div className="enki-nftp-grid">
             {nfts.map((n) => (

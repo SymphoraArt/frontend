@@ -43,7 +43,7 @@ export interface GenerationQuote {
 export interface QuoteRequest {
   promptId: string;
   modelFamily: string;
-  resolution?: "2K" | "4K";
+  resolution?: "1K" | "2K" | "4K"; // 1K accepted since 2026-08-22 (priced as 2K server-side)
 }
 
 /** Null on any failure: a missing quote greys the paid button, never fakes a price. */

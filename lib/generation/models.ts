@@ -18,6 +18,7 @@ import { loadHealth, breakerVerdict, runProbe } from "@/lib/generation/provider-
 import { canCarryReferenceImages } from "@/lib/generation/provider-capabilities";
 import { maxTier, type ResolutionTier } from "@/lib/generation/resolution";
 import { toModelFamily } from "@/lib/generation/model-family";
+import { MODEL_IMAGE_PRICING, DEFAULT_IMAGE_PRICING } from "@/lib/pricing";
 
 export type Provider = "gemini" | "openai" | "wavespeed" | "pollinations" | "acedata";
 
@@ -292,11 +293,19 @@ export function withCapabilities(rows: ModelRow[], audience: Audience = "public"
     // The embed rides in for fromRow and stays out of the response: the UI
     // needs the answers, not the provider wiring behind them.
     const { model_providers: _links, ...raw } = row as ModelRow & { model_providers?: unknown };
+    /* The checkout prices tiers from MODEL_IMAGE_PRICING (1K charged as
+       2K), and its 4K/2K ratio is per model (~1.79 nano-banana-pro, ~1.50
+       gpt-image-2) — the UI's flat x2 disagreed with what quote actually
+       charges (found by review, 2026-08-22). Shipping the SCALE, applied to
+       the row's own base price, keeps every surface's labels consistent
+       with its own totals and with the ladder's proportions. */
+    const ladder = MODEL_IMAGE_PRICING[toModelFamily(String(row.name ?? ""))] ?? DEFAULT_IMAGE_PRICING;
     return {
       ...raw,
       maxResolution: m.maxResolution,
       supportsResolution: m.supportsResolution,
       supportsQuality: m.supportsQuality,
+      tierScale: { "1K": 1, "2K": 1, "4K": ladder["4K"] / ladder["2K"] },
     };
   });
 }

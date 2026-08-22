@@ -329,7 +329,7 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
   /* Re-render when the earliest reminder cooldown expires, so the green
      "Reminder sent" state flips back to an active button by itself instead
      of waiting for a reload. */
-  const [, setRemindTick] = useState(0);
+  const [remindTick, setRemindTick] = useState(0);
   useEffect(() => {
     const next = (guardians ?? [])
       .map((g) => (g.nextManualReminderAt ? Date.parse(g.nextManualReminderAt) : NaN))
@@ -337,7 +337,10 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
     if (!next.length) return;
     const t = window.setTimeout(() => setRemindTick((x) => x + 1), Math.min(...next) - Date.now() + 500);
     return () => window.clearTimeout(t);
-  }, [guardians]);
+    /* remindTick in the deps re-runs this after each firing, so the NEXT
+       earliest expiry gets its own timer — one-shot left every later
+       guardian stuck on green past its unlock (found by review). */
+  }, [guardians, remindTick]);
   const sendReminder = async (guardianId: string) => {
     setRemindBusy(guardianId);
     try {

@@ -298,7 +298,10 @@ export default function PromptGeneratorView({
      network fee, so the button promised less than the charge. A paid prompt
      with no quote greys out rather than showing a number we invented. */
   const modelFamily = toModelFamily(generator);
-  const quoteResolution = resolution === "4K" ? ("4K" as const) : ("2K" as const);
+  /* Pass the pick through — the checkout accepts 1K since 2026-08-22, and
+     the old 4K-or-2K coercion silently rebooked every 1K pick as 2K (found
+     by review). Unknown values still fall to the 2K default. */
+  const quoteResolution = resolution === "1K" || resolution === "2K" || resolution === "4K" ? resolution : ("2K" as const);
 
   /* A model priced at 0 in the DB runs on the free provider (Kev,
      2026-08-12 — "den preis entfernen, falls free model verfügbar ist").

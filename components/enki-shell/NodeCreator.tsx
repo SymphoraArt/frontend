@@ -6,7 +6,7 @@
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
-import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS, tierPrice } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS, tierPrice, tierScale } from "@/hooks/useModelLimits";
 import { moveToken } from "@/lib/editor/move-token";
 import { TOKEN_SRC, variableRange } from "@/lib/editor/selection-variable";
 import RatioRect from "@/components/generation/RatioRect";
@@ -601,6 +601,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         if (tokEditRef.current) { setTokEdit(null); return; }
         // The save/discard dialog is open → ESC just dismisses it (keep editing).
         if (closeConfirmRef.current) { setCloseConfirm(false); return; }
+        // The "+ Variable" pill is up → ESC only dismisses the pill. Without
+        // this, ESC fell through to the editor's close/save-discard flow
+        // (found by review, 2026-08-22).
+        if (selPillRef.current) { setSelPill(null); return; }
         // Something in progress (drag / connect / marquee / menu / selection)?
         // → ESC cancels it and returns the canvas to a neutral state.
         const busy = !!drag.current || rightPan.current.active || escBusyRef.current
@@ -1100,6 +1104,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
      collapses it only after mouseup — a synchronous read flashes a phantom
      pill. Validation is the shared lib/editor/selection-variable. */
   const [selPill, setSelPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
+  const selPillRef = useRef<typeof selPill>(null);
+  useEffect(() => { selPillRef.current = selPill; }, [selPill]);
   const selPillT = useRef<number | null>(null);
   useEffect(() => () => { if (selPillT.current) window.clearTimeout(selPillT.current); }, []);
   useEffect(() => {
@@ -1505,8 +1511,20 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     return { ...p, body: val, nodes };
   });
 
+  /* A model switch must never leave a ratio the new model does not take —
+     "Any" is in every list, so this can never loop (found by review,
+     2026-08-22). */
+  useEffect(() => {
+    const opts = ncRatios(selectedModel);
+    if (!opts.includes(st.ratio)) setSt((p) => ({ ...p, ratio: "Any" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel, st.ratio]);
+
   /* ── pricing ── */
-  const qualityMult = NC_QUALITY_MULT[st.quality] ?? 1;
+  /* Per-model tier scale from the server's own price ladder — the flat x2
+     for 4K overstated it (nano-banana-pro's real 4K/2K ratio is ~1.79;
+     found by review, 2026-08-22). */
+  const qualityMult = tierScale(selectedModel, st.quality);
   // Priced from the catalogue, so what is shown is what the server will
   // charge. It used to come from a constant with invented numbers.
   const perImage = st.models.reduce((sum, id) => sum + (resolveCatalogueEntry(catalogue, id)?.price ?? 0), 0) * qualityMult;

@@ -63,6 +63,8 @@ export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProp
      2026-08-22). visibility (not display) keeps inner scroll positions.
      While hidden, ESC belongs to whatever covers us. */
   const [hidden, setHidden] = useState(false);
+  // A NEW prompt must never inherit the hidden flag of the previous one.
+  useEffect(() => { setHidden(false); }, [prompt?.id]);
   const hiddenRef = useRef(false);
   useEffect(() => { hiddenRef.current = hidden; }, [hidden]);
   useEffect(() => {
