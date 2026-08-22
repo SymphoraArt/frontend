@@ -602,6 +602,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             document.body.style.userSelect = "";
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", endDrag);
+            window.removeEventListener("pointercancel", endDrag);
           }
           rightPan.current.active = false;
           setConnectLine(null);
@@ -874,9 +875,14 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       body: p.body.replace(/\s*$/, "") + (p.body.trim() ? " " : "") + "[Reference Image " + n + "]",
     };
   });
-  const moveRef = (from: number, to: number) => commit((p) => {
+  const moveRef = (from: number, to: number) => {
+    /* No-op BEFORE commit: commit() pushes history unconditionally, so a
+       self-drop used to burn one undo step and wipe the redo stack even
+       though nothing moved (found by review, 2026-08-22). */
+    if (from === to || from < 0 || to < 0) return;
+    commit((p) => {
     const refs = p.nodes.filter((n) => n.type === "ref");
-    if (from === to || from < 0 || to < 0 || from >= refs.length || to >= refs.length) return p;
+    if (from >= refs.length || to >= refs.length) return p;
     const order = refs.slice(); const [m] = order.splice(from, 1); order.splice(to, 0, m);
     // Tokens in the prompt follow their IMAGE through the reorder: old index →
     // new index, swapped via temp markers so replacements can't collide.
@@ -889,7 +895,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       body = body.split("[[REF_TMP_" + (newIdx + 1) + "]]").join("[Reference Image " + (newIdx + 1) + "]");
     });
     return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order], body };
-  });
+    });
+  };
   const toggleRefUserInput = (id: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, userInput: !n.userInput } : n)) }));
   const addText = (atPos?: { x: number; y: number }, presetName?: string) => commit((p) => {
     const existing = p.nodes.filter((n) => n.type === "text");
@@ -1517,12 +1524,18 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const d = drag.current; drag.current = null;
     document.body.style.userSelect = "";
     window.removeEventListener("pointermove", onPointerMove); window.removeEventListener("pointerup", endDrag);
+    window.removeEventListener("pointercancel", endDrag);
     if (!d) return;
+    /* pointercancel is an ABORT (touch scroll takeover, browser gesture):
+       clean up, but never commit — a cancelled connect-drag must not spawn a
+       node at the cancel event's bogus coordinates, and a cancelled dock
+       drag must not move the dock. Mirrors the ESC path above. */
+    const aborted = e.type === "pointercancel";
     if (d.kind === "pan") { rightPan.current.active = false; setPanning(false); } // keep `moved` for the contextmenu that fires next
-    if (d.kind === "dock") setDockSide(pendingDockSide.current);
+    if (d.kind === "dock" && !aborted) setDockSide(pendingDockSide.current);
     if (d.kind === "connect") {
       setConnectLine(null);
-      if (d.moved) {
+      if (d.moved && !aborted) {
         const pos = { x: (e.clientX - sidebarWRef.current - panRef.current.x) / zoomRef.current, y: (e.clientY - panRef.current.y) / zoomRef.current };
         spawnFromPortKind(d.portType!, pos);
       }
@@ -1538,6 +1551,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     drag.current = { kind, sx: e.clientX, sy: e.clientY, ox: 0, oy: 0, ...extra } as typeof drag.current;
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", onPointerMove); window.addEventListener("pointerup", endDrag);
+    /* pointercancel too: starting a NATIVE drag (the ref cards are
+       draggable) aborts the pointer stream with pointercancel — pointerup
+       never fires. Without this, a pan armed by the same pointerdown stayed
+       live after the drop and the view chased the mouse (Kev, 2026-08-22). */
+    window.addEventListener("pointercancel", endDrag);
   };
   // Ctrl/⌘+click toggles a node in/out of the multi-selection.
   const toggleSel = (id: string) => setSelSet((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -1741,19 +1759,38 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <div className="nc-nbody">
               <div className={"nc-refs" + (dropOn ? " drop" : "")}>
                 <div className="nc-refs-h">Referenced images{dropOn && <span className="nc-refs-h-drop"> · release to add here</span>}</div>
-                <div className="nc-refs-deck" ref={deckRef}>
-                  {refs.map((r, i) => { const isOver = refOverI === i && refDragI !== null && refDragI !== i; return (
-                    <div key={r.id} className={"nc-refcard" + (r.userInput ? " ui" : "") + (refDragI === i ? " dragging" : "") + (isOver ? " over" : "")} draggable
-                      style={{ marginLeft: (i === 0 ? 0 : refOverlap) + (isOver ? 44 : 0), zIndex: refDragI === i ? 320 : i + 1 }}
-                      onDragStart={() => { refDrag.current = i; setRefDragI(i); }}
-                      onDragOver={(e) => { e.preventDefault(); if (refDragI !== null && refOverI !== i) setRefOverI(i); }}
+                <div className="nc-refs-deck" ref={deckRef}
+                  /* Grabbing a card must not also arm a canvas pan on the
+                     way up — that pan is what kept moving the view after a
+                     drop. And the deck itself accepts the drop: opening the
+                     gap shifts the target card away from the pointer, so a
+                     release often landed on deck background, where — with no
+                     handler — the browser cancelled the whole move. Target =
+                     the card the marker is showing (refOverI). */
+                  onPointerDown={(e) => { setCtx(null); if (e.button === 0 && !e.ctrlKey && !e.metaKey && !spaceRef.current && tool !== "hand") e.stopPropagation(); }}
+                  onDragOver={(e) => { if (refDragI !== null) e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null && refOverI !== null) moveRef(refDrag.current, refOverI); refDrag.current = null; setRefDragI(null); setRefOverI(null); }}>
+                  {refs.map((r, i) => {
+                    /* moveRef gives the dragged card the TARGET's position:
+                       coming from the left it lands AFTER the target, from
+                       the right BEFORE it. The old preview always opened the
+                       gap on the left — dragging rightward, it promised a
+                       spot one off from where the card would land. Side
+                       first, then the gap (and the ember bar) follow it. */
+                    const side = refOverI === i && refDragI !== null && refDragI !== i ? (refDragI < i ? "r" : "l") : null;
+                    const gapW = side === "l" ? 44 + (i === 0 ? 0 : refOverlap) : side === "r" ? 44 + (i === refs.length - 1 ? REF_GAP : refOverlap) : 0;
+                    return (
+                    <div key={r.id} className={"nc-refcard" + (r.userInput ? " ui" : "") + (refDragI === i ? " dragging" : "") + (side ? " over-" + side : "")} draggable
+                      style={{ marginLeft: (i === 0 ? 0 : refOverlap) + (side === "l" ? 44 : 0), marginRight: side === "r" ? 44 : 0, zIndex: refDragI === i ? 320 : side ? 240 : i + 1, ...(side ? ({ "--refgap-half": gapW / 2 + "px" } as React.CSSProperties) : null) }}
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", ""); e.dataTransfer.effectAllowed = "move"; refDrag.current = i; setRefDragI(i); }}
+                      onDragOver={(e) => { e.preventDefault(); if (refDragI !== null && refDragI !== i && refOverI !== i) setRefOverI(i); }}
                       onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null) moveRef(refDrag.current, i); refDrag.current = null; setRefDragI(null); setRefOverI(null); }}
                       onDragEnd={() => { refDrag.current = null; setRefDragI(null); setRefOverI(null); }}>
                       {r.img ? (
                         <img src={r.img} alt={"reference " + (i + 1)} draggable={false} title="Click to maximize" onClick={(e) => { e.stopPropagation(); setRefMax(r.img!); }} />
                       ) : (
                         <label className="nc-refcard-up"
-                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onRefFiles(r.id, e.dataTransfer.files); }}
+                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.dataTransfer.files?.length && refDrag.current !== null) { moveRef(refDrag.current, i); refDrag.current = null; setRefDragI(null); setRefOverI(null); return; } onRefFiles(r.id, e.dataTransfer.files); }}
                           onDragOver={(e) => e.preventDefault()}>
                           <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { onRefFiles(r.id, e.target.files); e.currentTarget.value = ""; }} />
                           <Icon name="imageDrop" size={15} stroke={1.8} />

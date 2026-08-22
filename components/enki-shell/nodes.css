@@ -217,15 +217,27 @@
    offset is computed in JS so they always fit the deck width; hovering lifts a
    card fully to the front so its controls (user-input, X, maximize) are usable. */
 .nc-refs-deck{display:flex;flex-wrap:nowrap;gap:0;align-items:center;overflow:visible;padding:5px 0 9px;}
-.nc-refcard{position:relative;width:62px;height:62px;border-radius:9px;border:1px solid var(--enki-rule);background:var(--enki-paper-2);overflow:hidden;flex-shrink:0;cursor:grab;transition:transform .15s cubic-bezier(.4,0,.2,1),box-shadow .15s,margin-left .17s cubic-bezier(.4,0,.2,1),opacity .12s;}
+.nc-refcard{position:relative;width:62px;height:62px;border-radius:9px;border:1px solid var(--enki-rule);background:var(--enki-paper-2);flex-shrink:0;cursor:grab;transition:transform .15s cubic-bezier(.4,0,.2,1),box-shadow .15s,margin-left .17s cubic-bezier(.4,0,.2,1),margin-right .17s cubic-bezier(.4,0,.2,1),opacity .12s;}
 .nc-refcard:active{cursor:grabbing;}
 .nc-refcard:hover{z-index:200!important;transform:scale(1.16);box-shadow:0 10px 26px rgba(0,0,0,.34);}
 .nc-refcard.ui{border-color:var(--enki-turq);box-shadow:0 0 0 3px var(--enki-turq);}
 .nc-refcard.ui:hover{box-shadow:0 0 0 3px var(--enki-turq),0 10px 26px rgba(0,0,0,.34);}
 /* drag-to-reorder: the picked card lifts/dims, the target slot opens with an ember ring */
 .nc-refcard.dragging{opacity:.35;transform:scale(.92);}
-.nc-refcard.over,.nc-refcard.ui.over{box-shadow:0 0 0 3px var(--enki-ember),0 8px 20px rgba(0,0,0,.26);}
-.nc-refcard>img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;}
+/* Where the dragged card will land: an ember bar centered in the opened
+   gap (--refgap-half is set inline — the deck compresses, so the gap width
+   varies), same look and breathe as the prompt text's drop caret. */
+.nc-refcard.over-l::before,.nc-refcard.over-r::before{content:"";position:absolute;top:-3px;bottom:-3px;width:3px;border-radius:2px;background:var(--enki-ember);
+  box-shadow:0 0 0 1px rgba(var(--ember-rgb),.22),0 0 9px 1px rgba(var(--ember-rgb),.45);
+  animation:nc-dropcaret-breathe .9s ease-in-out infinite;}
+.nc-refcard.over-l::before{left:calc(var(--refgap-half,22px) * -1);transform:translateX(-50%);}
+.nc-refcard.over-r::before{right:calc(var(--refgap-half,22px) * -1);transform:translateX(50%);}
+@media (prefers-reduced-motion:reduce){.nc-refcard.over-l::before,.nc-refcard.over-r::before{animation:none;}}
+/* No own cursor on the img: it inherits the card's grab/grabbing, so the
+   whole card reads as draggable (Kev, 2026-08-22 — clicking still
+   maximizes). Radius on the img replaces the card's overflow:hidden, which
+   had to go so the drop bar (::before, outside the box) can show. */
+.nc-refcard>img{width:100%;height:100%;object-fit:cover;display:block;border-radius:8px;}
 .nc-refcard-up{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--enki-ink-3);cursor:pointer;}
 .nc-refcard-up:hover{color:var(--enki-ember);}
 .nc-refcard-num{position:absolute;top:3px;left:3px;min-width:15px;height:15px;padding:0 3px;border-radius:5px;background:rgba(0,0,0,.62);color:#fff;font-family:var(--font-mono),monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;}
