@@ -23,6 +23,7 @@ type PromptListItem = {
   createdAt?: string;
   downloads: number;
   rating: number;
+  likes: number;
   creatorId?: string;
   thumbnail: string;
   imageUrl: string;
@@ -127,6 +128,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    /* Engagement for the page in two IN-queries, aggregated here: real
+       numbers on every card instead of the constant 0 the shape used to
+       carry (ratings from prompt_comments, likes from reactions — both
+       degrade to empty when a table is missing). */
+    const pageIds = promptRows.map((p) => String(p.id));
+    const likesByPrompt = new Map<string, number>();
+    const ratingByPrompt = new Map<string, number>();
+    if (pageIds.length) {
+      const { data: likeRows } = await supabase
+        .from("reactions")
+        .select("target_uuid")
+        .eq("target_type", "prompt")
+        .eq("reaction_type", "like")
+        .in("target_uuid", pageIds);
+      for (const r of likeRows ?? []) {
+        const k = String(r.target_uuid);
+        likesByPrompt.set(k, (likesByPrompt.get(k) ?? 0) + 1);
+      }
+      const { data: rateRows } = await supabase
+        .from("prompt_comments")
+        .select("prompt_id, rating")
+        .in("prompt_id", pageIds)
+        .not("rating", "is", null);
+      const sums = new Map<string, { s: number; n: number }>();
+      for (const r of rateRows ?? []) {
+        if (typeof r.rating !== "number") continue;
+        const k = String(r.prompt_id);
+        const cur = sums.get(k) ?? { s: 0, n: 0 };
+        cur.s += r.rating; cur.n += 1;
+        sums.set(k, cur);
+      }
+      for (const [k, v] of sums) ratingByPrompt.set(k, Math.round((v.s / v.n) * 10) / 10);
+    }
+
     const items: PromptListItem[] = promptRows.map((p) => {
       const promptType = String(p.prompt_type ?? "");
       const isFreeShowcase = Boolean(p.is_free_showcase ?? false);
@@ -150,7 +185,8 @@ export async function GET(request: NextRequest) {
         aiModel: typeof p.ai_model === "string" ? p.ai_model : undefined,
         createdAt: typeof p.created_at === "string" ? p.created_at : undefined,
         downloads: 0,
-        rating: 0,
+        rating: ratingByPrompt.get(String(p.id)) ?? 0,
+        likes: likesByPrompt.get(String(p.id)) ?? 0,
         creatorId: p.creator_id ? String(p.creator_id) : undefined,
         thumbnail: thumb,
         imageUrl: thumb,
