@@ -1675,7 +1675,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         onAnimationEnd={() => setCanvasIn(false)}
         style={{ backgroundPosition: `${pan.x}px ${pan.y}px`, backgroundSize: `${26 * zoom}px ${26 * zoom}px`, display: view === "node" ? undefined : "none" }}
         onPointerDown={startPan}
-        onContextMenu={(e) => { e.preventDefault(); if (rightPan.current.moved) { rightPan.current.moved = false; return; } setCtx({ x: e.clientX, y: e.clientY, wx: (e.clientX - sidebarWRef.current - pan.x) / zoom, wy: (e.clientY - pan.y) / zoom }); }}>
+        onContextMenu={(e) => {
+          /* The add menu belongs to the EMPTY grid. A right-click on a node —
+             or on anything inside one: prompt text, a reference card, an
+             output tile — is about that node, so it falls through to the
+             browser's own menu (copy/paste in the prompt, "save image as" on
+             a result) instead of offering to add another node on top of it
+             (Kev, 2026-08-22). Testing the target's ancestry rather than
+             adding a stopper to each node keeps future node types covered. */
+          if ((e.target as HTMLElement).closest(".nc-node")) return;
+          e.preventDefault();
+          if (rightPan.current.moved) { rightPan.current.moved = false; return; }
+          setCtx({ x: e.clientX, y: e.clientY, wx: (e.clientX - sidebarWRef.current - pan.x) / zoom, wy: (e.clientY - pan.y) / zoom });
+        }}>
         <div className="nc-world" style={{ transform: "translate(" + pan.x + "px," + pan.y + "px) scale(" + zoom + ")" }}>
           {/* edges */}
           <svg className="nc-edges" width="4000" height="3000">
