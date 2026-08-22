@@ -170,6 +170,9 @@
   align-items: center;
   gap: 6px;
 }
+/* The like badge shares the star badge's chrome; button reset + ember heart. */
+.pgv-like-badge { cursor: pointer; }
+.pgv-like-badge svg { color: #e0584f; }
 .pgv-star-badge {
   display: flex;
   align-items: center;
@@ -283,6 +286,10 @@
 /* Metrics matched to .pgv-field select (12px, ~31px box) — the two controls
    sit side by side and read as one row, not two sizes (Kev, 2026-08-22). */
 .pgv-field--bare .enki-ratio-trig { width: 100%; height: 31px; font-size: 12px; }
+/* The quality lever joins the row with the same metrics as its neighbours. */
+.pgv-field--quality { padding-left: 0; }
+.pgv-field--quality .enki-quality { display: flex; align-items: center; gap: 5px; width: 100%; padding-left: 7px; }
+.pgv-field--quality .enki-quality select { flex: 1 1 auto; min-width: 0; background: transparent; border: none; color: var(--pgv-text); padding: 7px 4px 7px 0; font-size: 12px; font-family: inherit; cursor: pointer; outline: none; }
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */
@@ -351,7 +358,12 @@ html.dark .pgv-field select {
   border-radius: 8px;
   font-size: 12.5px;
   font-weight: 700;
-  white-space: nowrap;
+  /* The label may wrap, but it may NEVER cross the button's border —
+     nowrap let "Generate free" hang out over the pill in a squeezed rail
+     (Kev, 2026-08-22, screenshot). */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: inherit;
   cursor: pointer;
   display: flex;

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 import {
   Star,
+  Heart,
   Share2,
   Info,
   X,
@@ -126,6 +127,35 @@ export default function PromptGeneratorView({
      GPT-Image-2 buyer could never choose it here (Kev, 2026-08-22). Hidden
      for models without the parameter (QualitySelect available). */
   const [quality, setQuality] = useState<Quality>("medium");
+  /* Real engagement for the badge row: the star badge carried a HARDCODED
+     "4.9" (found 2026-08-22 while adding likes), and likes had landed in a
+     pill this surface never renders. Rating from the comments stats, likes
+     from the likes route, heart toggles. */
+  const [engagement, setEngagement] = useState<{ avg: number | null; likes: number; mine: boolean }>({ avg: null, likes: 0, mine: false });
+  useEffect(() => {
+    if (!promptId) return;
+    fetch(`/api/prompts/${encodeURIComponent(promptId)}/comments`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.stats) setEngagement((e) => ({ ...e, avg: d.stats.avgRating ?? null })); })
+      .catch(() => {});
+    fetch(`/api/prompts/${encodeURIComponent(promptId)}/likes`, { headers: { ...sessionAuthHeaders() } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setEngagement((e) => ({ ...e, likes: d.count ?? 0, mine: !!d.mine })); })
+      .catch(() => {});
+  }, [promptId]);
+  const [liking, setLiking] = useState(false);
+  const toggleLike = useCallback(async () => {
+    if (liking || !promptId) return;
+    setLiking(true);
+    try {
+      const res = await fetch(`/api/prompts/${encodeURIComponent(promptId)}/likes`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d) setEngagement((e) => ({ ...e, likes: d.count ?? 0, mine: !!d.mine }));
+      else if (res.status === 401) toast({ title: "Sign in to like." });
+    } finally { setLiking(false); }
+  }, [liking, promptId, toast]);
   const [refs, setRefs] = useState<string[]>([]);
   const [fav, setFav] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -1049,7 +1079,11 @@ export default function PromptGeneratorView({
               <span className="pgv-artist pgv-artist--plain">{artistName}</span>
             )}
             <div className="pgv-meta-row">
-              <span className="pgv-star-badge"><Star size={11} fill="currentColor" /> 4.9</span>
+              <span className="pgv-star-badge" title="Rating"><Star size={11} fill={engagement.avg ? "currentColor" : "none"} /> {engagement.avg ?? "–"}</span>
+              {/* Likes to the RIGHT of the rating (Kev, 2026-08-22). */}
+              <button type="button" className="pgv-star-badge pgv-like-badge" title={engagement.mine ? "Unlike" : "Like"} onClick={() => void toggleLike()}>
+                <Heart size={11} fill={engagement.mine ? "currentColor" : "none"} /> {engagement.likes}
+              </button>
               <div className="pgv-share">
                 <button
                   className="pgv-icon-btn"
@@ -1430,6 +1464,14 @@ export default function PromptGeneratorView({
                   {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{!noCharge && t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
                 </select>
               </div>
+              {/* Quality belongs BESIDE ratio and resolution — the three are
+                  one settings row, not two places (Kev, 2026-08-22). Renders
+                  nothing for models without the parameter. */}
+              {core.supportsQuality && (
+                <div className="pgv-field pgv-field--quality">
+                  <QualitySelect value={quality} onChange={setQuality} available disabled={generating} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1454,7 +1496,6 @@ export default function PromptGeneratorView({
               could not happen, on a button labelled "Generate free" (Kev,
               2026-08-19). A control that changes nothing is the lie this
               codebase keeps relearning. */}
-          <QualitySelect value={quality} onChange={setQuality} available={core.supportsQuality} disabled={generating} />
           {!noCharge && <BoostToggle boost={boost} onChange={setBoost} available={core.boostAvailable} disabled={generating} />}
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
