@@ -1373,13 +1373,17 @@ export default function EnkiMobileGenerateModal({
                   options={resolutionOptions ?? [{ value: "2K", label: "2K" }, { value: "4K", label: "4K" }]}
                   onChange={setGenResolution}
                 />
-                <MiniSelect
-                  title="Generations"
-                  icon={<Copy size={14} style={{ color: "#8A7F72", flexShrink: 0 }} aria-label="Generations" />}
-                  value={genCount}
-                  options={[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ value: `x ${n}`, label: `x ${n}` }))}
-                  onChange={setGenCount}
-                />
+                {/* Buttons, not a dropdown: the count is eight values — all
+                    visible, nothing to open or scroll (Kev, 2026-08-22; the
+                    first attempt landed in the dead EnkiQuickCreate). */}
+                <div className="mobile-modal-qty" role="radiogroup" aria-label="Number of images">
+                  <Copy size={14} style={{ color: "#8A7F72", flexShrink: 0 }} aria-hidden />
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((qn) => (
+                    <button key={qn} type="button" role="radio" aria-checked={genCount === `x ${qn}`}
+                      className={"mobile-modal-qty-btn" + (genCount === `x ${qn}` ? " on" : "")}
+                      onClick={() => setGenCount(`x ${qn}`)}>{qn}</button>
+                  ))}
+                </div>
               </div>
               <div className="mobile-modal-pay-inline" title={priceTitle}>
                 <span className="mobile-modal-pay-inline-price">${displayPrice.toFixed(2)}</span>
