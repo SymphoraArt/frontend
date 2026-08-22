@@ -96,6 +96,7 @@ export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalPro
           <button
             title="We review and verify the source"
             style={{
+              position: "relative",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 34,
               marginTop: 12, border: "none", borderRadius: 999, cursor: valid ? "pointer" : "default",
               background: valid ? "var(--enki-ember)" : "color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2))",
@@ -109,9 +110,13 @@ export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalPro
               onSubmit({ url: link, platform: detected || "Link", note: "" });
             }}
           >
-            <Icon name="send" size={12} stroke={2} /> <b>2</b> · Submit for review
+            {/* The step numeral pins to the button's far left, in the same
+                column as 1 and 3 — centered it drifted with the label width
+                (Kev, 2026-08-22). */}
+            <span style={{ position: "absolute", left: 14 }}><b>2</b> ·</span>
+            <Icon name="send" size={12} stroke={2} /> Submit for review
           </button>
-          <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--enki-ink-3)", textAlign: "center" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--enki-ink-3)", textAlign: "left" }}>
             <b style={{ color: "var(--enki-ember)" }}>3</b> · We verify it, rebuild it as a prompt, and you get a message. You and the creator earn.
           </p>
         </div>
