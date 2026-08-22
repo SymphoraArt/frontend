@@ -8,7 +8,7 @@
  * Data: /api/prompts/[id]/comments (GET public, POST session-required).
  */
 import { useCallback, useEffect, useState } from "react";
-import { MessageSquare, Star, X } from "lucide-react";
+import { MessageSquare, Star, X, Heart } from "lucide-react";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,13 +25,35 @@ export default function PromptEngagement({ promptId }: { promptId: string }) {
   const [openPanel, setOpenPanel] = useState(false);
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [stats, setStats] = useState<{ count: number; avgRating: number | null }>({ count: 0, avgRating: null });
+  // Likes ride the reactions table via /api/prompts/[id]/likes.
+  const [likes, setLikes] = useState<{ count: number; mine: boolean }>({ count: 0, mine: false });
+  const [liking, setLiking] = useState(false);
   const [myRating, setMyRating] = useState(0);
+  const toggleLike = async () => {
+    if (liking) return;
+    setLiking(true);
+    try {
+      const res = await fetch(`/api/prompts/${encodeURIComponent(promptId)}/likes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d) setLikes({ count: d.count ?? 0, mine: !!d.mine });
+      else if (res.status === 401) toast({ title: "Sign in to like." });
+    } finally {
+      setLiking(false);
+    }
+  };
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/prompts/${encodeURIComponent(promptId)}/comments`);
+      fetch(`/api/prompts/${encodeURIComponent(promptId)}/likes`, { headers: { ...sessionAuthHeaders() } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d) setLikes({ count: d.count ?? 0, mine: !!d.mine }); })
+        .catch(() => {});
       if (!res.ok) return;
       const data = await res.json();
       setComments(data.comments ?? []);
@@ -82,6 +104,19 @@ export default function PromptEngagement({ promptId }: { promptId: string }) {
       >
         <Star size={14} style={{ color: "#e8a83a", fill: stats.avgRating ? "#e8a83a" : "none" }} />
         {stats.avgRating ?? "–"}
+        {/* Likes sit to the RIGHT of the rating (Kev, 2026-08-22) — same
+            order as the card's chips. A span, not a nested button: the pill
+            itself is the panel toggle. */}
+        <span
+          role="button"
+          aria-label={likes.mine ? "Unlike" : "Like"}
+          title={likes.mine ? "Unlike" : "Like"}
+          onClick={(e) => { e.stopPropagation(); void toggleLike(); }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 6, cursor: "pointer" }}
+        >
+          <Heart size={13} style={{ color: "#e0584f", fill: likes.mine ? "#e0584f" : "none" }} />
+          {likes.count}
+        </span>
         <MessageSquare size={13} style={{ marginLeft: 4, opacity: 0.7 }} />
         {stats.count}
       </button>

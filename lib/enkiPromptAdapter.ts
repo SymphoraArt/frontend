@@ -29,6 +29,7 @@ export type EnkiPrompt = {
   price: number;
   downloads: number;
   rating: number;
+  likes: number;
   isVideo: boolean;
   visibility: "full" | "vars-only";
   art: EnkiArtwork;
@@ -168,6 +169,7 @@ export function mapMarketplacePromptToEnkiPrompt(prompt: unknown, index = 0): En
     price,
     downloads: Number(readNumber(record.totalSales) ?? readNumber(record.downloads) ?? readNumber(stats.totalGenerations) ?? 0),
     rating: Number(readNumber(record.avgRating) ?? readNumber(record.rating) ?? readNumber(reviews.averageRating) ?? 0),
+    likes: Number(readNumber(record.likes) ?? 0),
     isVideo: String(readString(record.category) || readString(record.promptType) || "").toLowerCase().includes("video") || Boolean(record.isVideo),
     visibility: record.visibility === "vars-only" || record.type === "premium" ? "vars-only" : "full",
     art,

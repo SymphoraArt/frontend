@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, Bookmark, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
+import { Heart, Star, Bookmark, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
 import BookmarkPicker from "@/components/enki/BookmarkPicker";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,9 +49,16 @@ export default function EnkiCard({ prompt, onOpen, onEdit }: EnkiCardProps) {
           {prompt.isVideo ? "Video" : "Image"}
         </span>
         <div className="enki-card-tl-hover">
-          <span className="enki-card-stat mono">
+          {/* Rating first, likes second — the same order the image UI shows
+              them (Kev, 2026-08-22). The heart used to print DOWNLOADS,
+              a number wearing the wrong icon; it carries real likes now. */}
+          <span className="enki-card-stat mono" title="Rating">
+            <Star size={10} fill={prompt.rating > 0 ? "currentColor" : "none"} />
+            {prompt.rating > 0 ? prompt.rating.toFixed(1) : "–"}
+          </span>
+          <span className="enki-card-stat mono" title="Likes">
             <Heart size={10} fill="currentColor" />
-            {prompt.downloads.toLocaleString()}
+            {prompt.likes.toLocaleString()}
           </span>
           <span className="enki-card-stat mono enki-card-stat-price">${prompt.price.toFixed(2)}</span>
         </div>
