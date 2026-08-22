@@ -36,9 +36,14 @@ export default function FeedbackModal({ onClose, onToast }: { onClose: () => voi
 
   // ESC closes the dialog (Kev: close the UI on ESC, always).
   useEffect(() => {
+    /* CAPTURE phase: the modal is the topmost surface, so its ESC must win.
+       As a bubble listener it ran AFTER the sidebar's document-level ESC —
+       the burger menu behind the scrim closed first while this dialog stayed
+       (Kev, 2026-08-22). Window capture fires before any document listener,
+       and stopPropagation keeps ESC from ever reaching the background. */
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("keydown", onKey); if (doneT.current) window.clearTimeout(doneT.current); };
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("keydown", onKey, true); if (doneT.current) window.clearTimeout(doneT.current); };
   }, [onClose]);
 
   const canSend = !!sev && text.trim().length >= 10 && !busy; // server wants ≥10 chars

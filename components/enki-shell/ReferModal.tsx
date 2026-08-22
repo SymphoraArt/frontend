@@ -24,9 +24,14 @@ export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalPro
 
   // ESC cancels/closes the refer dialog.
   useEffect(() => {
+    /* CAPTURE phase: the modal is the topmost surface, so its ESC must win.
+       As a bubble listener it ran AFTER the sidebar's document-level ESC —
+       the burger menu behind the scrim closed first while this dialog stayed
+       (Kev, 2026-08-22). Window capture fires before any document listener,
+       and stopPropagation keeps ESC from ever reaching the background. */
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
   const detected = (() => {
