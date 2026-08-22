@@ -41,6 +41,7 @@ import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation
 import { type ResolutionTier } from "@/lib/generation/resolution";
 import { useGenerationCore } from "@/hooks/useGenerationCore";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
+import { variableRange } from "@/lib/editor/selection-variable";
 import RatioSelect from "@/components/generation/RatioSelect";
 
 /* ── Types ── */
@@ -409,6 +410,57 @@ export default function PromptGeneratorView({
      as the untouched value: an empty string is a deliberate edit and has to
      survive as one. */
   const [editedPrompt, setEditedPrompt] = useState<string | null>(null);
+  /* "+ Variable" on a selection in YOUR copy of the prompt — the same
+     deferred-and-verified pattern as the editors, on the same shared
+     validation (Kev, 2026-08-22: the pill belongs in every editor).
+     Buyer-made [tokens] get inputs below the textarea and are substituted
+     at generation; without that a fresh token would ship literally. */
+  const editTaRef = useRef<HTMLTextAreaElement>(null);
+  const [editPill, setEditPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
+  const editPillT = useRef<number | null>(null);
+  useEffect(() => () => { if (editPillT.current) window.clearTimeout(editPillT.current); }, []);
+  useEffect(() => {
+    const onSel = () => {
+      setEditPill((p) => {
+        if (!p) return p;
+        const ta = editTaRef.current;
+        return !ta || document.activeElement !== ta || ta.selectionStart === ta.selectionEnd ? null : p;
+      });
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+  const scheduleEditPill = (e: { clientX?: number; clientY?: number }) => {
+    const cx = e.clientX, cy = e.clientY;
+    if (editPillT.current) window.clearTimeout(editPillT.current);
+    editPillT.current = window.setTimeout(() => {
+      editPillT.current = null;
+      const ta = editTaRef.current; const box = ta?.parentElement;
+      if (!ta || !box || document.activeElement !== ta) { setEditPill(null); return; }
+      if (!variableRange(ta.value, ta.selectionStart, ta.selectionEnd)) { setEditPill(null); return; }
+      const r = box.getBoundingClientRect();
+      const x = Math.max(8, Math.min((cx ?? r.left + 80) - r.left - 56, r.width - 130));
+      const y = (cy ?? r.top + 40) - r.top + 18;
+      setEditPill({ x, y, start: ta.selectionStart, end: ta.selectionEnd });
+    }, 80);
+  };
+  const addVariableFromEditSel = () => {
+    const pill = editPill;
+    setEditPill(null);
+    if (!pill || editedPrompt === null) return;
+    const r = variableRange(editedPrompt, pill.start, pill.end);
+    if (!r) return;
+    setEditedPrompt(editedPrompt.slice(0, r.start) + "[" + r.name + "]" + editedPrompt.slice(r.end));
+    requestAnimationFrame(() => {
+      const ta = editTaRef.current; const caret = r.start + r.name.length + 2;
+      if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); }
+    });
+  };
+  /* The buyer's own [tokens], inferred from the edited text. */
+  const localTokens = useMemo(() => {
+    if (editedPrompt === null) return [] as string[];
+    return [...new Set([...editedPrompt.matchAll(/\[([^\]\n]+)\]/g)].map((m) => m[1]))];
+  }, [editedPrompt]);
   /* Per-slot deviations from the slider. The slider is the whole sentence,
      these are the exceptions — so flipping one word does not fight the global
      control, and moving the slider clears them because that is a statement
@@ -764,7 +816,9 @@ export default function PromptGeneratorView({
         /* The reader rewrote it, so send exactly that. Running the slot
            substitution over their sentence again would edit words they chose
            themselves — and silently, since the result still looks plausible. */
-        final = editedPrompt;
+        /* Buyer-made [tokens] resolve from the same vars store their inputs
+           write to; an unfilled token ships literally so nothing vanishes. */
+        final = editedPrompt.replace(/\[([^\]\n]+)\]/g, (m, name) => vars[name] || m);
       } else if (isFree && promptText) {
         /* Assembled from the SAME segments the sentence renders, so a token
            the reader saw resolve is a token that gets substituted. This used
@@ -1275,14 +1329,35 @@ export default function PromptGeneratorView({
                 </p>
               ) : (
                 <>
-                  <textarea
-                    className="pgv-prompt-edit"
-                    value={editedPrompt}
-                    onChange={e => setEditedPrompt(e.target.value)}
-                    rows={5}
-                    spellCheck={false}
-                    aria-label="Your version of this prompt"
-                  />
+                  <div style={{ position: "relative" }}>
+                    <textarea
+                      ref={editTaRef}
+                      className="pgv-prompt-edit"
+                      value={editedPrompt}
+                      onChange={e => setEditedPrompt(e.target.value)}
+                      onMouseUp={scheduleEditPill}
+                      onKeyUp={(e) => { if (e.shiftKey || e.key === "Shift") scheduleEditPill({}); }}
+                      rows={5}
+                      spellCheck={false}
+                      aria-label="Your version of this prompt"
+                    />
+                    {editPill && (
+                      <button type="button" className="pgv-sel-pill" style={{ left: editPill.x, top: editPill.y }}
+                        onMouseDown={(e) => e.preventDefault() /* keep the selection */}
+                        onClick={addVariableFromEditSel}>+ Variable</button>
+                    )}
+                  </div>
+                  {localTokens.length > 0 && (
+                    <div className="pgv-localvars">
+                      {localTokens.map((name) => (
+                        <label key={name} className="pgv-localvar">
+                          <span className="mono">[{name}]</span>
+                          <input value={vars[name] || ""} placeholder={name}
+                            onChange={(e) => onVarChange(name, e.target.value)} />
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   {/* Only offered once there is something to undo, and it says
                       what it restores rather than just "reset". */}
                   <button type="button" className="pgv-prompt-revert" onClick={() => setEditedPrompt(null)}>

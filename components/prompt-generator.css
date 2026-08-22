@@ -170,6 +170,17 @@
   align-items: center;
   gap: 6px;
 }
+/* "+ Variable" selection pill + the buyer's own token inputs. */
+.pgv-sel-pill { position: absolute; z-index: 30; display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px; border: none; border-radius: 999px; background: var(--pgv-accent);
+  color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 22px rgba(0,0,0,.28); }
+.pgv-sel-pill:hover { filter: brightness(1.08); }
+.pgv-localvars { display: flex; flex-direction: column; gap: 5px; margin-top: 7px; }
+.pgv-localvar { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--pgv-text-muted); }
+.pgv-localvar input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--pgv-border);
+  border-radius: 7px; background: var(--pgv-input-bg); color: var(--pgv-text); font-size: 12px; outline: none; }
+.pgv-localvar input:focus { border-color: var(--pgv-accent); }
+
 /* The like badge shares the star badge's chrome; button reset + ember heart. */
 .pgv-like-badge { cursor: pointer; }
 .pgv-like-badge svg { color: #e0584f; }
