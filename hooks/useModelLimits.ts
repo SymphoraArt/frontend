@@ -51,6 +51,7 @@ interface ModelRow {
   maxResolution?: string;
   supportsQuality?: boolean;
   tierScale?: Record<string, number>;
+  boostAvailable?: boolean;
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -153,6 +154,10 @@ export interface CatalogueEntry {
    * 4K/2K is per model). The old client-side flat x2 overstated 4K.
    */
   tierScale?: Record<string, number>;
+  /** Whether a faster host exists for this model — server-derived (hasBoost). */
+  boostAvailable?: boolean;
+  /** How many reference images the model takes (models.max_reference_images). */
+  maxRefs?: number;
 }
 
 /**
@@ -255,6 +260,8 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
         : "2K") as CatalogueEntry["maxResolution"],
       ratios: Array.isArray(r.allowed_ratios) && r.allowed_ratios.length > 0 ? r.allowed_ratios : FALLBACK_RATIOS,
       tierScale: r.tierScale && typeof r.tierScale === "object" ? (r.tierScale as Record<string, number>) : undefined,
+      boostAvailable: typeof r.boostAvailable === "boolean" ? r.boostAvailable : undefined,
+      maxRefs: typeof r.max_reference_images === "number" ? r.max_reference_images : undefined,
     }));
   return out;
 }

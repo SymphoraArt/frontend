@@ -1,4 +1,4 @@
-import BoostToggle from "@/components/generation/BoostToggle";
+import BoostToggle, { BOOST_MULTIPLIER } from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import type { DiceValue, DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -159,6 +159,12 @@ interface EnkiMobileGenerateModalProps {
   /** Boost: same model on a priority host. Omit onBoostChange to hide it. */
   boost?: boolean;
   onBoostChange?: (next: boolean) => void;
+  /** Resolution, owned by the parent when provided — with the option list
+      derived from the model's real ceiling and prices (useGenerationCore).
+      Absent, the modal keeps its internal 2K/4K fallback (legacy editor). */
+  resolution?: string;
+  setResolution?: (v: string) => void;
+  resolutionOptions?: Array<{ value: string; label: string }>;
   /* Freshly generated images to surface ABOVE the sheet (newest first). */
   resultImages?: string[];
   isGenerating?: boolean;
@@ -287,6 +293,9 @@ export default function EnkiMobileGenerateModal({
   generateLabel,
   boost,
   onBoostChange,
+  resolution: resolutionProp,
+  setResolution: setResolutionProp,
+  resolutionOptions,
   resultImages,
   isGenerating = false,
   requiredVariations,
@@ -316,7 +325,9 @@ export default function EnkiMobileGenerateModal({
      multi-select handler (editor → onToggleModel) we defer to it; otherwise
      (feed launcher) we keep selection locally so it's still multiple-choice. */
   const [internalPrefModels, setInternalPrefModels] = useState<string[]>(() => models.selected);
-  const [genResolution, setGenResolution] = useState("2K");
+  const [internalResolution, setInternalResolution] = useState("2K");
+  const genResolution = resolutionProp ?? internalResolution;
+  const setGenResolution = setResolutionProp ?? setInternalResolution;
   const [genCount, setGenCount] = useState("x 1");
   const prefModels = onToggleModel ? models.selected : internalPrefModels;
   const togglePrefModel = (id: string) => {
@@ -476,6 +487,13 @@ export default function EnkiMobileGenerateModal({
     genResolution,
     genCountNum
   );
+  /* Boost doubles the price (BOOST_MULTIPLIER); the label ignored it, so
+     toggling the lever changed nothing on screen (Kev, 2026-08-22). */
+  const boostMult = boost ? BOOST_MULTIPLIER : 1;
+  genPrice.perImage *= boostMult;
+  genPrice.apiSubtotal *= boostMult;
+  genPrice.fee *= boostMult;
+  genPrice.total *= boostMult;
   const useApiPricing = !!hideReleaseTab;
   const displayPrice = useApiPricing ? genPrice.total : pricePerSlot;
   const priceTitle = useApiPricing
@@ -1352,7 +1370,7 @@ export default function EnkiMobileGenerateModal({
                   title="Resolution"
                   icon={<Maximize2 size={14} style={{ color: "#8A7F72", flexShrink: 0 }} aria-label="Resolution" />}
                   value={genResolution}
-                  options={[{ value: "2K", label: "2K" }, { value: "4K", label: "4K" }]}
+                  options={resolutionOptions ?? [{ value: "2K", label: "2K" }, { value: "4K", label: "4K" }]}
                   onChange={setGenResolution}
                 />
                 <MiniSelect

@@ -305,6 +305,9 @@ export function withCapabilities(rows: ModelRow[], audience: Audience = "public"
       maxResolution: m.maxResolution,
       supportsResolution: m.supportsResolution,
       supportsQuality: m.supportsQuality,
+      // Derived from the provider rows (hasBoost), never stored: a boost
+      // toggle may only show where a faster host actually exists.
+      boostAvailable: hasBoost(m),
       tierScale: { "1K": 1, "2K": 1, "4K": ladder["4K"] / ladder["2K"] },
     };
   });

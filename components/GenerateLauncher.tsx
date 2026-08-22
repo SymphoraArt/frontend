@@ -13,14 +13,14 @@ import { addCreation } from "@/lib/creations";
 import EnkiMobileGenerateModal from "@/components/EnkiMobileGenerateModal";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { sessionAuthHeaders } from "@/lib/session-headers";
+import { useGenerationCore } from "@/hooks/useGenerationCore";
+import NftPickerModal from "@/components/enki/NftPickerModal";
 
-// Per-render display price (USD). This build generates via the free Pollinations
-// endpoint, so the price is cosmetic — it mirrors the editor's $0.10 label.
-const GL_MODELS = [
-  { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.1 },
-  { id: "gpt-image-2", name: "GPT-Image-2", price: 0.1 },
-];
-const GL_RATIOS = ["1:1", "4:5", "3:4", "16:9", "9:16"];
+/* No literals: models, ratios, tiers, prices, the boost lever and the NFT
+   reference limit all come from useGenerationCore — the one global source
+   every generate surface reads (Kev, 2026-08-22). The old GL_MODELS pair
+   (invented $0.10, no Flux) and the five-ratio list were exactly the drift
+   that rule exists to end. */
 
 /**
  * GenerateLauncher — the unified "Generate" entry point (ported from pr45) that
@@ -59,13 +59,18 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
   const [boost, setBoost] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [valueByToken, setValueByToken] = useState<Record<string, string>>({});
-  const [model, setModel] = useState(GL_MODELS[0].id);
+  const [model, setModel] = useState("nano-banana-pro");
+  const core = useGenerationCore(model);
+  const [resolution, setResolution] = useState("2K");
+  const [nftPickerOpen, setNftPickerOpen] = useState(false);
   // Per-model limits (max reference images, allowed filetypes) from the DB.
   const modelLimits = useModelLimits(model);
   const [ratio, setRatio] = useState("1:1");
+  // A model switch must never leave a ratio or tier the new model lacks.
+  useEffect(() => { if (!core.loading && !core.ratios.includes(ratio)) setRatio(core.clampRatio(ratio)); }, [core, ratio]);
+  useEffect(() => { if (!core.loading && core.clampTier(resolution) !== resolution) setResolution(core.clampTier(resolution)); }, [core, resolution]);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [nftImages, setNftImages] = useState<string[]>([]);
-  const nftInputRef = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<string[]>([]);
   // When opened from a clicked feed prompt: lock the body for paid prompts and
   // carry the creator's exposed variables (which may be checkbox/image types
@@ -161,7 +166,7 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
         body: JSON.stringify({
           prompt: final.trim(),
           aspectRatio: ratio,
-          resolution: "2K",
+          resolution, // the user's pick — "2K" was hardcoded while the UI offered a choice
           boost,
           // These were collected in the UI and then never sent. The server
           // caps them by the model's own limit.
@@ -199,9 +204,10 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
   // Pick an NFT as a reference. The real wallet NFT-picker isn't built in this
   // free build yet — for now this opens a file picker so the NFT deck is
   // usable; swap this for the wallet's NFT selection flow when ready.
-  const pickNFT = () => {
-    nftInputRef.current?.click();
-  };
+  /* The NFT button opens the WALLET picker — it used to click the hidden
+     file input, so "NFTs" opened an upload-from-PC dialog (Kev, 2026-08-22).
+     The file input stays for the plain image-upload path only. */
+  const pickNFT = () => setNftPickerOpen(true);
 
   const addToList = (
     files: FileList,
@@ -244,20 +250,14 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
 
   return (
     <>
-      {/* Placeholder picker for the NFT deck until the wallet NFT flow is wired. */}
-      <input
-        ref={nftInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        style={{ display: "none" }}
-        onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0) {
-            addToList(e.target.files, setNftImages);
-          }
-          e.target.value = "";
-        }}
-      />
+      {/* The wallet NFT picker — capped by the model's own reference limit. */}
+      {nftPickerOpen && (
+        <NftPickerModal
+          max={Math.max(0, (core.entry?.maxRefs ?? 14) - referenceImages.length - nftImages.length)}
+          onPick={(urls) => setNftImages((prev) => [...prev, ...urls])}
+          onClose={() => setNftPickerOpen(false)}
+        />
+      )}
       {/* Ratings & comments for the opened prompt — floats above the modal. */}
       {open && seedPrompt && <PromptEngagement promptId={String(seedPrompt.id)} />}
 
@@ -276,11 +276,14 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
           setPrompt((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}[var_${n}]`);
         }}
         onRemoveVariable={(name) => setPrompt((prev) => prev.split(`[${name}]`).join("").replace(/\s{2,}/g, " ").trim())}
-        models={{ available: GL_MODELS, selected: [model] }}
+        models={{ available: core.catalogue.map((m) => ({ id: m.id, name: m.name, price: m.price })), selected: [model] }}
         setModel={setModel}
-        ratios={{ available: GL_RATIOS, selected: ratio }}
+        ratios={{ available: core.ratios, selected: ratio }}
         setRatio={setRatio}
-        pricePerSlot={GL_MODELS.find((m) => m.id === model)?.price ?? 0.1}
+        pricePerSlot={core.entry?.price ?? 0}
+        resolution={resolution}
+        setResolution={setResolution}
+        resolutionOptions={core.tiers.map((t) => ({ value: t.tier, label: t.price != null ? `${t.tier} · $${t.price.toFixed(2)}` : t.tier }))}
         referenceImages={referenceImages}
         onAddReferenceImages={addReferenceImages}
         onRemoveReferenceImage={(i) =>
@@ -295,7 +298,7 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
         onReorderNFTs={(from, to) => setNftImages((prev) => reorder(prev, from, to))}
         generateLabel={generating ? "Generating…" : "Generate"}
         boost={boost}
-        onBoostChange={setBoost}
+        onBoostChange={core.boostAvailable ? setBoost : undefined}
         hideReleaseTab
         balance={null}
         resultImages={results}
