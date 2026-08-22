@@ -96,7 +96,12 @@
 .nc-ntrash:hover{color:#e0584f;background:color-mix(in oklab,#e0584f 12%,transparent);}
 
 /* ── prompt node ── */
-.nc-prompt{width:480px;}
+/* z-index 2: the prompt node is the high-priority node and overlays input
+   nodes when they collide (Kev, 2026-08-22). The explicit z-index also makes
+   it a STACKING CONTEXT — without one, the ref cards' own z-indices (1..320,
+   for deck overlap and drag) competed globally and poked through the var
+   nodes' headers even where the prompt node itself sat underneath. */
+.nc-prompt{width:480px;z-index:2;}
 .nc-prompt .nc-nhead{height:42px;border-bottom-color:transparent;}
 .nc-ribbon-title{border:none;background:transparent;font-family:var(--font-serif),Georgia,serif;font-size:15px;color:var(--enki-ink);outline:none;flex:1;min-width:0;}
 /* per-prompt model picker — custom dropdown pinned to the far right of the header */
