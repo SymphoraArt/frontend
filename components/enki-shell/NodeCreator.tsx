@@ -1778,7 +1778,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                        spot one off from where the card would land. Side
                        first, then the gap (and the ember bar) follow it. */
                     const side = refOverI === i && refDragI !== null && refDragI !== i ? (refDragI < i ? "r" : "l") : null;
-                    const gapW = side === "l" ? 44 + (i === 0 ? 0 : refOverlap) : side === "r" ? 44 + (i === refs.length - 1 ? REF_GAP : refOverlap) : 0;
+                    const gapW = side === "l" ? 44 + (i === 0 ? 0 : refOverlap) : side === "r" ? 44 + (i === refs.length - 1 ? 0 : refOverlap) : 0; // last card: the + add button is hidden during a drag, so no neighbour margin
                     return (
                     <div key={r.id} className={"nc-refcard" + (r.userInput ? " ui" : "") + (refDragI === i ? " dragging" : "") + (side ? " over-" + side : "")} draggable
                       style={{ marginLeft: (i === 0 ? 0 : refOverlap) + (side === "l" ? 44 : 0), marginRight: side === "r" ? 44 : 0, zIndex: refDragI === i ? 320 : side ? 240 : i + 1, ...(side ? ({ "--refgap-half": gapW / 2 + "px" } as React.CSSProperties) : null) }}
@@ -1804,7 +1804,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                       </button>
                     </div>
                   ); })}
-                  <button className="nc-refadd" style={{ marginLeft: REF_GAP }} title="Upload reference images" onClick={() => refUploadRef.current?.click()}>+</button>
+                  <button className={"nc-refadd" + (refDragI !== null ? " nc-refadd--drag" : "")} style={{ marginLeft: REF_GAP }} title="Upload reference images" onClick={() => refUploadRef.current?.click()}>+</button>
                   <input ref={refUploadRef} type="file" accept={modelLimits.accept} multiple style={{ display: "none" }} onChange={(e) => { addRefsFromFiles(e.target.files); e.currentTarget.value = ""; }} />
                 </div>
               </div>

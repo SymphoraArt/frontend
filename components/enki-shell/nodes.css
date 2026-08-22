@@ -252,6 +252,10 @@
 .nc-refcard-ui.on .nc-refcard-ui-box{background:#fff;color:var(--enki-turq);border-color:#fff;}
 .nc-refadd{width:62px;height:62px;border-radius:9px;border:1.5px dashed var(--enki-rule);background:transparent;color:var(--enki-ink-3);font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .14s,color .14s;}
 .nc-refadd:hover{border-color:var(--enki-ember);color:var(--enki-ember);}
+/* Hidden while a card is being reordered: opening the drop gap widens the
+   deck, and the + was what got shoved out over the node edge (Kev,
+   2026-08-22). Its slot still drops fine — the deck handles that. */
+.nc-refadd--drag{display:none;}
 .nc-ref-num{position:absolute;top:46px;left:8px;z-index:4;min-width:22px;height:22px;padding:0 6px;border-radius:7px;background:#1f8a5b;color:#fff;font-family:var(--font-mono),monospace;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);}
 .nc-chk{display:flex;align-items:center;gap:8px;margin-top:9px;cursor:pointer;font-size:12px;color:var(--enki-ink-2);}
 .nc-chk-box{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--enki-rule);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;transition:all .14s;}
