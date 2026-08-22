@@ -13,6 +13,7 @@ import { Icon } from "./icons";
 import { Gem } from "lucide-react";
 import { useModelCatalogue, resolveCatalogueEntry, tierPrice } from "@/hooks/useModelLimits";
 import RatioRect from "@/components/generation/RatioRect";
+import { variableRange } from "@/lib/editor/selection-variable";
 import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -249,15 +250,9 @@ export default function DocView({ api }: { api: DocViewApi }) {
       const ta = taRef.current, page = pageRef.current;
       if (!ta || !page || document.activeElement !== ta) { setPill(null); return; }
       const s = ta.selectionStart, en = ta.selectionEnd;
-      const seg = ta.value.slice(s, en);
-      if (en <= s || !seg.trim() || /[[\]\n]/.test(seg)) { setPill(null); return; }
-      // A selection INSIDE an existing [token] must never become a variable —
-      // splicing brackets into a token corrupts the rename heuristic.
-      const re = new RegExp(TOKEN_RE.source, "g");
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(ta.value)) !== null) {
-        if (s < m.index + m[0].length && en > m.index) { setPill(null); return; }
-      }
+      // Shared validation (lib/editor/selection-variable): whitespace-only,
+      // bracket-touching and token-overlapping selections never get a pill.
+      if (!variableRange(ta.value, s, en)) { setPill(null); return; }
       const r = page.getBoundingClientRect();
       // The design anchors the pill to the mouse — cheap and always visible.
       const x = Math.max(8, Math.min((cx ?? r.left + 80) - r.left - 56, r.width - 150));
@@ -267,13 +262,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
   };
   const addVariableFromPill = () => {
     if (!pill) return;
-    // Splice over the TRIMMED range only — boundary whitespace stays in the text.
-    const rawSeg = st.body.slice(pill.start, pill.end);
-    const lead = rawSeg.length - rawSeg.trimStart().length;
-    const trail = rawSeg.length - rawSeg.trimEnd().length;
-    const s2 = pill.start + lead, e2 = pill.end - trail;
-    const seg = st.body.slice(s2, e2);
-    if (!seg) { setPill(null); return; }
+    // Same shared validation as the pill itself — the splice can only do
+    // what the pill promised, even if the body changed underneath.
+    const r = variableRange(st.body, pill.start, pill.end);
+    if (!r) { setPill(null); return; }
+    const { start: s2, end: e2, name: seg } = r;
     const body = st.body.slice(0, s2) + "[" + seg + "]" + st.body.slice(e2);
     // Body first, then the backing node: addText sees the token already in the
     // (queued) body and skips its own append — same path as typing a token.

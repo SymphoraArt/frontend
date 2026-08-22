@@ -8,6 +8,7 @@ import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS, tierPrice } from "@/hooks/useModelLimits";
 import { moveToken } from "@/lib/editor/move-token";
+import { TOKEN_SRC, variableRange } from "@/lib/editor/selection-variable";
 import RatioRect from "@/components/generation/RatioRect";
 import { FREE_TIERS, tiersUpTo, TIER_PRICE_MULT } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
@@ -66,7 +67,9 @@ const VPOOL: Record<string, string[]> = {
   mood: ["serene and quietly melancholic, the calm right before rain", "tense and dramatic, heavy with anticipation", "warm, nostalgic golden-hour stillness", "electric, restless, buzzing with night energy", "dreamlike and weightless, softly out of focus"],
   texture: ["hyperreal graphite with fine tooth and soft smudging", "cracked oil-paint impasto catching raking light", "rough cold-press paper grain, visible fibers", "glossy chrome with sharp specular highlights", "matte risograph print with subtle misregistration"],
 };
-export const TOKEN_RE = /(\[[^\]\n]+\])/g;
+// Built on the same source the shared selection validator uses, so the two
+// can never disagree about what a token is.
+export const TOKEN_RE = new RegExp("(" + TOKEN_SRC + ")", "g");
 export const isRefTok = (t: string) => /^\[Reference Image \d+\]$/.test(t);
 const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
 // Last-used editor view (doc-style vs node canvas) — survives close/reopen.
@@ -1091,6 +1094,55 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   };
   const hideDropCaret = () => { dropCaretRef.current?.remove(); dropCaretRef.current = null; };
 
+  /* "+ Variable" pill on a text selection — the doc view's exact pattern
+     (Kev, 2026-08-22: the pill belongs in EVERY editor). Deferred 80ms and
+     re-verified, because on a click into an existing selection the browser
+     collapses it only after mouseup — a synchronous read flashes a phantom
+     pill. Validation is the shared lib/editor/selection-variable. */
+  const [selPill, setSelPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
+  const selPillT = useRef<number | null>(null);
+  useEffect(() => () => { if (selPillT.current) window.clearTimeout(selPillT.current); }, []);
+  useEffect(() => {
+    const onSel = () => {
+      setSelPill((p) => {
+        if (!p) return p;
+        const ta = taRef.current;
+        return !ta || document.activeElement !== ta || ta.selectionStart === ta.selectionEnd ? null : p;
+      });
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+  const schedulePill = (e: { clientX?: number; clientY?: number }) => {
+    const cx = e.clientX, cy = e.clientY;
+    if (selPillT.current) window.clearTimeout(selPillT.current);
+    selPillT.current = window.setTimeout(() => {
+      selPillT.current = null;
+      const ta = taRef.current; const box = ta?.parentElement;
+      if (!ta || !box || document.activeElement !== ta) { setSelPill(null); return; }
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      if (!variableRange(ta.value, s, en)) { setSelPill(null); return; }
+      const r = box.getBoundingClientRect();
+      const x = Math.max(8, Math.min((cx ?? r.left + 80) - r.left - 56, r.width - 150));
+      const y = (cy ?? r.top + 40) - r.top + 18;
+      setSelPill({ x, y, start: s, end: en });
+    }, 80);
+  };
+  const addVariableFromSel = () => {
+    if (!selPill) return;
+    const r = variableRange(stRef.current.body, selPill.start, selPill.end);
+    setSelPill(null);
+    if (!r) return;
+    pushHist();
+    const body = stRef.current.body.slice(0, r.start) + "[" + r.name + "]" + stRef.current.body.slice(r.end);
+    onBodyChange(body);
+    addText(undefined, r.name); // no-op if a node of that name already exists
+    requestAnimationFrame(() => {
+      const ta = taRef.current; const caret = r.start + r.name.length + 2;
+      if (ta) { ta.focus(); ta.setSelectionRange(caret, caret); }
+    });
+  };
+
   const tokDrag = useRef<{ started: boolean; at: number | null } | null>(null);
   const beginTokPointer = (part: string, renderStart: number, e: React.PointerEvent<HTMLElement>) => {
     e.stopPropagation(); e.preventDefault();
@@ -1898,9 +1950,17 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                 <textarea ref={taRef} className="nc-pta" value={st.body} style={{ minHeight: boxH.current }}
                   placeholder="Describe the image you want to sell as a prompt…"
                   onChange={(e) => onBodyChange(e.target.value)}
+                  onMouseUp={schedulePill}
+                  onKeyUp={(e) => { if (e.shiftKey || e.key === "Shift") schedulePill({}); }}
                   onFocus={pushHist} onKeyDown={onPromptKey}
                   onScroll={() => { if (ovRef.current && taRef.current) ovRef.current.scrollTop = taRef.current.scrollTop; }}
                   onPointerDown={(e) => e.stopPropagation()} spellCheck={false} />
+                {selPill && (
+                  <button className="ncd-pill" style={{ left: selPill.x, top: selPill.y }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.preventDefault() /* keep the textarea selection */}
+                    onClick={addVariableFromSel}>+ Variable</button>
+                )}
               </div>
               <div className="nc-addrow nc-addrow--gen">
                 <div className="nc-genopts">
