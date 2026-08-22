@@ -2181,7 +2181,12 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         </div>
         <div className="nc-gp-gen">
           <button className="nc-gp-btn" onClick={() => runGenerate(true)} title="Autofill variables & generate"><Icon name="wand" size={12} stroke={2} /> Autofill</button>
-          <button className="nc-gp-btn" onClick={() => runGenerate(false)} title="Pay & generate"><Icon name="zap" size={12} stroke={2} fill="currentColor" /> Pay&nbsp;&amp;&nbsp;Gen</button>
+          {/* The primary action wears the CTA colour and carries the price of
+              the ENTIRE run — the workflow total (every image at the chosen
+              model/resolution, boost included), the same number as the
+              header row. "Pay & Gen" named the mechanics; the price itself
+              says it costs money (Kev, 2026-08-22). */}
+          <button className="nc-gp-btn nc-gp-btn--go" onClick={() => runGenerate(false)} title={"Generate " + imgCount + " image" + (imgCount > 1 ? "s" : "") + " — total for the whole run"}><Icon name="zap" size={12} stroke={2} fill="currentColor" /> Generate<span className="nc-gp-go-price">${boostedCost(cost, boost).toFixed(2)}</span></button>
         </div>
         <div className="nc-gp-rel">
           <div className="nc-gp-relh"><Icon name="star" size={10} stroke={2} fill="currentColor" /> To release{pickedOuts.length ? " · " + pickedOuts.length : ""}</div>
