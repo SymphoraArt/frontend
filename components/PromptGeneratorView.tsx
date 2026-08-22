@@ -126,10 +126,6 @@ export default function PromptGeneratorView({
      GPT-Image-2 buyer could never choose it here (Kev, 2026-08-22). Hidden
      for models without the parameter (QualitySelect available). */
   const [quality, setQuality] = useState<Quality>("medium");
-  /* freeRoute feeds the core, but noCharge itself needs the core's entry —
-     the ref breaks the ordering cycle; one render of lag on a flag that
-     changes with a click is invisible. */
-  const noChargeRef = useRef(false);
   const [refs, setRefs] = useState<string[]>([]);
   const [fav, setFav] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -322,13 +318,18 @@ export default function PromptGeneratorView({
      exact-name find missed whenever the DB name and the stored string
      differed, and every miss silently fell back to a 2K ceiling: "still has
      only 1k and 2k" (Kev, 2026-08-22). */
-  const core = useGenerationCore(generator, { freeRoute: noChargeRef.current });
+  /* NO freeRoute clamp: the SELECTED model rules the options — pick
+     GPT-Image-2 and you get its ten ratios, 1K-4K and the quality lever on
+     every prompt (Kev, 2026-08-22: clamping the lists to Flux on showcase
+     prompts hid exactly the settings he selected the model FOR). What the
+     free route cannot deliver it clamps server-side, and resultSize reports
+     what was actually measured. */
+  const core = useGenerationCore(generator);
   const freeModel = core.entry?.price === 0;
 
   /* Free of charge for either reason: the artist gave the prompt away, or the
      chosen model costs nothing to run. */
   const noCharge = isFree || freeModel;
-  noChargeRef.current = noCharge;
 
   /* Which sizes this run can actually deliver, and a pick that never survives
      outside that list. Without the correction a buyer who chose 4K and then
@@ -1426,7 +1427,7 @@ export default function PromptGeneratorView({
                     : "Resolution"}
                   aria-label="Resolution"
                 >
-                  {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
+                  {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{!noCharge && t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
                 </select>
               </div>
             </div>
