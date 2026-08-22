@@ -11,6 +11,7 @@ import QualitySelect, { type Quality } from "@/components/generation/QualitySele
 import { tiersUpTo } from "@/lib/generation/resolution";
 import { useModelCatalogue, resolveCatalogueEntry, tierPrice, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 import RatioSelect from "@/components/generation/RatioSelect";
+import NftPickerModal from "@/components/enki/NftPickerModal";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 
 /* No model literals: names, prices, ratios, tiers and the quality lever all
@@ -62,6 +63,13 @@ export default function EnkiQuickCreate() {
   // Image Selection Mode: 'upload' | 'nft'
   const [imgMode, setImgMode] = useState<"upload" | "nft">("upload");
   const [images, setImages] = useState<(string | null)[]>(Array(4).fill(null));
+  // NFT picker (Kev, 2026-08-22): marked NFTs land in the image slots.
+  const [nftOpen, setNftOpen] = useState(false);
+  const takeNftImages = (urls: string[]) => setImages((prev) => {
+    const next = prev.slice();
+    for (const u of urls) { const free = next.findIndex((x) => !x); if (free === -1) break; next[free] = u; }
+    return next;
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -268,14 +276,18 @@ export default function EnkiQuickCreate() {
                     </button>
                     <button 
                       className={`enki-qc-source-toggle-btn-v3 ${imgMode === "nft" ? "active" : ""}`}
-                      onClick={() => setImgMode("nft")}
+                      onClick={() => { setImgMode("nft"); setNftOpen(true); }}
                     >
                       NFTs
                     </button>
                   </div>
                   <div className="enki-qc-source-assets-v3">
-                    <button className="enki-qc-asset-slot-v3"><Plus size={14} /></button>
-                    {[0,1,2].map(i => <div key={i} className="enki-qc-asset-slot-v3" />)}
+                    <button className="enki-qc-asset-slot-v3" title="Add images" onClick={() => imgMode === "nft" && setNftOpen(true)}><Plus size={14} /></button>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="enki-qc-asset-slot-v3">
+                        {images[i] && <img src={images[i]!} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -357,6 +369,9 @@ export default function EnkiQuickCreate() {
 
             </div>
           </div>
+          {nftOpen && (
+            <NftPickerModal max={images.filter((x) => !x).length || 4} onPick={takeNftImages} onClose={() => setNftOpen(false)} />
+          )}
         </>
       )}
 
