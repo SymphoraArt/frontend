@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
 
   const category = req.nextUrl.searchParams.get("category");
   if (!category) return NextResponse.json({ error: "category is required" }, { status: 400 });
-  const cursor = Number(req.nextUrl.searchParams.get("cursor"));
+  const cursorRaw = req.nextUrl.searchParams.get("cursor");
+  // Number(null) is 0 — an absent cursor then filtered out every row at or
+  // below position 0, which top-of-list drops produce (found by review).
+  const cursor = cursorRaw == null ? Number.NaN : Number(cursorRaw);
   const limit = Math.min(60, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || PAGE));
 
   let q = supabase
