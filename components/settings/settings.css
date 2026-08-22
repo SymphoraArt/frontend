@@ -1,5 +1,13 @@
 /* Settings Page Editorial Styles */
 
+/* The reading column is centered on the viewport, and the WINDOW scrolls:
+   tabs long enough for a scrollbar shifted the whole block ~8px left of the
+   short tabs — "der start of the text varies with the menus" (Kev,
+   2026-08-22). Reserving the gutter only while a settings page is mounted
+   keeps the column pinned without giving every other view the permanent
+   right-hand gutter Kev already rejected for the editor. */
+html:has(.set-page) { scrollbar-gutter: stable; }
+
 .set-page {
   min-height: 100vh;
   background-color: var(--enki-paper);
