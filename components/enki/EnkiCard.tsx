@@ -1,6 +1,8 @@
 "use client";
 
-import { Heart, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
+import { useState } from "react";
+import { Heart, Bookmark, Play, Image as ImageIcon, Film, PencilLine } from "lucide-react";
+import BookmarkPicker from "@/components/enki/BookmarkPicker";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { preloadImageUI } from "@/components/enki/EnkiDetailPanel";
@@ -10,14 +12,15 @@ import "./enki.css";
 type EnkiCardProps = {
   prompt: EnkiPrompt;
   onOpen?: (prompt: EnkiPrompt) => void;
-  faved: boolean;
-  toggleFav: (id: string) => void;
   onEdit?: (prompt: EnkiPrompt) => void;
 };
 
-export default function EnkiCard({ prompt, onOpen, faved, toggleFav, onEdit }: EnkiCardProps) {
+export default function EnkiCard({ prompt, onOpen, onEdit }: EnkiCardProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // The top-right action is a BOOKMARK now, not a like: it opens the
+  // category picker and files the card there (Kev, 2026-08-22).
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   /* Warm what the click is about to need, while the pointer is still on its
      way: the image view's chunk, which next/dynamic otherwise fetches only on
@@ -53,17 +56,25 @@ export default function EnkiCard({ prompt, onOpen, faved, toggleFav, onEdit }: E
           <span className="enki-card-stat mono enki-card-stat-price">${prompt.price.toFixed(2)}</span>
         </div>
         <button
-          className={`enki-heart${faved ? " active" : ""}`}
+          className={`enki-heart${pickerOpen ? " active" : ""}`}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            toggleFav(prompt.id);
+            setPickerOpen((o) => !o);
           }}
           type="button"
-          aria-label={faved ? "Remove from favorites" : "Add to favorites"}
+          aria-label="Bookmark this prompt"
+          title="Bookmark"
         >
-          <Heart size={14} fill={faved ? "currentColor" : "none"} />
+          <Bookmark size={14} fill={pickerOpen ? "currentColor" : "none"} />
         </button>
+        {pickerOpen && (
+          <BookmarkPicker
+            promptId={prompt.id}
+            imageUrl={prompt.art.url}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
         {onEdit && (
           <button
             className="enki-edit"

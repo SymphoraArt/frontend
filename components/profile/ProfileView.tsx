@@ -807,8 +807,6 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
                 key={prompt.id}
                 prompt={prompt}
                 onOpen={setOpen}
-                faved={Boolean(favs[prompt.id])}
-                toggleFav={toggleFav}
                 onEdit={requestPromptEdit}
               />
             ))}

@@ -168,8 +168,6 @@ export default function EnkiFeedPage() {
                 <EnkiCard
                   prompt={prompt}
                   onOpen={setOpen}
-                  faved={Boolean(favs[prompt.id])}
-                  toggleFav={toggleFav}
                 />
               </div>
             ))}

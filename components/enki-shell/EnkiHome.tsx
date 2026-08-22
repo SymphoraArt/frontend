@@ -20,6 +20,7 @@ import { useMessages } from "@/hooks/useMessages";
 import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
 import EnkiSidebar, { type NavItem } from "./EnkiSidebar";
 import ReferModal from "./ReferModal";
+import BookmarksPanel from "./BookmarksPanel";
 import FeedbackModal from "./FeedbackModal";
 import NodeCreator from "./NodeCreator";
 import EnkiPanel from "./EnkiPanel";
@@ -323,6 +324,7 @@ export default function EnkiHome() {
       case "settings": return <SettingsView initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
       case "profile": return <ProfileView onBack={() => { setPanel(null); setActiveNav("home"); }} />;
       {/* Leaderboard brings its own editorial header (design), no PanelHeadline */}
+      case "favorites": return <BookmarksPanel />;
       case "leaderboard": return <LeaderboardPage />;
       default: return (
         <PanelFrame>

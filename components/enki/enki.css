@@ -363,7 +363,11 @@
   top: 8px;
   left: 8px;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.88);
+  /* Theme tokens, not white-on-anything: the fixed white chips carried
+     near-white ink in dark mode and were unreadable (Kev, 2026-08-22,
+     screenshot). Same cure for the price chip and the corner buttons. */
+  background: color-mix(in oklab, var(--enki-paper) 86%, transparent);
+  border: 1px solid var(--enki-rule);
   color: var(--enki-ink);
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 9px;
@@ -403,7 +407,8 @@
 }
 
 .enki-card-stat-price {
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in oklab, var(--enki-paper) 92%, transparent);
+  border: 1px solid var(--enki-rule);
   color: var(--enki-ink);
   font-weight: 600;
 }
@@ -417,7 +422,8 @@
   height: 28px;
   border: 0;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in oklab, var(--enki-paper) 88%, transparent);
+  border: 1px solid var(--enki-rule);
   color: var(--enki-ink-2);
   display: inline-flex;
   align-items: center;
@@ -436,7 +442,8 @@
   height: 28px;
   border: 0;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in oklab, var(--enki-paper) 88%, transparent);
+  border: 1px solid var(--enki-rule);
   color: var(--enki-ink-2);
   display: inline-flex;
   align-items: center;
@@ -445,11 +452,11 @@
   backdrop-filter: blur(6px);
   transition: background 0.15s, color 0.15s;
 }
-.enki-edit:hover { color: var(--enki-ember); background: #fff; }
+.enki-edit:hover { color: var(--enki-ember); background: var(--enki-paper); }
 
 .enki-heart.active {
   color: var(--enki-ember);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--enki-paper);
 }
 
 .enki-card-overlay {
