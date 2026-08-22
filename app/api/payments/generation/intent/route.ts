@@ -4,7 +4,7 @@
  * Server-built payments (backlog #2), step 2: persist the intent. The client
  * sends ONLY identifiers — never a price, amount, or destination:
  *
- *   Body: { promptId: string, modelFamily: string, resolution?: "2K" | "4K" }
+ *   Body: { promptId: string, modelFamily: string, resolution?: "1K" | "2K" | "4K" }
  *
  * The server recomputes the full split from its own DB and pricing (it never
  * trusts an earlier quote response), stores it as a payment intent with
@@ -31,7 +31,11 @@ import { computeQuote } from "@/lib/payments/generation-quote";
 const intentSchema = z.object({
   promptId: z.string().min(1).max(128),
   modelFamily: z.string().min(1).max(64),
-  resolution: z.enum(["2K", "4K"]).optional(),
+  /* 1K joined 2026-08-22 (Kev: "warum keine 1K generierungen"). It is
+     priced as 2K — toResolutionTier maps it, the provider fact being that
+     both hosts charge 1K and 2K identically — so the schema admitting it
+     cannot underprice anything. */
+  resolution: z.enum(["1K", "2K", "4K"]).optional(),
 });
 
 export async function POST(req: NextRequest) {

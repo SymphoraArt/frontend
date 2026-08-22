@@ -26,7 +26,7 @@ import {
 export interface QuoteInput {
   promptId: string;
   modelFamily: string;
-  resolution?: "2K" | "4K";
+  resolution?: "1K" | "2K" | "4K";
   /** requireAuth's userId (wallet or users.id) — enables DB pricing rules. */
   buyer?: string;
 }
