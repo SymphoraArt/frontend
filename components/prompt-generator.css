@@ -280,7 +280,9 @@
    field contributes layout only — a second border was a box in a box. */
 .pgv-field--bare { background: transparent; border: none; padding: 0; }
 .pgv-field--bare .enki-ratio-sel { flex: 1; }
-.pgv-field--bare .enki-ratio-trig { width: 100%; }
+/* Metrics matched to .pgv-field select (12px, ~31px box) — the two controls
+   sit side by side and read as one row, not two sizes (Kev, 2026-08-22). */
+.pgv-field--bare .enki-ratio-trig { width: 100%; height: 31px; font-size: 12px; }
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */

@@ -37,8 +37,9 @@ import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
-import { tiersUpTo, type ResolutionTier } from "@/lib/generation/resolution";
-import { FALLBACK_RATIOS, tierPrice } from "@/hooks/useModelLimits";
+import { type ResolutionTier } from "@/lib/generation/resolution";
+import { useGenerationCore } from "@/hooks/useGenerationCore";
+import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import RatioSelect from "@/components/generation/RatioSelect";
 
 /* ── Types ── */
@@ -121,6 +122,14 @@ export default function PromptGeneratorView({
   const [aspect, setAspect] = useState("4:5");
   const [resolution, setResolution] = useState("2K");
   const [generator, setGenerator] = useState("Nano Banana Pro");
+  /* The gpt-image quality lever — the image UI simply had none, so a
+     GPT-Image-2 buyer could never choose it here (Kev, 2026-08-22). Hidden
+     for models without the parameter (QualitySelect available). */
+  const [quality, setQuality] = useState<Quality>("medium");
+  /* freeRoute feeds the core, but noCharge itself needs the core's entry —
+     the ref breaks the ordering cycle; one render of lag on a flag that
+     changes with a click is invisible. */
+  const noChargeRef = useRef(false);
   const [refs, setRefs] = useState<string[]>([]);
   const [fav, setFav] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -309,14 +318,17 @@ export default function PromptGeneratorView({
      path is skipped rather than quoted at zero: a quote of $0.00 would still
      build an intent, a nonce account and a signature request for a payment
      that moves nothing. */
-  const freeModel = useMemo(() => {
-    const row = (modelsData ?? []).find((m) => m.name === generator);
-    return typeof row?.price === "number" && row.price === 0;
-  }, [modelsData, generator]);
+  /* Resolved by the shared core (name, id, family slug or plain slug) — the
+     exact-name find missed whenever the DB name and the stored string
+     differed, and every miss silently fell back to a 2K ceiling: "still has
+     only 1k and 2k" (Kev, 2026-08-22). */
+  const core = useGenerationCore(generator, { freeRoute: noChargeRef.current });
+  const freeModel = core.entry?.price === 0;
 
   /* Free of charge for either reason: the artist gave the prompt away, or the
      chosen model costs nothing to run. */
   const noCharge = isFree || freeModel;
+  noChargeRef.current = noCharge;
 
   /* Which sizes this run can actually deliver, and a pick that never survives
      outside that list. Without the correction a buyer who chose 4K and then
@@ -328,17 +340,8 @@ export default function PromptGeneratorView({
      these replace (ASPECTS, FREE_TIERS/PAID_TIERS) are how "2K/4K but never
      1K" and a six-ratio list survived here (Kev, 2026-08-22: "derive all
      these ratio und auflösungseinstellungen from the database!"). */
-  const modelRow = useMemo(() => (modelsData ?? []).find((m) => m.name === generator), [modelsData, generator]);
-  const freeRow = useMemo(() => (modelsData ?? []).find((m) => typeof m.price === "number" && m.price === 0), [modelsData]);
-  const aspects = useMemo(() => {
-    const row = noCharge ? freeRow ?? modelRow : modelRow;
-    return Array.isArray(row?.allowed_ratios) && row.allowed_ratios.length > 0 ? row.allowed_ratios : FALLBACK_RATIOS;
-  }, [noCharge, freeRow, modelRow]);
-  const resolutions = useMemo(() => {
-    const row = noCharge ? freeRow : modelRow;
-    const cap = row?.maxResolution === "1K" || row?.maxResolution === "2K" || row?.maxResolution === "4K" ? row.maxResolution : "2K";
-    return tiersUpTo(cap);
-  }, [noCharge, freeRow, modelRow]);
+  const aspects = core.ratios;
+  const resolutions = useMemo(() => core.tiers.map((t) => t.tier), [core]);
   useEffect(() => {
     if (!aspects.includes(aspect)) setAspect(aspects[0]);
   }, [aspects, aspect]);
@@ -768,7 +771,7 @@ export default function PromptGeneratorView({
         res = await fetch("/api/generate-image", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
-          body: JSON.stringify({ intentId, prompt: final.trim(), aspectRatio: aspect }),
+          body: JSON.stringify({ intentId, prompt: final.trim(), aspectRatio: aspect, quality }),
         });
       } else {
         res = await fetch("/api/generate-free", {
@@ -781,7 +784,7 @@ export default function PromptGeneratorView({
           /* promptId travels even when the wording was edited: the image is
              still that prompt's descendant, and without it the record said the
              generation came from nowhere. */
-          body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution, promptId }),
+          body: JSON.stringify({ prompt: final.trim(), aspectRatio: aspect, resolution, promptId, quality }),
         });
       }
       if (!res.ok) {
@@ -1418,10 +1421,12 @@ export default function PromptGeneratorView({
                 <select
                   value={resolution}
                   onChange={e => setResolution(e.target.value)}
-                  title="Resolution"
+                  title={noCharge
+                    ? "Resolution — this run renders on the FREE route (Flux), which tops out at 2K. Paid models unlock 4K."
+                    : "Resolution"}
                   aria-label="Resolution"
                 >
-                  {resolutions.map(r => { const p = tierPrice(noCharge ? undefined : { price: modelRow?.price ?? 0 }, r); return <option key={r} value={r}>{r}{p != null ? ` · $${p.toFixed(2)}` : ""}</option>; })}
+                  {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
                 </select>
               </div>
             </div>
@@ -1448,7 +1453,8 @@ export default function PromptGeneratorView({
               could not happen, on a button labelled "Generate free" (Kev,
               2026-08-19). A control that changes nothing is the lie this
               codebase keeps relearning. */}
-          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} available={modelRow?.boostAvailable !== false} disabled={generating} />}
+          <QualitySelect value={quality} onChange={setQuality} available={core.supportsQuality} disabled={generating} />
+          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} available={core.boostAvailable} disabled={generating} />}
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
               over-long context rather than clipping it. */}
@@ -1538,7 +1544,12 @@ export default function PromptGeneratorView({
                    for collections above one image, so the fullscreen chrome
                    never appeared from here (Kev, 2026-08-22: "warum ist das
                    nicht sichtbar"). */
-                const coll = history.includes(displayImage) ? history : [displayImage, ...history];
+                /* Everything this prompt has to show, deduped: the current
+                   image, its showcase set, the generation history. A fresh
+                   page has an empty history, and a one-image collection
+                   renders no arrows, no strip, no count — which read as "no
+                   hover responsiveness whatsoever" (Kev, 2026-08-22). */
+                const coll = [...new Set([displayImage, ...allImages.map((im) => im.url), ...history])].filter(Boolean);
                 openLightbox(coll, Math.max(0, coll.indexOf(displayImage)));
               }} style={{ cursor: "pointer" }} />
             : <ImageIcon size={56} color="#333" />
