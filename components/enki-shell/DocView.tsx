@@ -69,7 +69,11 @@ export interface DocViewApi {
 // Adjustable column widths (page ↔ variables ↔ results), persisted.
 const COLS_KEY = "enki-doc-cols";
 const PAGE_W = { lo: 380, hi: 860, dflt: 612 };
-const RESULTS_W = { lo: 260, hi: 560, dflt: 380 };
+/* Results can go down to 180: everything inside degrades gracefully (the
+   tile strip scrolls, the release row wraps), and the low floor is what lets
+   the variables rail reach ITS 190px minimum on narrow viewports — at 260
+   the rail was the column that had to give (Kev, 2026-08-22). */
+const RESULTS_W = { lo: 180, hi: 560, dflt: 380 };
 const clampW = (v: unknown, b: { lo: number; hi: number; dflt: number }) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(b.hi, Math.max(b.lo, v)) : b.dflt;
 const loadCols = () => {
@@ -638,10 +642,10 @@ export default function DocView({ api }: { api: DocViewApi }) {
                     headers={sessionAuthHeaders()}
                     onValues={applyDiceValues}
                   />
-                  <button className={"ncd-gen" + (cols.page < 540 ? " stack" : "") + (canGenerate ? "" : " disabled")}
+                  <button className={"ncd-gen ncd-gen--go" + (cols.page < 540 ? " stack" : "") + (canGenerate ? "" : " disabled")}
                     title={canGenerate ? (autoFill ? "AI fills the variables, then renders · " + st.quality : "Render with the current variable values · " + st.quality) : "Write a prompt first"}
                     onClick={() => { if (!canGenerate) return; api.spawnOutput(autoFill); }}>
-                    <span className="ncd-gen-top"><Icon name="zap" size={13} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
+                    <span className="ncd-gen-top"><Icon name="zap" size={15} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
                     <span className="ncd-gen-price">${genCost.toFixed(2)}</span>
                   </button>
                 </div>
