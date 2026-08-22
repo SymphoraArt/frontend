@@ -10,6 +10,7 @@ import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { tiersUpTo } from "@/lib/generation/resolution";
 import { useModelCatalogue, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
+import RatioSelect from "@/components/generation/RatioSelect";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 
 const QC_MODELS = [
@@ -284,9 +285,7 @@ export default function EnkiQuickCreate() {
                   </div>
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">ASPECT</span>
-                    <select value={ratio} onChange={e => setRatio(e.target.value)}>
-                      {qcRatios.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <RatioSelect value={ratio} options={qcRatios} onChange={setRatio} title="Aspect ratio" />
                   </div>
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">RESOLUTION</span>

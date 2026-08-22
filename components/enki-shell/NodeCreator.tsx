@@ -6,12 +6,13 @@
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
-import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS, tierPrice } from "@/hooks/useModelLimits";
 import { moveToken } from "@/lib/editor/move-token";
-import { FREE_TIERS, tiersUpTo } from "@/lib/generation/resolution";
+import RatioRect from "@/components/generation/RatioRect";
+import { FREE_TIERS, tiersUpTo, TIER_PRICE_MULT } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ratio as RatioIcon, Maximize2, Gem } from "lucide-react";
+import { Maximize2, Gem } from "lucide-react";
 import { Icon } from "./icons";
 import { generateWithModel, persistCreation, placeholderArt } from "./generation";
 import { useModelLimits } from "@/hooks/useModelLimits";
@@ -117,7 +118,7 @@ export const ncQualities = (mode: St["mode"], maxResolution?: "1K" | "2K" | "4K"
    tokens either way; WaveSpeed nano-banana-pro, $0.14 either way), and the
    server prices a 1K request as the 2K tier (lib/pricing.toResolutionTier).
    Halving it here made the editor's estimate disagree with the real quote. */
-export const NC_QUALITY_MULT: Record<string, number> = { "1K": 1, "2K": 1, "4K": 2 };
+export const NC_QUALITY_MULT = TIER_PRICE_MULT;
 export type TextNode = NodeT & { name: string; kind: Kind; value: string };
 
 const sigOf = (body: string, texts: TextNode[]) => body + "||" + texts.map((t) => t.name + ":" + t.kind).join(",");
@@ -170,7 +171,7 @@ export function EditName({ value, onChange, className, placeholder, title }: { v
 /* Custom themed dropdown (same look + animation as the prompt's model picker),
    reused for every select in the editor so they all match. */
 export function NcSelect({ value, options, onChange, width, title, align = "left", icon, grow = true }: {
-  value: string; options: { value: string; label: string; sub?: string }[]; onChange: (v: string) => void;
+  value: string; options: { value: string; label: string; sub?: string; icon?: ReactNode }[]; onChange: (v: string) => void;
   width?: number; title?: string; align?: "left" | "right"; icon?: ReactNode;
   /**
    * true (default): `width` is a MINIMUM and the trigger grows for long labels
@@ -237,6 +238,7 @@ export function NcSelect({ value, options, onChange, width, title, align = "left
         <div className="nc-pm-panel" role="listbox">
           {options.map((o) => (
             <button key={o.value} role="option" aria-selected={o.value === value} className={"nc-pm-opt" + (o.value === value ? " on" : "")} onClick={() => { onChange(o.value); setOpen(false); }}>
+              {o.icon && <span className="nc-pm-opt-ico">{o.icon}</span>}
               <span className="nc-pm-opt-name">{o.label}</span>
               {o.sub && <span className="nc-pm-opt-cost">{o.sub}</span>}
             </button>
@@ -1902,11 +1904,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               </div>
               <div className="nc-addrow nc-addrow--gen">
                 <div className="nc-genopts">
-                  <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={88} grow={false} title="Aspect ratio · does not affect grouping"
-                    options={ncRatios(selectedModel).map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
+                  <NcSelect icon={<span style={{ color: "var(--enki-ink-3)", display: "flex" }}><RatioRect ratio={st.ratio} size={14} /></span>} value={st.ratio} width={88} grow={false} title="Aspect ratio · does not affect grouping"
+                    options={ncRatios(selectedModel).map((r) => ({ value: r, label: r, icon: <RatioRect ratio={r} size={15} /> }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
                   {qualityTiers.length > 0 && (
                     <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={qualityTiers.includes(st.quality) ? st.quality : qualityTiers[qualityTiers.length - 1]} width={72} grow={false} title="Resolution · does not affect grouping"
-                      options={qualityTiers.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
+                      options={qualityTiers.map((q) => { const p = tierPrice(st.mode === "premium" ? selectedModel : undefined, q); return { value: q, label: q, sub: p != null ? "$" + p.toFixed(2) : undefined }; })} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />
                   )}
                   {/* Model-specific settings belong to the PROMPT, so they are
                       set where the prompt is written (Kev, 2026-08-19) — not
@@ -1956,8 +1958,15 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                     onValues={applyDiceValues}
                   />
                   <button className={"nc-prompt-genbtn nc-prompt-genbtn--stack" + (canGenerate ? "" : " disabled")} title={canGenerate ? "Generate one image at " + st.quality : "Write a prompt first"} onClick={() => spawnOutput()}>
-                    <span className="nc-genbtn-top"><Icon name="sparkles" size={14} stroke={2} fill={canGenerate ? "var(--cta-ink)" : "none"} /> Generate</span>
-                    <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
+                    {/* zap, like every Generate — sparkles is Release's icon.
+                        The icon sits BESIDE the Generate/price block, so the
+                        flex row centers it against both lines, not just the
+                        first (Kev, 2026-08-22). */}
+                    <Icon name="zap" size={16} stroke={2.2} fill={canGenerate ? "var(--cta-ink)" : "none"} />
+                    <span className="nc-genbtn-txt">
+                      <span className="nc-genbtn-top">Generate</span>
+                      <span className="nc-genbtn-sub">${perImage.toFixed(2)}</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2421,7 +2430,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                 <span className="nc-gconf-total">Total to pay: <b>${total.toFixed(2)}</b></span>
                 <div className="nc-gconf-btns">
                   <button className="nc-gconf-cancel" onClick={() => setGenConfirm(null)}>Not now</button>
-                  <button className="nc-gconf-go" disabled={!genConfirm.checked.size} onClick={confirmCoGen}><Icon name="sparkles" size={13} stroke={2} fill="var(--cta-ink)" /> Generate {genConfirm.checked.size}</button>
+                  <button className="nc-gconf-go" disabled={!genConfirm.checked.size} onClick={confirmCoGen}><Icon name="zap" size={13} stroke={2} fill="var(--cta-ink)" /> Generate {genConfirm.checked.size}</button>
                 </div>
               </div>
             </div>

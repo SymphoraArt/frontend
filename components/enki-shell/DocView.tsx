@@ -11,13 +11,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { Gem } from "lucide-react";
-import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry, tierPrice } from "@/hooks/useModelLimits";
+import RatioRect from "@/components/generation/RatioRect";
 import { DiceButton } from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import { railVars as railVarsOf } from "@/lib/editor/rail-vars";
 import {
-  EditName, NcSelect, ncQualities, NC_QUALITY_MULT, ncRatios, TOKEN_RE, isRefTok,
+  EditName, NcSelect, ncQualities, ncRatios, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
 } from "./NodeCreator";
 
@@ -608,11 +609,11 @@ export default function DocView({ api }: { api: DocViewApi }) {
                 <NcSelect value={docModel?.id ?? st.models[0]} width={150} title="Model used for this prompt"
                   options={catalogue.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
-                <NcSelect value={st.ratio} width={80} grow={false} title="Aspect ratio"
-                  options={ncRatios(docModel).map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
+                <NcSelect icon={<span style={{ color: "var(--enki-ink-3)", display: "flex" }}><RatioRect ratio={st.ratio} size={13} /></span>} value={st.ratio} width={80} grow={false} title="Aspect ratio"
+                  options={ncRatios(docModel).map((r) => ({ value: r, label: r, icon: <RatioRect ratio={r} size={15} /> }))} onChange={api.setRatio} />
                 {docTiers.length > 0 && (
                   <NcSelect value={docTiers.includes(st.quality) ? st.quality : docTiers[docTiers.length - 1]} width={70} grow={false} title="Resolution"
-                    options={docTiers.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}
+                    options={docTiers.map((q) => { const p = tierPrice(st.mode === "premium" ? docModel : undefined, q); return { value: q, label: q, sub: p != null ? "$" + p.toFixed(2) : undefined }; })}
                     onChange={api.setQuality} />
                 )}
                 {api.supportsGptQuality && (

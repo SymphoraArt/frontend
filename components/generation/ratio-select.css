@@ -1,0 +1,12 @@
+/* RatioSelect — self-carried like boost-toggle.css, because the surfaces
+   using it (buyer generator, quick create) never load the editor's css.
+   Colours ride on the enki custom properties with plain fallbacks, so the
+   control follows each surface's theme instead of pinning one. */
+.enki-ratio-sel{position:relative;display:inline-flex;}
+.enki-ratio-trig{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid var(--enki-rule,rgba(127,127,127,.35));border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;}
+.enki-ratio-trig:hover,.enki-ratio-trig.open{border-color:var(--enki-ember,#c8542a);}
+.enki-ratio-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:1200;min-width:100%;max-height:290px;overflow-y:auto;padding:5px;border-radius:9px;border:1px solid var(--enki-rule,rgba(127,127,127,.35));background:var(--enki-paper,#101418);box-shadow:0 10px 30px rgba(0,0,0,.35);}
+.enki-ratio-sel.up .enki-ratio-panel{top:auto;bottom:calc(100% + 4px);}
+.enki-ratio-opt{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:none;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;text-align:left;}
+.enki-ratio-opt:hover{background:color-mix(in oklab,currentColor 10%,transparent);}
+.enki-ratio-opt.on{background:var(--cta-bg,#e0a35c);color:var(--cta-ink,#1c1207);font-weight:700;}

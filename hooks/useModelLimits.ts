@@ -10,6 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { toModelFamily } from "@/lib/generation/model-family";
+import { TIER_PRICE_MULT } from "@/lib/generation/resolution";
 
 export interface ModelLimits {
   maxRefs: number;
@@ -158,6 +159,23 @@ export interface CatalogueEntry {
  * (Kev's screenshot, 2026-08-19). Matching falls back to the name's family
  * slug, which is exactly what those stored slugs are.
  */
+/**
+ * What ONE image at this resolution costs on this model, in dollars — or
+ * null when nothing is charged (free model, or no model resolved yet).
+ *
+ * The pickers used to annotate tiers with multipliers ("x1, x2"), which told
+ * the user a factor and made them do the arithmetic; a generation has no
+ * multiplier, it has a price (Kev, 2026-08-22). Every generate surface reads
+ * this one function, so the number can never drift between pickers.
+ */
+export function tierPrice(
+  entry: Pick<CatalogueEntry, "price"> | undefined,
+  tier: string,
+): number | null {
+  if (!entry || !(entry.price > 0)) return null;
+  return entry.price * (TIER_PRICE_MULT[tier] ?? 1);
+}
+
 export function resolveCatalogueEntry(
   catalogue: CatalogueEntry[],
   idOrSlug: string | undefined,

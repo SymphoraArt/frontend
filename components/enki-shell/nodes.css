@@ -124,6 +124,8 @@
 .nc-pm-opt{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:8px 10px;border:none;border-radius:7px;background:transparent;color:var(--enki-ink);font-family:var(--font-sans),sans-serif;font-size:12.5px;font-weight:600;text-align:left;cursor:pointer;transition:background .1s;}
 .nc-pm-opt:hover{background:color-mix(in oklab,var(--enki-ember) 12%,transparent);}
 .nc-pm-opt.on{background:var(--enki-ember);color:var(--cta-ink);}
+.nc-pm-opt-ico{display:flex;flex-shrink:0;color:var(--enki-ink-3);}
+.nc-pm-opt.on .nc-pm-opt-ico{color:inherit;}
 .nc-pm-opt-name{white-space:nowrap;}
 .nc-pm-opt-cost{flex-shrink:0;font-size:10px;font-weight:600;color:var(--enki-ink-3);white-space:nowrap;}
 .nc-pm-opt-cost b{font-weight:700;}
@@ -447,9 +449,13 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .nc-addrow--gen .nc-prompt-genbtn{min-width:128px;flex-shrink:0;}
 .nc-genopts{display:flex;align-items:center;gap:7px;min-width:0;}
 .nc-pm-ico{display:flex;align-items:center;flex-shrink:0;}
-.nc-prompt-genbtn--stack{height:auto;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.15;padding:7px 16px;}
+/* Icon beside a two-line Generate/price block — the row's align-items
+   centers the zap against BOTH lines. A step larger than before: this is
+   the node's primary action (Kev, 2026-08-22). */
+.nc-prompt-genbtn--stack{height:auto;flex-direction:row;align-items:center;justify-content:center;gap:8px;line-height:1.15;padding:9px 18px;font-size:14px;}
+.nc-genbtn-txt{display:flex;flex-direction:column;align-items:center;gap:1px;}
 .nc-genbtn-top{display:flex;align-items:center;justify-content:center;gap:6px;}
-.nc-genbtn-sub{font-size:inherit;font-weight:inherit;text-align:center;width:100%;}
+.nc-genbtn-sub{font-size:11.5px;font-weight:600;opacity:.85;text-align:center;width:100%;font-family:var(--font-mono),monospace;}
 /* maximized reference image viewer */
 .nc-refmax{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:40px;background:rgba(8,12,18,.94);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);animation:ek-dd-in .14s ease;}
 .nc-refmax-img{max-width:90%;max-height:90%;object-fit:contain;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
@@ -527,7 +533,7 @@ button.nc-out-var:hover{filter:brightness(.96);}
 .nc-gp-gen{display:flex;flex-direction:column;gap:5px;}
 .nc-gp-btn{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;height:30px;border:1px solid var(--enki-rule);border-radius:7px;background:var(--enki-paper-2);color:var(--enki-ink);font-family:var(--font-sans),sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:border-color .12s;}
 .nc-gp-btn:hover{border-color:var(--enki-ember);}
-.nc-gp-btn--go{background:var(--cta-bg);color:var(--cta-ink);border:none;font-weight:700;}
+.nc-gp-btn--go{background:var(--cta-bg);color:var(--cta-ink);border:none;font-weight:700;height:36px;font-size:13.5px;}
 .nc-gp-btn--go:hover{border-color:transparent;filter:brightness(1.05);}
 .nc-gp-go-price{font-family:var(--font-mono),monospace;font-size:10px;opacity:.85;margin-left:2px;}
 .nc-gp-rel{padding:7px 8px;border-radius:8px;background:color-mix(in oklab,var(--enki-turq) 8%,var(--enki-paper-2));border:1px solid color-mix(in oklab,var(--enki-turq) 32%,var(--enki-rule));}

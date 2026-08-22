@@ -26,7 +26,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Crop,
   Maximize2,
   Link2 as LinkIcon,
   Send,
@@ -39,7 +38,8 @@ import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { tiersUpTo, type ResolutionTier } from "@/lib/generation/resolution";
-import { FALLBACK_RATIOS } from "@/hooks/useModelLimits";
+import { FALLBACK_RATIOS, tierPrice } from "@/hooks/useModelLimits";
+import RatioSelect from "@/components/generation/RatioSelect";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -1387,15 +1387,7 @@ export default function PromptGeneratorView({
                 title/aria-label for anyone who does. */}
             <div className="pgv-img-settings">
               <div className="pgv-field">
-                <Crop size={12} aria-hidden />
-                <select
-                  value={aspect}
-                  onChange={e => setAspect(e.target.value)}
-                  title="Aspect ratio"
-                  aria-label="Aspect ratio"
-                >
-                  {aspects.map(a => <option key={a}>{a}</option>)}
-                </select>
+                <RatioSelect value={aspect} options={aspects} onChange={setAspect} title="Aspect ratio" />
               </div>
               <div className="pgv-field">
                 <Maximize2 size={12} aria-hidden />
@@ -1405,7 +1397,7 @@ export default function PromptGeneratorView({
                   title="Resolution"
                   aria-label="Resolution"
                 >
-                  {resolutions.map(r => <option key={r}>{r}</option>)}
+                  {resolutions.map(r => { const p = tierPrice(noCharge ? undefined : { price: modelRow?.price ?? 0 }, r); return <option key={r} value={r}>{r}{p != null ? ` · $${p.toFixed(2)}` : ""}</option>; })}
                 </select>
               </div>
             </div>
