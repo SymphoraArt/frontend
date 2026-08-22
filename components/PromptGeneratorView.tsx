@@ -1528,7 +1528,16 @@ export default function PromptGeneratorView({
             </div>
           )}
           {displayImage
-            ? <img src={displayImage} alt={title} onClick={() => openLightbox([displayImage], 0)} style={{ cursor: "pointer" }} />
+            ? <img src={displayImage} alt={title} onClick={() => {
+                /* The MAIN image opens with the whole history as its
+                   collection — a lone [displayImage] meant one-image
+                   lightboxes, and arrows, thumb strip and count only render
+                   for collections above one image, so the fullscreen chrome
+                   never appeared from here (Kev, 2026-08-22: "warum ist das
+                   nicht sichtbar"). */
+                const coll = history.includes(displayImage) ? history : [displayImage, ...history];
+                openLightbox(coll, Math.max(0, coll.indexOf(displayImage)));
+              }} style={{ cursor: "pointer" }} />
             : <ImageIcon size={56} color="#333" />
           }
           {/* Action buttons — appear on hover when result is ready */}
