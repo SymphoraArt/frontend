@@ -1513,7 +1513,18 @@ export default function PromptGeneratorView({
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onRefUpload} />
           </div>
 
-          {/* Image Settings: aspect + resolution side by side */}
+          {/* Generator FIRST — the model decides what the settings below
+              can offer, so it reads top-down: pick the generator, then its
+              settings, then (for gpt models) quality on its own comfortable
+              row instead of squeezing three controls into one line
+              (Kev, 2026-08-22). */}
+          <div className="pgv-block">
+            <span className="pgv-section-label">Generator</span>
+            <select className="pgv-generator-select" value={generator} onChange={e => setGenerator(e.target.value)}>
+              {GENERATORS.map(g => <option key={g}>{g}</option>)}
+            </select>
+          </div>
+
           <div className="pgv-block">
             <span className="pgv-section-label">Image Settings</span>
             {/* Icon instead of a stacked caps label, the way quick create
@@ -1542,23 +1553,14 @@ export default function PromptGeneratorView({
                   {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{!noCharge && t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
                 </select>
               </div>
-              {/* Quality belongs BESIDE ratio and resolution — the three are
-                  one settings row, not two places (Kev, 2026-08-22). Renders
-                  nothing for models without the parameter. */}
-              {core.supportsQuality && (
-                <div className="pgv-field pgv-field--quality">
-                  <QualitySelect value={quality} onChange={setQuality} available disabled={generating} />
-                </div>
-              )}
             </div>
-          </div>
-
-          {/* Generator dropdown */}
-          <div className="pgv-block">
-            <span className="pgv-section-label">Generator</span>
-            <select className="pgv-generator-select" value={generator} onChange={e => setGenerator(e.target.value)}>
-              {GENERATORS.map(g => <option key={g}>{g}</option>)}
-            </select>
+            {/* Quality on its own row below — room to breathe instead of a
+                third control jammed into the settings line. */}
+            {core.supportsQuality && (
+              <div className="pgv-field pgv-field--quality pgv-field--row2">
+                <QualitySelect value={quality} onChange={setQuality} available disabled={generating} />
+              </div>
+            )}
           </div>
         </div>
 
