@@ -8,6 +8,13 @@
    right-hand gutter Kev already rejected for the editor. */
 html:has(.set-page) { scrollbar-gutter: stable; }
 
+/* Send-reminder success state: green with its check, for as long as the 24h
+   cooldown makes another send impossible. Disabled must NOT grey it back to
+   neutral — the colour IS the information. */
+.set-btn.set-btn-sent,
+.set-btn.set-btn-sent:disabled { color: #22a06b; border-color: #22a06b; opacity: 1; display: inline-flex; align-items: center; gap: 5px; }
+.set-remind-next { font-size: 10px; color: var(--enki-ink-3); line-height: 1.4; }
+
 .set-page {
   min-height: 100vh;
   background-color: var(--enki-paper);

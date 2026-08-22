@@ -326,6 +326,18 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
   };
 
   const [remindBusy, setRemindBusy] = useState<string | null>(null);
+  /* Re-render when the earliest reminder cooldown expires, so the green
+     "Reminder sent" state flips back to an active button by itself instead
+     of waiting for a reload. */
+  const [, setRemindTick] = useState(0);
+  useEffect(() => {
+    const next = (guardians ?? [])
+      .map((g) => (g.nextManualReminderAt ? Date.parse(g.nextManualReminderAt) : NaN))
+      .filter((t) => Number.isFinite(t) && t > Date.now());
+    if (!next.length) return;
+    const t = window.setTimeout(() => setRemindTick((x) => x + 1), Math.min(...next) - Date.now() + 500);
+    return () => window.clearTimeout(t);
+  }, [guardians]);
   const sendReminder = async (guardianId: string) => {
     setRemindBusy(guardianId);
     try {
@@ -536,10 +548,18 @@ export default function RecoveryPanel({ focus = false }: { focus?: boolean } = {
                     : cooling
                       ? `A reminder went out in the last 24 hours — next one ${new Date(readyAt).toLocaleString()}`
                       : `${left} of 7 reminders left`;
+                  /* While the 24h cooldown runs the button itself says so in
+                     green — "Reminder sent" with a check — and the tiny line
+                     under it names the moment the next one unlocks (Kev,
+                     2026-08-22). */
+                  const sent = cooling && left > 0;
                   return (
-                    <button className="set-btn set-btn-outline" disabled={disabled} title={title} onClick={() => sendReminder(g.id)}>
-                      {remindBusy === g.id ? "Sending…" : "Send reminder"}
-                    </button>
+                    <span style={{ display: "inline-flex", flexDirection: "column", gap: 2 }}>
+                      <button className={"set-btn set-btn-outline" + (sent ? " set-btn-sent" : "")} disabled={disabled} title={title} onClick={() => sendReminder(g.id)}>
+                        {remindBusy === g.id ? "Sending…" : sent ? <><CheckCircle2 size={12} aria-hidden /> Reminder sent</> : "Send reminder"}
+                      </button>
+                      {sent && <span className="set-remind-next">Next reminder available {new Date(readyAt).toLocaleString()}</span>}
+                    </span>
                   );
                 })()}
                 {g.status === "pending" && (g.guardianType === "email" || g.guardianType === "wallet") && (
