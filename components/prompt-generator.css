@@ -89,6 +89,9 @@
 .pgv-detail-close:hover { border-color: var(--pgv-accent); color: var(--pgv-accent); }
 /* Fill the frame, not the viewport. See the note on .pgv-page below. */
 .pgv-detail-panel > .pgv-page { height: 100%; }
+/* Hidden by a shell panel, restored by Home — visibility keeps the inner
+   scroll positions that display:none would throw away. */
+.pgv-detail-panel.pgv-detail-hidden { visibility: hidden; pointer-events: none; }
 
 /* ── Page ──
    100vh only when this view IS the page. Opened inside .pgv-detail-panel it

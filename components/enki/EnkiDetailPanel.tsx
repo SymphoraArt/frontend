@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
@@ -57,15 +57,29 @@ export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProp
      same shape the search chip uses. Kev, 2026-08-13: "clicking on home when
      in image ui muss mich wieder zurück befördern wo ich war, das sollte auch
      mitm ESC gehen". */
+  /* Hidden-but-mounted: a sidebar menu (leaderboard, settings ...) opened
+     over this view HIDES it instead of closing it, so Home can bring back
+     exactly the image the reader had open — state, scroll and all (Kev,
+     2026-08-22). visibility (not display) keeps inner scroll positions.
+     While hidden, ESC belongs to whatever covers us. */
+  const [hidden, setHidden] = useState(false);
+  const hiddenRef = useRef(false);
+  useEffect(() => { hiddenRef.current = hidden; }, [hidden]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key === "Escape" && !hiddenRef.current) { e.preventDefault(); onClose(); }
     };
+    const onHide = () => setHidden(true);
+    const onShow = () => setHidden(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("enki:close-detail", onClose);
+    window.addEventListener("enki:hide-detail", onHide);
+    window.addEventListener("enki:show-detail", onShow);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("enki:close-detail", onClose);
+      window.removeEventListener("enki:hide-detail", onHide);
+      window.removeEventListener("enki:show-detail", onShow);
     };
   }, [onClose]);
 
@@ -75,7 +89,7 @@ export default function EnkiDetailPanel({ prompt, onClose }: EnkiDetailPanelProp
        were inline here and identically inline in PromptDetailModal — two
        copies of a frame that started at x=0 and so ran under the shell's icon
        rail, and of a palette that ignored the theme. */
-    <div className="pgv-detail-panel">
+    <div className={"pgv-detail-panel" + (hidden ? " pgv-detail-hidden" : "")}>
       <button onClick={onClose} aria-label="Close" className="pgv-detail-close">
         <X size={16} />
       </button>

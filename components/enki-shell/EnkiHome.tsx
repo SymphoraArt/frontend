@@ -122,6 +122,10 @@ export default function EnkiHome() {
   // specific tab; a plain Settings nav click clears it back to the first page.
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined);
   const openPanel = (id: string, tab?: string) => {
+    /* A menu panel covering the image view HIDES it (kept mounted) — its
+       scrim (z 160) sits under the detail panel (z 162), so without this the
+       leaderboard opened invisibly beneath the image (Kev, 2026-08-22). */
+    window.dispatchEvent(new CustomEvent("enki:hide-detail"));
     setSettingsTab(id === "settings" ? tab : undefined);
     setPanel(id);
     setPanelNonce((n) => n + 1);
@@ -239,9 +243,16 @@ export default function EnkiHome() {
       /* If the image view is open, Home means "back to where I was" — close it
          and leave the feed exactly as it was, rather than routing and scrolling
          to the top of a list the reader had already worked their way down. */
-      const detailOpen = !!document.querySelector(".pgv-detail-panel");
+      const detailEl = document.querySelector(".pgv-detail-panel");
+      /* A detail HIDDEN behind a menu panel is "where I was" — Home brings it
+         back instead of closing it (Kev, 2026-08-22). A VISIBLE detail keeps
+         the old meaning: Home closes it, back to the feed. */
+      if (detailEl?.classList.contains("pgv-detail-hidden")) {
+        window.dispatchEvent(new CustomEvent("enki:show-detail"));
+        return;
+      }
       window.dispatchEvent(new CustomEvent("enki:close-detail"));
-      if (detailOpen) return;
+      if (detailEl) return;
       router.push("/home");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -360,6 +371,7 @@ export default function EnkiHome() {
             // Close any open right-side panel first — the node creator (z 118)
             // sits below the panel scrim (z 160) and would open invisibly.
             closePanel();
+            window.dispatchEvent(new CustomEvent("enki:hide-detail")); // node editor (z 118) would open under the image view too
             setNodeOpen(true); setActiveNav("home"); setCollapsed(true);
           }}
           nodeActive={nodeOpen}
