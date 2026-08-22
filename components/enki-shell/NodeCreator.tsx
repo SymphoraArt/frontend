@@ -7,6 +7,7 @@
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
 import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
+import { moveToken } from "@/lib/editor/move-token";
 import { FREE_TIERS, PAID_TIERS, tiersUpTo } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -932,8 +933,45 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
      spot in the text. While dragging, the TEXTAREA CARET follows the pointer
      (the drop position is always visible), and on drop the caret lands right
      after the moved token. Works for text vars AND reference-image chips. */
+  /** Viewport rect of the text caret at `off`. Feeds both the drop marker's
+      position and the "is this point below the last line" test. */
+  const caretRectAt = (off: number): DOMRect | null => {
+    const ov = ovRef.current; if (!ov) return null;
+    const doc = ov.ownerDocument;
+    const w = doc.createTreeWalker(ov, NodeFilter.SHOW_TEXT);
+    let total = 0, node: Node | null = null, local = 0, cur: Node | null;
+    while ((cur = w.nextNode())) {
+      const len = (cur.textContent || "").length;
+      if (off <= total + len) { node = cur; local = off - total; break; }
+      total += len;
+    }
+    if (!node) return null;
+    const r = doc.createRange();
+    r.setStart(node, local); r.setEnd(node, local);
+    const rect = r.getBoundingClientRect();
+    if (rect.height) return rect;
+    // A collapsed range can measure as nothing - widen it by one character
+    // and keep the edge the caret actually sits on.
+    const len = (node.textContent || "").length;
+    if (local < len) { r.setEnd(node, local + 1); const e = r.getBoundingClientRect(); return new DOMRect(e.left, e.top, 0, e.height); }
+    if (local > 0) { r.setStart(node, local - 1); const e = r.getBoundingClientRect(); return new DOMRect(e.right, e.top, 0, e.height); }
+    return null;
+  };
+
   const caretOffsetFromPoint = (x: number, y: number): number | null => {
     const ov = ovRef.current; if (!ov) return null;
+    /* Past the LAST line the browser folds y back onto that line and answers
+       with whatever happens to sit at x. Measured 2026-08-22 on a prompt
+       ending in a chip: a point in the empty space below the text resolved to
+       the MIDDLE of the last chip (offset 156 of 171), which
+       snapOutsideTokens then pushed to the position BEFORE it - so the end of
+       the text simply could not be reached by dragging. Below the text the
+       caret belongs at the end, as in any editor; above it, at the start. */
+    const bodyLen = stRef.current.body.length;
+    const endRect = caretRectAt(bodyLen);
+    if (endRect && y > endRect.bottom) return bodyLen;
+    const startRect = caretRectAt(0);
+    if (startRect && y < startRect.top) return 0;
     const doc = ov.ownerDocument as Document & {
       caretRangeFromPoint?: (x: number, y: number) => Range | null;
       caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
@@ -942,10 +980,17 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
     else if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
     if (!node || !ov.contains(node)) return null;
-    // Element hit (line gap): treat offset as child index → count text before it.
+    // Element hit (line gap): the offset is a CHILD INDEX. An index equal to
+    // childNodes.length means "after the last child" - the end of that
+    // element's text. Clamping it to the last child (and resetting off to 0)
+    // turned every past-the-end hit into a position BEFORE the last chip.
     if (node.nodeType !== Node.TEXT_NODE) {
       const el = node as Element;
-      node = el.childNodes[Math.min(off, el.childNodes.length - 1)] ?? el;
+      if (off >= el.childNodes.length) {
+        const before = textBefore(el);
+        return before === null ? null : Math.min(before + (el.textContent || "").length, stRef.current.body.length);
+      }
+      node = el.childNodes[off] ?? el;
       off = 0;
     }
     let total = 0;
@@ -957,6 +1002,19 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       total += (cur.textContent || "").length;
     }
     return Math.min(total, stRef.current.body.length);
+  };
+
+  /** Characters of prompt text that precede `target` in the overlay. */
+  const textBefore = (target: Node): number | null => {
+    const ov = ovRef.current; if (!ov) return null;
+    let total = 0;
+    const w = ov.ownerDocument.createTreeWalker(ov, NodeFilter.SHOW_TEXT);
+    let cur: Node | null;
+    while ((cur = w.nextNode())) {
+      if (target.contains(cur)) return total;
+      total += (cur.textContent || "").length;
+    }
+    return total;
   };
 
   /** A drop must never land INSIDE another token — snap to the nearer edge. */
@@ -986,13 +1044,37 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     return best;
   };
 
-  const tokDrag = useRef<{ started: boolean } | null>(null);
+  /* The drop marker. The textarea's own caret is a blinking 1px hairline -
+     over 15px serif and coloured chips it was easy to lose, so you could not
+     tell where the token would land (Kev, 2026-08-22). This one is drawn in
+     the prompt box: ember, capped top and bottom, and it GLIDES to each new
+     position so the eye follows it. Imperative like the drag ghost: a React
+     state update per pointermove would re-render the whole editor. */
+  const dropCaretRef = useRef<HTMLDivElement | null>(null);
+  const showDropCaret = (off: number) => {
+    const ov = ovRef.current; const box = ov?.parentElement;
+    if (!ov || !box) return;
+    const rect = caretRectAt(off); if (!rect) return;
+    let el = dropCaretRef.current;
+    if (!el) {
+      el = ov.ownerDocument.createElement("div");
+      el.className = "nc-dropcaret";
+      box.appendChild(el);
+      dropCaretRef.current = el;
+    }
+    const b = box.getBoundingClientRect();
+    el.style.height = rect.height + "px";
+    el.style.transform = "translate(" + (rect.left - b.left) + "px," + (rect.top - b.top) + "px)";
+  };
+  const hideDropCaret = () => { dropCaretRef.current?.remove(); dropCaretRef.current = null; };
+
+  const tokDrag = useRef<{ started: boolean; at: number | null } | null>(null);
   const beginTokPointer = (part: string, renderStart: number, e: React.PointerEvent<HTMLElement>) => {
     e.stopPropagation(); e.preventDefault();
     const el = e.currentTarget as HTMLElement;
     const sx = e.clientX, sy = e.clientY;
     let ghost: HTMLElement | null = null;
-    tokDrag.current = { started: false };
+    tokDrag.current = { started: false, at: null };
     const ov = ovRef.current;
     const onMove = (ev: PointerEvent) => {
       const d = tokDrag.current; if (!d) return;
@@ -1012,6 +1094,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
       if (off != null) {
         const snapped = snapOutsideTokens(off);
+        d.at = snapped; // what the marker promises is what the drop must do
+        showDropCaret(snapped);
         const ta = taRef.current;
         if (ta) { ta.focus(); ta.setSelectionRange(snapped, snapped); } // caret follows the drag
       }
@@ -1021,6 +1105,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       window.removeEventListener("pointerup", onUp);
       const d = tokDrag.current; tokDrag.current = null;
       ghost?.remove();
+      hideDropCaret();
       el.classList.remove("nc-tok-src");
       if (ov) { ov.style.pointerEvents = ""; ov.classList.remove("nc-dragging"); }
       if (!d) return;
@@ -1032,21 +1117,27 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       const start = locateTok(part, renderStart);
       if (start === null) return; // token vanished — never splice blindly
       const end = start + part.length;
+      /* If the release point hit-tests to nothing (the pointer left the box),
+         use the last position the marker showed - the drop must always do
+         what the indicator promised, never silently nothing. */
       const off = caretOffsetFromPoint(ev.clientX, ev.clientY);
-      if (off == null) return;
-      const target = snapOutsideTokens(off);
+      const target = off != null ? snapOutsideTokens(off) : d.at;
+      if (target == null) return;
       if (target >= start && target <= end) return; // dropped onto itself
       pushHist();
-      const adjusted = target > end ? target - (end - start) : target;
+      let caret: number | null = null;
       setSt((p) => {
-        // Guard again inside the updater — p.body is the source of truth.
-        if (p.body.slice(start, end) !== part) return p;
-        const without = p.body.slice(0, start) + p.body.slice(end);
-        return { ...p, body: without.slice(0, adjusted) + part + without.slice(adjusted) };
+        /* p.body is the source of truth — re-check that THIS token still sits
+           at these offsets before splicing, and let moveToken (unit-tested,
+           lib/editor/move-token.ts) do the index work. */
+        const moved = p.body.slice(start, end) === part ? moveToken(p.body, start, end, target) : null;
+        if (!moved) return p;
+        caret = moved.caret;
+        return { ...p, body: moved.body };
       });
       requestAnimationFrame(() => {
         const ta = taRef.current;
-        if (ta) { ta.focus(); ta.setSelectionRange(adjusted + part.length, adjusted + part.length); }
+        if (ta && caret !== null) { ta.focus(); ta.setSelectionRange(caret, caret); }
       });
     };
     window.addEventListener("pointermove", onMove);

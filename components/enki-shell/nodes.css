@@ -168,6 +168,25 @@
    only the textarea caret marks the drop spot. */
 .nc-pov.nc-dragging .nc-tok:hover{filter:none;}
 .nc-pov.nc-dragging .nc-tok{cursor:grabbing;}
+/* Where the dragged chip will land. The textarea's own caret is a blinking
+   1px hairline; over 15px serif and coloured chips it was easy to lose, so
+   the drop position was guesswork (Kev, 2026-08-22). This marker is ember,
+   capped top and bottom, glides between positions (transform transition, so
+   the eye can follow the jump) and breathes so it never reads as part of the
+   text. Positioned imperatively by showDropCaret in NodeCreator. */
+.nc-dropcaret{position:absolute;left:0;top:0;width:2px;z-index:4;pointer-events:none;
+  background:var(--enki-ember);border-radius:1px;
+  box-shadow:0 0 0 1px rgba(var(--ember-rgb),.22),0 0 9px 1px rgba(var(--ember-rgb),.45);
+  transition:transform .085s cubic-bezier(.2,.8,.3,1),height .085s ease;
+  animation:nc-dropcaret-breathe .9s ease-in-out infinite;}
+.nc-dropcaret::before,.nc-dropcaret::after{content:"";position:absolute;left:50%;width:6px;height:6px;
+  background:var(--enki-ember);border-radius:1.5px;transform:translateX(-50%) rotate(45deg);}
+.nc-dropcaret::before{top:-3px;}
+.nc-dropcaret::after{bottom:-3px;}
+@keyframes nc-dropcaret-breathe{0%,100%{opacity:1;}50%{opacity:.5;}}
+@media (prefers-reduced-motion:reduce){
+  .nc-dropcaret{transition:none;animation:none;}
+}
 /* The chip that is being moved stays clearly marked at its origin. */
 .nc-tok.nc-tok-src{outline:2px solid var(--enki-ember);outline-offset:1.5px;filter:saturate(1.35) brightness(1.06);}
 .nc-tok.armed{outline:2px solid #e0584f;outline-offset:1px;}
