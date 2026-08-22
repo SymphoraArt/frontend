@@ -10,11 +10,13 @@ import "./boost-toggle.css";
 /**
  * Boost — pay more to run the SAME model on a faster host.
  *
- * Boost changes where a generation runs, never which model runs, so the
- * picture is identical either way. Measured 2026-08-06 on one prompt, Nano
- * Banana Pro: WaveSpeed 73-78s against the vendor directly 19-39s. The user
- * is buying time, and the label has to say exactly that — anything hinting at
- * "better quality" would be a lie the output disproves.
+ * Boost changes where a generation runs, never which model runs. Measured
+ * 2026-08-06 on one prompt, Nano Banana Pro: WaveSpeed 73-78s against the
+ * vendor directly 19-39s — a 2.0x-3.8x spread, which is why the tooltip says
+ * "2-4x", not a rounded "3x". The user is buying time, and the label has to
+ * say exactly that — "better quality" would be a lie the output disproves,
+ * and "same image" was one too: same model and same quality, but every run
+ * draws a fresh seed, so no two generations are pixel-identical.
  *
  * One component for every surface (prompt editor, quick create, node editor,
  * image UI). The three generation paths drifted apart once already; a shared
@@ -54,18 +56,20 @@ export default function BoostToggle({
       type="button"
       role="switch"
       aria-checked={boost}
-      aria-label="Boost — priority provider, faster generation"
+      aria-label="Boost — run this model on its fastest host"
       disabled={disabled}
       onClick={() => onChange(!boost)}
       className={`enki-boost${boost ? " enki-boost--on" : ""} ${className}`.trim()}
       /* Short on purpose. A tooltip is read while the cursor is already moving,
-         so it gets one fact: what changes and what it costs. The rest — same
-         model, same picture — is what the icons already say by NOT being a
-         quality badge. */
+         so it gets one fact: what changes and what it costs. Every claim in it
+         is checkable (Kev, 2026-08-22: "it should be realistic"): "fastest
+         host" is what routeFor actually does, "2-4x" is the measured spread
+         above — not a rounded "3x" — and "same model & quality" replaces
+         "Same image", which promised pixel-identity no two runs deliver. */
       title={
         boost
-          ? `On: ~3x faster, ${BOOST_MULTIPLIER}x the price. Same image.`
-          : `~3x faster for ${BOOST_MULTIPLIER}x the price. Same image.`
+          ? `On: fastest host for this model — measured 2–4x faster, ${BOOST_MULTIPLIER}x the price. Same model & quality.`
+          : `Runs this model on its fastest host — measured 2–4x faster, ${BOOST_MULTIPLIER}x the price. Same model & quality.`
       }
     >
       {/* Clock + bolt, and nothing else. The word "Boost" is gone from every
