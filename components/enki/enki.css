@@ -1393,6 +1393,13 @@
 .dark .enki-qc-summary-text-v3 { color: #fff; }
 .dark .enki-qc-selector-v3 select { color: #aaa; }
 
+/* Image count as a segmented row — four values, all visible, nothing to
+   open or scroll (Kev, 2026-08-22). */
+.enki-qc-qty-v3 { display: flex; gap: 4px; }
+.enki-qc-qty-btn-v3 { flex: 1 1 0; min-width: 0; padding: 4px 0; border: 1px solid var(--enki-rule, rgba(127,127,127,.3)); border-radius: 7px; background: transparent; color: inherit; font: inherit; font-size: 11.5px; cursor: pointer; }
+.enki-qc-qty-btn-v3:hover { border-color: var(--enki-ember, #c8542a); }
+.enki-qc-qty-btn-v3.on { background: var(--cta-bg, #e0a35c); color: var(--cta-ink, #1c1207); border-color: transparent; font-weight: 700; }
+
 .enki-qc-source-tabs {
   display: flex;
   gap: 8px;

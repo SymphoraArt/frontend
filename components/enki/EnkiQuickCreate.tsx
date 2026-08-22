@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { ChevronUp, PenSquare, Sparkles, Plus, X, GripVertical, Settings2, Info, Image as ImageIcon, Wallet, Minus, ChevronDown, LogOut } from "lucide-react";
+import { ChevronUp, PenSquare, Sparkles, Plus, X, GripVertical, Settings2, Info, Image as ImageIcon, Wallet, Minus, ChevronDown, LogOut, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActiveAccount } from "thirdweb/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -9,14 +9,15 @@ import { addCreation } from "@/lib/creations";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { tiersUpTo } from "@/lib/generation/resolution";
-import { useModelCatalogue, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry, tierPrice, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 import RatioSelect from "@/components/generation/RatioSelect";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 
-const QC_MODELS = [
-  { id: "nano-banana-pro", name: "Nano Banana Pro", cost: 0.04 },
-  { id: "gpt-image-2", name: "GPT-Image-2", cost: 0.06 },
-];
+/* No model literals: names, prices, ratios, tiers and the quality lever all
+   come from the catalogue of the SELECTED model (Kev, 2026-08-22: "derive
+   all these ... from the database", "make sure that all generate changes we
+   had also apply to Quick create"). The hardcoded cost pair (0.04/0.06) had
+   already drifted from the live table. */
 
 
 /* Quick Create posts to /api/generate-free — Flux, capped at 0.59 MP.
@@ -48,9 +49,12 @@ export default function EnkiQuickCreate() {
      model's capabilities from /api/models — not literals (Kev, 2026-08-22:
      "derive all these ... from the database!"). */
   const qcCatalogue = useModelCatalogue();
-  const qcFree = qcCatalogue.find((m) => m.price === 0);
-  const qcRatios = qcFree?.ratios ?? FALLBACK_RATIOS;
-  const qcResolutions = tiersUpTo(qcFree?.maxResolution ?? "2K");
+  const qcEntry = resolveCatalogueEntry(qcCatalogue, model);
+  const qcRatios = qcEntry?.ratios ?? FALLBACK_RATIOS;
+  const qcResolutions = tiersUpTo(qcEntry?.maxResolution ?? "2K");
+  useEffect(() => {
+    if (!qcResolutions.includes(resolution as (typeof qcResolutions)[number])) setResolution(qcResolutions[qcResolutions.length - 1]);
+  }, [qcResolutions, resolution]);
   const [qty, setQty] = useState(1);
   const [boost, setBoost] = useState(false);
   const [quality, setQuality] = useState<Quality>("medium");
@@ -202,8 +206,8 @@ export default function EnkiQuickCreate() {
   // Boost runs the same model on a priority host — faster, dearer, identical
   // image. The price has to move with it or the toggle is a lie.
   // Only gpt-image takes a quality tier; elsewhere the control stays hidden.
-  const qcSupportsQuality = /gpt.?image/i.test(model);
-  const totalCost = boostedCost((QC_MODELS.find(m => m.id === model)?.cost || 0) * qty, boost);
+  const qcSupportsQuality = qcEntry?.supportsQuality ?? /gpt.?image/i.test(model);
+  const totalCost = boostedCost((qcEntry?.price ?? 0) * qty, boost);
 
   return (
     <div className={`enki-qc ${open ? "is-open" : ""}`}>
@@ -279,8 +283,8 @@ export default function EnkiQuickCreate() {
                 <div className="enki-qc-selectors-v3">
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">MODEL</span>
-                    <select value={model} onChange={e => setModel(e.target.value)}>
-                      {QC_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    <select value={qcEntry?.id ?? model} onChange={e => setModel(e.target.value)}>
+                      {qcCatalogue.map(m => <option key={m.id} value={m.id}>{m.name}{m.price > 0 ? ` · $${m.price.toFixed(2)}` : " · free"}</option>)}
                     </select>
                   </div>
                   <div className="enki-qc-selector-v3">
@@ -290,14 +294,21 @@ export default function EnkiQuickCreate() {
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">RESOLUTION</span>
                     <select value={resolution} onChange={e => setResolution(e.target.value)}>
-                      {qcResolutions.map(r => <option key={r} value={r}>{r}</option>)}
+                      {qcResolutions.map(r => { const p = tierPrice(qcEntry, r); return <option key={r} value={r}>{r}{p != null ? ` · $${p.toFixed(2)}` : ""}</option>; })}
                     </select>
                   </div>
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">GENERATIONS</span>
-                    <select value={qty} onChange={e => setQty(Number(e.target.value))}>
-                      {QC_QTY.map(q => <option key={q} value={q}>x {q}</option>)}
-                    </select>
+                    {/* Buttons, not a dropdown: the count is four values —
+                        all visible, nothing to open or scroll (Kev,
+                        2026-08-22). */}
+                    <div className="enki-qc-qty-v3" role="radiogroup" aria-label="Number of images">
+                      {QC_QTY.map(q => (
+                        <button key={q} type="button" role="radio" aria-checked={qty === q}
+                          className={"enki-qc-qty-btn-v3" + (qty === q ? " on" : "")}
+                          onClick={() => setQty(q)}>×{q}</button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -326,7 +337,7 @@ export default function EnkiQuickCreate() {
 
                 <div className="enki-qc-summary-v3">
                   <div className="enki-qc-summary-info-v3">
-                    <div className="enki-qc-summary-text-v3">{qty} x {QC_MODELS.find(m => m.id === model)?.name}</div>
+                    <div className="enki-qc-summary-text-v3">{qty} × {qcEntry?.name ?? model}</div>
                     <div className="enki-qc-network-v3 mono">Solana / 4a...ef21</div>
                   </div>
                 </div>
@@ -339,7 +350,8 @@ export default function EnkiQuickCreate() {
                   disabled={generating}
                   style={{ opacity: generating ? 0.6 : 1, cursor: generating ? "wait" : "pointer" }}
                 >
-                  {generating ? "Generating..." : `Generate / $${totalCost.toFixed(2)}`}
+                  <Zap size={14} aria-hidden style={{ flexShrink: 0 }} />
+                  {generating ? "Generating..." : `Generate${totalCost > 0 ? ` · $${totalCost.toFixed(2)}` : ""}`}
                 </button>
               </div>
 
