@@ -1841,8 +1841,13 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                           : "inset 0 0 0 1px " + c.border,
                         color: c.text,
                       } as React.CSSProperties;
+                      /* Dragging a card in the deck lights up ITS token in the
+                         sentence — same ember outline as a chip being dragged
+                         (nc-tok-src), so "the thing in motion" has one colour
+                         everywhere (Kev, 2026-08-22). Ref tokens are numbered
+                         by position: card refDragI = token refDragI+1. */
                       return (
-                        <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "")}
+                        <span key={i} className={"nc-tok" + (armed === part ? " armed" : "") + (isPub ? " pub" : "") + (ref && refDragI !== null && refN === refDragI + 1 ? " nc-tok-src" : "")}
                           style={tokStyle}
                           title={ref ? "Drag to move this image reference in the text" : "Click to edit · drag to move"}
                           onPointerDown={(e) => beginTokPointer(part, start, e)}
