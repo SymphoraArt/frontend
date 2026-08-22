@@ -102,9 +102,7 @@ export function tiersUpTo(cap: ResolutionTier): ResolutionTier[] {
  * promising a size the route cannot render.
  */
 export const FREE_TIERS: ResolutionTier[] = tiersUpTo(maxTier("pollinations", "flux"));
-/**
- * The paid checkout starts at 2K, not 1K. app/api/payments/generation/quote
- * and .../intent both validate with z.enum(["2K","4K"]), so a 1K pick was
- * quoted, charged AND rendered at 2K — an option that never existed.
- */
-export const PAID_TIERS: ResolutionTier[] = ["2K", "4K"];
+/* PAID_TIERS is gone: the paid checkout accepts 1K/2K/4K (quote and intent
+   validate z.enum(["1K","2K","4K"]) since 2026-08-22), so paid pickers offer
+   tiersUpTo(the model's ceiling) directly — 1K priced as 2K, the real
+   provider fact (lib/pricing.toResolutionTier). */

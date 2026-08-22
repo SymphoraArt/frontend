@@ -8,7 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { addCreation } from "@/lib/creations";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
-import { FREE_TIERS } from "@/lib/generation/resolution";
+import { tiersUpTo } from "@/lib/generation/resolution";
+import { useModelCatalogue, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 
 const QC_MODELS = [
@@ -16,10 +17,10 @@ const QC_MODELS = [
   { id: "gpt-image-2", name: "GPT-Image-2", cost: 0.06 },
 ];
 
-const QC_RATIOS = ["1:1", "4:5", "3:4", "16:9", "9:16"];
+
 /* Quick Create posts to /api/generate-free — Flux, capped at 0.59 MP.
    Offering 4K here charged nothing but promised a size that never arrived. */
-const QC_RESOLUTIONS = FREE_TIERS;
+
 const QC_QTY = [1, 2, 4, 8];
 
 export default function EnkiQuickCreate() {
@@ -42,6 +43,13 @@ export default function EnkiQuickCreate() {
   const [model, setModel] = useState("nano-banana-pro");
   const [ratio, setRatio] = useState("1:1");
   const [resolution, setResolution] = useState("2K");
+  /* Quick create renders on the FREE route, so its options are the free
+     model's capabilities from /api/models — not literals (Kev, 2026-08-22:
+     "derive all these ... from the database!"). */
+  const qcCatalogue = useModelCatalogue();
+  const qcFree = qcCatalogue.find((m) => m.price === 0);
+  const qcRatios = qcFree?.ratios ?? FALLBACK_RATIOS;
+  const qcResolutions = tiersUpTo(qcFree?.maxResolution ?? "2K");
   const [qty, setQty] = useState(1);
   const [boost, setBoost] = useState(false);
   const [quality, setQuality] = useState<Quality>("medium");
@@ -277,13 +285,13 @@ export default function EnkiQuickCreate() {
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">ASPECT</span>
                     <select value={ratio} onChange={e => setRatio(e.target.value)}>
-                      {QC_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
+                      {qcRatios.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                   <div className="enki-qc-selector-v3">
                     <span className="enki-qc-selector-label-v3">RESOLUTION</span>
                     <select value={resolution} onChange={e => setResolution(e.target.value)}>
-                      {QC_RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                      {qcResolutions.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                   <div className="enki-qc-selector-v3">

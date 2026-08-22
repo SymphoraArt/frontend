@@ -17,7 +17,7 @@ import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import { railVars as railVarsOf } from "@/lib/editor/rail-vars";
 import {
-  EditName, NcSelect, ncQualities, NC_QUALITY_MULT, NC_RATIOS, TOKEN_RE, isRefTok,
+  EditName, NcSelect, ncQualities, NC_QUALITY_MULT, ncRatios, TOKEN_RE, isRefTok,
   type Con, type EditorView, type Kind, type NodeT, type St, type TextNode,
 } from "./NodeCreator";
 
@@ -609,7 +609,7 @@ export default function DocView({ api }: { api: DocViewApi }) {
                   options={catalogue.map((mm) => ({ value: mm.id, label: mm.name, sub: "$" + mm.price.toFixed(2) }))}
                   onChange={api.setModel} />
                 <NcSelect value={st.ratio} width={80} grow={false} title="Aspect ratio"
-                  options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
+                  options={ncRatios(docModel).map((r) => ({ value: r, label: r }))} onChange={api.setRatio} />
                 {docTiers.length > 0 && (
                   <NcSelect value={docTiers.includes(st.quality) ? st.quality : docTiers[docTiers.length - 1]} width={70} grow={false} title="Resolution"
                     options={docTiers.map((q) => ({ value: q, label: q, sub: "×" + (NC_QUALITY_MULT[q] ?? 1) }))}

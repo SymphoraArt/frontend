@@ -6,9 +6,9 @@
 
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import { type Quality } from "@/components/generation/QualitySelect";
-import { useModelCatalogue, resolveCatalogueEntry } from "@/hooks/useModelLimits";
+import { useModelCatalogue, resolveCatalogueEntry, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 import { moveToken } from "@/lib/editor/move-token";
-import { FREE_TIERS, PAID_TIERS, tiersUpTo } from "@/lib/generation/resolution";
+import { FREE_TIERS, tiersUpTo } from "@/lib/generation/resolution";
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ratio as RatioIcon, Maximize2, Gem } from "lucide-react";
@@ -29,7 +29,11 @@ import type { DiceValue } from "@/lib/generation/variable-dice";
 export const NC_MODELS = [
   { id: "nano-banana-pro", name: "Nano Banana Pro", price: 0.04 },
 ];
-export const NC_RATIOS = ["Any", "1:1", "4:5", "3:4", "16:9", "9:16"];
+/* Ratio options come from the SELECTED MODEL's catalogue entry (DB column
+   allowed_ratios) — a literal here was why five of Nano Banana Pro's ten
+   ratios never showed (Kev, 2026-08-22). "Any" stays first: it means "let
+   the server default", which every model supports. */
+export const ncRatios = (model?: { ratios: string[] }): string[] => ["Any", ...(model?.ratios ?? FALLBACK_RATIOS)];
 const CATEGORIES = ["Portrait", "Character", "Cinematic", "Architecture", "Abstract", "Product", "Minimal", "Editorial"];
 
 const REF_COLOR = { bg: "#E8F8EE", text: "#1F5C38", border: "#1f8a5b", dot: "#1f8a5b" };
@@ -106,7 +110,7 @@ export const ncQualities = (mode: St["mode"], maxResolution?: "1K" | "2K" | "4K"
      the floor — rather than promising 4K on a guess. An empty list means the
      model takes no resolution at all, and the caller hides the control. */
   const cap = maxResolution ?? "2K";
-  return tiersUpTo(cap).filter((t) => (PAID_TIERS as readonly string[]).includes(t));
+  return tiersUpTo(cap);
 };
 /* Price multiplier per resolution, relative to the model's base 2K price.
    1K is 1, not 0.5: both hosts charge 1K and 2K identically (Google, 1120
@@ -1899,7 +1903,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               <div className="nc-addrow nc-addrow--gen">
                 <div className="nc-genopts">
                   <NcSelect icon={<RatioIcon size={14} style={{ color: "var(--enki-ink-3)" }} />} value={st.ratio} width={88} grow={false} title="Aspect ratio · does not affect grouping"
-                    options={NC_RATIOS.map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
+                    options={ncRatios(selectedModel).map((r) => ({ value: r, label: r }))} onChange={(v) => setSt((p) => ({ ...p, ratio: v }))} />
                   {qualityTiers.length > 0 && (
                     <NcSelect icon={<Maximize2 size={14} style={{ color: "var(--enki-ink-3)" }} />} value={qualityTiers.includes(st.quality) ? st.quality : qualityTiers[qualityTiers.length - 1]} width={72} grow={false} title="Resolution · does not affect grouping"
                       options={qualityTiers.map((q) => ({ value: q, label: q }))} onChange={(v) => setSt((p) => ({ ...p, quality: v }))} />

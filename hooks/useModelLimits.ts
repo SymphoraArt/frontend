@@ -136,6 +136,15 @@ export interface CatalogueEntry {
    * "das soll doch eher derived from the database sein").
    */
   maxResolution: "1K" | "2K" | "4K";
+  /**
+   * Aspect ratios this model accepts, from the models table's allowed_ratios
+   * column. Live values (probed 2026-08-22): the paid models carry all ten
+   * their APIs take, the free Flux row five. The pickers used to hold their
+   * own literals — three surfaces, three different lists, none of them the
+   * API's (Kev: "derive all these ratio und auflösungseinstellungen from the
+   * database!").
+   */
+  ratios: string[];
 }
 
 /**
@@ -214,6 +223,7 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
       maxResolution: (r.maxResolution === "1K" || r.maxResolution === "2K" || r.maxResolution === "4K"
         ? r.maxResolution
         : "2K") as CatalogueEntry["maxResolution"],
+      ratios: Array.isArray(r.allowed_ratios) && r.allowed_ratios.length > 0 ? r.allowed_ratios : FALLBACK_RATIOS,
     }));
   return out;
 }

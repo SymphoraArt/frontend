@@ -38,7 +38,8 @@ import "./prompt-generator.css";
 import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
-import { FREE_TIERS, PAID_TIERS, type ResolutionTier } from "@/lib/generation/resolution";
+import { tiersUpTo, type ResolutionTier } from "@/lib/generation/resolution";
+import { FALLBACK_RATIOS } from "@/hooks/useModelLimits";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -79,7 +80,7 @@ interface Props {
   isFreeShowcase?: boolean;
 }
 
-const ASPECTS = ["3:4", "4:5", "1:1", "2:3", "4:3", "16:9"];
+
 /* Offered sizes are per ROUTE — the lists live in lib/generation/resolution.ts
    so every picker in the app reads the same answer. */
 
@@ -176,7 +177,7 @@ export default function PromptGeneratorView({
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* Fetch available models from DB */
-  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string; price?: number }>>({
+  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string; price?: number; allowed_ratios?: string[]; maxResolution?: string }>>({
     queryKey: ["/api/models"],
     queryFn: async () => {
       const res = await fetch("/api/models", { credentials: "include" });
@@ -300,7 +301,26 @@ export default function PromptGeneratorView({
      outside that list. Without the correction a buyer who chose 4K and then
      switched to the free generator kept a 4K selection that the free route
      silently rendered at 0.59 MP. */
-  const resolutions = useMemo(() => (noCharge ? FREE_TIERS : PAID_TIERS), [noCharge]);
+  /* Both lists come from /api/models rows — the same capability answers the
+     server enforces. Free runs render on the free route, so they get the
+     free model's ceiling; paid runs get the chosen model's. The literals
+     these replace (ASPECTS, FREE_TIERS/PAID_TIERS) are how "2K/4K but never
+     1K" and a six-ratio list survived here (Kev, 2026-08-22: "derive all
+     these ratio und auflösungseinstellungen from the database!"). */
+  const modelRow = useMemo(() => (modelsData ?? []).find((m) => m.name === generator), [modelsData, generator]);
+  const freeRow = useMemo(() => (modelsData ?? []).find((m) => typeof m.price === "number" && m.price === 0), [modelsData]);
+  const aspects = useMemo(() => {
+    const row = noCharge ? freeRow ?? modelRow : modelRow;
+    return Array.isArray(row?.allowed_ratios) && row.allowed_ratios.length > 0 ? row.allowed_ratios : FALLBACK_RATIOS;
+  }, [noCharge, freeRow, modelRow]);
+  const resolutions = useMemo(() => {
+    const row = noCharge ? freeRow : modelRow;
+    const cap = row?.maxResolution === "1K" || row?.maxResolution === "2K" || row?.maxResolution === "4K" ? row.maxResolution : "2K";
+    return tiersUpTo(cap);
+  }, [noCharge, freeRow, modelRow]);
+  useEffect(() => {
+    if (!aspects.includes(aspect)) setAspect(aspects[0]);
+  }, [aspects, aspect]);
   useEffect(() => {
     if (!resolutions.includes(resolution as ResolutionTier)) {
       setResolution(resolutions[resolutions.length - 1]);
@@ -1374,7 +1394,7 @@ export default function PromptGeneratorView({
                   title="Aspect ratio"
                   aria-label="Aspect ratio"
                 >
-                  {ASPECTS.map(a => <option key={a}>{a}</option>)}
+                  {aspects.map(a => <option key={a}>{a}</option>)}
                 </select>
               </div>
               <div className="pgv-field">
