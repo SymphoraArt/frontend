@@ -149,6 +149,24 @@ export default function PromptGeneratorView({
       return { ...lb, at };
     });
   }, []);
+  /* Fullscreen feel: every control (arrows, X, the thumb strip below, the
+     history rail right) sleeps after 1s without mouse movement and wakes
+     instantly on the first move (Kev, 2026-08-22). State + timer, imperative
+     enough to never re-render per pixel: the class flips only on the
+     shown/hidden edge. */
+  const [lbAwake, setLbAwake] = useState(true);
+  const lbIdleT = useRef<number | null>(null);
+  const wakeLb = useCallback(() => {
+    setLbAwake(true);
+    if (lbIdleT.current) window.clearTimeout(lbIdleT.current);
+    lbIdleT.current = window.setTimeout(() => setLbAwake(false), 1000);
+  }, []);
+  useEffect(() => {
+    if (!lightbox) { if (lbIdleT.current) window.clearTimeout(lbIdleT.current); return; }
+    wakeLb();
+    return () => { if (lbIdleT.current) window.clearTimeout(lbIdleT.current); };
+  }, [lightbox, wakeLb]);
+
   // Arrow keys page, Escape closes. Bound only while the lightbox is open so
   // the rest of the view keeps its own keyboard handling.
   useEffect(() => {
@@ -1673,9 +1691,34 @@ export default function PromptGeneratorView({
 
       {/* Lightbox */}
       {lightbox && (
-        <div className="pgv-lightbox" onClick={() => setLightbox(null)}>
+        <div className={"pgv-lightbox" + (lbAwake ? "" : " pgv-lb-asleep")} onClick={() => setLightbox(null)}
+          onMouseMove={wakeLb} onTouchStart={wakeLb}>
           <img src={lightbox.urls[lightbox.at]} alt={`Expanded ${lightbox.at + 1} of ${lightbox.urls.length}`} />
-          <button className="pgv-lightbox-close" onClick={() => setLightbox(null)} aria-label="Close">
+          {/* The collection as a strip along the bottom — jump anywhere
+              without paging. Chrome like everything else: asleep after 1s. */}
+          {lightbox.urls.length > 1 && (
+            <div className="pgv-lb-strip pgv-lb-chrome" onClick={e => e.stopPropagation()}>
+              {lightbox.urls.map((u, i) => (
+                <button key={u + i} type="button" className={"pgv-lb-thumb" + (i === lightbox.at ? " on" : "")}
+                  onClick={() => setLightbox({ urls: lightbox.urls, at: i })} aria-label={`Image ${i + 1}`}>
+                  <img src={u} alt="" draggable={false} />
+                </button>
+              ))}
+            </div>
+          )}
+          {/* The generation history rides along on the right, as on the page
+              — picking one switches the lightbox to browsing the history. */}
+          {history.length > 0 && (
+            <div className="pgv-lb-hist pgv-lb-chrome" onClick={e => e.stopPropagation()}>
+              {history.map((u, i) => (
+                <button key={u} type="button" className={"pgv-lb-thumb" + (lightbox.urls === history && i === lightbox.at ? " on" : "")}
+                  onClick={() => setLightbox({ urls: history, at: i })} aria-label={`History ${i + 1}`}>
+                  <img src={u} alt="" draggable={false} />
+                </button>
+              ))}
+            </div>
+          )}
+          <button className="pgv-lightbox-close pgv-lb-chrome" onClick={() => setLightbox(null)} aria-label="Close">
             <X size={18} />
           </button>
           {lightbox.urls.length > 1 && (
@@ -1684,7 +1727,7 @@ export default function PromptGeneratorView({
                   swallow the click. The same step the arrow keys take. */}
               <button
                 type="button"
-                className="pgv-lightbox-nav pgv-lightbox-nav--prev"
+                className="pgv-lightbox-nav pgv-lightbox-nav--prev pgv-lb-chrome"
                 onClick={e => { e.stopPropagation(); stepLightbox(-1); }}
                 aria-label="Previous image"
               >
@@ -1692,13 +1735,13 @@ export default function PromptGeneratorView({
               </button>
               <button
                 type="button"
-                className="pgv-lightbox-nav pgv-lightbox-nav--next"
+                className="pgv-lightbox-nav pgv-lightbox-nav--next pgv-lb-chrome"
                 onClick={e => { e.stopPropagation(); stepLightbox(1); }}
                 aria-label="Next image"
               >
                 <ChevronRight size={26} />
               </button>
-              <span className="pgv-lightbox-count" aria-live="polite">
+              <span className="pgv-lightbox-count pgv-lb-chrome" aria-live="polite">
                 {lightbox.at + 1} / {lightbox.urls.length}
               </span>
             </>

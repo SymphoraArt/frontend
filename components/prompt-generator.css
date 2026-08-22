@@ -930,10 +930,41 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
   background: rgba(0,0,0,0.93);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
-.pgv-lightbox img {
-  max-width: 90vw; max-height: 90vh;
+.pgv-lightbox > img {
+  /* Nearly the whole screen — the chrome floats OVER the picture and sleeps
+     after a second, so the image does not have to leave room for it (Kev,
+     2026-08-22: "so that it feels like a fullscreen"). */
+  max-width: 97vw; max-height: 95vh;
   object-fit: contain; border-radius: 6px;
   box-shadow: 0 0 80px rgba(0,0,0,0.8);
+}
+
+/* Chrome wake/sleep: instant in, soft out. Sleeping chrome also loses its
+   pointer so a click through it pages nothing by accident. */
+.pgv-lb-chrome { opacity: 1; transition: opacity .12s ease; }
+.pgv-lightbox.pgv-lb-asleep .pgv-lb-chrome { opacity: 0; transition: opacity .45s ease; pointer-events: none; }
+
+/* Bottom strip: the open collection. */
+.pgv-lb-strip {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 7px; max-width: 86vw; overflow-x: auto; padding: 6px;
+  border-radius: 12px; background: rgba(10,10,12,.55); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.pgv-lb-thumb {
+  flex: 0 0 auto; width: 52px; height: 52px; padding: 0; border-radius: 8px; overflow: hidden;
+  border: 2px solid transparent; background: transparent; cursor: pointer; opacity: .72; transition: opacity .12s, border-color .12s;
+}
+.pgv-lb-thumb:hover { opacity: 1; }
+.pgv-lb-thumb.on { border-color: #f4f1eb; opacity: 1; }
+.pgv-lb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* History rail on the right, scrolling vertically like the page's own. */
+.pgv-lb-hist {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 7px; max-height: 72vh; overflow-y: auto; padding: 6px;
+  border-radius: 12px; background: rgba(10,10,12,.55); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .pgv-lightbox-close {
   position: absolute; top: 18px; right: 18px;
@@ -965,7 +996,7 @@ input[type="range"].pgv-range::-webkit-slider-thumb {
    would be near-black in light mode and vanish here. */
 .pgv-lightbox-nav, .pgv-lightbox-close { color: #f4f1eb; }
 .pgv-lightbox-count {
-  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
   padding: 4px 10px; border-radius: 999px;
   background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
   color: #f4f1eb; font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px;
