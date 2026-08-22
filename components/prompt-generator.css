@@ -276,6 +276,11 @@
   transition: border-color 0.15s;
 }
 .pgv-field:focus-within { border-color: var(--pgv-border); }
+/* Bare variant: the child control (RatioSelect) draws its own frame, so the
+   field contributes layout only — a second border was a box in a box. */
+.pgv-field--bare { background: transparent; border: none; padding: 0; }
+.pgv-field--bare .enki-ratio-sel { flex: 1; }
+.pgv-field--bare .enki-ratio-trig { width: 100%; }
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */

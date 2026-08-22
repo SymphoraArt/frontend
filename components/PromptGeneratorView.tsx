@@ -195,7 +195,7 @@ export default function PromptGeneratorView({
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* Fetch available models from DB */
-  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string; price?: number; allowed_ratios?: string[]; maxResolution?: string }>>({
+  const { data: modelsData } = useQuery<Array<{ id?: string; name?: string; price?: number; allowed_ratios?: string[]; maxResolution?: string; boostAvailable?: boolean }>>({
     queryKey: ["/api/models"],
     queryFn: async () => {
       const res = await fetch("/api/models", { credentials: "include" });
@@ -1407,7 +1407,10 @@ export default function PromptGeneratorView({
                 "16:9" and wonders what it is. The word survives as the
                 title/aria-label for anyone who does. */}
             <div className="pgv-img-settings">
-              <div className="pgv-field">
+              {/* Bare: RatioSelect draws its own frame — the .pgv-field box
+                  around it read as a dropdown inside a dropdown (Kev,
+                  2026-08-22). */}
+              <div className="pgv-field pgv-field--bare">
                 <RatioSelect value={aspect} options={aspects} onChange={setAspect} title="Aspect ratio" />
               </div>
               <div className="pgv-field">
@@ -1445,7 +1448,7 @@ export default function PromptGeneratorView({
               could not happen, on a button labelled "Generate free" (Kev,
               2026-08-19). A control that changes nothing is the lie this
               codebase keeps relearning. */}
-          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} disabled={generating} />}
+          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} available={modelRow?.boostAvailable !== false} disabled={generating} />}
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
               over-long context rather than clipping it. */}
