@@ -406,7 +406,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const deckRef = useRef<HTMLDivElement>(null);               // referenced-images deck (for overlap fit)
   const [deckW, setDeckW] = useState(440);
   const [refDragI, setRefDragI] = useState<number | null>(null); // card being dragged
-  const [refOverI, setRefOverI] = useState<number | null>(null); // insertion target slot
+  const [refInsI, setRefInsI] = useState<number | null>(null); // insertion SLOT (0..refs.length, original order); null = no move
   useEffect(() => {
     const el = deckRef.current; if (!el) return;
     const ro = new ResizeObserver(() => setDeckW(el.clientWidth));
@@ -896,6 +896,16 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     });
     return { ...p, nodes: [...p.nodes.filter((n) => n.type !== "ref"), ...order], body };
     });
+  };
+  /** Finish a card drag at the promised insertion slot (original-order
+      index). Slot > from shifts by one because the card is lifted out first.
+      Every drop handler routes through here, so a release can never do
+      something the bar did not show. */
+  const dropRefAt = (ins: number | null) => {
+    const from = refDrag.current;
+    refDrag.current = null; setRefDragI(null); setRefInsI(null);
+    if (from === null || ins === null) return;
+    moveRef(from, ins > from ? ins - 1 : ins);
   };
   const toggleRefUserInput = (id: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, userInput: !n.userInput } : n)) }));
   const addText = (atPos?: { x: number; y: number }, presetName?: string) => commit((p) => {
@@ -1766,10 +1776,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                      gap shifts the target card away from the pointer, so a
                      release often landed on deck background, where — with no
                      handler — the browser cancelled the whole move. Target =
-                     the card the marker is showing (refOverI). */
+                     the slot the marker is showing (refInsI). */
                   onPointerDown={(e) => { setCtx(null); if (e.button === 0 && !e.ctrlKey && !e.metaKey && !spaceRef.current && tool !== "hand") e.stopPropagation(); }}
                   onDragOver={(e) => { if (refDragI !== null) e.preventDefault(); }}
-                  onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null && refOverI !== null) moveRef(refDrag.current, refOverI); refDrag.current = null; setRefDragI(null); setRefOverI(null); }}>
+                  onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null) dropRefAt(refInsI); }}>
                   {refs.map((r, i) => {
                     /* moveRef gives the dragged card the TARGET's position:
                        coming from the left it lands AFTER the target, from
@@ -1777,20 +1787,39 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                        gap on the left — dragging rightward, it promised a
                        spot one off from where the card would land. Side
                        first, then the gap (and the ember bar) follow it. */
-                    const side = refOverI === i && refDragI !== null && refDragI !== i ? (refDragI < i ? "r" : "l") : null;
-                    const gapW = side === "l" ? 44 + (i === 0 ? 0 : refOverlap) : side === "r" ? 44 + (i === refs.length - 1 ? 0 : refOverlap) : 0; // last card: the + add button is hidden during a drag, so no neighbour margin
+                    /* refInsI is an insertion SLOT: the bar stands left of
+                       card refInsI, or right of the last card for the end
+                       slot. No-op slots (the dragged card's own position)
+                       are filtered to null in onDragOver, so a lit bar
+                       always means a real move. */
+                    const side = refDragI === null ? null : refInsI === i ? "l" : refInsI === refs.length && i === refs.length - 1 ? "r" : null;
+                    const gapW = side === "l" ? 44 + (i === 0 ? 0 : refOverlap) : side === "r" ? 44 : 0; // end slot: the + add button is hidden during a drag, so no neighbour margin
                     return (
                     <div key={r.id} className={"nc-refcard" + (r.userInput ? " ui" : "") + (refDragI === i ? " dragging" : "") + (side ? " over-" + side : "")} draggable
                       style={{ marginLeft: (i === 0 ? 0 : refOverlap) + (side === "l" ? 44 : 0), marginRight: side === "r" ? 44 : 0, zIndex: refDragI === i ? 320 : side ? 240 : i + 1, ...(side ? ({ "--refgap-half": gapW / 2 + "px" } as React.CSSProperties) : null) }}
                       onDragStart={(e) => { e.dataTransfer.setData("text/plain", ""); e.dataTransfer.effectAllowed = "move"; refDrag.current = i; setRefDragI(i); }}
-                      onDragOver={(e) => { e.preventDefault(); if (refDragI !== null && refDragI !== i && refOverI !== i) setRefOverI(i); }}
-                      onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null) moveRef(refDrag.current, i); refDrag.current = null; setRefDragI(null); setRefOverI(null); }}
-                      onDragEnd={() => { refDrag.current = null; setRefDragI(null); setRefOverI(null); }}>
+                      /* Midpoint rule, not "take this card's position":
+                         nudging the first card slightly right used to light
+                         the bar between cards 2 and 3 while the card would
+                         really stay put (Kev, 2026-08-22). Left half = the
+                         slot before this card, right half = after; the
+                         dragged card's own slots resolve to null, so the bar
+                         goes dark whenever the release would change nothing. */
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (refDragI === null) return;
+                        let ins: number | null;
+                        if (refDragI === i) ins = null;
+                        else { const rc = e.currentTarget.getBoundingClientRect(); ins = e.clientX > rc.left + rc.width / 2 ? i + 1 : i; if (ins === refDragI || ins === refDragI + 1) ins = null; }
+                        if (ins !== refInsI) setRefInsI(ins);
+                      }}
+                      onDrop={(e) => { e.preventDefault(); if (refDrag.current !== null) dropRefAt(refInsI); }}
+                      onDragEnd={() => { refDrag.current = null; setRefDragI(null); setRefInsI(null); }}>
                       {r.img ? (
                         <img src={r.img} alt={"reference " + (i + 1)} draggable={false} title="Click to maximize" onClick={(e) => { e.stopPropagation(); setRefMax(r.img!); }} />
                       ) : (
                         <label className="nc-refcard-up"
-                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.dataTransfer.files?.length && refDrag.current !== null) { moveRef(refDrag.current, i); refDrag.current = null; setRefDragI(null); setRefOverI(null); return; } onRefFiles(r.id, e.dataTransfer.files); }}
+                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.dataTransfer.files?.length && refDrag.current !== null) { dropRefAt(refInsI); return; } onRefFiles(r.id, e.dataTransfer.files); }}
                           onDragOver={(e) => e.preventDefault()}>
                           <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { onRefFiles(r.id, e.target.files); e.currentTarget.value = ""; }} />
                           <Icon name="imageDrop" size={15} stroke={1.8} />
