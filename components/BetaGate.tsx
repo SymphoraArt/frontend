@@ -70,14 +70,27 @@ export default function BetaGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const headers = sessionAuthHeaders();
-    if (Object.keys(headers).length === 0) { setAccess("denied"); return; }
     let dead = false;
+    /* No session (or a denied one): a valid TEAM-CODE cookie still opens the
+       UI for browsing — team members enter with the code alone (Kev,
+       2026-08-23). Server APIs keep requiring a real session for anything
+       user-bound; this wall is only the client half of the pair. */
+    const teamFallback = async () => {
+      try {
+        const r = await fetch("/api/gate");
+        const d = await r.json().catch(() => ({}));
+        if (dead) return;
+        if (d?.team === true) { setRole("team"); setAccess("ok"); return; }
+      } catch { /* fall through to denied */ }
+      if (!dead) setAccess("denied");
+    };
+    const headers = sessionAuthHeaders();
+    if (Object.keys(headers).length === 0) { void teamFallback(); return () => { dead = true; }; }
     (async () => {
       try {
         const res = await fetch("/api/users/handle", { headers });
         if (dead) return;
-        if (!res.ok) { setAccess("denied"); return; }
+        if (!res.ok) { void teamFallback(); return; }
         const data = (await res.json()) as {
           handle: string | null; role?: string;
           bio?: string | null; avatarUrl?: string | null; coverUrl?: string | null;
@@ -90,9 +103,10 @@ export default function BetaGate({ children }: { children: React.ReactNode }) {
           coverUrl: data.coverUrl ?? null,
         });
         setRole(data.role ?? "user");
-        setAccess(BETA_ROLES.has(data.role ?? "user") ? "ok" : "denied");
+        if (BETA_ROLES.has(data.role ?? "user")) setAccess("ok");
+        else void teamFallback();
       } catch {
-        if (!dead) setAccess("denied");
+        if (!dead) void teamFallback();
       }
     })();
     return () => { dead = true; };

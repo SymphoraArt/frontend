@@ -32,3 +32,19 @@ export async function POST(req: Request) {
 }
 
 const COOKIE = "enki_team";
+
+/**
+ * GET → { team: boolean } — whether this browser carries a valid team
+ * cookie. The client beta wall asks this to let TEAM-CODE holders browse
+ * the UI without a user account (Kev, 2026-08-23: "eig sollte der code ja
+ * mich in die ui bringen da ich team member bin"). Grants NOTHING by
+ * itself: every user-bound API still requires a real session, and with no
+ * code configured the answer is simply false.
+ */
+export async function GET(req: Request) {
+  const code = process.env.TEAM_ACCESS_CODE;
+  if (!code) return NextResponse.json({ team: false });
+  const cookies = (req.headers.get("cookie") ?? "").split(/;\s*/);
+  const team = cookies.some((c) => c === `${COOKIE}=${encodeURIComponent(code)}` || c === `${COOKIE}=${code}`);
+  return NextResponse.json({ team });
+}
