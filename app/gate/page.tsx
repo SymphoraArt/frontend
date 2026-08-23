@@ -32,7 +32,11 @@ export default function GatePage() {
       const r = await fetch("/api/gate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code }),
+        /* Trimmed: a code pasted from a password manager or chat often
+           carries a trailing space or newline, and the server compares
+           exactly — "Wrong access code" for a correct code (Kev,
+           2026-08-22). Whitespace is never part of the code. */
+        body: JSON.stringify({ code: code.trim() }),
       });
       if (r.ok) {
         const next = new URLSearchParams(window.location.search).get("next") || "/home";
