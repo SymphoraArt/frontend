@@ -276,6 +276,9 @@
   display: flex;
   gap: 8px;
 }
+/* Equal halves: flex-basis auto sized the two fields by their content
+   (92px vs 101px), so nothing lined up with the quality row below. */
+.pgv-img-settings > .pgv-field { flex: 1 1 0; min-width: 0; }
 .pgv-field {
   flex: 1;
   min-width: 0;
@@ -294,6 +297,14 @@
    field contributes layout only — a second border was a box in a box. */
 .pgv-field--bare { background: transparent; border: none; padding: 0; }
 .pgv-field--bare .enki-ratio-sel { flex: 1; }
+/* Unified palette: RatioSelect's own chrome rides enki-* variables with grey
+   fallbacks, which on THIS surface differed from the pgv-* tokens the
+   neighbouring fields use — a visibly different border and font colour
+   (Kev, 2026-08-23). Scoped to the pgv context, the same tokens rule all
+   three fields; icons stay muted like the neighbours' icons. */
+.pgv-field--bare .enki-ratio-trig { border-color: var(--pgv-border); background: var(--pgv-input-bg); color: var(--pgv-text); }
+.pgv-field--bare .enki-ratio-trig svg { color: var(--pgv-text-muted); }
+.pgv-field--bare .enki-ratio-panel { border-color: var(--pgv-border); background: var(--pgv-input-bg); color: var(--pgv-text); }
 /* Metrics matched to .pgv-field select (12px, ~31px box) — the two controls
    sit side by side and read as one row, not two sizes (Kev, 2026-08-22). */
 .pgv-field--bare .enki-ratio-trig { width: 100%; height: 31px; font-size: 12px; }
@@ -303,7 +314,10 @@
    row read huge (Kev, 2026-08-23). The outer field is the only frame; the
    row hugs its content at the same 12px/29px metrics as its neighbours. */
 .pgv-field--row2 { margin-top: 6px; }
-.pgv-field--quality { padding-left: 0; width: fit-content; min-width: 120px; }
+/* Same width as one settings field (the row splits 50/50 with an 8px gap)
+   — fit-content made it a different size from its neighbours (Kev,
+   2026-08-23: "as breit as the ratio"). */
+.pgv-field--quality { padding-left: 0; width: calc(50% - 4px); min-width: 0; }
 .pgv-field--quality .enki-quality { display: flex; align-items: center; gap: 5px; width: 100%; height: 29px; padding: 0 4px 0 7px; border: none; border-radius: 0; background: transparent; }
 .pgv-field--quality .enki-quality:focus-within { outline: none; }
 .pgv-field--quality .enki-quality select { flex: 1 1 auto; min-width: 0; background: transparent; border: none; color: var(--pgv-text); padding: 0 2px 0 0; font-size: 12px; font-family: inherit; cursor: pointer; outline: none; }
