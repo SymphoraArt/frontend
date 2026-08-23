@@ -298,10 +298,15 @@
    sit side by side and read as one row, not two sizes (Kev, 2026-08-22). */
 .pgv-field--bare .enki-ratio-trig { width: 100%; height: 31px; font-size: 12px; }
 /* The quality lever joins the row with the same metrics as its neighbours. */
+/* Quality: ONE frame, compact. The component's own pill (border+background
+   from enki.css) inside .pgv-field drew a box in a box, and the full-width
+   row read huge (Kev, 2026-08-23). The outer field is the only frame; the
+   row hugs its content at the same 12px/29px metrics as its neighbours. */
 .pgv-field--row2 { margin-top: 6px; }
-.pgv-field--quality { padding-left: 0; }
-.pgv-field--quality .enki-quality { display: flex; align-items: center; gap: 5px; width: 100%; padding-left: 7px; }
-.pgv-field--quality .enki-quality select { flex: 1 1 auto; min-width: 0; background: transparent; border: none; color: var(--pgv-text); padding: 7px 4px 7px 0; font-size: 12px; font-family: inherit; cursor: pointer; outline: none; }
+.pgv-field--quality { padding-left: 0; width: fit-content; min-width: 120px; }
+.pgv-field--quality .enki-quality { display: flex; align-items: center; gap: 5px; width: 100%; height: 29px; padding: 0 4px 0 7px; border: none; border-radius: 0; background: transparent; }
+.pgv-field--quality .enki-quality:focus-within { outline: none; }
+.pgv-field--quality .enki-quality select { flex: 1 1 auto; min-width: 0; background: transparent; border: none; color: var(--pgv-text); padding: 0 2px 0 0; font-size: 12px; font-family: inherit; cursor: pointer; outline: none; }
 .pgv-field > svg { flex: 0 0 auto; }
 /* The frame belongs to .pgv-field now, so the select inside it carries none:
    a second border here would draw a box within a box. */

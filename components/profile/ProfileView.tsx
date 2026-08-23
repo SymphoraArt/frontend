@@ -16,8 +16,8 @@ import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { requestPromptEdit } from "@/components/enki-shell/editorBridge";
 import { useBetaAccess } from "@/components/BetaGate";
 import { listCreations, subscribeCreations, type StoredCreation } from "@/lib/creations";
-import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, Sparkles, ImageOff, User, Pencil, Loader2, ZoomIn } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { ArrowLeft, ChevronDown, Sparkles, ImageOff, User, Pencil, Loader2, ZoomIn, Heart } from "lucide-react";
 import "@/components/enki/enki.css";
 
 const PROFILE_STAT_LABELS = ["Prompts", "Uses", "Followers", "This month"] as const;
@@ -438,10 +438,24 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
   // History is a PRIVATE tab: only the profile owner sees it, never visitors.
   // (This component currently only ever renders the signed-in user's own
   // profile, so isOwnProfile defaults true; foreign-profile views pass false.)
+  // Likes is PRIVATE like History: only the owner's view carries the tab,
+  // and the route it reads derives the list from the SESSION — a visitor
+  // cannot request anyone else's likes (Kev, 2026-08-23).
   const TABS = isOwnProfile
-    ? ["Released", "Gallery", "Reviews", "About", "History"]
+    ? ["Released", "Gallery", "Likes", "Reviews", "About", "History"]
     : ["Released", "Gallery", "Reviews", "About"];
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Released");
+  // The private Likes tab — fetched lazily the first time it opens.
+  const [myLikes, setMyLikes] = useState<Array<{ promptId: string; title: string; imageUrl: string | null }> | null>(null);
+  useEffect(() => {
+    if (activeTab !== "Likes" || myLikes !== null) return;
+    fetch("/api/prompts/likes/mine", { headers: { ...sessionAuthHeaders() } })
+      .then((r) => (r.ok ? r.json() : { likes: [] }))
+      .then((d) => setMyLikes(d.likes ?? []))
+      .catch(() => setMyLikes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
   const [open, setOpen] = useState<EnkiPrompt | null>(null);
   const searchParams = useSearchParams();
 
@@ -872,6 +886,29 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
                     </p>
                   </div>
                 </div>
+              ))}
+            </div>
+          )
+        ) : activeTab === "Likes" ? (
+          myLikes === null ? (
+            <div style={{ padding: "60px 0", textAlign: "center", color: "var(--enki-ink-3)" }}>Loading…</div>
+          ) : myLikes.length === 0 ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}>
+              <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>Nothing liked yet.</div>
+              <p style={{ fontSize: 14, color: "var(--enki-ink-3)", maxWidth: 420, margin: "8px auto 0" }}>
+                Only you see this tab. Tap the heart on any image and it lands here.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, padding: "18px 0" }}>
+              {myLikes.map((l) => (
+                <button key={l.promptId} type="button" onClick={() => router.push(`/generator/${l.promptId}`)}
+                  style={{ padding: 0, border: "1px solid var(--enki-rule)", borderRadius: 12, overflow: "hidden", background: "var(--enki-paper-2)", cursor: "pointer", textAlign: "left" }}>
+                  {l.imageUrl
+                    ? <img src={l.imageUrl} alt={l.title} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} draggable={false} />
+                    : <div style={{ width: "100%", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--enki-ink-3)" }}><Heart size={18} /></div>}
+                  <div style={{ padding: "7px 9px", fontSize: 12.5, fontWeight: 600, color: "var(--enki-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
+                </button>
               ))}
             </div>
           )

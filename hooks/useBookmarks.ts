@@ -13,8 +13,22 @@ const HEADERS = () => ({ "Content-Type": "application/json", ...sessionAuthHeade
 
 export async function listCategories(): Promise<BookmarkCategory[]> {
   const res = await fetch("/api/bookmarks/categories", { headers: HEADERS() });
-  if (!res.ok) throw new Error("categories unavailable");
+  if (!res.ok) {
+    // The status travels with the error so the UI can say the real thing:
+    // 401 = sign in; 503 = the migration has not been run yet.
+    const err = new Error("categories unavailable") as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return (await res.json()).categories;
+}
+
+/** The honest sentence for a failed bookmarks call. */
+export function bookmarksProblem(e: unknown): string {
+  const status = (e as { status?: number })?.status;
+  if (status === 401) return "Sign in to use bookmarks.";
+  if (status === 503) return "Bookmarks aren't set up yet (database migration pending).";
+  return "Bookmarks are unavailable right now.";
 }
 
 export async function createCategory(name: string): Promise<BookmarkCategory> {

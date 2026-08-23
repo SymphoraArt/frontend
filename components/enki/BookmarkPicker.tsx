@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Plus, Check, Loader2 } from "lucide-react";
-import { listCategories, createCategory, addBookmark, type BookmarkCategory } from "@/hooks/useBookmarks";
+import { listCategories, createCategory, addBookmark, bookmarksProblem, type BookmarkCategory } from "@/hooks/useBookmarks";
 import "@/components/enki/bookmarks.css";
 
 export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: {
@@ -18,7 +18,7 @@ export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: 
   onClose: () => void;
 }) {
   const [cats, setCats] = useState<BookmarkCategory[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [savingTo, setSavingTo] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: 
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    listCategories().then(setCats).catch(() => { setCats([]); setFailed(true); });
+    listCategories().then(setCats).catch((e) => { setCats([]); setFailed(bookmarksProblem(e)); });
   }, []);
 
   // Outside click / ESC close — capture, so the card's own link never fires.
@@ -48,7 +48,7 @@ export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: 
       window.setTimeout(onClose, 650); // let the check register, then leave
     } catch {
       setSavingTo(null);
-      setFailed(true);
+      setFailed("Bookmarks are unavailable right now.");
     }
   };
 
@@ -59,7 +59,7 @@ export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: 
       const cat = await createCategory(n);
       await saveInto(cat);
     } catch {
-      setFailed(true);
+      setFailed("Bookmarks are unavailable right now.");
     }
   };
 
@@ -82,7 +82,7 @@ export default function BookmarkPicker({ promptId, imageUrl, onDone, onClose }: 
       <div className="enki-bmp-list">
         {cats === null && <div className="enki-bmp-note"><Loader2 size={13} className="enki-bmp-spin" /> Loading…</div>}
         {cats?.length === 0 && !failed && <div className="enki-bmp-note">No categories yet — create one above.</div>}
-        {failed && <div className="enki-bmp-note">Bookmarks are unavailable right now.</div>}
+        {failed && <div className="enki-bmp-note">{failed}</div>}
         {cats?.map((c) => (
           <button key={c.id} type="button" className="enki-bmp-row" disabled={!!savingTo} onClick={() => saveInto(c)}>
             {c.logoUrl

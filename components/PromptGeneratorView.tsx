@@ -155,6 +155,7 @@ export default function PromptGeneratorView({
       const d = await res.json().catch(() => null);
       if (res.ok && d) setEngagement((e) => ({ ...e, likes: d.count ?? 0, mine: !!d.mine }));
       else if (res.status === 401) toast({ title: "Sign in to like." });
+      else toast({ title: "Couldn't save the like", description: d?.error, variant: "destructive" }); // a swallowed 503 read as "aint working" (Kev, 2026-08-23)
     } finally { setLiking(false); }
   }, [liking, promptId, toast]);
   const [refs, setRefs] = useState<string[]>([]);

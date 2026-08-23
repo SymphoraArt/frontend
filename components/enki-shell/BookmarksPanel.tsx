@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
-  listCategories, listBookmarks, moveBookmark, removeBookmark,
+  listCategories, listBookmarks, moveBookmark, removeBookmark, bookmarksProblem,
   type Bookmark as Mark, type BookmarkCategory,
 } from "@/hooks/useBookmarks";
 import "@/components/enki/bookmarks.css";
@@ -25,10 +25,10 @@ export default function BookmarksPanel() {
   const [cursor, setCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
-    listCategories().then(setCats).catch(() => { setCats([]); setFailed(true); });
+    listCategories().then(setCats).catch((e) => { setCats([]); setFailed(bookmarksProblem(e)); });
   }, []);
 
   /* Epoch guard: entering a category invalidates every response still in
@@ -46,7 +46,7 @@ export default function BookmarksPanel() {
       if (page.nextCursor == null) setDone(true);
     } catch {
       if (epoch !== epochRef.current) return;
-      setFailed(true);
+      setFailed("Couldn't load more right now.");
       setDone(true); // stop the sentinel — otherwise it retries in a tight loop
     } finally {
       if (epoch === epochRef.current) setLoading(false);
@@ -55,7 +55,7 @@ export default function BookmarksPanel() {
 
   const enter = (cat: BookmarkCategory) => {
     epochRef.current += 1;
-    setOpen(cat); setMarks([]); setCursor(null); setDone(false); setFailed(false);
+    setOpen(cat); setMarks([]); setCursor(null); setDone(false); setFailed(null);
     void loadMore(cat, null);
   };
   const back = () => { epochRef.current += 1; setOpen(null); setMarks([]); listCategories().then(setCats).catch(() => {}); };
@@ -114,7 +114,7 @@ export default function BookmarksPanel() {
     return (
       <div className="enki-bm-root" ref={rootRef}>
         {cats === null && <div className="enki-bm-note"><Loader2 size={14} className="enki-bmp-spin" /> Loading…</div>}
-        {failed && <div className="enki-bm-note">Bookmarks are unavailable right now.</div>}
+        {failed && <div className="enki-bm-note">{failed}</div>}
         {cats?.length === 0 && !failed && (
           <div className="enki-bm-note">
             <Bookmark size={15} /> Nothing saved yet — tap the bookmark on any image to start a category.
