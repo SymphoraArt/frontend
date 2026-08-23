@@ -287,6 +287,10 @@ export async function resolveModelByName(
  * while the UI offered another (Kev, 2026-08-19: "das soll doch eher derived
  * from the database sein").
  */
+/* Every ratio the image APIs accept (mirrors backend/services/types.ts).
+   Dimension-free hosts compute width x height from ANY of these. */
+const FULL_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
+
 export function withCapabilities(rows: ModelRow[], audience: Audience = "public") {
   return rows.map((row) => {
     const m = fromRow(row, audience);
@@ -300,6 +304,15 @@ export function withCapabilities(rows: ModelRow[], audience: Audience = "public"
        the row's own base price, keeps every surface's labels consistent
        with its own totals and with the ladder's proportions. */
     const ladder = MODEL_IMAGE_PRICING[toModelFamily(String(row.name ?? ""))] ?? DEFAULT_IMAGE_PRICING;
+    /* Ratio capability belongs to the HOST, not the row: pollinations builds
+       free-form dimensions from any ratio (backend getDimensions), so a
+       curated allowed_ratios list on the free model only narrowed what the
+       API genuinely takes — and needed manual SQL to keep in sync (Kev,
+       2026-08-23: "koennen wir die nicht von der api deriven?"). Derived
+       here; the DB list still rules hosts with a real enum (gemini). */
+    if (m.normal.provider === "pollinations") {
+      (raw as Record<string, unknown>).allowed_ratios = FULL_RATIOS;
+    }
     return {
       ...raw,
       maxResolution: m.maxResolution,

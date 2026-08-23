@@ -53,12 +53,28 @@ export default function AccessGate() {
           sign in with a beta account, or ask us for access and we&apos;ll get back to you.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Sign in FIRST: whoever reaches this panel already passed the
+              team-code gate (the proxy blocks /home without the cookie), so
+              the likeliest visitor is a dev or beta tester whose next step
+              is logging in — the panel used to dead-end them with only
+              "request access" (Kev, 2026-08-23). The login lives on the
+              landing page. */}
           <button
-            onClick={requestAccess}
+            onClick={() => router.push("/")}
             style={{
               width: "100%", padding: "13px 16px", borderRadius: 12, border: "none",
               background: "linear-gradient(135deg,#d9863f,#e8a83a)", color: "#181209",
               fontSize: 14, fontWeight: 700, cursor: "pointer",
+            }}
+          >
+            Sign in
+          </button>
+          <button
+            onClick={requestAccess}
+            style={{
+              width: "100%", padding: "13px 16px", borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.14)", background: "transparent",
+              color: "rgba(245,242,236,0.85)", fontSize: 14, fontWeight: 600, cursor: "pointer",
             }}
           >
             Request access

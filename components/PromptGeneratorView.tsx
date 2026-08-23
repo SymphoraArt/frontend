@@ -1141,6 +1141,31 @@ export default function PromptGeneratorView({
               <button type="button" className="pgv-star-badge pgv-like-badge" title={engagement.mine ? "Unlike" : "Like"} onClick={() => void toggleLike()}>
                 <Heart size={11} fill={engagement.mine ? "currentColor" : "none"} /> {engagement.likes}
               </button>
+              {/* Mini download button — hands over the CURRENT image
+                  (result if one exists, else the showcase original).
+                  Cross-origin CDNs can refuse a scripted fetch; then the
+                  image opens in a tab instead of failing silently. */}
+              <button
+                className="pgv-icon-btn"
+                aria-label="Download image"
+                title="Download image"
+                disabled={!displayImage}
+                onClick={async () => {
+                  if (!displayImage) return;
+                  try {
+                    const blob = await (await fetch(displayImage)).blob();
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${title.replace(/[^\w\- ]+/g, "").trim() || "enki-image"}.jpg`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  } catch {
+                    window.open(displayImage, "_blank", "noopener");
+                  }
+                }}
+              >
+                <Download size={13} />
+              </button>
               <div className="pgv-share">
                 <button
                   className="pgv-icon-btn"
