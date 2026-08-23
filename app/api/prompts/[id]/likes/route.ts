@@ -65,12 +65,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (existing) {
     const { error } = await supabase.from("reactions").delete().eq("id", existing.id).eq("user_id", userId);
-    if (error) return NextResponse.json({ error: "Couldn't remove the like" }, { status: 503 });
+    if (error) {
+      console.warn("[likes] delete failed:", error.message);
+      return NextResponse.json({ error: "Couldn't remove the like" }, { status: 503 });
+    }
     return NextResponse.json({ count: await countFor(supabase, id), mine: false });
   }
   const { error } = await supabase
     .from("reactions")
     .insert({ target_type: LIKE.target_type, reaction_type: LIKE.reaction_type, target_uuid: id, user_id: userId });
-  if (error) return NextResponse.json({ error: "Couldn't save the like" }, { status: 503 });
+  if (error) {
+    // The table predates the repo's migrations, so an unknown CHECK
+    // constraint would surface exactly here — the log carries the truth.
+    console.warn("[likes] insert failed:", error.message);
+    return NextResponse.json({ error: "Couldn't save the like" }, { status: 503 });
+  }
   return NextResponse.json({ count: await countFor(supabase, id), mine: true });
 }
