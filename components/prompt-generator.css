@@ -1461,4 +1461,7 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
 .pgv-x402-code .pgv-x402-example { padding-right: 28px; }
 .pgv-x402-copy { position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--pgv-text); opacity: .6; cursor: pointer; }
 .pgv-x402-copy:hover { opacity: 1; color: var(--pgv-accent); background: rgba(0, 0, 0, .25); }
+/* Copied: green check + "copied!" for 2s, in place of the icon. Width grows
+   with the text; the same #27ae60 the thumb/history success badges use. */
+.pgv-x402-copy.copied { width: auto; padding: 0 7px; gap: 4px; color: #27ae60; opacity: 1; font-size: 10.5px; font-weight: 700; background: rgba(0, 0, 0, .25); cursor: default; }
 .pgv-x402-note { font-size: 9.5px; color: var(--pgv-text-muted); }

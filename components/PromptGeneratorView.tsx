@@ -309,6 +309,10 @@ export default function PromptGeneratorView({
   const shareBtnRef = useRef<HTMLButtonElement>(null);
   const [sharePos, setSharePos] = useState<{ top: number; right: number } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  /* x402 copy feedback: the icon turns into a green check + "copied!" for 2s
+     (Kev, 2026-08-24) — confirmation at the click, not in a corner toast. */
+  const [agentCopied, setAgentCopied] = useState(false);
+  const agentCopiedTimer = useRef<number | null>(null);
   const shareUrl = useMemo(
     () => (typeof window === "undefined" ? "" : `${window.location.origin}/generator/${promptId}`),
     [promptId]
@@ -1758,16 +1762,20 @@ export default function PromptGeneratorView({
                   ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
                   : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect },
                 null, 2)}</pre>
-              <button type="button" className="pgv-x402-copy" aria-label="Copy agent request"
-                title="Copy agent request" onClick={() => {
+              <button type="button" className={"pgv-x402-copy" + (agentCopied ? " copied" : "")}
+                aria-label="Copy agent request" title="Copy agent request" onClick={() => {
                   const body = promptId
                     ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
                     : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect };
                   navigator.clipboard.writeText(
                     `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
-                  ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
+                  ).then(() => {
+                    setAgentCopied(true);
+                    if (agentCopiedTimer.current) window.clearTimeout(agentCopiedTimer.current);
+                    agentCopiedTimer.current = window.setTimeout(() => setAgentCopied(false), 2000);
+                  }).catch(() => {});
                 }}>
-                <Copy size={13} />
+                {agentCopied ? <><Check size={13} /> copied!</> : <Copy size={13} />}
               </button>
             </div>
             <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
