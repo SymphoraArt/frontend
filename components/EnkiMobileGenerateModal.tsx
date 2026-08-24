@@ -1,4 +1,4 @@
-import BoostToggle, { BOOST_MULTIPLIER } from "@/components/generation/BoostToggle";
+import BoostToggle from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import type { DiceValue, DiceVariable } from "@/lib/generation/variable-dice";
 import { sessionAuthHeaders } from "@/lib/session-headers";
@@ -482,18 +482,14 @@ export default function EnkiMobileGenerateModal({
      published API price at the chosen resolution × the number of images, plus
      the platform fee. The editor keeps its own creator-set `pricePerSlot`. */
   const genCountNum = Math.max(1, parseInt(genCount.replace(/\D/g, ""), 10) || 1);
-  const genPrice = computeGenerationPrice(
-    models.selected[0] || "",
-    genResolution,
-    genCountNum
-  );
-  /* Boost doubles the price (BOOST_MULTIPLIER); the label ignored it, so
-     toggling the lever changed nothing on screen (Kev, 2026-08-22). */
-  const boostMult = boost ? BOOST_MULTIPLIER : 1;
-  genPrice.perImage *= boostMult;
-  genPrice.apiSubtotal *= boostMult;
-  genPrice.fee *= boostMult;
-  genPrice.total *= boostMult;
+  /* Boost swaps to the vendor's direct route, so the price is that route's
+     REAL cost — never a flat multiplier, which overcharged cheap runs and
+     would lose money on gpt high/4K (Kev, 2026-08-23). This surface has no
+     gpt quality lever, so medium is assumed. */
+  const genPrice = computeGenerationPrice(models.selected[0] || "", genResolution, genCountNum, {
+    boost: !!boost,
+    quality: "medium",
+  });
   const useApiPricing = !!hideReleaseTab;
   const displayPrice = useApiPricing ? genPrice.total : pricePerSlot;
   const priceTitle = useApiPricing

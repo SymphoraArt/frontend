@@ -29,6 +29,7 @@ import {
   FALLBACK_RATIOS, type CatalogueEntry,
 } from "@/hooks/useModelLimits";
 import { tiersUpTo, type ResolutionTier } from "@/lib/generation/resolution";
+import { apiBoostPricePerImage } from "@/lib/pricing";
 
 export type TierOption = { tier: ResolutionTier; price: number | null };
 
@@ -92,8 +93,13 @@ export function useGenerationCore(
       supportsQuality: entry?.supportsQuality ?? false,
       boostAvailable: entry?.boostAvailable ?? false,
       free,
+      /* Boost = the vendor-direct route's REAL per-image price, never a
+         multiplier (Kev, 2026-08-23). gpt quality is priced as medium here;
+         surfaces with the lever quote the server directly. */
       perImage: (tier: string, boost = false) =>
-        (free ? 0 : (entry?.price ?? 0) * tierScale(entry, tier)) * (boost ? 2 : 1),
+        free ? 0
+        : boost ? apiBoostPricePerImage(entry?.id ?? "", tier)
+        : (entry?.price ?? 0) * tierScale(entry, tier),
       clampRatio: (v: string) => (ratios.includes(v) ? v : ratios[0]),
       clampTier: (v: string) => {
         const list = tiersUpTo(cap);

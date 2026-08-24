@@ -35,7 +35,7 @@ import {
   Type,
 } from "lucide-react";
 import "./prompt-generator.css";
-import BoostToggle, { boostedCost } from "@/components/generation/BoostToggle";
+import BoostToggle from "@/components/generation/BoostToggle";
 import DiceButton from "@/components/DiceButton";
 import { DICE_LIMITS, type DiceValue, type DiceVariable } from "@/lib/generation/variable-dice";
 import { type ResolutionTier } from "@/lib/generation/resolution";
@@ -385,9 +385,12 @@ export default function PromptGeneratorView({
   }, [resolutions, resolution]);
 
   const { data: paidQuote } = useQuery({
-    queryKey: ["generation-quote", promptId, modelFamily, quoteResolution],
+    /* boost + quality are part of the key: toggling either MUST refetch, or
+       the shown price is the old route's (Kev, 2026-08-23: boost = real cost
+       everywhere). */
+    queryKey: ["generation-quote", promptId, modelFamily, quoteResolution, boost, quality],
     queryFn: () =>
-      fetchGenerationQuote({ promptId: promptId!, modelFamily, resolution: quoteResolution }),
+      fetchGenerationQuote({ promptId: promptId!, modelFamily, resolution: quoteResolution, boost, quality }),
     enabled: !noCharge && !!promptId && !loading,
     // Quotes expire server-side after 5 minutes; refresh a little sooner.
     refetchInterval: 4 * 60 * 1000,
@@ -855,6 +858,8 @@ export default function PromptGeneratorView({
           promptId,
           modelFamily,
           resolution: quoteResolution,
+          boost,
+          quality,
         });
         res = await fetch("/api/generate-image", {
           method: "POST",

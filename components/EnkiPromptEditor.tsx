@@ -15,7 +15,7 @@ import { useSolanaX402Payment } from "@/hooks/useSolanaX402Payment";
 import { useCdpAddress } from "@/hooks/useCdpAddress";
 import { useCdpSolanaSigner } from "@/hooks/useCdpSolanaSigner";
 import { useModelLimits, FALLBACK_RATIOS } from "@/hooks/useModelLimits";
-import BoostToggle, { BOOST_MULTIPLIER } from "@/components/generation/BoostToggle";
+import BoostToggle from "@/components/generation/BoostToggle";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { useBestPaymentChain } from "@/hooks/useWalletBalance";
 import type { ChainKey } from "@/shared/payment-config";
@@ -3683,7 +3683,7 @@ export default function EnkiPromptEditor() {
               />
               <p className="enk-hint-text" style={{ margin: 0 }}>
                 {boost
-                  ? `Priority provider · about 3x faster · ${BOOST_MULTIPLIER}x the price`
+                  ? "Priority provider · about 3x faster · priced at the vendor's own rate"
                   : "Standard queue. Turn on Boost for a priority provider."}
               </p>
             </div>

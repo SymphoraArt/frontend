@@ -23,12 +23,10 @@ import "./boost-toggle.css";
  * control is what keeps the wording, the icon and the surcharge in step.
  */
 
-/** What boost costs on top, as a multiplier of the base price. */
-export const BOOST_MULTIPLIER = 2;
-
-export function boostedCost(base: number, boost: boolean): number {
-  return boost ? base * BOOST_MULTIPLIER : base;
-}
+/* The old BOOST_MULTIPLIER (flat x2) is gone: boost now prices at the boost
+   route's REAL per-image cost — apiBoostPricePerImage in lib/pricing.ts —
+   because x2 overcharged cheap runs and would LOSE money on gpt high/4K
+   (Kev, 2026-08-23). */
 
 export interface BoostToggleProps {
   boost: boolean;
@@ -68,8 +66,8 @@ export default function BoostToggle({
          "Same image", which promised pixel-identity no two runs deliver. */
       title={
         boost
-          ? `On: fastest host for this model — measured 2–4x faster, ${BOOST_MULTIPLIER}x the price. Same model & quality.`
-          : `Runs this model on its fastest host — measured 2–4x faster, ${BOOST_MULTIPLIER}x the price. Same model & quality.`
+          ? "On: fastest host for this model — measured 2–4x faster, priced at that host's own rate. Same model & quality."
+          : "Runs this model on its fastest host — measured 2–4x faster, priced at that host's own rate. Same model & quality."
       }
     >
       {/* Clock + bolt, and nothing else. The word "Boost" is gone from every

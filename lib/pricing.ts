@@ -61,6 +61,40 @@ export function apiPricePerImage(modelId: string, resolution: string): number {
   return (MODEL_IMAGE_PRICING[modelId] ?? DEFAULT_IMAGE_PRICING)[tier];
 }
 
+/**
+ * What the BOOST route — the vendor directly — really charges per image
+ * (Kev, 2026-08-23: "boost preis als ECHTE KOSTEN von den API costs", the
+ * flat x2 both overcharged cheap runs and would have LOST money on
+ * gpt-image-2 high/4K).
+ *
+ * nano-banana-pro boost is Gemini direct, token-based: 1120 output tokens at
+ * 1K/2K and 2000 at 4K — $0.134 / $0.24, measured 2026-08-06.
+ *
+ * gpt-image-2 boost is OpenAI direct, priced by QUALITY and size. The 1024
+ * base row (low $0.006 / medium $0.053 / high $0.211) is MEASURED
+ * (2026-08-06); the 2K and 4K rows are that base scaled by pixel count
+ * (4.0x and 7.9x — output-token pricing scales with pixels). DERIVED, not
+ * yet confirmed against OpenAI's official table: verify before mainnet.
+ */
+const GEMINI_BOOST: Record<ResolutionTier, number> = { "2K": 0.134, "4K": 0.24 };
+const GPT_BOOST: Record<"low" | "medium" | "high", Record<ResolutionTier, number>> = {
+  low: { "2K": 0.024, "4K": 0.047 },
+  medium: { "2K": 0.212, "4K": 0.419 },
+  high: { "2K": 0.844, "4K": 1.667 },
+};
+
+/** Boost-route cost per image; models without a boost route answer their normal price. */
+export function apiBoostPricePerImage(
+  modelId: string,
+  resolution: string,
+  quality?: "low" | "medium" | "high",
+): number {
+  const tier = toResolutionTier(resolution);
+  if (modelId === "gpt-image-2") return GPT_BOOST[quality ?? "medium"][tier];
+  if (modelId === "nano-banana-pro") return GEMINI_BOOST[tier];
+  return apiPricePerImage(modelId, resolution);
+}
+
 export interface PriceBreakdown {
   /** API cost for one image at the chosen model + resolution. */
   perImage: number;
@@ -78,9 +112,14 @@ export interface PriceBreakdown {
 export function computeGenerationPrice(
   modelId: string,
   resolution: string,
-  count: number
+  count: number,
+  opts?: { boost?: boolean; quality?: "low" | "medium" | "high" },
 ): PriceBreakdown {
-  const perImage = apiPricePerImage(modelId, resolution);
+  // Boost swaps the ROUTE, so the price is the boost route's real cost —
+  // never a multiplier on the normal one.
+  const perImage = opts?.boost
+    ? apiBoostPricePerImage(modelId, resolution, opts.quality)
+    : apiPricePerImage(modelId, resolution);
   const n = Math.max(1, Math.floor(count) || 1);
   const apiSubtotal = perImage * n;
   const fee = apiSubtotal * PLATFORM_FEE_PERCENT;
