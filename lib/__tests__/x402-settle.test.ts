@@ -26,7 +26,7 @@ const clientAta = getAssociatedTokenAddressSync(mint, client.publicKey);
 const BLOCKHASH = "EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k";
 const AMOUNT = 269_000;
 
-const params = { amountMicro: AMOUNT, payTo, mint, feePayer: feePayer.publicKey };
+const params = { legs: [{ owner: payTo, amountMicro: AMOUNT }], mint, feePayer: feePayer.publicKey };
 
 function transferIx(over: { amount?: number | bigint; dest?: PublicKey; mint?: PublicKey; authority?: PublicKey; source?: PublicKey; decimals?: number } = {}) {
   return createTransferCheckedInstruction(
@@ -73,7 +73,7 @@ describe("verifyAgentPayment", () => {
     for (const amount of [AMOUNT - 1, AMOUNT + 1]) {
       const r = verifyAgentPayment(buildTx([transferIx({ amount })]), params);
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error).toContain("exactly");
+      if (!r.ok) expect(r.error).toContain("extra.legs");
     }
   });
 
@@ -91,7 +91,7 @@ describe("verifyAgentPayment", () => {
     const elsewhere = getAssociatedTokenAddressSync(mint, Keypair.generate().publicKey);
     const r = verifyAgentPayment(buildTx([transferIx({ dest: elsewhere })]), params);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain("destination");
+    if (!r.ok) expect(r.error).toContain("extra.legs");
   });
 
   it("rejects wrong decimals", () => {
@@ -107,10 +107,10 @@ describe("verifyAgentPayment", () => {
     if (!r.ok) expect(r.error).toContain("not accepted");
   });
 
-  it("rejects a second transfer", () => {
+  it("rejects a transfer beyond the required legs", () => {
     const r = verifyAgentPayment(buildTx([transferIx(), transferIx()]), params);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain("Exactly one");
+    if (!r.ok) expect(r.error).toContain("extra.legs");
   });
 
   it("rejects the fee payer as transfer authority — its funds, our signature", () => {
@@ -165,6 +165,54 @@ describe("verifyAgentPayment", () => {
     const r = verifyAgentPayment(withAlt, params);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toContain("table");
+  });
+});
+
+describe("verifyAgentPayment — artist source-split (two legs)", () => {
+  const artist = Keypair.generate().publicKey;
+  const artistAta = getAssociatedTokenAddressSync(mint, artist);
+  const ARTIST_MICRO = 500_000;
+  const PLATFORM_MICRO = 190_000;
+  const twoLegs = {
+    legs: [
+      { owner: artist, amountMicro: ARTIST_MICRO },
+      { owner: payTo, amountMicro: PLATFORM_MICRO },
+    ],
+    mint,
+    feePayer: feePayer.publicKey,
+  };
+  const artistIx = () => transferIx({ dest: artistAta, amount: ARTIST_MICRO });
+  const platformIx = () => transferIx({ amount: PLATFORM_MICRO });
+
+  it("accepts artist + platform transfers in one transaction, either order", () => {
+    expect(verifyAgentPayment(buildTx([...budget(), artistIx(), platformIx()]), twoLegs).ok).toBe(true);
+    expect(verifyAgentPayment(buildTx([...budget(), platformIx(), artistIx()]), twoLegs).ok).toBe(true);
+  });
+
+  it("rejects a payment missing the artist leg — the platform may not hold artist money", () => {
+    const r = verifyAgentPayment(buildTx([platformIx()]), twoLegs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("Missing transfer");
+  });
+
+  it("rejects a short-changed artist leg", () => {
+    const r = verifyAgentPayment(
+      buildTx([transferIx({ dest: artistAta, amount: ARTIST_MICRO - 1 }), platformIx()]),
+      twoLegs,
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects two different authorities — one buyer pays every leg", () => {
+    const other = Keypair.generate();
+    const otherAta = getAssociatedTokenAddressSync(mint, other.publicKey);
+    const tx = buildTx([
+      artistIx(),
+      transferIx({ amount: PLATFORM_MICRO, authority: other.publicKey, source: otherAta }),
+    ], { sign: false });
+    const r = verifyAgentPayment(tx, twoLegs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("one authority");
   });
 });
 

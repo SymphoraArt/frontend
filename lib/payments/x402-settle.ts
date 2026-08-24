@@ -74,11 +74,21 @@ export function parseXPayment(header: string): ParseResult {
   }
 }
 
-export interface VerifyParams {
-  /** Exact micro-USDC the transfer must carry — no more, no less. */
+/**
+ * One required transfer inside the payment: `owner`'s USDC account must
+ * receive exactly `amountMicro`. A plain generation has one leg (platform);
+ * an artist-prompt purchase has two (artist + platform) — the SAME atomic
+ * source-split the human rails settle with, so the artist is paid by the
+ * buyer's own transaction, never out of platform custody.
+ */
+export interface PaymentLegSpec {
+  owner: PublicKey;
   amountMicro: number;
-  /** Platform wallet (owner, not ATA) the payment must reach. */
-  payTo: PublicKey;
+}
+
+export interface VerifyParams {
+  /** Every transfer the transaction MUST contain — no more, no fewer. */
+  legs: PaymentLegSpec[];
   /** The USDC mint of the deployment's chain. */
   mint: PublicKey;
   /** Our fee payer — must be payer ONLY. */
@@ -102,8 +112,13 @@ export function verifyAgentPayment(tx: VersionedTransaction, p: VerifyParams): V
     return { ok: false, error: "Transaction fee payer must be the feePayer from the 402 requirements" };
   }
 
-  const expectedDest = getAssociatedTokenAddressSync(p.mint, p.payTo);
-  let transfer: { payer: PublicKey } | null = null;
+  // Legs still to be satisfied, keyed by expected destination ATA.
+  const wanted = p.legs.map((l) => ({
+    dest: getAssociatedTokenAddressSync(p.mint, l.owner),
+    amount: BigInt(l.amountMicro),
+    owner: l.owner,
+  }));
+  let payer: PublicKey | null = null;
 
   for (const ix of msg.compiledInstructions) {
     const program = keys[ix.programIdIndex];
@@ -124,28 +139,43 @@ export function verifyAgentPayment(tx: VersionedTransaction, p: VerifyParams): V
     if (program.toBase58() === MEMO_PROGRAM) continue;
 
     if (program.equals(TOKEN_PROGRAM_ID)) {
-      if (transfer) return { ok: false, error: "Exactly one token transfer is accepted" };
       if (data[0] !== TRANSFER_CHECKED) return { ok: false, error: "Token instruction must be TransferChecked" };
       if (data.length < 10 || data[9] !== USDC_DECIMALS) {
         return { ok: false, error: "TransferChecked decimals must be 6 (USDC)" };
       }
       const amount = data.readBigUInt64LE(1);
-      if (amount !== BigInt(p.amountMicro)) {
-        return { ok: false, error: `Transfer must be exactly ${p.amountMicro} micro-USDC, got ${amount}` };
-      }
       // TransferChecked accounts: source, mint, destination, authority.
       const [, mintIdx, destIdx, authIdx] = ix.accountKeyIndexes;
       const mint = keys[mintIdx], dest = keys[destIdx], authority = keys[authIdx];
       if (!mint?.equals(p.mint)) return { ok: false, error: "Transfer mint is not this deployment's USDC" };
-      if (!dest?.equals(expectedDest)) return { ok: false, error: "Transfer destination is not the platform wallet's USDC account" };
       if (!authority) return { ok: false, error: "Transfer authority is missing" };
-      transfer = { payer: authority };
+      // ONE buyer pays every leg — a second authority would mean co-signing
+      // a stranger's transfer.
+      if (payer && !payer.equals(authority)) {
+        return { ok: false, error: "All transfers must share one authority" };
+      }
+      const at = wanted.findIndex((w) => dest?.equals(w.dest) && amount === w.amount);
+      if (at < 0) {
+        return {
+          ok: false,
+          error: `Unexpected transfer of ${amount} micro-USDC — the requirements' extra.legs list every required transfer (recipient and exact amount)`,
+        };
+      }
+      wanted.splice(at, 1);
+      payer = authority;
       continue;
     }
 
     return { ok: false, error: `Program ${program.toBase58()} is not accepted in a payment transaction` };
   }
 
+  if (wanted.length > 0) {
+    return {
+      ok: false,
+      error: `Missing transfer of ${wanted[0].amount} micro-USDC to ${wanted[0].owner.toBase58()} — build one TransferChecked per entry in extra.legs`,
+    };
+  }
+  const transfer = payer ? { payer } : null;
   if (!transfer) return { ok: false, error: "No USDC TransferChecked instruction found" };
 
   // Fee payer safety: payer only. Any instruction touching it could spend it.
