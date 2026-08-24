@@ -418,6 +418,8 @@ export default function PromptGeneratorView({
      at generation; without that a fresh token would ship literally. */
   const editTaRef = useRef<HTMLTextAreaElement>(null);
   const [editPill, setEditPill] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
+  // The agent field's controlled open state — animated both ways.
+  const [agentOpen, setAgentOpen] = useState(false);
   const editPillT = useRef<number | null>(null);
   useEffect(() => () => { if (editPillT.current) window.clearTimeout(editPillT.current); }, []);
   useEffect(() => {
@@ -1675,8 +1677,16 @@ export default function PromptGeneratorView({
         {/* x402 for AGENTS, as its own field BELOW the whole generate and
             dice element (Kev, 2026-08-23). The copy reads like a friend
             explaining it: conversational, tenth grade, no dashes. */}
-        <details className="pgv-x402">
-          <summary>&#129302; Let your AI agent use this prompt</summary>
+        <div className={"pgv-x402" + (agentOpen ? " open" : "")}>
+          <button type="button" className="pgv-x402-head" aria-expanded={agentOpen}
+            onClick={() => setAgentOpen((o) => !o)}>
+            &#129302; Let your AI agent use this prompt
+            <ChevronDown size={13} className="pgv-x402-chev" aria-hidden />
+          </button>
+          {/* grid-rows 0fr -> 1fr animates BOTH directions — native details
+              snaps shut, which is why this is a controlled box now
+              (Kev, 2026-08-23: "fixes aufklappen und zuklappen"). */}
+          <div className="pgv-x402-clip">
           <div className="pgv-x402-body">
             <p>
               Hand this prompt to your AI agent. It pays the same price as
@@ -1700,7 +1710,8 @@ export default function PromptGeneratorView({
             }}>Copy agent request</button>
             <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
           </div>
-        </details>
+          </div>
+        </div>
       </aside>
 
       {/* ═══ CENTER ═══ */}
