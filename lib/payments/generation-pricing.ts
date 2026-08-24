@@ -22,6 +22,7 @@
  */
 import {
   MODEL_IMAGE_PRICING,
+  apiBoostPricePerImage,
   toResolutionTier,
   type ResolutionTier,
 } from "@/lib/pricing";
@@ -79,10 +80,18 @@ export function usdToMicro(usd: number): number {
 export function getModelCostMicro(
   modelFamily: string,
   resolution: string | undefined,
+  opts?: { boost?: boolean; quality?: "low" | "medium" | "high" },
 ): number {
   const tiers = MODEL_IMAGE_PRICING[modelFamily];
   if (!tiers) {
     throw new UnknownModelError(modelFamily);
+  }
+  /* Boost swaps the ROUTE the image runs on, so the cost leg is the boost
+     route's REAL per-image price (vendor direct, quality-aware for gpt) —
+     never a flat multiplier, which overcharged cheap runs and would lose
+     money on gpt high/4K (Kev, 2026-08-23). */
+  if (opts?.boost) {
+    return usdToMicro(apiBoostPricePerImage(modelFamily, resolution ?? "2K", opts.quality));
   }
   const tier: ResolutionTier = toResolutionTier(resolution);
   return usdToMicro(tiers[tier]);

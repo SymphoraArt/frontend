@@ -38,6 +38,11 @@ const quoteSchema = z.object({
      both hosts charge 1K and 2K identically — so the schema admitting it
      cannot underprice anything. */
   resolution: z.enum(["1K", "2K", "4K"]).optional(),
+  /* Boost prices the model leg at the vendor-direct route's REAL cost
+     (quality-aware for gpt) — see getModelCostMicro. Optional: absent means
+     the normal ladder, so existing clients quote unchanged. */
+  boost: z.boolean().optional(),
+  quality: z.enum(["low", "medium", "high"]).optional(),
 });
 
 export async function POST(req: NextRequest) {

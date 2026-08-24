@@ -36,6 +36,10 @@ const intentSchema = z.object({
      both hosts charge 1K and 2K identically — so the schema admitting it
      cannot underprice anything. */
   resolution: z.enum(["1K", "2K", "4K"]).optional(),
+  /* Same boost fields as the quote route — the intent MUST price exactly
+     what the quote showed, so both feed getModelCostMicro identically. */
+  boost: z.boolean().optional(),
+  quality: z.enum(["low", "medium", "high"]).optional(),
 });
 
 export async function POST(req: NextRequest) {

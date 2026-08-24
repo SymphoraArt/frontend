@@ -27,6 +27,10 @@ export interface QuoteInput {
   promptId: string;
   modelFamily: string;
   resolution?: "1K" | "2K" | "4K";
+  /** Boost = the vendor-direct route; its REAL cost prices the model leg. */
+  boost?: boolean;
+  /** gpt quality lever — feeds the boost route's price where the model has one. */
+  quality?: "low" | "medium" | "high";
   /** requireAuth's userId (wallet or users.id) — enables DB pricing rules. */
   buyer?: string;
 }
@@ -44,7 +48,7 @@ export type QuoteResult =
 
 export async function computeQuote(
   supabase: SupabaseClient,
-  { promptId, modelFamily, resolution, buyer }: QuoteInput,
+  { promptId, modelFamily, resolution, boost, quality, buyer }: QuoteInput,
 ): Promise<QuoteResult> {
   // 1. Prompt price comes from the DB — never from the client.
   //    Live schema (verified 2026-07-12): prompts has creator_id +
@@ -72,7 +76,7 @@ export async function computeQuote(
   // 2. Model cost comes from server-side pricing — never from the client.
   let modelCostMicro: number;
   try {
-    modelCostMicro = getModelCostMicro(modelFamily, resolution);
+    modelCostMicro = getModelCostMicro(modelFamily, resolution, { boost, quality });
   } catch (error) {
     if (error instanceof UnknownModelError) {
       return { ok: false, status: 400, error: error.message };
