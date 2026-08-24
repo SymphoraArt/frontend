@@ -1429,3 +1429,16 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   text-overflow: ellipsis;
 }
 .pgv-size-asked { opacity: 0.8; }
+
+/* ── x402 fold-out for agents (above Generate) ── */
+.pgv-x402 { margin-bottom: 8px; border: 1px solid var(--pgv-border); border-radius: 8px; background: var(--pgv-input-bg); }
+.pgv-x402 summary { padding: 7px 10px; font-size: 11.5px; font-weight: 600; color: var(--pgv-text-muted); cursor: pointer; list-style: none; }
+.pgv-x402 summary::-webkit-details-marker { display: none; }
+.pgv-x402[open] summary { color: var(--pgv-text); border-bottom: 1px solid var(--pgv-border); }
+.pgv-x402-body { padding: 9px 10px; display: flex; flex-direction: column; gap: 7px; }
+.pgv-x402-body p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--pgv-text-muted); }
+.pgv-x402-endpoint { font-size: 10.5px; color: var(--pgv-text); word-break: break-all; }
+.pgv-x402-example { margin: 0; padding: 7px 8px; border-radius: 6px; background: rgba(0,0,0,.25); font-size: 10px; line-height: 1.45; color: var(--pgv-text); overflow-x: auto; }
+.pgv-x402-copy { align-self: flex-start; padding: 5px 10px; border: 1px solid var(--pgv-border); border-radius: 6px; background: transparent; color: var(--pgv-text); font-size: 11px; font-weight: 600; cursor: pointer; }
+.pgv-x402-copy:hover { border-color: var(--pgv-accent); }
+.pgv-x402-note { font-size: 9.5px; color: var(--pgv-text-muted); }
