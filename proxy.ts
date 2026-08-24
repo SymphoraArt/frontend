@@ -16,6 +16,13 @@ function isPublic(pathname: string): boolean {
   if (pathname === "/api/gate") return true;
   // Anonymous visitors must be able to apply from the public landing
   if (pathname === "/api/access-request") return true;
+  // x402 agent commerce: agents are OUTSIDERS by definition — they pay per
+  // request instead of holding the team cookie. The endpoint itself answers
+  // 402 (payment required) until a valid payment rides along, and the
+  // .well-known manifest is the standard public discovery namespace
+  // (Kev, 2026-08-23: agents shall reach our prompts via x402).
+  if (pathname.startsWith("/api/x402/")) return true;
+  if (pathname.startsWith("/.well-known/")) return true;
   // The landing mosaic feed must stay reachable for the public landing
   if (pathname === "/api/header-images") return true;
   // The wallet vendor's servers fetch our signing keys to validate external JWTs
