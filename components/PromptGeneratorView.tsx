@@ -1637,35 +1637,6 @@ export default function PromptGeneratorView({
             </div>
           )}
           <div className="pgv-generate-wrap">
-            {/* x402 for AGENTS — on free AND paid prompts (Kev, 2026-08-23):
-                the fold-out is what a human hands their agent so it can pay
-                per image and use this prompt. Prices in the 402 answer are
-                the SAME ladders humans pay, artist share included. */}
-            <details className="pgv-x402">
-              <summary>&#129302; For agents &middot; x402</summary>
-              <div className="pgv-x402-body">
-                <p>
-                  Agents can use this prompt directly: pay per image in USDC on
-                  Solana &mdash; no account, no gas. A request without payment
-                  answers HTTP 402 with the exact requirements.
-                </p>
-                <code className="pgv-x402-endpoint mono">POST {typeof window !== "undefined" ? window.location.origin : ""}/api/x402/generate</code>
-                <pre className="pgv-x402-example mono">{JSON.stringify(
-                  promptId
-                    ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
-                    : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect },
-                  null, 2)}</pre>
-                <button type="button" className="pgv-x402-copy" onClick={() => {
-                  const body = promptId
-                    ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
-                    : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect };
-                  navigator.clipboard.writeText(
-                    `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
-                  ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
-                }}>Copy agent request</button>
-                <span className="pgv-x402-note">Solana first; EVM/Base later. Settlement launches shortly &mdash; the endpoint already answers with final prices.</span>
-              </div>
-            </details>
             <button
               className="pgv-generate-btn"
               onClick={generate}
@@ -1701,6 +1672,37 @@ export default function PromptGeneratorView({
             )}
           </div>
         </div>
+        {/* x402 for AGENTS, as its own field BELOW the whole generate and
+            dice element (Kev, 2026-08-23). The copy reads like a friend
+            explaining it: conversational, tenth grade, no dashes. */}
+        <details className="pgv-x402">
+          <summary>&#129302; Let your AI agent use this prompt</summary>
+          <div className="pgv-x402-body">
+            <p>
+              You can hand this prompt to an AI agent. The agent pays a few
+              cents in USDC on Solana for every image it makes. It never needs
+              an account here, and it never needs gas money. When it knocks on
+              the address below without paying, our server answers with the
+              exact price. The agent pays and gets the image. Copy the request
+              below and paste it into your agent chat. That is all it needs.
+            </p>
+            <code className="pgv-x402-endpoint mono">POST {typeof window !== "undefined" ? window.location.origin : ""}/api/x402/generate</code>
+            <pre className="pgv-x402-example mono">{JSON.stringify(
+              promptId
+                ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
+                : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect },
+              null, 2)}</pre>
+            <button type="button" className="pgv-x402-copy" onClick={() => {
+              const body = promptId
+                ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
+                : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect };
+              navigator.clipboard.writeText(
+                `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
+              ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
+            }}>Copy agent request</button>
+            <span className="pgv-x402-note">We start on Solana. EVM and Base come later. Payments go live shortly, and the prices you see are already final.</span>
+          </div>
+        </details>
       </aside>
 
       {/* ═══ CENTER ═══ */}
