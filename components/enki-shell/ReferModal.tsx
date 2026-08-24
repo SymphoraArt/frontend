@@ -16,9 +16,11 @@ interface ReferModalProps {
   onClose: () => void;
   onSubmit: (r: { url: string; platform: string; note: string }) => void;
   userKey?: string | null;
+  /** Browsing without a login: the popup opens, the submit stays grey. */
+  guest?: boolean;
 }
 
-export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalProps) {
+export default function ReferModal({ onClose, onSubmit, userKey, guest = false }: ReferModalProps) {
   const [url, setUrl] = useState("");
   const [dupError, setDupError] = useState(false);
 
@@ -94,15 +96,15 @@ export default function ReferModal({ onClose, onSubmit, userKey }: ReferModalPro
           )}
 
           <button
-            title="We review and verify the source"
+            title={guest ? "Sign in to submit" : "We review and verify the source"}
             style={{
               position: "relative",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 34,
               marginTop: 12, border: "none", borderRadius: 999, cursor: valid ? "pointer" : "default",
-              background: valid ? "var(--enki-ember)" : "color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2))",
+              background: valid && !guest ? "var(--enki-ember)" : "color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2))",
               color: "#fff", fontSize: 12, fontWeight: 600,
             }}
-            disabled={!valid}
+            disabled={!valid || guest}
             onClick={() => {
               const link = url.trim();
               if (hasReferral(userKey, link)) { setDupError(true); return; }

@@ -405,7 +405,7 @@ export default function EnkiHome() {
           nodeActive={nodeOpen}
           onRefer={() => setReferOpen(true)}
           guest={!authed}
-          onFeedback={() => { if (!authed) { showToast("Sign in to use this."); return; } setFeedbackOpen(true); }}
+          onFeedback={() => setFeedbackOpen(true)}
           account={{ name, handle, initials, avatarUrl: myProfile?.avatarUrl ?? null }}
           collapsed={rail}
           onToggleCollapse={toggleMenu}
@@ -466,7 +466,7 @@ export default function EnkiHome() {
           }}
         />
       )}
-      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} onToast={showToast} />}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} onToast={showToast} guest={!authed} />}
 
       {logoffOpen && (
         <div className="ek-modal-scrim" onClick={() => !logoffBusy && setLogoffOpen(false)}>

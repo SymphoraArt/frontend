@@ -157,7 +157,7 @@ export default function FeedbackModal({ onClose, onToast }: { onClose: () => voi
               ))}
             </div>
 
-            <button className="ek-btn" style={{ minHeight: 40, opacity: canSend ? 1 : 0.55 }} disabled={!canSend} onClick={() => void send()}>
+            <button className="ek-btn" style={{ minHeight: 40, opacity: canSend && !guest ? 1 : 0.55 }} disabled={!canSend || guest} title={guest ? "Sign in to submit" : undefined} onClick={() => void send()}>
               {busy ? "Sending…" : "Send feedback"}
             </button>
           </div>
