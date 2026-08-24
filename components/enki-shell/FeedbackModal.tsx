@@ -25,7 +25,7 @@ const microLabel: React.CSSProperties = {
   textTransform: "uppercase", color: "var(--enki-ink-3)",
 };
 
-export default function FeedbackModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: string) => void }) {
+export default function FeedbackModal({ onClose, onToast, guest = false }: { onClose: () => void; onToast: (msg: string) => void; guest?: boolean }) {
   const [sev, setSev] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
