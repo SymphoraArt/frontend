@@ -1679,13 +1679,10 @@ export default function PromptGeneratorView({
           <summary>&#129302; Let your AI agent use this prompt</summary>
           <div className="pgv-x402-body">
             <p>
-              You can hand this prompt to an AI agent. The agent pays the
-              normal price for each image, the same price a person pays here,
-              in USDC on Solana. It never needs an account, and it never needs
-              gas money. When it knocks on the address below without paying,
-              our server answers with the exact price. The agent pays and gets
-              the image. Copy the request below and paste it into your agent
-              chat. That is all it needs.
+              Hand this prompt to your AI agent. It pays the same price as
+              you, in USDC on Solana, and needs no account and no gas. The
+              server tells it the exact price, it pays, it gets the image.
+              Paste the request below into your agent chat.
             </p>
             <code className="pgv-x402-endpoint mono">POST {typeof window !== "undefined" ? window.location.origin : ""}/api/x402/generate</code>
             <pre className="pgv-x402-example mono">{JSON.stringify(
@@ -1701,7 +1698,7 @@ export default function PromptGeneratorView({
                 `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
               ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
             }}>Copy agent request</button>
-            <span className="pgv-x402-note">We start on Solana. EVM and Base come later. The server already quotes final prices. Taking the payment itself is the next step we switch on.</span>
+            <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
           </div>
         </details>
       </aside>
