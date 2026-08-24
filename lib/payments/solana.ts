@@ -64,9 +64,15 @@ export function usdcMint(): PublicKey {
  * "confirmed" rather than "finalized": a confirmed payment is one the cluster
  * has agreed on, and waiting the extra ~13s for finality would sit in the
  * user's checkout for no gain we can act on.
+ *
+ * SOLANA_RPC_URL overrides ONLY on mainnet. The var holds one URL and a URL
+ * is chain-specific — on 2026-08-24 a mainnet Helius URL sat in the env of a
+ * devnet deployment and every settlement died with the RPC's 401 instead of
+ * reaching the (free, public) devnet RPC the chain config already named.
  */
 export function solanaConnection(): Connection {
-  return new Connection(process.env.SOLANA_RPC_URL || solanaChain().rpcUrl, "confirmed");
+  const override = solanaChainKey() === "solana" ? process.env.SOLANA_RPC_URL : undefined;
+  return new Connection(override || solanaChain().rpcUrl, "confirmed");
 }
 
 let cachedFeePayer: Keypair | null = null;
