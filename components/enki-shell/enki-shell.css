@@ -522,3 +522,17 @@
 .ek-msg-send.on { background: var(--enki-ember); }
 .ek-msg-send.on:hover { filter: brightness(1.06); }
 @media (max-width: 760px) { .ek-msg-side { width: 230px; } }
+
+/* ── Login notice (prompt creator for guests) — pops in AND leaves with an
+   animation; ESC and free-space clicks close it. ── */
+.ek-notice-scrim { align-items: center; justify-content: center; left: 0; }
+.ek-notice-scrim.leaving { animation: ek-notice-out 0.14s ease forwards; }
+@keyframes ek-notice-out { to { opacity: 0; } }
+.ek-notice { padding: 18px; animation: ek-notice-in 0.16s ease; }
+.ek-notice-scrim.leaving .ek-notice { animation: ek-notice-drop 0.14s ease forwards; }
+@keyframes ek-notice-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes ek-notice-drop { to { opacity: 0; transform: translateY(4px) scale(0.98); } }
+.ek-notice-text { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: var(--enki-ink-2); }
+@media (prefers-reduced-motion: reduce) { .ek-notice, .ek-notice-scrim.leaving, .ek-notice-scrim.leaving .ek-notice { animation: none; } }
+/* Disabled earn rows stay readable, just clearly inactive. */
+.ek-earn-row:disabled { opacity: 0.55; cursor: default; }

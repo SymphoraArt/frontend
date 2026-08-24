@@ -83,8 +83,13 @@ export default function EnkiHome() {
 
   // Access + username come from the root BetaGate (it already verified the
   // session server-side before this shell could even mount).
-  const { access, handle: myHandle, setHandle: setMyHandle, profile: myProfile } = useBetaAccess();
-  const authed = access === "ok";
+  const { access, role, handle: myHandle, setHandle: setMyHandle, profile: myProfile } = useBetaAccess();
+  /* Team-cookie browsing is NOT authed: the cookie opens looking around,
+     never the personal areas — so Bookmarks, Messages, Notifications,
+     Analytics and Settings disappear from the menu entirely for it, the
+     earn buttons deactivate, and the prompt creator explains itself
+     (Kev, 2026-08-23). */
+  const authed = access === "ok" && role !== "team";
 
   const emailName = emailAuthed && email ? email.split("@")[0] : null;
   const initials = myHandle
@@ -111,6 +116,17 @@ export default function EnkiHome() {
   }, []);
   const [nodeOpen, setNodeOpen] = useState(false);
   const [referOpen, setReferOpen] = useState(false);
+  /* "Prompt creator needs a login" notice — pops in and LEAVES with an
+     animation (open -> closing -> gone), closes on ESC and free-space
+     clicks. */
+  const [creatorNotice, setCreatorNotice] = useState<"open" | "closing" | null>(null);
+  const closeCreatorNotice = () => setCreatorNotice((s) => (s === "open" ? "closing" : s));
+  useEffect(() => {
+    if (creatorNotice !== "open") return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); closeCreatorNotice(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [creatorNotice]);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // Balance chip → Payment panel, scrolled to "Add money" with a heartbeat.
   const [payFocus, setPayFocus] = useState(false);
@@ -376,8 +392,9 @@ export default function EnkiHome() {
           active={activeNav}
           onNav={onNav}
           rail={rail}
-          onCreate={() => router.push("/editor")}
+          onCreate={() => { if (!authed) { setCreatorNotice("open"); return; } router.push("/editor"); }}
           onCreate2={() => {
+            if (!authed) { setCreatorNotice("open"); return; }
             prevCollapsedRef.current = collapsed;
             // Close any open right-side panel first — the node creator (z 118)
             // sits below the panel scrim (z 160) and would open invisibly.
@@ -387,6 +404,7 @@ export default function EnkiHome() {
           }}
           nodeActive={nodeOpen}
           onRefer={() => setReferOpen(true)}
+          guest={!authed}
           onFeedback={() => { if (!authed) { showToast("Sign in to use this."); return; } setFeedbackOpen(true); }}
           account={{ name, handle, initials, avatarUrl: myProfile?.avatarUrl ?? null }}
           collapsed={rail}
@@ -423,6 +441,21 @@ export default function EnkiHome() {
         <NodeCreator onClose={closeNode} onToast={showToast} userKey={walletAddress} sidebarW={rail ? 78 : 256} editPrompt={editPrompt} />
       )}
 
+      {creatorNotice && (
+        <div
+          className={"ek-modal-scrim ek-notice-scrim" + (creatorNotice === "closing" ? " leaving" : "")}
+          style={{ zIndex: 1450 }}
+          onClick={closeCreatorNotice}
+          onAnimationEnd={() => { if (creatorNotice === "closing") setCreatorNotice(null); }}
+        >
+          <div className="ek-modal ek-notice" style={{ maxWidth: 330 }} onClick={(e) => e.stopPropagation()}>
+            <p className="ek-notice-text">The prompt creator is for logged in users. Sign in and it opens right up.</p>
+            <button type="button" className="ek-btn" style={{ minHeight: 36, width: "100%" }} onClick={() => { setCreatorNotice(null); router.push("/"); }}>
+              Sign in
+            </button>
+          </div>
+        </div>
+      )}
       {referOpen && (
         <ReferModal
           userKey={walletAddress}

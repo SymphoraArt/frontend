@@ -31,6 +31,8 @@ interface SidebarProps {
   nodeActive?: boolean;
   onRefer: () => void;
   onFeedback?: () => void;
+  /** Team-cookie browsing: earn buttons deactivate and say so. */
+  guest?: boolean;
   account: { name: string; handle: string; initials: string; avatarUrl?: string | null };
   onToggleCollapse: () => void;
   collapsed: boolean;
@@ -43,7 +45,7 @@ interface SidebarProps {
 }
 
 export default function EnkiSidebar({
-  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer, onFeedback,
+  nav, active, onNav, rail, onCreate, onCreate2, nodeActive, onRefer, onFeedback, guest = false,
   account, onToggleCollapse, collapsed, balance, onProfile, onTopUp, onLogoff, theme, setTheme,
 }: SidebarProps) {
   const [colorOpen, setColorOpen] = useState(false);
@@ -169,18 +171,20 @@ export default function EnkiSidebar({
           <span className="ek-earn-rule" />
         </div>
       )}
-      <button className="ek-earn-row" onClick={onRefer} type="button" title="Refer a prompt — earn when it goes live">
+      <button className="ek-earn-row" onClick={guest ? undefined : onRefer} type="button" disabled={guest}
+        title={guest ? "Login to submit" : "Refer a prompt — earn when it goes live"}>
         <Icon name="link" size={18} stroke={1.9} />
-        {!rail && <span className="ek-earn-label">Refer a prompt</span>}
-        {!rail && <span className="ek-earn-chip">$</span>}
-        {rail && <span className="ek-nav-tip">Refer a prompt · earn</span>}
+        {!rail && <span className="ek-earn-label">{guest ? "Login to submit" : "Refer a prompt"}</span>}
+        {!rail && !guest && <span className="ek-earn-chip">$</span>}
+        {rail && <span className="ek-nav-tip">{guest ? "Login to submit" : "Refer a prompt · earn"}</span>}
       </button>
       {onFeedback && (
-        <button className="ek-earn-row" onClick={onFeedback} type="button" title="Feedback — win $100 if we build your change">
+        <button className="ek-earn-row" onClick={guest ? undefined : onFeedback} type="button" disabled={guest}
+          title={guest ? "Login to submit" : "Feedback — win $100 if we build your change"}>
           <Icon name="message" size={18} stroke={1.9} />
-          {!rail && <span className="ek-earn-label">Feedback</span>}
-          {!rail && <span className="ek-earn-chip">$100</span>}
-          {rail && <span className="ek-nav-tip">Feedback · win $100</span>}
+          {!rail && <span className="ek-earn-label">{guest ? "Login to submit" : "Feedback"}</span>}
+          {!rail && !guest && <span className="ek-earn-chip">$100</span>}
+          {rail && <span className="ek-nav-tip">{guest ? "Login to submit" : "Feedback · win $100"}</span>}
         </button>
       )}
 
