@@ -1,10 +1,20 @@
 /**
- * GET /api/creators/[id]/profile
- * Get creator profile with portfolio and stats
+ * GET /api/creators/[id]/profile — creator profile with portfolio and stats.
+ *
+ * [id] accepts the user's HANDLE or UUID: every link in the app navigates by
+ * handle (EnkiCard, PromptGeneratorView), while older bookmarks may carry the
+ * uuid. Columns follow the LIVE schema (probed 2026-08-24): users.handle /
+ * display_name / bio / avatar_url / cover_image_url; prompts.creator_id /
+ * price_usd_cents / showcase_images / is_listed. The previous version
+ * selected users.username and prompts.user_id — columns that do not exist —
+ * so the first query errored and EVERY creator answered 404
+ * (Kev, 2026-08-24: "Failed to load creator profile bei enki.artist").
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   request: NextRequest,
@@ -15,124 +25,70 @@ export async function GET(
 
     const supabase = getSupabaseServerClient();
 
-    // Get creator user data
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, username, display_name, avatar_url, cover_image_url, created_at')
-      .eq('id', creatorId)
-      .single();
+      .from("users")
+      .select("id, handle, display_name, bio, avatar_url, cover_image_url, created_at")
+      .eq(UUID.test(creatorId) ? "id" : "handle", creatorId)
+      .maybeSingle();
 
     if (userError || !userData) {
+      if (userError) console.error("[API] creator lookup failed:", userError.message);
       return NextResponse.json(
-        { success: false, error: 'Creator not found' },
+        { success: false, error: "Creator not found" },
         { status: 404 }
       );
     }
 
-    // Get creator earnings
-    const { data: earnings, error: earningsError } = await supabase
-      .from('user_earnings')
-      .select('*')
-      .eq('user_id', creatorId)
-      .single();
-
-    // Handle missing table gracefully
-    if (earningsError && earningsError.code !== 'PGRST116' && (earningsError.code === 'PGRST205' || earningsError.message?.includes('schema cache'))) {
-      console.warn('[API] user_earnings table not found - using default earnings');
-    } else if (earningsError && earningsError.code !== 'PGRST116') {
-      console.error('[API] Error fetching earnings:', earningsError);
-    }
-
-    // Get creator's prompts from Supabase (ownership is user_id only).
-    // There is no unlist mechanism in Supabase, so every row for this creator
-    // is treated as an active listing.
-    const { data: creatorPromptRows, error: creatorPromptsError } = await supabase
-      .from('prompts')
-      .select('id, title, price, uploaded_photos, created_at')
-      .eq('user_id', creatorId)
-      .order('created_at', { ascending: false })
+    // Listed prompts only — the portfolio is the public shelf, not drafts.
+    const { data: promptRows, error: promptsError } = await supabase
+      .from("prompts")
+      .select("id, title, price_usd_cents, showcase_images, published_at, created_at")
+      .eq("creator_id", userData.id)
+      .eq("is_listed", true)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
       .limit(20);
 
-    if (creatorPromptsError) {
-      console.error('[API] Error fetching creator prompts:', creatorPromptsError);
-    }
+    if (promptsError) console.error("[API] Error fetching creator prompts:", promptsError.message);
 
-    const listedPrompts = (creatorPromptRows || []).map((p) => ({
+    const listedPrompts = (promptRows || []).map((p) => ({
       id: p.id as string,
       title: p.title as string,
-      priceUsdCents: typeof p.price === 'number' ? p.price : 0,
-      previewImageUrl: Array.isArray(p.uploaded_photos)
-        ? (p.uploaded_photos[0] as string | undefined)
+      priceUsdCents: typeof p.price_usd_cents === "number" ? p.price_usd_cents : 0,
+      previewImageUrl: Array.isArray(p.showcase_images)
+        ? (p.showcase_images[0] as string | undefined)
         : undefined,
-      listedAt: p.created_at as string | undefined,
-    }));
-
-    // Get recent sales
-    const { data: recentSales, error: salesError } = await supabase
-      .from('prompt_purchases')
-      .select(`
-        id,
-        prompt_id,
-        prompt_title,
-        prompt_preview_image_url,
-        amount_usd_cents,
-        created_at
-      `)
-      .eq('seller_id', creatorId)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    // Handle missing table gracefully
-    if (salesError && (salesError.code === 'PGRST205' || salesError.message?.includes('schema cache'))) {
-      console.warn('[API] prompt_purchases table not found - returning empty recent sales');
-    } else if (salesError) {
-      console.error('[API] Error fetching recent sales:', salesError);
-    }
-
-    // Calculate stats
-    const stats = {
-      totalEarnings: earnings?.total_earnings_cents || 0,
-      totalSales: earnings?.total_sales || 0,
-      activePrompts: listedPrompts?.length || 0,
-      averageRating: 0, // Would calculate from reviews
-      totalPrompts: listedPrompts?.length || 0,
-    };
-
-    // Enrich prompts with additional data
-    const featuredPrompts = listedPrompts.slice(0, 6).map((prompt) => ({
-      id: prompt.id,
-      title: prompt.title,
-      priceUsdCents: prompt.priceUsdCents,
-      previewImageUrl: prompt.previewImageUrl,
-      listedAt: prompt.listedAt,
+      listedAt: (p.published_at ?? p.created_at) as string | undefined,
     }));
 
     return NextResponse.json({
       creator: {
         id: userData.id,
-        username: userData.username,
-        displayName: userData.display_name || userData.username,
+        username: userData.handle,
+        displayName: userData.display_name || userData.handle,
+        bio: userData.bio,
         avatarUrl: userData.avatar_url,
         coverImageUrl: userData.cover_image_url,
         joinedAt: userData.created_at,
       },
-      stats,
-      featuredPrompts,
-      recentSales: ((salesError && (salesError.code === 'PGRST205' || salesError.message?.includes('schema cache'))) ? [] : (recentSales || [])).map((sale: any) => ({
-        id: sale.id,
-        promptId: sale.prompt_id,
-        promptTitle: sale.prompt_title,
-        promptPreviewImageUrl: sale.prompt_preview_image_url,
-        amountCents: sale.amount_usd_cents,
-        createdAt: sale.created_at,
-      })),
+      // Earnings/sales come from the payments ledger once real volume flows.
+      // Zeros are honest today: user_earnings does not exist in the live DB,
+      // and prompt_purchases exists but is empty AND lacks the columns the
+      // old query read (prompt_title → 42703; probed 2026-08-24).
+      stats: {
+        totalEarnings: 0,
+        totalSales: 0,
+        activePrompts: listedPrompts.length,
+        averageRating: 0,
+        totalPrompts: listedPrompts.length,
+      },
+      featuredPrompts: listedPrompts.slice(0, 6),
+      recentSales: [],
     });
-
   } catch (error) {
-    console.error('Error fetching creator profile:', error);
+    console.error("Error fetching creator profile:", error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: "Internal server error" },
       { status: 500 }
     );
   }
