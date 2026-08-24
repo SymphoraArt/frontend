@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { storeGeneratedImage } from "@/lib/generation/derivative-store";
 import { encryptString } from "@/lib/crypto";
 import type { ResolvedModel, Route } from "@/lib/generation/models";
 import type { StoredReference } from "@/lib/generation/reference-images";
@@ -208,15 +209,21 @@ export async function recordGeneration(
     // means delivered" (Kev, 2026-08-06) is a durability requirement, and this
     // is where it is met.
     if (rec.imageUrl) {
+      /* Our copy + WebP renditions. Token-graceful (no BLOB token = the
+         provider URL passes through) and never throwing — the paid image
+         always lands in the row, optimised or not. */
+      const stored = rec.previewUrl
+        ? { imageUrl: rec.imageUrl, previewUrl: rec.previewUrl, thumbnailUrl: rec.thumbnailUrl ?? null }
+        : await storeGeneratedImage(rec.imageUrl, rec.userId);
       const { error: imgErr } = await supabase.from("generated_images").insert({
         user_id: rec.userId,
         generation_id: generationId,
         prompt_id: promptId,
         sequence_index: 0,
         storage_provider: "vercel_blob",
-        storage_url: rec.imageUrl,
-        preview_url: rec.previewUrl ?? null,
-        thumbnail_url: rec.thumbnailUrl ?? null,
+        storage_url: stored.imageUrl,
+        preview_url: stored.previewUrl,
+        thumbnail_url: stored.thumbnailUrl,
         width: rec.output?.width ?? null,
         height: rec.output?.height ?? null,
         file_size_bytes: rec.output?.bytes ?? null,
