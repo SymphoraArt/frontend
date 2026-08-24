@@ -126,10 +126,15 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     supportsQuality: false,
   },
   "gpt-image-2": {
-    // Same trade as Nano Banana Pro: WaveSpeed hosts it cheaper and slower,
-    // OpenAI direct is the boost. Path verified live 2026-08-06.
+    // Quality decides the host (Kev, 2026-08-24): OpenAI direct is CHEAPER
+    // below high (measured $0.107 vs WaveSpeed's flat $0.167 at 2K medium),
+    // WaveSpeed's flat price wins at high ($0.167 vs $0.428). The live
+    // model_providers rows carry that split as applies_when conditions; this
+    // fallback answers WaveSpeed. boost === normal on purpose — with every
+    // request already on its cheapest host there is no faster host to sell,
+    // so hasBoost() reports false and the toggle disappears for this model.
     normal: { provider: "wavespeed", providerModel: "openai/gpt-image-2/text-to-image" },
-    boost: { provider: "openai", providerModel: "gpt-image-2" },
+    boost: { provider: "wavespeed", providerModel: "openai/gpt-image-2/text-to-image" },
     // OpenAI takes pixels rather than a tier; the service converts, so the
     // resolution the user picks really does change the image.
     supportsResolution: true,

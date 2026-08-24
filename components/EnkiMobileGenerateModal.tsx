@@ -483,12 +483,12 @@ export default function EnkiMobileGenerateModal({
      the platform fee. The editor keeps its own creator-set `pricePerSlot`. */
   const genCountNum = Math.max(1, parseInt(genCount.replace(/\D/g, ""), 10) || 1);
   /* Boost swaps to the vendor's direct route, so the price is that route's
-     REAL cost — never a flat multiplier, which overcharged cheap runs and
-     would lose money on gpt high/4K (Kev, 2026-08-23). This surface has no
-     gpt quality lever, so medium is assumed. */
+     REAL cost — never a flat multiplier (Kev, 2026-08-23). This surface has
+     no gpt quality lever, so NO quality is passed: pricing then applies the
+     same tier default the server routes and renders with — a hardcoded
+     "medium" here priced a 4K request that actually renders high. */
   const genPrice = computeGenerationPrice(models.selected[0] || "", genResolution, genCountNum, {
     boost: !!boost,
-    quality: "medium",
   });
   const useApiPricing = !!hideReleaseTab;
   const displayPrice = useApiPricing ? genPrice.total : pricePerSlot;

@@ -55,53 +55,84 @@ export function toResolutionTier(resolution: string | undefined): ResolutionTier
   return tier === "4K" ? "4K" : "2K";
 }
 
-/** Published API cost (USD) for a single image at the given model + resolution. */
-export function apiPricePerImage(modelId: string, resolution: string): number {
-  const tier = toResolutionTier(resolution);
-  return (MODEL_IMAGE_PRICING[modelId] ?? DEFAULT_IMAGE_PRICING)[tier];
+export type GptQuality = "low" | "medium" | "high";
+
+/**
+ * The quality a gpt request renders at when the caller does not say.
+ * MUST mirror TIER_QUALITY in backend/services/openai-image-generation.ts —
+ * the service applies this default at render time, so pricing and routing
+ * applying a different one would charge for a quality that never runs.
+ */
+export const TIER_DEFAULT_QUALITY: Record<"1K" | "2K" | "4K", GptQuality> = {
+  "1K": "low",
+  "2K": "medium",
+  "4K": "high",
+};
+
+/** The quality that will actually run: the caller's, or the tier default. */
+export function effectiveQuality(resolution: string | undefined, quality?: string | null): GptQuality {
+  if (quality === "low" || quality === "medium" || quality === "high") return quality;
+  return TIER_DEFAULT_QUALITY[normalizeTier(resolution) ?? "2K"];
 }
 
 /**
- * What the BOOST route — the vendor directly — really charges per image
- * (Kev, 2026-08-23: "boost preis als ECHTE KOSTEN von den API costs", the
- * flat x2 both overcharged cheap runs and would have LOST money on
- * gpt-image-2 high/4K).
- *
- * nano-banana-pro boost is Gemini direct, token-based: 1120 output tokens at
- * 1K/2K and 2000 at 4K — $0.134 / $0.24. CONFIRMED against the official
- * pricing page 2026-08-24 (ai.google.dev/gemini-api/docs/pricing:
- * gemini-3-pro-image, $120/1M image output tokens; the footnote states
- * these exact token counts and per-image equivalents).
- *
- * gpt-image-2 boost is OpenAI direct, priced by QUALITY and size — billed
- * as image output tokens at $30/1M (official rate, confirmed 2026-08-24).
- * Every cell below is MEASURED (metered bench, 2026-08-24, Kev-approved)
- * at the exact sizes our OpenAI service requests — 2K = 2048x2048,
- * 4K = 2880x2880 (its 8.29MP ceiling):
+ * gpt-image-2 on OpenAI DIRECT — billed as image output tokens at $30/1M
+ * (official rate, confirmed 2026-08-24). Every cell MEASURED (metered
+ * bench, 2026-08-24, Kev-approved) at the exact sizes our OpenAI service
+ * requests — 2K = 2048x2048, 4K = 2880x2880 (its 8.29MP ceiling):
  *   low    2K  397 tok   4K   659 tok
  *   medium 2K 3568 tok   4K  5930 tok
  *   high   2K 14272 tok  4K 23719 tok
- * The earlier pixel-scaled estimates ran ~2x HIGH (high/4K $1.667 vs the
- * real $0.712) — token counts do not scale with pixels, as OpenAI's guide
- * warns. Rounded up to the next tenth of a cent, never down.
+ * Rounded up to the next tenth of a cent, never down.
  */
-const GEMINI_BOOST: Record<ResolutionTier, number> = { "2K": 0.134, "4K": 0.24 };
-const GPT_BOOST: Record<"low" | "medium" | "high", Record<ResolutionTier, number>> = {
+const GPT_OPENAI: Record<GptQuality, Record<ResolutionTier, number>> = {
   low: { "2K": 0.012, "4K": 0.02 },
   medium: { "2K": 0.107, "4K": 0.178 },
   high: { "2K": 0.428, "4K": 0.712 },
 };
 
-/** Boost-route cost per image; models without a boost route answer their normal price. */
+/**
+ * Published API cost (USD) for a single image at the given model, resolution
+ * and (for gpt) quality.
+ *
+ * gpt-image-2 routes BY QUALITY (Kev, 2026-08-24: "use openai on low und
+ * medium und bei high wavespeed"): OpenAI direct is cheaper below high
+ * ($0.107 vs WaveSpeed's flat $0.167 at 2K medium), WaveSpeed's flat price
+ * is far cheaper AT high ($0.167 vs $0.428). The price here is the cost of
+ * the host that will actually run — the model_providers applies_when rows
+ * and this table encode the SAME split, and both must move together.
+ */
+export function apiPricePerImage(modelId: string, resolution: string, quality?: string | null): number {
+  const tier = toResolutionTier(resolution);
+  if (modelId === "gpt-image-2") {
+    const q = effectiveQuality(resolution, quality);
+    return q === "high" ? MODEL_IMAGE_PRICING[modelId][tier] : GPT_OPENAI[q][tier];
+  }
+  return (MODEL_IMAGE_PRICING[modelId] ?? DEFAULT_IMAGE_PRICING)[tier];
+}
+
+/**
+ * Boost-route cost per image; models without a boost route answer their
+ * normal price.
+ *
+ * nano-banana-pro boost is Gemini direct, token-based: 1120 output tokens at
+ * 1K/2K and 2000 at 4K — $0.134 / $0.24. CONFIRMED against the official
+ * pricing page 2026-08-24 (ai.google.dev/gemini-api/docs/pricing).
+ *
+ * gpt-image-2 has NO boost any more (Kev, 2026-08-24: "deaktiviere boost bei
+ * gpt image 2") — quality-aware routing already runs every request on its
+ * cheapest host, so a paid "faster host" stopped existing. The flag answers
+ * the routed normal price.
+ */
+const GEMINI_BOOST: Record<ResolutionTier, number> = { "2K": 0.134, "4K": 0.24 };
+
 export function apiBoostPricePerImage(
   modelId: string,
   resolution: string,
   quality?: "low" | "medium" | "high",
 ): number {
-  const tier = toResolutionTier(resolution);
-  if (modelId === "gpt-image-2") return GPT_BOOST[quality ?? "medium"][tier];
-  if (modelId === "nano-banana-pro") return GEMINI_BOOST[tier];
-  return apiPricePerImage(modelId, resolution);
+  if (modelId === "nano-banana-pro") return GEMINI_BOOST[toResolutionTier(resolution)];
+  return apiPricePerImage(modelId, resolution, quality);
 }
 
 export interface PriceBreakdown {
@@ -125,10 +156,11 @@ export function computeGenerationPrice(
   opts?: { boost?: boolean; quality?: "low" | "medium" | "high" },
 ): PriceBreakdown {
   // Boost swaps the ROUTE, so the price is the boost route's real cost —
-  // never a multiplier on the normal one.
+  // never a multiplier on the normal one. Quality feeds the normal path too:
+  // gpt routes by quality, so its normal price depends on it.
   const perImage = opts?.boost
     ? apiBoostPricePerImage(modelId, resolution, opts.quality)
-    : apiPricePerImage(modelId, resolution);
+    : apiPricePerImage(modelId, resolution, opts?.quality);
   const n = Math.max(1, Math.floor(count) || 1);
   const apiSubtotal = perImage * n;
   const fee = apiSubtotal * PLATFORM_FEE_PERCENT;
