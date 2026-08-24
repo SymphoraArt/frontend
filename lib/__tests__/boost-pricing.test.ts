@@ -21,10 +21,10 @@ describe("apiBoostPricePerImage", () => {
     expect(apiBoostPricePerImage("nano-banana-pro", "1K")).toBe(0.134);
   });
 
-  it("gpt boost is quality x size, defaulting to medium when no lever is set", () => {
-    expect(apiBoostPricePerImage("gpt-image-2", "2K", "low")).toBe(0.024);
-    expect(apiBoostPricePerImage("gpt-image-2", "2K", "high")).toBe(0.844);
-    expect(apiBoostPricePerImage("gpt-image-2", "4K", "high")).toBe(1.667);
+  it("gpt boost is quality x size (measured 2026-08-24), defaulting to medium when no lever is set", () => {
+    expect(apiBoostPricePerImage("gpt-image-2", "2K", "low")).toBe(0.012);
+    expect(apiBoostPricePerImage("gpt-image-2", "2K", "high")).toBe(0.428);
+    expect(apiBoostPricePerImage("gpt-image-2", "4K", "high")).toBe(0.712);
     expect(apiBoostPricePerImage("gpt-image-2", "2K")).toBe(
       apiBoostPricePerImage("gpt-image-2", "2K", "medium"),
     );
@@ -63,15 +63,15 @@ describe("computeGenerationPrice with boost", () => {
   it("gpt quality feeds the boosted price", () => {
     const high = computeGenerationPrice("gpt-image-2", "2K", 1, { boost: true, quality: "high" });
     const low = computeGenerationPrice("gpt-image-2", "2K", 1, { boost: true, quality: "low" });
-    expect(high.perImage).toBe(0.844);
-    expect(low.perImage).toBe(0.024);
+    expect(high.perImage).toBe(0.428);
+    expect(low.perImage).toBe(0.012);
   });
 });
 
 describe("getModelCostMicro with boost (the CHARGED leg)", () => {
   it("boost swaps the model-cost leg to the boost route, in exact micro", () => {
     expect(getModelCostMicro("nano-banana-pro", "4K", { boost: true })).toBe(240_000);
-    expect(getModelCostMicro("gpt-image-2", "4K", { boost: true, quality: "high" })).toBe(1_667_000);
+    expect(getModelCostMicro("gpt-image-2", "4K", { boost: true, quality: "high" })).toBe(712_000);
   });
 
   it("no opts means the normal ladder — existing quotes are untouched", () => {

@@ -73,22 +73,23 @@ export function apiPricePerImage(modelId: string, resolution: string): number {
  * gemini-3-pro-image, $120/1M image output tokens; the footnote states
  * these exact token counts and per-image equivalents).
  *
- * gpt-image-2 boost is OpenAI direct, priced by QUALITY and size. The 1024
- * base row (low $0.006 / medium $0.053 / high $0.211) is CONFIRMED
- * cell-for-cell against the official table 2026-08-24
- * (developers.openai.com/api/docs/pricing). The 2K and 4K rows remain
- * DERIVED (1024 base x pixel ratio): OpenAI prints no dollar cells above
- * 1536 — larger sizes bill by output tokens ($30/1M) and do NOT scale
- * purely with pixels (the guide notes larger non-square outputs can even
- * use FEWER tokens), so these cells are treated as upper bounds. Pinning
- * them needs a measured token count per (quality, size) — bench proposed
- * to Kev 2026-08-24, awaiting budget approval.
+ * gpt-image-2 boost is OpenAI direct, priced by QUALITY and size — billed
+ * as image output tokens at $30/1M (official rate, confirmed 2026-08-24).
+ * Every cell below is MEASURED (metered bench, 2026-08-24, Kev-approved)
+ * at the exact sizes our OpenAI service requests — 2K = 2048x2048,
+ * 4K = 2880x2880 (its 8.29MP ceiling):
+ *   low    2K  397 tok   4K   659 tok
+ *   medium 2K 3568 tok   4K  5930 tok
+ *   high   2K 14272 tok  4K 23719 tok
+ * The earlier pixel-scaled estimates ran ~2x HIGH (high/4K $1.667 vs the
+ * real $0.712) — token counts do not scale with pixels, as OpenAI's guide
+ * warns. Rounded up to the next tenth of a cent, never down.
  */
 const GEMINI_BOOST: Record<ResolutionTier, number> = { "2K": 0.134, "4K": 0.24 };
 const GPT_BOOST: Record<"low" | "medium" | "high", Record<ResolutionTier, number>> = {
-  low: { "2K": 0.024, "4K": 0.047 },
-  medium: { "2K": 0.212, "4K": 0.419 },
-  high: { "2K": 0.844, "4K": 1.667 },
+  low: { "2K": 0.012, "4K": 0.02 },
+  medium: { "2K": 0.107, "4K": 0.178 },
+  high: { "2K": 0.428, "4K": 0.712 },
 };
 
 /** Boost-route cost per image; models without a boost route answer their normal price. */
