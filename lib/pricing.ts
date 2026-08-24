@@ -68,13 +68,21 @@ export function apiPricePerImage(modelId: string, resolution: string): number {
  * gpt-image-2 high/4K).
  *
  * nano-banana-pro boost is Gemini direct, token-based: 1120 output tokens at
- * 1K/2K and 2000 at 4K — $0.134 / $0.24, measured 2026-08-06.
+ * 1K/2K and 2000 at 4K — $0.134 / $0.24. CONFIRMED against the official
+ * pricing page 2026-08-24 (ai.google.dev/gemini-api/docs/pricing:
+ * gemini-3-pro-image, $120/1M image output tokens; the footnote states
+ * these exact token counts and per-image equivalents).
  *
  * gpt-image-2 boost is OpenAI direct, priced by QUALITY and size. The 1024
- * base row (low $0.006 / medium $0.053 / high $0.211) is MEASURED
- * (2026-08-06); the 2K and 4K rows are that base scaled by pixel count
- * (4.0x and 7.9x — output-token pricing scales with pixels). DERIVED, not
- * yet confirmed against OpenAI's official table: verify before mainnet.
+ * base row (low $0.006 / medium $0.053 / high $0.211) is CONFIRMED
+ * cell-for-cell against the official table 2026-08-24
+ * (developers.openai.com/api/docs/pricing). The 2K and 4K rows remain
+ * DERIVED (1024 base x pixel ratio): OpenAI prints no dollar cells above
+ * 1536 — larger sizes bill by output tokens ($30/1M) and do NOT scale
+ * purely with pixels (the guide notes larger non-square outputs can even
+ * use FEWER tokens), so these cells are treated as upper bounds. Pinning
+ * them needs a measured token count per (quality, size) — bench proposed
+ * to Kev 2026-08-24, awaiting budget approval.
  */
 const GEMINI_BOOST: Record<ResolutionTier, number> = { "2K": 0.134, "4K": 0.24 };
 const GPT_BOOST: Record<"low" | "medium" | "high", Record<ResolutionTier, number>> = {

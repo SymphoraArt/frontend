@@ -35,7 +35,7 @@ export interface Tier1Result {
 export interface ModerationInput {
   prompt: string;
   /** Which endpoint asked. Recorded so we can measure per-surface block rates. */
-  surface: "generate-image" | "generate-free" | "upload" | "quote";
+  surface: "generate-image" | "generate-free" | "upload" | "quote" | "x402-generate";
   /** Chained so a client disconnect cancels the Tier 2 call. */
   signal?: AbortSignal;
 }

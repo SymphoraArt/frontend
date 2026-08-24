@@ -146,7 +146,7 @@ export function isChainKey(value: unknown): value is ChainKey {
 /**
  * Check if a chain is Solana (non-EVM)
  */
-export function isSolanaChain(chainKey: ChainKey): boolean {
+export function isSolanaChain(chainKey: ChainKey): chainKey is "solana" | "solana-devnet" {
   const chain = PAYMENT_CHAINS[chainKey] as { isSolana?: boolean };
   return chain.isSolana === true;
 }

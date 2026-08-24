@@ -1778,7 +1778,7 @@ export default function PromptGeneratorView({
                 {agentCopied ? <><Check size={13} /> copied!</> : <Copy size={13} />}
               </button>
             </div>
-            <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
+            <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final and payments are live.</span>
           </div>
           </div>
           </div>
