@@ -164,7 +164,7 @@ interface EnkiMobileGenerateModalProps {
       Absent, the modal keeps its internal 2K/4K fallback (legacy editor). */
   resolution?: string;
   setResolution?: (v: string) => void;
-  resolutionOptions?: Array<{ value: string; label: string }>;
+  resolutionOptions?: Array<{ value: string; label: string; short?: string }>;
   /* Freshly generated images to surface ABOVE the sheet (newest first). */
   resultImages?: string[];
   isGenerating?: boolean;
@@ -238,7 +238,7 @@ function MiniSelect({
           style={maxWidth ? { maxWidth } : undefined}
           onClick={() => setOpen((o) => !o)}
         >
-          <span className="mobile-modal-minisel-value">{current?.label ?? value}</span>
+          <span className="mobile-modal-minisel-value">{(current as { short?: string } | undefined)?.short ?? current?.label ?? value}</span>
         </button>
         {open && (
           <div className="mobile-modal-minisel-panel" role="listbox">
@@ -1376,8 +1376,7 @@ export default function EnkiMobileGenerateModal({
                 {/* Buttons, not a dropdown: the count is eight values — all
                     visible, nothing to open or scroll (Kev, 2026-08-22; the
                     first attempt landed in the dead EnkiQuickCreate). */}
-                <div className="mobile-modal-qty" role="radiogroup" aria-label="Number of images">
-                  <Copy size={14} style={{ color: "#8A7F72", flexShrink: 0 }} aria-hidden />
+                <div className="mobile-modal-qty" role="radiogroup" aria-label="Number of images" title="Number of images">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((qn) => (
                     <button key={qn} type="button" role="radio" aria-checked={genCount === `x ${qn}`}
                       className={"mobile-modal-qty-btn" + (genCount === `x ${qn}` ? " on" : "")}

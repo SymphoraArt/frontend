@@ -276,14 +276,14 @@ export default function GenerateLauncher({ seedPrompt = null, onSeedClose }: Gen
           setPrompt((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}[var_${n}]`);
         }}
         onRemoveVariable={(name) => setPrompt((prev) => prev.split(`[${name}]`).join("").replace(/\s{2,}/g, " ").trim())}
-        models={{ available: core.catalogue.map((m) => ({ id: m.id, name: m.name, price: m.price })), selected: [model] }}
+        models={{ available: core.catalogue.map((m) => ({ id: m.id, name: m.name, price: m.price })), selected: [core.entry?.id ?? model] }}
         setModel={setModel}
         ratios={{ available: core.ratios, selected: ratio }}
         setRatio={setRatio}
         pricePerSlot={core.entry?.price ?? 0}
         resolution={resolution}
         setResolution={setResolution}
-        resolutionOptions={core.tiers.map((t) => ({ value: t.tier, label: t.price != null ? `${t.tier} · $${t.price.toFixed(2)}` : t.tier }))}
+        resolutionOptions={core.tiers.map((t) => ({ value: t.tier, label: t.price != null ? `${t.tier} · $${t.price.toFixed(2)}` : t.tier, short: t.tier }))}
         referenceImages={referenceImages}
         onAddReferenceImages={addReferenceImages}
         onRemoveReferenceImage={(i) =>
