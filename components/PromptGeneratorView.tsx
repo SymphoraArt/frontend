@@ -302,6 +302,12 @@ export default function PromptGeneratorView({
    */
 
   const [shareOpen, setShareOpen] = useState(false);
+  /* Where the fixed-position share menu anchors, measured from the trigger
+     on open. Fixed for the same reason as the dropdown panels: inside the
+     panel the menu lost the stacking war against later positioned siblings
+     and rendered BEHIND them (Kev, 2026-08-24, screenshot). */
+  const shareBtnRef = useRef<HTMLButtonElement>(null);
+  const [sharePos, setSharePos] = useState<{ top: number; right: number } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const shareUrl = useMemo(
     () => (typeof window === "undefined" ? "" : `${window.location.origin}/generator/${promptId}`),
@@ -1184,11 +1190,18 @@ export default function PromptGeneratorView({
               </button>
               <div className="pgv-share">
                 <button
+                  ref={shareBtnRef}
                   className="pgv-icon-btn"
                   aria-label="Share"
                   aria-expanded={shareOpen}
                   title="Share"
-                  onClick={() => setShareOpen(v => !v)}
+                  onClick={() => {
+                    if (!shareOpen) {
+                      const r = shareBtnRef.current?.getBoundingClientRect();
+                      if (r) setSharePos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                    }
+                    setShareOpen(v => !v);
+                  }}
                 >
                   <Share2 size={12} />
                 </button>
@@ -1198,7 +1211,8 @@ export default function PromptGeneratorView({
                         dismiss by hitting the same small button again is a
                         menu people leave open. */}
                     <div className="pgv-share-scrim" onClick={() => setShareOpen(false)} />
-                    <div className="pgv-share-menu" role="menu">
+                    <div className="pgv-share-menu" role="menu"
+                      style={sharePos ? { top: sharePos.top, right: sharePos.right } : undefined}>
                       <button role="menuitem" onClick={copyLink}>
                         {copiedLink ? <Check size={13} /> : <LinkIcon size={13} />}
                         {copiedLink ? "Link copied" : "Copy link"}
@@ -1735,19 +1749,27 @@ export default function PromptGeneratorView({
               Paste the request below into your agent chat.
             </p>
             <code className="pgv-x402-endpoint mono">POST {typeof window !== "undefined" ? window.location.origin : ""}/api/x402/generate</code>
-            <pre className="pgv-x402-example mono">{JSON.stringify(
-              promptId
-                ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
-                : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect },
-              null, 2)}</pre>
-            <button type="button" className="pgv-x402-copy" onClick={() => {
-              const body = promptId
-                ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
-                : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect };
-              navigator.clipboard.writeText(
-                `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
-              ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
-            }}>Copy agent request</button>
+            {/* Copy is the icon alone in the code box's top right corner
+                (Kev, 2026-08-24) — a labelled button under the box said what
+                the box already is. The toast still confirms the copy. */}
+            <div className="pgv-x402-code">
+              <pre className="pgv-x402-example mono">{JSON.stringify(
+                promptId
+                  ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
+                  : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect },
+                null, 2)}</pre>
+              <button type="button" className="pgv-x402-copy" aria-label="Copy agent request"
+                title="Copy agent request" onClick={() => {
+                  const body = promptId
+                    ? { promptId, modelFamily, resolution, aspectRatio: aspect, ...(core.supportsQuality ? { quality } : {}) }
+                    : { prompt: "your prompt text", modelFamily, resolution, aspectRatio: aspect };
+                  navigator.clipboard.writeText(
+                    `curl -X POST ${window.location.origin}/api/x402/generate -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`
+                  ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
+                }}>
+                <Copy size={13} />
+              </button>
+            </div>
             <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
           </div>
           </div>

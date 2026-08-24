@@ -1150,17 +1150,15 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
    that icon, and a dialog in the middle of the view for "copy a link" is a
    heavier gesture than the action deserves. */
 .pgv-share { position: relative; display: inline-flex; }
-.pgv-share-scrim { position: fixed; inset: 0; z-index: 1; }
+.pgv-share-scrim { position: fixed; inset: 0; z-index: 1399; }
 .pgv-share-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  /* Right-aligned to the trigger: the share button sits at the panel's right
-     edge, so a left-aligned menu grew rightwards into the clipped overflow
-     and lost its own labels (Kev, 2026-08-24, screenshot: "Share post…"
-     cut off). */
-  right: 0;
-  left: auto;
-  z-index: 2;
+  /* FIXED and top-level, like the dropdown panels: absolute inside the
+     panel the menu was clipped by overflow AND painted behind later
+     positioned siblings (Kev, 2026-08-24, two screenshots). The component
+     anchors it to the trigger's measured rect, right-aligned so it grows
+     leftwards from the panel edge. */
+  position: fixed;
+  z-index: 1400;
   min-width: 178px;
   padding: 4px;
   border-radius: 8px;
@@ -1456,6 +1454,11 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
 .pgv-x402-body p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--pgv-text-muted); }
 .pgv-x402-endpoint { font-size: 10.5px; color: var(--pgv-text); word-break: break-all; }
 .pgv-x402-example { margin: 0; padding: 7px 8px; border-radius: 6px; background: rgba(0,0,0,.25); font-size: 10px; line-height: 1.45; color: var(--pgv-text); overflow-x: auto; }
-.pgv-x402-copy { align-self: flex-start; padding: 5px 10px; border: 1px solid var(--pgv-border); border-radius: 6px; background: transparent; color: var(--pgv-text); font-size: 11px; font-weight: 600; cursor: pointer; }
-.pgv-x402-copy:hover { border-color: var(--pgv-accent); }
+/* Icon-only copy in the code box's top right corner (Kev, 2026-08-24). The
+   wrapper carries the position so the pre keeps its own overflow scrolling —
+   absolute inside the pre would ride along with a horizontal scroll. */
+.pgv-x402-code { position: relative; }
+.pgv-x402-code .pgv-x402-example { padding-right: 28px; }
+.pgv-x402-copy { position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--pgv-text); opacity: .6; cursor: pointer; }
+.pgv-x402-copy:hover { opacity: 1; color: var(--pgv-accent); background: rgba(0, 0, 0, .25); }
 .pgv-x402-note { font-size: 9.5px; color: var(--pgv-text-muted); }
