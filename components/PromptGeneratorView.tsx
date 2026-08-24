@@ -377,9 +377,12 @@ export default function PromptGeneratorView({
   const core = useGenerationCore(generator);
   const freeModel = core.entry?.price === 0;
 
-  /* Free of charge for either reason: the artist gave the prompt away, or the
-     chosen model costs nothing to run. */
-  const noCharge = isFree || freeModel;
+  /* Free of charge ONLY when the chosen model costs nothing to run. A free
+     PROMPT with a paid model still bills its model cost + fee (Kev,
+     2026-08-24: "free prompts also gotta be paid by users, not us") — the
+     quote/intent rails price it with a zero artist leg, so the flow is the
+     paid one with the artist share simply absent. */
+  const noCharge = freeModel;
 
   /* Which sizes this run can actually deliver, and a pick that never survives
      outside that list. Without the correction a buyer who chose 4K and then
