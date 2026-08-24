@@ -23,8 +23,7 @@
 import {
   MODEL_IMAGE_PRICING,
   apiBoostPricePerImage,
-  toResolutionTier,
-  type ResolutionTier,
+  apiPricePerImage,
 } from "@/lib/pricing";
 
 export type FeeBase = "subtotal" | "modelCost";
@@ -87,14 +86,14 @@ export function getModelCostMicro(
     throw new UnknownModelError(modelFamily);
   }
   /* Boost swaps the ROUTE the image runs on, so the cost leg is the boost
-     route's REAL per-image price (vendor direct, quality-aware for gpt) —
-     never a flat multiplier, which overcharged cheap runs and would lose
-     money on gpt high/4K (Kev, 2026-08-23). */
+     route's REAL per-image price — never a flat multiplier (Kev,
+     2026-08-23). Since 2026-08-24 quality prices the NORMAL path too: gpt
+     routes by quality (OpenAI below high, WaveSpeed at high), so the charged
+     leg is always the cost of the host that will actually run. */
   if (opts?.boost) {
     return usdToMicro(apiBoostPricePerImage(modelFamily, resolution ?? "2K", opts.quality));
   }
-  const tier: ResolutionTier = toResolutionTier(resolution);
-  return usdToMicro(tiers[tier]);
+  return usdToMicro(apiPricePerImage(modelFamily, resolution ?? "2K", opts?.quality));
 }
 
 export class UnknownModelError extends Error {

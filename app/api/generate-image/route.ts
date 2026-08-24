@@ -21,6 +21,7 @@ import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/ra
 import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, resolveModelByFamily, chooseRoute, type ResolvedModel } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
+import { effectiveQuality } from "@/lib/pricing";
 import { toModelFamily } from "@/lib/generation/model-family";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
@@ -413,12 +414,21 @@ export async function POST(request: NextRequest) {
      * prompt with references takes the Gemini row rather than the cheaper
      * WaveSpeed one that would discard them. */
     const attachedRefs = referenceImageCount(body.referenceImages);
+    /* The quality that will RUN, not the one that was sent: the OpenAI
+       service defaults an unstated quality by tier, and gpt's routes carry
+       applies_when quality conditions that fail CLOSED on a missing value —
+       routing on the raw body value would drop every conditioned row for
+       callers without a quality lever (quick create). One value feeds the
+       route, the price and the provider call. */
+    const effQuality = preflightModel.supportsQuality
+      ? effectiveQuality(askedResolution ?? undefined, body.quality)
+      : null;
     const preflightRoute = await chooseRoute(
       getSupabaseServerClientSafe(),
       preflightModel,
       {
         boost: body.boost,
-        quality: preflightModel.supportsQuality ? body.quality : null,
+        quality: effQuality,
         resolution: preflightModel.supportsResolution
           ? askedResolution
           : null,
@@ -1034,10 +1044,9 @@ export async function POST(request: NextRequest) {
         // Reference images reached the model for the first time here: they were
         // uploaded, counted against the per-model cap and stored, and then
         // dropped before the request was built.
-        // Sent only where it means something. Passing it to a model that
-        // ignores it would put a setting in front of the user that changes
-        // nothing — and here it is the setting that moves the price most.
-        quality: chosen.supportsQuality ? body.quality : undefined,
+        // Sent only where it means something — and as the EFFECTIVE value,
+        // the same one that chose the route and priced the request.
+        quality: chosen.supportsQuality ? (effQuality ?? undefined) : undefined,
         referenceImages: body.referenceImages?.slice(0, chosen.maxRefs),
         numImages: 1,
       };

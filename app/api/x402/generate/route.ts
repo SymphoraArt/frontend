@@ -37,6 +37,7 @@ import {
   getModelCostMicro, computeGenerationSplit, UnknownModelError,
 } from "@/lib/payments/generation-pricing";
 import { usdcMint, feePayerKeypair, solanaConnection, solanaChainKey } from "@/lib/payments/solana";
+import { effectiveQuality } from "@/lib/pricing";
 import {
   parseXPayment, verifyAgentPayment, cosignAsFeePayer, submitAndConfirm, paymentResponseHeader,
 } from "@/lib/payments/x402-settle";
@@ -102,6 +103,7 @@ async function requirementsFor(input: Input): Promise<Requirements> {
       promptId: input.promptId,
       modelFamily: input.modelFamily,
       resolution: input.resolution,
+      quality: input.quality,
     });
     if (!quote.ok) return { status: quote.status, body: { error: quote.error } };
     amountMicro = quote.split.totalMicro;
@@ -109,7 +111,7 @@ async function requirementsFor(input: Input): Promise<Requirements> {
     description = `Generate 1 image from prompt ${input.promptId} (${input.modelFamily}, ${input.resolution}) — artist share included`;
   } else {
     try {
-      const modelCostMicro = getModelCostMicro(input.modelFamily, input.resolution);
+      const modelCostMicro = getModelCostMicro(input.modelFamily, input.resolution, { quality: input.quality });
       amountMicro = computeGenerationSplit(0, modelCostMicro).totalMicro;
       description = `Generate 1 image (${input.modelFamily}, ${input.resolution})`;
     } catch (e) {
@@ -215,8 +217,11 @@ async function settleAndGenerate(input: Input, paymentHeader: string): Promise<N
 
   const model = await resolveModelByFamily(supabase, input.modelFamily);
   if (!model) return NextResponse.json({ error: `Unknown model family: ${input.modelFamily}` }, { status: 422 });
+  // The EFFECTIVE quality routes, prices and renders — one value, three uses
+  // (gpt's route conditions fail closed on a missing quality).
+  const effQuality = model.supportsQuality ? effectiveQuality(input.resolution, input.quality) : null;
   const route = await chooseRoute(supabase, model, {
-    quality: input.quality ?? null,
+    quality: effQuality,
     resolution: input.resolution,
     referenceImages: 0,
   });
@@ -270,7 +275,7 @@ async function settleAndGenerate(input: Input, paymentHeader: string): Promise<N
     imageSize: model.supportsResolution
       ? clampTier(input.resolution, route.provider, route.providerModel)
       : undefined,
-    quality: model.supportsQuality ? input.quality : undefined,
+    quality: model.supportsQuality ? (effQuality ?? undefined) : undefined,
     numImages: 1,
   };
   const result =
