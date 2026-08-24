@@ -43,6 +43,7 @@ import { useGenerationCore } from "@/hooks/useGenerationCore";
 import QualitySelect, { type Quality } from "@/components/generation/QualitySelect";
 import { variableRange } from "@/lib/editor/selection-variable";
 import RatioSelect from "@/components/generation/RatioSelect";
+import { useBetaAccess } from "@/components/BetaGate";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -160,6 +161,13 @@ export default function PromptGeneratorView({
   }, [liking, promptId, toast]);
   const [refs, setRefs] = useState<string[]>([]);
   const [fav, setFav] = useState(false);
+  /* Team-cookie browsing is looking around, not using: generation controls
+     (generator, settings, dice, refs, history) disappear entirely, Generate
+     greys out — a guest cannot pay for it — and bookmark hides because its
+     function does not exist for guests (Kev, 2026-08-24). Same expression
+     as EnkiHome's `authed`. */
+  const { access, role } = useBetaAccess();
+  const guest = !(access === "ok" && role !== "team");
   const [generating, setGenerating] = useState(false);
   // Same model on a priority host — faster, dearer, identical image.
   const [boost, setBoost] = useState(false);
@@ -1221,7 +1229,16 @@ export default function PromptGeneratorView({
                   </>
                 )}
               </div>
-              <button className="pgv-icon-btn" aria-label="Bookmark"><Bookmark size={12} fill={fav ? "currentColor" : "none"} /></button>
+              {/* Wired to toggleFav — it rendered without an onClick and
+                  reacted to nothing. Hidden for guests: the function does
+                  not exist for them, so neither does the button
+                  (Kev, 2026-08-24). */}
+              {!guest && (
+                <button className="pgv-icon-btn" aria-label={fav ? "Remove bookmark" : "Bookmark"}
+                  title={fav ? "Remove bookmark" : "Bookmark"} onClick={toggleFav}>
+                  <Bookmark size={12} fill={fav ? "currentColor" : "none"} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1427,7 +1444,9 @@ export default function PromptGeneratorView({
               prompt asks for is the artist's decision, expressed by its
               variables, not a fixed set every prompt inherits. */}
 
-          {/* Reference Images */}
+          {/* Reference Images — gone for guests along with every other
+              generation control (Kev, 2026-08-24). */}
+          {!guest && (
           <div className="pgv-block">
             <div className="pgv-ref-header">
               <span className="pgv-section-label" style={{ marginBottom: 0 }}>Reference Images</span>
@@ -1545,12 +1564,15 @@ export default function PromptGeneratorView({
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onRefUpload} />
           </div>
+          )}
 
           {/* Generator FIRST — the model decides what the settings below
               can offer, so it reads top-down: pick the generator, then its
               settings, then (for gpt models) quality on its own comfortable
               row instead of squeezing three controls into one line
-              (Kev, 2026-08-22). */}
+              (Kev, 2026-08-22). Hidden for guests with the rest of the
+              generation controls (Kev, 2026-08-24). */}
+          {!guest && (<>
           <div className="pgv-block">
             <span className="pgv-section-label">Generator</span>
             <select className="pgv-generator-select" value={generator} onChange={e => setGenerator(e.target.value)}>
@@ -1589,12 +1611,16 @@ export default function PromptGeneratorView({
             </div>
             {/* Quality on its own row below — room to breathe instead of a
                 third control jammed into the settings line. */}
+            {/* Same bare wrapper as ratio: QualitySelect now draws the same
+                trigger + floating panel as RatioSelect (Kev, 2026-08-24:
+                "i want the format of e.g. ratio"). */}
             {core.supportsQuality && (
-              <div className="pgv-field pgv-field--quality pgv-field--row2">
+              <div className="pgv-field pgv-field--bare pgv-field--quality pgv-field--row2">
                 <QualitySelect value={quality} onChange={setQuality} available disabled={generating} />
               </div>
             )}
           </div>
+          </>)}
         </div>
 
         {/* ── Sticky footer: Generate button ── */}
@@ -1609,19 +1635,21 @@ export default function PromptGeneratorView({
               could not happen, on a button labelled "Generate free" (Kev,
               2026-08-19). A control that changes nothing is the lie this
               codebase keeps relearning. */}
-          {!noCharge && <BoostToggle boost={boost} onChange={setBoost} available={core.boostAvailable} disabled={generating} />}
+          {!guest && !noCharge && <BoostToggle boost={boost} onChange={setBoost} available={core.boostAvailable} disabled={generating} />}
           {/* publicPromptText is the only prompt text this surface may hold
               for a paid prompt; sliced because the route's zod max REJECTS an
               over-long context rather than clipping it. */}
-          <DiceButton
-            variables={diceVariables}
-            promptId={promptId}
-            context={promptText ? promptText.slice(0, DICE_LIMITS.maxContextLen) : undefined}
-            onValues={applyDiceValues}
-            headers={sessionAuthHeaders()}
-            disabled={generating}
-            title="Roll the dice — fill the fields you left empty"
-          />
+          {!guest && (
+            <DiceButton
+              variables={diceVariables}
+              promptId={promptId}
+              context={promptText ? promptText.slice(0, DICE_LIMITS.maxContextLen) : undefined}
+              onValues={applyDiceValues}
+              headers={sessionAuthHeaders()}
+              disabled={generating}
+              title="Roll the dice — fill the fields you left empty"
+            />
+          )}
           {/* The label is the QUOTE total — the server's arithmetic, model
               cost and fees included. boostedCost(price) was the artist price
               alone and understated every paid generation. A paid prompt with
@@ -1644,10 +1672,13 @@ export default function PromptGeneratorView({
             </div>
           )}
           <div className="pgv-generate-wrap">
+            {/* Greyed for guests: they cannot pay for a generation, and a
+                button that pretends otherwise is a lie (Kev, 2026-08-24). */}
             <button
               className="pgv-generate-btn"
               onClick={generate}
-              disabled={generating || (!noCharge && !paidQuote)}
+              disabled={generating || guest || (!noCharge && !paidQuote)}
+              title={guest ? "Sign in to generate" : undefined}
             >
               {generating ? <Loader2 size={14} className="pgv-spinner" /> : <Sparkles size={14} />}
               {noCharge
@@ -1865,7 +1896,9 @@ export default function PromptGeneratorView({
           reach them — the images were still in state, just unreachable. It is
           now an off-canvas panel with a handle, so the content stays available
           at any width instead of being thrown away by a breakpoint. */}
-      {!historyOpen && (
+      {/* A guest has no history to show — the whole panel and its handle go
+          with the other generation surfaces (Kev, 2026-08-24). */}
+      {!guest && !historyOpen && (
         <button
           type="button"
           className="pgv-history-handle"
@@ -1877,6 +1910,7 @@ export default function PromptGeneratorView({
           {history.length > 0 && <span className="pgv-history-handle__n">{history.length}</span>}
         </button>
       )}
+      {!guest && (
       <aside className={`pgv-history${historyOpen ? " pgv-history--open" : ""}`}>
         <div className="pgv-history-header">
           <span>Your History</span>
@@ -1912,6 +1946,7 @@ export default function PromptGeneratorView({
           </div>
         )}
       </aside>
+      )}
 
       {/* Lightbox */}
       {lightbox && (

@@ -285,6 +285,10 @@ export default function EnkiHome() {
     }
     if (id === "search") {
       setPanel(null); setActiveNav("search");
+      /* The menu OVERRIDES whatever is open (Kev, 2026-08-24): the search
+         field lives in the feed's filter bar, so an open image view has to
+         go first — with it in the way the click looked dead. */
+      window.dispatchEvent(new CustomEvent("enki:close-detail"));
       window.scrollTo({ top: 0, behavior: "smooth" });
       // The field lives in the filter bar now, so ask it to open rather than
       // reaching for a ref that no longer points at anything.

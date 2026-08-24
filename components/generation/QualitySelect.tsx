@@ -1,6 +1,11 @@
 "use client";
 
-import { Gem } from "lucide-react";
+import { Gem, ChevronDown } from "lucide-react";
+import { usePanelPos, panelStyle } from "./RatioSelect";
+// Same classes as RatioSelect on purpose: the quality field sits directly
+// under ratio + resolution and read as a foreign control with its own bare
+// styling (Kev, 2026-08-24: "i want the format of e.g. ratio").
+import "./ratio-select.css";
 
 /**
  * Quality — low | mid | high, for models that take it as their own parameter.
@@ -26,6 +31,7 @@ const HINT: Record<Quality, string> = {
 };
 
 const LABEL: Record<Quality, string> = { low: "Low", medium: "Mid", high: "High" };
+const ORDER: Quality[] = ["low", "medium", "high"];
 
 export interface QualitySelectProps {
   value: Quality;
@@ -43,26 +49,32 @@ export default function QualitySelect({
   disabled = false,
   className = "",
 }: QualitySelectProps) {
+  const { pos, open, toggle, close, trigRef, wrapRef } = usePanelPos(ORDER.length);
+
   if (!available) return null;
 
   return (
-    <label
-      className={`enki-quality ${className}`.trim()}
-      title={`Quality — ${HINT[value]}`}
-    >
-      <Gem size={12} strokeWidth={2.2} aria-hidden />
-      <select
-        value={value}
-        disabled={disabled}
-        aria-label="Image quality"
-        onChange={(e) => onChange(e.target.value as Quality)}
-      >
-        {(Object.keys(LABEL) as Quality[]).map((q) => (
-          <option key={q} value={q}>
-            {LABEL[q]}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div ref={wrapRef} className={`enki-ratio-sel ${className}`.trim()}>
+      <button ref={trigRef} type="button" className={"enki-ratio-trig" + (open ? " open" : "")}
+        disabled={disabled} title={`Quality — ${HINT[value]}`} aria-label="Image quality"
+        aria-expanded={open} onClick={toggle}>
+        <Gem size={13} strokeWidth={2.2} aria-hidden />
+        <span>{LABEL[value]}</span>
+        <ChevronDown size={12} aria-hidden />
+      </button>
+      {pos && (
+        <div className="enki-ratio-panel" role="listbox" style={panelStyle(pos)}>
+          {ORDER.map((q) => (
+            <button key={q} type="button" role="option" aria-selected={q === value}
+              className={"enki-ratio-opt" + (q === value ? " on" : "")}
+              title={HINT[q]}
+              onClick={() => { onChange(q); close(); }}>
+              <Gem size={13} strokeWidth={2.2} aria-hidden />
+              <span>{LABEL[q]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
