@@ -18,8 +18,8 @@ export async function GET() {
         resource: "/api/x402/generate",
         method: "POST",
         description:
-          "Generate one image. Body: { prompt } for plain text, or { promptId, variableValues } to use an artist's prompt (artist share included in the price). Optional: modelFamily (nano-banana-pro | gpt-image-2), resolution (1K|2K|4K), aspectRatio, quality. A request without X-PAYMENT answers 402 with exact requirements.",
-        status: "requirements-live; settlement launching",
+          "Generate one image. Body: { prompt } for plain text, or { promptId, variableValues } to use a free/showcase prompt. Optional: modelFamily (nano-banana-pro | gpt-image-2), resolution (1K|2K|4K), aspectRatio, quality. A request without X-PAYMENT answers 402 with exact requirements (extra.feePayer carries our gas payer — you only need USDC). Send the partially signed transaction back in X-PAYMENT; we co-sign, settle and answer with the image.",
+        status: "live — plain prompts and free/showcase prompts; prompts with a priced artist share answer 501 until the artist leg ships",
       },
     ],
   });
