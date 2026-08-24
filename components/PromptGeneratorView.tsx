@@ -1687,6 +1687,10 @@ export default function PromptGeneratorView({
               snaps shut, which is why this is a controlled box now
               (Kev, 2026-08-23: "fixes aufklappen und zuklappen"). */}
           <div className="pgv-x402-clip">
+          {/* The middle layer carries NO padding: the body's padding does not
+              collapse inside a 0fr row, which let the first lines peek out of
+              a "closed" field (Kev, 2026-08-23, screenshot). */}
+          <div className="pgv-x402-inner">
           <div className="pgv-x402-body">
             <p>
               Hand this prompt to your AI agent. It pays the same price as
@@ -1709,6 +1713,7 @@ export default function PromptGeneratorView({
               ).then(() => toast({ title: "Agent request copied." })).catch(() => {});
             }}>Copy agent request</button>
             <span className="pgv-x402-note">Solana now, EVM and Base later. Prices are final. Payment processing switches on next.</span>
+          </div>
           </div>
           </div>
         </div>

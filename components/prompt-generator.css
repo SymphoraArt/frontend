@@ -1443,7 +1443,7 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
    snapping. */
 .pgv-x402-clip { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
 .pgv-x402.open .pgv-x402-clip { grid-template-rows: 1fr; }
-.pgv-x402-clip > .pgv-x402-body { overflow: hidden; min-height: 0; }
+.pgv-x402-inner { overflow: hidden; min-height: 0; }
 @media (prefers-reduced-motion: reduce) { .pgv-x402-clip, .pgv-x402-chev { transition: none; } }
 .pgv-x402-body { padding: 9px 10px; display: flex; flex-direction: column; gap: 7px; }
 
