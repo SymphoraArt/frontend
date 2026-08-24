@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     // column at all. Reading `generations` here is what made uploads invisible.
     const { data, error, count } = await supabase
       .from("generated_images")
-      .select("id, storage_url, thumbnail_url, description, is_uploaded, created_at", { count: 'exact' })
+      .select("id, storage_url, preview_url, thumbnail_url, description, is_uploaded, created_at", { count: 'exact' })
       .eq("user_id", ownerId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -74,8 +74,10 @@ export async function GET(req: Request) {
     // isUploaded) so this is a server-side fix with no client changes.
     const generations = (Array.isArray(data) ? data : []).map((row) => ({
       id: row.id,
+      // image_url stays the ORIGINAL (downloads); image_urls is what the
+      // galleries DISPLAY, so the WebP preview leads when one exists.
       image_url: row.storage_url,
-      image_urls: row.storage_url ? [row.storage_url] : [],
+      image_urls: (row.preview_url ?? row.storage_url) ? [row.preview_url ?? row.storage_url] : [],
       thumbnail_url: row.thumbnail_url ?? null,
       prompt: row.description ?? "",
       isUploaded: row.is_uploaded === true,
