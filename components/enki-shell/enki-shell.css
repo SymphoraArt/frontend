@@ -89,7 +89,9 @@
 
 /* ── Collapse toggle ── */
 .ek-collapse-btn {
-  position: absolute; top: 74px; right: -13px; z-index: 130;
+  /* Vertically centered in the 44px category bar (All, Portrait, ...),
+     not floating below it (Kev, 2026-08-23): (44 - 26) / 2 = 9. */
+  position: absolute; top: 9px; right: -13px; z-index: 130;
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--enki-paper); border: 1px solid var(--enki-rule); color: var(--enki-ink-2);
