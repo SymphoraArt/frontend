@@ -342,9 +342,12 @@ export async function GET(request: NextRequest) {
     const enrichedPrompts = await Promise.all(
       prompts.map(async (prompt: any) => {
         try {
+          // Live schema: users.handle — `username` never existed, so this
+          // select 400'd and EVERY feed card shipped creator: null, which
+          // made the adapter fabricate dot-handles out of display names.
           const { data: creatorData } = await supabase
             .from('users')
-            .select('id, username, display_name, avatar_url')
+            .select('id, handle, display_name, avatar_url')
             .eq('id', prompt.userId || prompt.artistId)
             .single();
 
@@ -365,8 +368,10 @@ export async function GET(request: NextRequest) {
             listedAt: prompt.listedAt,
             creator: creatorData ? {
               id: creatorData.id,
-              displayName: creatorData.display_name || creatorData.username,
-              username: creatorData.username,
+              displayName: creatorData.display_name || creatorData.handle,
+              handle: creatorData.handle,
+              // Kept for older readers that still say `username`.
+              username: creatorData.handle,
               avatarUrl: creatorData.avatar_url,
             } : null,
             previewImages: prompt.previewImages || prompt.showcaseImages || [],
