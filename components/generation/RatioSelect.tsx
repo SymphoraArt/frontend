@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import RatioRect from "./RatioRect";
 // Self-carried styles, the BoostToggle pattern: surfaces outside the editor
@@ -19,25 +20,32 @@ export interface PanelPos {
 /**
  * Shared popover plumbing for the ratio-styled selects (ratio, quality).
  *
- * The panel is position:FIXED, not absolute: an absolute panel inside the
- * scrollable settings rail extends the rail's scroll extent, so opening a
- * dropdown grew the rail a scrollbar and every control lost that width
- * (Kev, 2026-08-24: "scrollable im element selbst statt die ganze UI").
- * Fixed positioning leaves the rail's scrollbar alone; the panel itself
- * scrolls internally only when the viewport cannot hold the full list, and
- * it closes on any scroll so it can never sit detached from its trigger.
+ * The panel is position:FIXED and rendered through a PORTAL on
+ * document.body. Fixed because an absolute panel inside the scrollable
+ * settings rail extended the rail's scroll extent (Kev, 2026-08-24:
+ * "scrollable im element selbst statt die ganze UI"); portaled because the
+ * detail panel is itself a stacking context at z-index 162 UNDER the shell
+ * rail — no child z-index can beat the rail from inside it, so the open
+ * panel rendered behind the left menu (Kev, 2026-08-24, screenshot). The
+ * panel scrolls internally only when the viewport cannot hold the full
+ * list, and closes on any scroll so it can never sit detached.
  */
 export function usePanelPos(itemCount: number) {
   const [pos, setPos] = useState<PanelPos | null>(null);
   const trigRef = useRef<HTMLButtonElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  /** The PORTALED panel — outside the wrap in the DOM, so the outside-click
+      check must consult both or option clicks would close before they land. */
+  const panelRef = useRef<HTMLDivElement>(null);
   const open = pos !== null;
 
   useEffect(() => {
     if (!open) return;
     const close = () => setPos(null);
     const onDown = (e: PointerEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close();
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.stopPropagation(); close(); }
@@ -73,7 +81,7 @@ export function usePanelPos(itemCount: number) {
     });
   };
 
-  return { pos, open, toggle, close: () => setPos(null), trigRef, wrapRef };
+  return { pos, open, toggle, close: () => setPos(null), trigRef, wrapRef, panelRef };
 }
 
 /** Inline style applying a PanelPos to the .enki-ratio-panel element. */
@@ -104,7 +112,7 @@ export default function RatioSelect({ value, options, onChange, title }: {
   onChange: (v: string) => void;
   title?: string;
 }) {
-  const { pos, open, toggle, close, trigRef, wrapRef } = usePanelPos(options.length);
+  const { pos, open, toggle, close, trigRef, wrapRef, panelRef } = usePanelPos(options.length);
 
   return (
     <div ref={wrapRef} className="enki-ratio-sel">
@@ -114,8 +122,8 @@ export default function RatioSelect({ value, options, onChange, title }: {
         <span>{value}</span>
         <ChevronDown size={12} aria-hidden />
       </button>
-      {pos && (
-        <div className="enki-ratio-panel" role="listbox" style={panelStyle(pos)}>
+      {pos && createPortal(
+        <div ref={panelRef} className="enki-ratio-panel" role="listbox" style={panelStyle(pos)}>
           {options.map((r) => (
             <button key={r} type="button" role="option" aria-selected={r === value}
               className={"enki-ratio-opt" + (r === value ? " on" : "")}
@@ -124,7 +132,8 @@ export default function RatioSelect({ value, options, onChange, title }: {
               <span>{r}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -44,6 +44,7 @@ import QualitySelect, { type Quality } from "@/components/generation/QualitySele
 import { variableRange } from "@/lib/editor/selection-variable";
 import RatioSelect from "@/components/generation/RatioSelect";
 import { useBetaAccess } from "@/components/BetaGate";
+import { createPortal } from "react-dom";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -1212,11 +1213,15 @@ export default function PromptGeneratorView({
                 >
                   <Share2 size={12} />
                 </button>
-                {shareOpen && (
+                {shareOpen && createPortal(
                   <>
                     {/* A click anywhere else closes it — a menu you can only
                         dismiss by hitting the same small button again is a
-                        menu people leave open. */}
+                        menu people leave open. PORTALED to body: the detail
+                        panel is a stacking context UNDER the shell rail
+                        (162 vs 163+), so from inside it no z-index could
+                        keep the menu above the left menu (Kev, 2026-08-24,
+                        screenshot). */}
                     <div className="pgv-share-scrim" onClick={() => setShareOpen(false)} />
                     <div className="pgv-share-menu" role="menu"
                       style={sharePos ? { top: sharePos.top, right: sharePos.right } : undefined}>
@@ -1247,7 +1252,8 @@ export default function PromptGeneratorView({
                         </>
                       )}
                     </div>
-                  </>
+                  </>,
+                  document.body,
                 )}
               </div>
               {/* Wired to toggleFav — it rendered without an onClick and

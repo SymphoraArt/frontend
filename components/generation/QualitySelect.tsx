@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { Gem, ChevronDown } from "lucide-react";
 import { usePanelPos, panelStyle } from "./RatioSelect";
 // Same classes as RatioSelect on purpose: the quality field sits directly
@@ -49,7 +50,7 @@ export default function QualitySelect({
   disabled = false,
   className = "",
 }: QualitySelectProps) {
-  const { pos, open, toggle, close, trigRef, wrapRef } = usePanelPos(ORDER.length);
+  const { pos, open, toggle, close, trigRef, wrapRef, panelRef } = usePanelPos(ORDER.length);
 
   if (!available) return null;
 
@@ -62,8 +63,8 @@ export default function QualitySelect({
         <span>{LABEL[value]}</span>
         <ChevronDown size={12} aria-hidden />
       </button>
-      {pos && (
-        <div className="enki-ratio-panel" role="listbox" style={panelStyle(pos)}>
+      {pos && createPortal(
+        <div ref={panelRef} className="enki-ratio-panel" role="listbox" style={panelStyle(pos)}>
           {ORDER.map((q) => (
             <button key={q} type="button" role="option" aria-selected={q === value}
               className={"enki-ratio-opt" + (q === value ? " on" : "")}
@@ -73,7 +74,8 @@ export default function QualitySelect({
               <span>{LABEL[q]}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
