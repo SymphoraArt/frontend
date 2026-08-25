@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * A creator's public page — the SAME profile layout the owner sees, in
- * foreign mode (Kev, 2026-08-24: "so ähnlich müssen auch andere profile
- * angezeigt werden nur ohne deren likes"). ProfileView hides the private
- * tabs (Likes, History) and the edit affordances when given a handle; the
- * shadcn Card/Tabs page that lived here was a layout nobody agreed to.
+ * Deep-link door only. A creator page renders INSIDE the shell — right
+ * panel, left menu always on screen (Kev, 2026-08-24) — so this route
+ * immediately forwards into /home, which reads ?creator and opens the
+ * profile panel. The shadcn Card/Tabs page that lived here was a layout
+ * nobody agreed to.
  */
-import { use } from "react";
-import ProfileView from "@/components/profile/ProfileView";
+import { use, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CreatorProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return <ProfileView handle={decodeURIComponent(id)} isOwnProfile={false} />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(`/home?creator=${encodeURIComponent(id)}`);
+  }, [id, router]);
+  return null;
 }

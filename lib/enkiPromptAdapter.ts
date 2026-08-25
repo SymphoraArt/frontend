@@ -162,7 +162,18 @@ export function mapMarketplacePromptToEnkiPrompt(prompt: unknown, index = 0): En
     artist: {
       id: readString(creator.id) || readString(record.artistId) || readString(record.userId),
       name,
-      handle: String(creator.username || name).replace(/^@/, "").toLowerCase().replace(/\s+/g, "."),
+      /* The REAL handle or the uuid — never fabricated. This used to
+         lowercase the display name and swap spaces for dots ("Enki Artist"
+         → "enki.artist"), a handle that does not exist: every creator link
+         from the feed 404'd (Kev, 2026-08-24). Handles cannot even contain
+         dots (HANDLE_VALID). The uuid fallback works because the creator
+         routes accept handle OR uuid. */
+      handle:
+        readString(creator.handle) ||
+        readString(creator.username) ||
+        readString(creator.id) ||
+        readString(record.artistId) ||
+        "",
       avatar: initials(name),
     },
     tags: readArray(record.tags).slice(0, 5).map(String),

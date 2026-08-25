@@ -45,6 +45,7 @@ import { variableRange } from "@/lib/editor/selection-variable";
 import RatioSelect from "@/components/generation/RatioSelect";
 import { useBetaAccess } from "@/components/BetaGate";
 import { createPortal } from "react-dom";
+import { openCreator } from "@/lib/openCreator";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -1161,7 +1162,8 @@ export default function PromptGeneratorView({
                 there is no id to link to, the name is plain text rather than a
                 link that goes nowhere. */}
             {artistId ? (
-              <a className="pgv-artist" href={`/creators/${artistId}`}>{artistName}</a>
+              <a className="pgv-artist" href={`/creators/${artistId}`}
+                onClick={(e) => { e.preventDefault(); openCreator(artistId); }}>{artistName}</a>
             ) : (
               <span className="pgv-artist pgv-artist--plain">{artistName}</span>
             )}

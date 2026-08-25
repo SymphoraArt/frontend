@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { preloadImageUI } from "@/components/enki/EnkiDetailPanel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
+import { openCreator } from "@/lib/openCreator";
 import "./enki.css";
 
 type EnkiCardProps = {
@@ -108,7 +109,7 @@ export default function EnkiCard({ prompt, onOpen, onEdit }: EnkiCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (prompt.artist.id) {
-                  router.push(`/creators/${prompt.artist.handle}`);
+                  openCreator(prompt.artist.handle || prompt.artist.id, router);
                 }
               }}
             >
@@ -126,7 +127,7 @@ export default function EnkiCard({ prompt, onOpen, onEdit }: EnkiCardProps) {
               e.preventDefault();
               e.stopPropagation();
               if (prompt.artist.id) {
-                router.push(`/creators/${prompt.artist.handle}`);
+                openCreator(prompt.artist.handle || prompt.artist.id, router);
               }
             }}
           >

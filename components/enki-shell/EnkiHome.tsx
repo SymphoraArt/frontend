@@ -33,7 +33,7 @@ import "./enki-shell.css";
 import "./nodes.css";
 
 const PANEL_TITLES: Record<string, string> = {
-  billing: "Payment", settings: "Settings", profile: "My Profile",
+  billing: "Payment", settings: "Settings", profile: "My Profile", creator: "Creator",
   leaderboard: "Hall of Fame", favorites: "Bookmarks", notifications: "Notifications", messages: "Messages",
   color: "Color Setup", analytics: "Analytics",
 };
@@ -116,6 +116,32 @@ export default function EnkiHome() {
   }, []);
   const [nodeOpen, setNodeOpen] = useState(false);
   const [referOpen, setReferOpen] = useState(false);
+  /* Which creator the "creator" panel shows. Opened via the cancelable
+     "enki:open-creator" event: cards and artist links dispatch it, and a
+     consumed event (preventDefault) tells them the shell took over — only
+     surfaces OUTSIDE the shell fall back to the /creators route. */
+  const [creatorHandle, setCreatorHandle] = useState<string | null>(null);
+  useEffect(() => {
+    const onOpenCreator = (e: Event) => {
+      const h = (e as CustomEvent<{ handle?: string }>).detail?.handle;
+      if (!h) return;
+      e.preventDefault();
+      setCreatorHandle(String(h));
+      setPanel("creator");
+      window.dispatchEvent(new CustomEvent("enki:hide-detail"));
+    };
+    window.addEventListener("enki:open-creator", onOpenCreator);
+    return () => window.removeEventListener("enki:open-creator", onOpenCreator);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* Deep link: /home?creator=<handle> opens the panel on arrival — the old
+     /creators/[id] URLs redirect here so the shell (and its menu) is
+     always around the page. */
+  useEffect(() => {
+    const h = new URLSearchParams(window.location.search).get("creator");
+    if (h) { setCreatorHandle(h); setPanel("creator"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /* "Prompt creator needs a login" notice — pops in and LEAVES with an
      animation (open -> closing -> gone), closes on ESC and free-space
      clicks. */
@@ -352,6 +378,13 @@ export default function EnkiHome() {
       case "messages": return <MessagesPanel toast={showToast} />;
       case "settings": return <SettingsView initialTab={settingsTab} globalBannerVisible={showRecoveryBanner} focusGuardians={settingsTab === "recovery"} />;
       case "profile": return <ProfileView onBack={() => { setPanel(null); setActiveNav("home"); }} />;
+      /* A CREATOR's page, in the SAME right-side panel area as everything
+         else — the left menu never leaves the screen (Kev, 2026-08-24:
+         "IT SHOULD BE PLACED IN THE RIGHT AREA NEXT TO THE LEFT SIDE
+         MENÜ"). Same ProfileView, foreign mode. */
+      case "creator": return creatorHandle
+        ? <ProfileView handle={creatorHandle} isOwnProfile={false} onBack={closePanel} />
+        : null;
       {/* Leaderboard brings its own editorial header (design), no PanelHeadline */}
       case "favorites": return <BookmarksPanel />;
       case "leaderboard": return <LeaderboardPage />;
