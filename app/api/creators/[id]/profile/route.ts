@@ -61,6 +61,17 @@ export async function GET(
       listedAt: (p.published_at ?? p.created_at) as string | undefined,
     }));
 
+    // The payout wallet is already public on-chain the moment anyone buys
+    // (it rides every 402's legs) — here it keys the foreign profile's
+    // gallery, which reads generations by wallet.
+    const { data: wallets } = await supabase
+      .from("user_wallets")
+      .select("address")
+      .eq("user_id", userData.id)
+      .eq("chain_family", "solana")
+      .is("removed_at", null)
+      .limit(1);
+
     return NextResponse.json({
       creator: {
         id: userData.id,
@@ -70,6 +81,7 @@ export async function GET(
         avatarUrl: userData.avatar_url,
         coverImageUrl: userData.cover_image_url,
         joinedAt: userData.created_at,
+        wallet: wallets?.[0]?.address ?? null,
       },
       // Earnings/sales come from the payments ledger once real volume flows.
       // Zeros are honest today: user_earnings does not exist in the live DB,

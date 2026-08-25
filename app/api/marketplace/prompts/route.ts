@@ -191,6 +191,22 @@ export async function GET(request: NextRequest) {
       // moment it was saved — see app/api/prompts/route.ts for the same fix.
       dbQuery = dbQuery.eq("is_listed", true);
 
+      /* ?creator=<handle|uuid> narrows to one artist's shelf — the foreign
+         profile page (Kev, 2026-08-24: creators render like the own profile)
+         reads its Released tab through the SAME query and mapping as the
+         feed, so the two can never drift. Unknown handle → empty list. */
+      const creator = searchParams.get("creator");
+      if (creator) {
+        const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let creatorId = creator;
+        if (!UUID.test(creator)) {
+          const { data: u } = await supabase
+            .from("users").select("id").eq("handle", creator).maybeSingle();
+          creatorId = u?.id ?? "00000000-0000-0000-0000-000000000000";
+        }
+        dbQuery = dbQuery.eq("creator_id", creatorId);
+      }
+
       if (category) {
         dbQuery = dbQuery.eq("category", category);
       }
