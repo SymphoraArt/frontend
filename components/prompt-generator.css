@@ -1233,6 +1233,15 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
   color: var(--pgv-accent);
   cursor: pointer;
   transition: background 0.14s, border-color 0.14s;
+  /* The slot READS as part of the sentence (Kev, 2026-08-24: "weiter wie
+     der normale text, linksgerichtet"): buttons centre their text and box
+     up as inline-blocks, so a long value became a centred two-line island
+     breaking the flow. display:inline lets it wrap mid-sentence like the
+     words around it; clone keeps the pill's edges on every wrapped line. */
+  display: inline;
+  text-align: left;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .pgv-tok:hover { background: color-mix(in oklab, var(--pgv-accent) 22%, transparent); }
 .pgv-tok.filled {

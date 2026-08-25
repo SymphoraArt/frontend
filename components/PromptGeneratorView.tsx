@@ -1708,11 +1708,16 @@ export default function PromptGeneratorView({
               title={guest ? "Sign in to generate" : undefined}
             >
               {generating ? <Loader2 size={14} className="pgv-spinner" /> : <Sparkles size={14} />}
-              {noCharge
-                ? "Generate free"
-                : paidQuote
-                  ? `Generate $${paidQuote.totalUsd}`
-                  : "Generate …"}
+              {/* A guest sees WHY the button is dead, not a "Generate …"
+                  that promises a quote which will never come (Kev,
+                  2026-08-24). */}
+              {guest
+                ? "Log in to generate"
+                : noCharge
+                  ? "Generate free"
+                  : paidQuote
+                    ? `Generate $${paidQuote.totalUsd}`
+                    : "Generate …"}
             </button>
             {/* ToS §4 requires the network fee to be itemised before the buyer
                 confirms. It used to occupy its own line above the footer,
