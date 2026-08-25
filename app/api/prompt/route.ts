@@ -332,6 +332,38 @@ export async function POST(req: Request) {
       }
     }
 
+    /* Every [slot] in the text must be a DEFINED variable WITH a value.
+       The showcase image is generated from those values, and a prompt whose
+       slots have none shows buyers raw brackets next to an image that
+       cannot have used them (Kev, 2026-08-24: "jede variable soll auch
+       einen wert haben der dann ja benutzt wurde um das angezeigte bild zu
+       generieren" — raw DB seeds proved the gap). Checked at SAVE, the one
+       door every prompt passes through. */
+    const varsPayload = Array.isArray(body.variables) ? body.variables : [];
+    const slotNames = new Set(
+      Array.from(String(body.content ?? "").matchAll(/\[([^\]\n]+)\]/g), (m) => m[1].trim()),
+    );
+    if (slotNames.size > 0) {
+      const valueByName = new Map(
+        varsPayload.map((v) => [String(v.name ?? "").trim(), v.defaultValue]),
+      );
+      const missing = [...slotNames].filter((t) => {
+        if (!valueByName.has(t)) return true;
+        const dv = valueByName.get(t);
+        return dv == null || String(dv).trim() === "";
+      });
+      if (missing.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              `Every [slot] needs a variable with a value — missing or empty: ${missing.join(", ")}. ` +
+              "The showcase image is generated from these values, so none may be blank.",
+          },
+          { status: 422 },
+        );
+      }
+    }
+
     let promptId: string;
 
     if (body.id) {
@@ -406,7 +438,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const vars = Array.isArray(body.variables) ? body.variables : [];
+    const vars = varsPayload;
 
     if (vars.length) {
       const takenNames = new Set<string>();
