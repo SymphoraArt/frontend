@@ -434,14 +434,17 @@ function useSafeActiveAccount() {
   try { return useActiveAccount(); } catch { return null; }
 }
 
-export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: () => void; isOwnProfile?: boolean } = {}) {
+export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { onBack?: () => void; isOwnProfile?: boolean; handle?: string } = {}) {
+  /* ONE profile layout for everyone (Kev, 2026-08-24: "so ähnlich müssen
+     auch andere profile angezeigt werden nur ohne deren likes"). `handle`
+     switches this page to a FOREIGN view: same hero, same tabs minus the
+     private ones, data loaded for that creator instead of the session. */
+  const own = handle ? false : isOwnProfile;
   // History is a PRIVATE tab: only the profile owner sees it, never visitors.
-  // (This component currently only ever renders the signed-in user's own
-  // profile, so isOwnProfile defaults true; foreign-profile views pass false.)
   // Likes is PRIVATE like History: only the owner's view carries the tab,
   // and the route it reads derives the list from the SESSION — a visitor
   // cannot request anyone else's likes (Kev, 2026-08-23).
-  const TABS = isOwnProfile
+  const TABS = own
     ? ["Released", "Gallery", "Likes", "Reviews", "About", "History"]
     : ["Released", "Gallery", "Reviews", "About"];
   const router = useRouter();
@@ -478,10 +481,35 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
   // and only the prompt count arrives with the background refresh — no more
   // blank header or default-bio flash.
   const { setHandle: setSidebarHandle, profile: gateProfile, setProfile: setGateProfile } = useBetaAccess();
-  const [me, setMe] = useState<Me | null>(gateProfile ? { ...gateProfile } : null);
+  const [me, setMe] = useState<Me | null>(!handle && gateProfile ? { ...gateProfile } : null);
   useEffect(() => {
-    if (gateProfile) setMe((cur) => cur ?? { ...gateProfile });
-  }, [gateProfile]);
+    if (!handle && gateProfile) setMe((cur) => cur ?? { ...gateProfile });
+  }, [gateProfile, handle]);
+
+  /* Foreign profile: the creator's PUBLIC data, plus their payout wallet —
+     which keys the gallery below (generations are stored by wallet). */
+  const [creatorWallet, setCreatorWallet] = useState<string | null>(null);
+  useEffect(() => {
+    if (!handle) return;
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/creators/${encodeURIComponent(handle)}/profile`);
+        if (!res.ok || dead) return;
+        const d = await res.json();
+        if (dead) return;
+        setMe({
+          handle: d.creator?.username ?? handle,
+          bio: d.creator?.bio ?? null,
+          avatarUrl: d.creator?.avatarUrl ?? null,
+          coverUrl: d.creator?.coverImageUrl ?? null,
+          promptCount: d.stats?.totalPrompts ?? 0,
+        });
+        setCreatorWallet(d.creator?.wallet ?? null);
+      } catch { /* the empty hero stays until a retry */ }
+    })();
+    return () => { dead = true; };
+  }, [handle]);
 
   // Clicking the banner or avatar opens it full-size in a lightbox.
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -507,6 +535,7 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
     setEditOpen(true);
   };
   useEffect(() => {
+    if (handle) return; // foreign profile: the creator fetch above owns `me`
     if (!isAuthed) { setMe(null); return; }
     let dead = false;
     (async () => {
@@ -556,9 +585,12 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
   };
 
   const { data, isError } = useQuery({
-    queryKey: ["/api/marketplace/prompts", "profile"],
+    queryKey: ["/api/marketplace/prompts", "profile", handle ?? "own"],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "20", sortBy: "newest" });
+      // Foreign: only this creator's shelf — same query and mapping as the
+      // feed, narrowed server-side by ?creator.
+      if (handle) params.set("creator", handle);
       const res = await fetch(`/api/marketplace/prompts?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load prompts");
       return res.json();
@@ -577,14 +609,18 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
   const [galleryItems, setGalleryItems] = useState<StoredCreation[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
 
+  /* The gallery's key: own view reads the session wallet, a foreign view
+     reads the creator's public wallet from their profile. */
+  const galleryWallet = handle ? creatorWallet : walletAddress;
   useEffect(() => {
-    if (!walletAddress) { setGalleryItems([]); setGalleryLoading(false); return; }
+    if (!galleryWallet) { setGalleryItems([]); setGalleryLoading(false); return; }
     let cancelled = false;
     const load = async () => {
       setGalleryLoading(true);
-      const local = listCreations(walletAddress);
+      // Local (unsynced) creations exist only for the device's own user.
+      const local = handle ? [] : listCreations(galleryWallet);
       try {
-        const res = await fetch(`/api/generations?userId=${encodeURIComponent(walletAddress)}&limit=50`);
+        const res = await fetch(`/api/generations?userId=${encodeURIComponent(galleryWallet)}&limit=50`);
         if (!res.ok) throw new Error("Failed");
         const json = await res.json();
         const raw = json?.data?.generations ?? json?.generations ?? json?.items ?? [];
@@ -611,12 +647,15 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
       }
     };
     load();
-    const unsub = subscribeCreations(walletAddress, () => load());
+    // Live refresh only for the device's own creations.
+    const unsub = handle ? () => {} : subscribeCreations(galleryWallet, () => load());
     return () => { cancelled = true; unsub(); };
-  }, [walletAddress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [galleryWallet, handle]);
 
   // No profile for visitors — signed-out users get a login prompt instead.
-  if (!isAuthed) {
+  // A FOREIGN profile is public: guests may look at an artist's page.
+  if (own && !isAuthed) {
     return (
       <div className="enki" style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 380 }}>
@@ -731,13 +770,15 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
                 <h1 className="serif" style={{ fontSize: "clamp(48px, 5vw, 72px)", fontWeight: 400, margin: 0, lineHeight: 1 }}>
                   <em>{displayName}</em>
                 </h1>
-                {/* Own profile: no Message/Follow on yourself — they return
-                    once foreign profiles exist. */}
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <button style={{ ...heroBtn, borderColor: "var(--enki-ink)" }} onClick={startEdit} disabled={!me}>
-                    <Pencil size={15} /> Edit profile
-                  </button>
-                </div>
+                {/* Edit is the owner's — a foreign profile shows no actions
+                    yet (Message/Follow land as their own step). */}
+                {own && (
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <button style={{ ...heroBtn, borderColor: "var(--enki-ink)" }} onClick={startEdit} disabled={!me}>
+                      <Pencil size={15} /> Edit profile
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -821,7 +862,7 @@ export default function ProfilePage({ onBack, isOwnProfile = true }: { onBack?: 
                 key={prompt.id}
                 prompt={prompt}
                 onOpen={setOpen}
-                onEdit={requestPromptEdit}
+                onEdit={own ? requestPromptEdit : undefined}
               />
             ))}
           </div>
