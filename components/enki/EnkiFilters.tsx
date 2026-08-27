@@ -147,7 +147,16 @@ function GeneratorInline({ groups, selected, onChange }: {
 
   return (
     <>
-      <span className="enki-fltr-icon" aria-hidden><Cpu size={13} /></span>
+      {/* The icon IS the reset (Kev, 2026-08-24): it sat there without a
+          job, and the "All" chip on the far right doubled the row's width
+          promise for a one-tap action. Ember while a filter is active, so
+          it reads as pressable exactly when pressing it does something. */}
+      <button type="button" className={"enki-fltr-icon" + (selected.length ? " active" : "")}
+        title={selected.length ? "Reset generator filter" : "Generator filter"}
+        aria-label="Reset generator filter" disabled={!selected.length}
+        onClick={() => onChange([])}>
+        <Cpu size={13} />
+      </button>
       {groups.map((g) => {
         const ids = g.entries.map((e) => e.id);
         const all = ids.length > 0 && ids.every((id) => selected.includes(id));
@@ -173,11 +182,6 @@ function GeneratorInline({ groups, selected, onChange }: {
           </span>
         );
       })}
-      {selected.length > 0 && (
-        <button type="button" className="enki-fltr-chip enki-fltr-clear" onClick={() => onChange([])}>
-          All
-        </button>
-      )}
     </>
   );
 }

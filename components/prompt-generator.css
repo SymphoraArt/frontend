@@ -1462,7 +1462,10 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
 
 .pgv-x402-body p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--pgv-text-muted); }
 .pgv-x402-endpoint { font-size: 10.5px; color: var(--pgv-text); word-break: break-all; }
-.pgv-x402-example { margin: 0; padding: 7px 8px; border-radius: 6px; background: rgba(0,0,0,.25); font-size: 10px; line-height: 1.45; color: var(--pgv-text); overflow-x: auto; }
+/* Themed, not hardcoded-dark: rgba(0,0,0,.25) was grey-on-grey in bright
+   mode (Kev, 2026-08-24) — the raised token is creme in light, deep in
+   dark, and the text token is black/white accordingly. */
+.pgv-x402-example { margin: 0; padding: 7px 8px; border-radius: 6px; background: var(--pgv-raised); border: 1px solid var(--pgv-border); font-size: 10px; line-height: 1.45; color: var(--pgv-text); overflow-x: auto; }
 /* Icon-only copy in the code box's top right corner (Kev, 2026-08-24). The
    wrapper carries the position so the pre keeps its own overflow scrolling —
    absolute inside the pre would ride along with a horizontal scroll. */
@@ -1472,5 +1475,7 @@ a.pgv-artist:hover { color: var(--pgv-accent); text-decoration: underline; }
 .pgv-x402-copy:hover { opacity: 1; color: var(--pgv-accent); background: rgba(0, 0, 0, .25); }
 /* Copied: green check + "copied!" for 2s, in place of the icon. Width grows
    with the text; the same #27ae60 the thumb/history success badges use. */
-.pgv-x402-copy.copied { width: auto; padding: 0 7px; gap: 4px; color: #27ae60; opacity: 1; font-size: 10.5px; font-weight: 700; background: rgba(0, 0, 0, .25); cursor: default; }
+/* "copied!" in the house creme-peach accent — the success green vanished
+   on the light box (Kev, 2026-08-24). */
+.pgv-x402-copy.copied { width: auto; padding: 0 7px; gap: 4px; color: var(--pgv-accent); opacity: 1; font-size: 10.5px; font-weight: 700; background: color-mix(in oklab, var(--pgv-accent) 14%, transparent); cursor: default; }
 .pgv-x402-note { font-size: 9.5px; color: var(--pgv-text-muted); }
