@@ -4673,11 +4673,14 @@ function pickTheme(t) {
 //    timer; each previews a crop of the source and pans the big image to it. ──
 // Each square shows a referenced preview image. Drop the two personal photos in
 // public/previews/ (fawn.png, myself.jpg); the rest already ship.
+/* Solana rides SECOND (Kev, 2026-08-24) — the chain mark right after the
+   opening photo; everyone else shifts down one. SHOWCASE_SETS is keyed by
+   these indexes, so its keys moved with them. */
 var KV_IMG = [
   { src: '/previews/berlin.webp', fit: 'cover',   pos: 'center 28%' },
+  { src: '/previews/solana.webp', fit: 'contain', pos: 'center' },
   { src: '/previews/myself.webp', fit: 'cover',   pos: 'center center' },
   { src: '/previews/fawn.webp',   fit: 'cover',   pos: 'center' },
-  { src: '/previews/solana.webp', fit: 'contain', pos: 'center' },
   { src: '/previews/up.webp',     fit: 'contain', pos: 'center' },
 ];
 
@@ -4695,7 +4698,7 @@ var SHOWCASE_SETS = {
       { src: '/previews/berlin-guide.webp',    t: 'Travel Guide',  s: 'Map · Districts', pos: 'center 16%' },
     ],
   },
-  1: {
+  2: {
     src: '/previews/myself.webp', srcFit: 'cover', srcPos: 'center 18%', title: 'Myself · Base Photo',
     vars: [
       { src: '/previews/me-crayon.webp',   t: 'Crayon Scribble', s: 'Kids · Marker', pos: 'center 58%' },
@@ -4706,7 +4709,7 @@ var SHOWCASE_SETS = {
       { src: '/previews/me-aura.webp',     t: 'Spirit Aura',     s: 'Energy · Alley', pos: 'center 16%' },
     ],
   },
-  2: {
+  3: {
     src: '/previews/fawn.webp', srcFit: 'cover', srcPos: 'center 16%', title: 'Fawn · Base Render',
     vars: [
       { src: '/previews/fawn-ember.webp',     t: 'Ember Split',       s: 'Fire · Purple' },
@@ -4717,7 +4720,7 @@ var SHOWCASE_SETS = {
       { src: '/previews/fawn-wasteland.webp', t: 'Wasteland Drifter', s: 'Survivor · Ruins', pos: 'center 15%' },
     ],
   },
-  3: {
+  1: {
     src: '/previews/solana.webp', srcFit: 'contain', srcPos: 'center', title: 'Solana · Base Mark',
     vars: [
       { src: '/previews/solana-crystal.webp', t: 'Crystal Cave',     s: 'Prismatic · Geode' },
