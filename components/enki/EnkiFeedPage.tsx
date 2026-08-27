@@ -43,9 +43,16 @@ export default function EnkiFeedPage() {
      itself the day a video model lands in the catalogue. */
   const [genFilter, setGenFilter] = useState<string[]>([]);
   const catalogue = useModelCatalogue();
+  /* The tree's branches: Image and Video, each carrying the DB's models of
+     that medium (models.media_type). A branch with no models does not
+     render — the Video branch appears by itself the day the first video
+     row (Seedance, Kling, …) lands in the table. */
   const generatorGroups = useMemo(() => {
-    const image = catalogue.map((c) => ({ id: c.id, name: c.name }));
-    return image.length ? [{ label: "Image", entries: image }] : [];
+    const branch = (label: string, media: "image" | "video") => {
+      const entries = catalogue.filter((c) => c.mediaType === media).map((c) => ({ id: c.id, name: c.name }));
+      return entries.length ? [{ label, entries }] : [];
+    };
+    return [...branch("Image", "image"), ...branch("Video", "video")];
   }, [catalogue]);
   const [open, setOpen] = useState<EnkiPrompt | null>(null);
   const { favs, toggleFav } = useLocalFavorites();

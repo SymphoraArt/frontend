@@ -126,6 +126,11 @@ export interface CatalogueEntry {
   /** USD per image. 0 is the free tier. */
   price: number;
   /**
+   * Which medium the model produces — the generator filter's tree groups by
+   * it (models.media_type; rows without the column yet are image models).
+   */
+  mediaType: "image" | "video";
+  /**
    * Whether the model takes a low|medium|high quality tier of its own. Only
    * the gpt-image family does — offering the control anywhere else would put a
    * setting in front of the user that changes nothing.
@@ -228,7 +233,11 @@ export function useModelCatalogue(): CatalogueEntry[] {
   );
   useEffect(() => {
     let dead = false;
-    const pull = () => loadModels().then((r) => { if (!dead) setRows(toCatalogue(r)); });
+    /* An EMPTY answer never replaces what is on screen: a 401 during the
+       gate-cookie window used to overwrite the fallback catalogue with [],
+       which is the empty Generators panel Kev hit (2026-08-24). The retry
+       on the next mount fills in the real rows. */
+    const pull = () => loadModels().then((r) => { if (!dead && r.length > 0) setRows(toCatalogue(r)); });
     pull();
     /* If the first pull landed before the gate cookie (empty → fallback), a
        later focus refetches, so the list fills itself in without a reload. */
@@ -248,6 +257,7 @@ function toCatalogue(rows: ModelRow[]): CatalogueEntry[] {
       // A missing price is 0 and therefore free — never a guessed number,
       // because a guessed price is one a user might be charged.
       price: typeof r.price === "number" ? r.price : 0,
+      mediaType: ((r as { media_type?: unknown }).media_type === "video" ? "video" : "image") as CatalogueEntry["mediaType"],
       /* Server-resolved when present (/api/models runs withCapabilities, the
          same code the generation enforces); the old client-side derivations
          only cover the window where a cached pre-upgrade response is still in

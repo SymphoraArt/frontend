@@ -2249,17 +2249,41 @@
 .enki-catbar-search.open input:focus { border-bottom-color: var(--enki-ember); }
 .enki-catbar-search input::placeholder { color: var(--enki-ink-3); }
 
-/* ── Search takeover: open search OWNS the category row (Kev, 2026-08-24:
-   "predominant temporarily aufgeklappt über den rubriken"). The bar is
-   position:fixed, so the field can overlay it absolutely while the chips
-   fade back; everything animates, nothing jumps. ── */
-.enki-catbar-all, .enki-catbar-divider, .enki-catbar-scroll, .enki-genchip-wrap {
+/* ── Two-row category bar: rubriken + search on top, the FILTERS in their
+   own row DIRECTLY beneath (Kev, 2026-08-24). Both rows live in the fixed
+   bar, so page scrolling moves neither. ── */
+.enki-catbar--tworow {
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  padding: 0;
+}
+.enki-catbar-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 24px;
+}
+.enki-filterrow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  height: 38px;
+  padding: 0 24px;
+  border-top: 1px solid rgba(127, 127, 127, 0.12);
+}
+
+/* ── Search takeover: the open search OWNS row 1 (Kev, 2026-08-24:
+   "predominant temporarily aufgeklappt über den rubriken") while the
+   filter row below stays reachable beside it. ── */
+.enki-catbar-all, .enki-catbar-divider, .enki-catbar-scroll {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .enki-catbar--searching .enki-catbar-all,
 .enki-catbar--searching .enki-catbar-divider,
-.enki-catbar--searching .enki-catbar-scroll,
-.enki-catbar--searching .enki-genchip-wrap {
+.enki-catbar--searching .enki-catbar-scroll {
   opacity: 0;
   transform: translateX(-6px);
   pointer-events: none;
@@ -2277,14 +2301,35 @@
   flex: 1 1 auto;
 }
 
-/* ── Generator filter chip + panel (Kev, 2026-08-24) ── */
-.enki-genchip-wrap { flex: 0 0 auto; margin-left: 10px; }
-.enki-genchip {
+/* ── Generator filter, FLAT along the row (Kev, 2026-08-24: "pack alle
+   möglichkeiten längs auf das menü, left aligned"): group labels toggle a
+   whole medium, one chip per generator, everything one click, multiple
+   choice. Fixed bar — the page scrolls, this does not. ── */
+.enki-fltr-icon { display: flex; align-items: center; color: var(--enki-ink-3); margin-right: 2px; }
+.enki-fltr-group { display: inline-flex; align-items: center; gap: 6px; }
+.enki-fltr-divider { width: 1px; height: 14px; background: rgba(127, 127, 127, 0.25); margin: 0 8px; }
+.enki-fltr-glabel {
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: var(--enki-ink-3);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.enki-fltr-glabel:hover { color: var(--enki-ink); }
+.enki-fltr-glabel.active { color: var(--enki-ember); }
+.enki-fltr-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
   border: 1px solid var(--enki-rule);
   border-radius: 999px;
   background: transparent;
@@ -2294,11 +2339,15 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.enki-genchip:hover { color: var(--enki-ink); border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule)); }
-.enki-genchip.active { color: var(--enki-ember); border-color: var(--enki-ember); }
-.enki-gen-panel { min-width: 210px; }
-.enki-gen-group { font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.05em; opacity: 0.85; }
-.enki-gen-entry { padding-left: 18px; }
-.enki-gen-clear { border-top: 1px solid var(--enki-rule, rgba(127,127,127,.35)); border-radius: 0; margin-top: 4px; opacity: 0.8; }
+.enki-fltr-chip:hover { color: var(--enki-ink); border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule)); }
+.enki-fltr-chip.active {
+  color: var(--enki-ember);
+  border-color: var(--enki-ember);
+  background: color-mix(in oklab, var(--enki-ember) 10%, transparent);
+}
+.enki-fltr-clear { opacity: 0.75; }
+
+/* The bar grew a second row — the wall starts below it. */
+.enki-masonry { padding-top: 44px; }

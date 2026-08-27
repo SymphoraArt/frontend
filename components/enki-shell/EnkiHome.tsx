@@ -464,7 +464,8 @@ export default function EnkiHome() {
       </div>
 
       {panel && (
-        <EnkiPanel title={PANEL_TITLES[panel] || panel} onClose={closePanel} full>
+        <EnkiPanel title={PANEL_TITLES[panel] || panel} onClose={closePanel} full
+          hideClose={panel === "leaderboard"}>
           {/* The key remounts only the CONTENT (fresh state per menu click);
               the panel shell stays mounted, so its fade-in doesn't replay and
               the home feed never flashes through between panels. */}

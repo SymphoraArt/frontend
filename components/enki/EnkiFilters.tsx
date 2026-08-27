@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Search, X, Cpu, Check, ChevronDown } from "lucide-react";
-import { usePanelPos, panelStyle } from "@/components/generation/RatioSelect";
+import { LayoutGrid, Search, X, Cpu, Check } from "lucide-react";
 import "@/components/generation/ratio-select.css";
 
 /**
@@ -14,12 +12,11 @@ import "@/components/generation/ratio-select.css";
  */
 export const ENKI_CATEGORIES = [
   "Portrait",
-  "Character",
-  "Cinematic",
+  "Poster",
+  "Artstyle",
+  "Product Ads",
   "Architecture",
   "Abstract",
-  "Product",
-  "Minimal",
   "Editorial",
 ] as const;
 
@@ -72,68 +69,73 @@ export default function EnkiFilters({ active, toggle, generators, generatorFilte
   }, []);
 
   return (
-    <div className={`enki-catbar${visible ? "" : " enki-catbar--hidden"}${searchOpen ? " enki-catbar--searching" : ""}`}>
-      {/* All button */}
-      <button
-        className={`enki-catbar-all${allActive ? " active" : ""}`}
-        onClick={() => active.forEach((tag) => toggle(tag))}
-        type="button"
-        aria-label="All categories"
-        tabIndex={searchOpen ? -1 : 0}
-      >
-        <LayoutGrid size={14} />
-        All
-      </button>
+    <div className={`enki-catbar enki-catbar--tworow${visible ? "" : " enki-catbar--hidden"}${searchOpen ? " enki-catbar--searching" : ""}`}>
+      {/* Row 1: categories + search. The open search spreads over the
+          chips; the FILTER row below stays put, so search + filters work
+          together (Kev, 2026-08-24). */}
+      <div className="enki-catbar-row">
+        <button
+          className={`enki-catbar-all${allActive ? " active" : ""}`}
+          onClick={() => active.forEach((tag) => toggle(tag))}
+          type="button"
+          aria-label="All categories"
+          tabIndex={searchOpen ? -1 : 0}
+        >
+          <LayoutGrid size={14} />
+          All
+        </button>
 
-      <div className="enki-catbar-divider" />
+        <div className="enki-catbar-divider" />
 
-      {/* All categories, inline in a single row */}
-      <div className="enki-catbar-scroll">
-        {CATEGORIES.map((cat) => {
-          const key = cat.label.toLowerCase();
-          const isActive = active.includes(key);
-          return (
-            <button
-              key={key}
-              className={`enki-catbar-chip${isActive ? " active" : ""}`}
-              onClick={() => toggle(key)}
-              type="button"
-              tabIndex={searchOpen ? -1 : 0}
-            >
-              {cat.label}
-            </button>
-          );
-        })}
+        {/* All categories, inline in a single row */}
+        <div className="enki-catbar-scroll">
+          {CATEGORIES.map((cat) => {
+            const key = cat.label.toLowerCase();
+            const isActive = active.includes(key);
+            return (
+              <button
+                key={key}
+                className={`enki-catbar-chip${isActive ? " active" : ""}`}
+                onClick={() => toggle(key)}
+                type="button"
+                tabIndex={searchOpen ? -1 : 0}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <SearchChip open={searchOpen} setOpen={setSearchOpen} />
       </div>
 
-      {/* Which generators feed the wall — grouped Image/Video (Kev,
-          2026-08-24). */}
-      {generators && onGeneratorFilter && (
-        <GeneratorChip groups={generators} selected={generatorFilter ?? []} onChange={onGeneratorFilter} />
+      {/* Row 2: the filters, DIRECTLY under the category row (Kev,
+          2026-08-24), right-aligned so they sit beside an open search. Part
+          of the fixed bar — page scrolling can neither move nor close them.
+          No chip until the catalogue answered: an empty tree pretends the
+          platform has no models. */}
+      {generators && generators.length > 0 && onGeneratorFilter && (
+        <div className="enki-filterrow">
+          <GeneratorInline groups={generators} selected={generatorFilter ?? []} onChange={onGeneratorFilter} />
+        </div>
       )}
-
-      {/* Search lives here now, closed, as a single glyph after the last
-          category (Kev, 2026-08-13). Open, it takes the WHOLE row: the field
-          spreads over the categories and they fade back until it closes
-          (Kev, 2026-08-24). */}
-      <SearchChip open={searchOpen} setOpen={setSearchOpen} />
     </div>
   );
 }
 
 /**
- * Generator filter — which launchers feed the wall, grouped by media type
- * (Image / Video) so a whole medium is one click and single generators are
- * the rows beneath (Kev, 2026-08-24). A group header toggles its whole
- * group; empty selection means "all". Same portal panel as every dropdown.
+ * Generator filter, laid out FLAT along the filter row (Kev, 2026-08-24:
+ * "pack alle möglichkeiten längs auf das menü") — every option is one click
+ * away, no dropdown between you and it. Group labels (IMAGE / VIDEO) toggle
+ * their whole group; each generator chip toggles alone. MULTIPLE CHOICE
+ * throughout, "All" resets. Lives in the fixed bar, so scrolling the page
+ * cannot move it and nothing here ever scrolls.
  */
-function GeneratorChip({ groups, selected, onChange }: {
+function GeneratorInline({ groups, selected, onChange }: {
   groups: GeneratorGroup[];
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const rows = groups.reduce((n, g) => n + g.entries.length + 1, 0);
-  const { pos, close, toggle, trigRef, wrapRef, panelRef } = usePanelPos(rows);
   const flip = (id: string) =>
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   const flipGroup = (g: GeneratorGroup) => {
@@ -143,48 +145,36 @@ function GeneratorChip({ groups, selected, onChange }: {
   };
 
   return (
-    <div ref={wrapRef} className="enki-genchip-wrap">
-      <button ref={trigRef} type="button"
-        className={`enki-genchip${selected.length ? " active" : ""}`}
-        aria-label="Filter by generator" title="Filter by generator"
-        onClick={toggle}>
-        <Cpu size={13} aria-hidden />
-        {selected.length ? `Generators · ${selected.length}` : "Generators"}
-        <ChevronDown size={11} aria-hidden />
-      </button>
-      {pos && createPortal(
-        <div ref={panelRef} className="enki-ratio-panel enki-gen-panel" role="listbox" style={panelStyle(pos)}>
-          {groups.map((g) => {
-            const ids = g.entries.map((e) => e.id);
-            const all = ids.length > 0 && ids.every((id) => selected.includes(id));
-            return (
-              <div key={g.label}>
-                <button type="button" className={"enki-ratio-opt enki-gen-group" + (all ? " on" : "")}
-                  onClick={() => flipGroup(g)}>
-                  <span>{g.label}</span>
-                  {all && <Check size={13} className="enki-ratio-opt-sub" aria-hidden />}
-                </button>
-                {g.entries.map((e) => (
-                  <button key={e.id} type="button" role="option" aria-selected={selected.includes(e.id)}
-                    className={"enki-ratio-opt enki-gen-entry" + (selected.includes(e.id) ? " on" : "")}
-                    onClick={() => flip(e.id)}>
-                    <span>{e.name}</span>
-                    {selected.includes(e.id) && <Check size={13} className="enki-ratio-opt-sub" aria-hidden />}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-          {selected.length > 0 && (
-            <button type="button" className="enki-ratio-opt enki-gen-clear"
-              onClick={() => { onChange([]); close(); }}>
-              <span>Show all</span>
+    <>
+      <span className="enki-fltr-icon" aria-hidden><Cpu size={13} /></span>
+      {groups.map((g, i) => {
+        const ids = g.entries.map((e) => e.id);
+        const all = ids.length > 0 && ids.every((id) => selected.includes(id));
+        return (
+          <span key={g.label} className="enki-fltr-group">
+            {i > 0 && <span className="enki-fltr-divider" aria-hidden />}
+            <button type="button" className={"enki-fltr-glabel" + (all ? " active" : "")}
+              title={all ? `Deselect all ${g.label} generators` : `Select all ${g.label} generators`}
+              onClick={() => flipGroup(g)}>
+              {g.label}
             </button>
-          )}
-        </div>,
-        document.body,
+            {g.entries.map((e) => (
+              <button key={e.id} type="button" aria-pressed={selected.includes(e.id)}
+                className={"enki-fltr-chip" + (selected.includes(e.id) ? " active" : "")}
+                onClick={() => flip(e.id)}>
+                {selected.includes(e.id) && <Check size={11} aria-hidden />}
+                {e.name}
+              </button>
+            ))}
+          </span>
+        );
+      })}
+      {selected.length > 0 && (
+        <button type="button" className="enki-fltr-chip enki-fltr-clear" onClick={() => onChange([])}>
+          All
+        </button>
       )}
-    </div>
+    </>
   );
 }
 
