@@ -43,7 +43,6 @@ export default function LoginModal({ open, onClose }: { open: boolean; onClose: 
           // reading each other's scrims is noise.
           visibility: walletOpen ? "hidden" : "visible",
         }}
-        allowTransparency
       />
       <WalletPickerModal open={walletOpen} onClose={() => { setWalletOpen(false); onClose(); }} />
     </>

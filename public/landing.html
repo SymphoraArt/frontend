@@ -4750,7 +4750,21 @@ function applyShowcase(i) {
   var srcEl = document.querySelector('.kv-source');
   if (srcEl) {
     var si = srcEl.querySelector('img');
-    if (si) { si.loading = 'lazy'; si.decoding = 'async'; if (kvImagesEnabled) si.src = set.src; si.style.objectFit = set.srcFit || 'cover'; si.style.objectPosition = set.srcPos || 'center'; }
+    if (si) {
+      si.loading = 'lazy'; si.decoding = 'async';
+      if (kvImagesEnabled) si.src = set.src;
+      si.style.objectFit = set.srcFit || 'cover';
+      /* Every set slides in from the TOP. The 0.9s object-position
+         transition used to run from the PREVIOUS set's position, so a
+         change of barely two percent (myself 18% → fawn 16%) showed no
+         slide at all (Kev, 2026-08-24). Jump to the top without
+         transition, reflow, then glide to the real position. */
+      si.style.transition = 'none';
+      si.style.objectPosition = 'center 0%';
+      void si.offsetWidth;
+      si.style.transition = '';
+      si.style.objectPosition = set.srcPos || 'center';
+    }
     var st = srcEl.querySelector('div[style*="font-size:1rem"]');
     if (st) st.textContent = set.title;
   }
