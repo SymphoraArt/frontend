@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Search, X } from "lucide-react";
+import { LayoutGrid, Search, X, Cpu, Check, ChevronDown } from "lucide-react";
+import { usePanelPos, panelStyle } from "@/components/generation/RatioSelect";
+import "@/components/generation/ratio-select.css";
 
 /**
  * Canonical category list — shared between the feed filter bar and the
@@ -27,11 +30,26 @@ type EnkiFiltersProps = {
   toggle: (tag: string) => void;
   /** When true, only one category can be active at a time (radio behavior) */
   exclusive?: boolean;
+  /** Generator filter — the catalogue grouped by media type. */
+  generators?: GeneratorGroup[];
+  /** Selected generator ids; empty = all. */
+  generatorFilter?: string[];
+  onGeneratorFilter?: (ids: string[]) => void;
 };
 
-export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
+export type GeneratorGroup = {
+  /** "Image" | "Video" — subgroups arrive with the models that carry them. */
+  label: string;
+  entries: Array<{ id: string; name: string }>;
+};
+
+export default function EnkiFilters({ active, toggle, generators, generatorFilter, onGeneratorFilter }: EnkiFiltersProps) {
   const allActive = active.length === 0;
   const [visible, setVisible] = useState(true);
+  /* Lifted out of SearchChip: while the search is open it OWNS the row —
+     the categories fade back and the field spreads over them (Kev,
+     2026-08-24: "predominant temporarily aufgeklappt über den rubriken"). */
+  const [searchOpen, setSearchOpen] = useState(false);
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
 
@@ -54,13 +72,14 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
   }, []);
 
   return (
-    <div className={`enki-catbar${visible ? "" : " enki-catbar--hidden"}`}>
+    <div className={`enki-catbar${visible ? "" : " enki-catbar--hidden"}${searchOpen ? " enki-catbar--searching" : ""}`}>
       {/* All button */}
       <button
         className={`enki-catbar-all${allActive ? " active" : ""}`}
         onClick={() => active.forEach((tag) => toggle(tag))}
         type="button"
         aria-label="All categories"
+        tabIndex={searchOpen ? -1 : 0}
       >
         <LayoutGrid size={14} />
         All
@@ -79,6 +98,7 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
               className={`enki-catbar-chip${isActive ? " active" : ""}`}
               onClick={() => toggle(key)}
               type="button"
+              tabIndex={searchOpen ? -1 : 0}
             >
               {cat.label}
             </button>
@@ -86,25 +106,99 @@ export default function EnkiFilters({ active, toggle }: EnkiFiltersProps) {
         })}
       </div>
 
+      {/* Which generators feed the wall — grouped Image/Video (Kev,
+          2026-08-24). */}
+      {generators && onGeneratorFilter && (
+        <GeneratorChip groups={generators} selected={generatorFilter ?? []} onChange={onGeneratorFilter} />
+      )}
+
       {/* Search lives here now, closed, as a single glyph after the last
-          category (Kev, 2026-08-13). It used to be a permanent input across
-          the top bar, which spent a whole row on a control most visits never
-          touch — on a feed you browse first and search second. Opening it
-          rolls the field out from the icon rather than swapping one thing for
-          another, so the row never jumps. */}
-      <SearchChip />
+          category (Kev, 2026-08-13). Open, it takes the WHOLE row: the field
+          spreads over the categories and they fade back until it closes
+          (Kev, 2026-08-24). */}
+      <SearchChip open={searchOpen} setOpen={setSearchOpen} />
     </div>
   );
 }
 
-function SearchChip() {
+/**
+ * Generator filter — which launchers feed the wall, grouped by media type
+ * (Image / Video) so a whole medium is one click and single generators are
+ * the rows beneath (Kev, 2026-08-24). A group header toggles its whole
+ * group; empty selection means "all". Same portal panel as every dropdown.
+ */
+function GeneratorChip({ groups, selected, onChange }: {
+  groups: GeneratorGroup[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const rows = groups.reduce((n, g) => n + g.entries.length + 1, 0);
+  const { pos, close, toggle, trigRef, wrapRef, panelRef } = usePanelPos(rows);
+  const flip = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const flipGroup = (g: GeneratorGroup) => {
+    const ids = g.entries.map((e) => e.id);
+    const all = ids.every((id) => selected.includes(id));
+    onChange(all ? selected.filter((x) => !ids.includes(x)) : [...new Set([...selected, ...ids])]);
+  };
+
+  return (
+    <div ref={wrapRef} className="enki-genchip-wrap">
+      <button ref={trigRef} type="button"
+        className={`enki-genchip${selected.length ? " active" : ""}`}
+        aria-label="Filter by generator" title="Filter by generator"
+        onClick={toggle}>
+        <Cpu size={13} aria-hidden />
+        {selected.length ? `Generators · ${selected.length}` : "Generators"}
+        <ChevronDown size={11} aria-hidden />
+      </button>
+      {pos && createPortal(
+        <div ref={panelRef} className="enki-ratio-panel enki-gen-panel" role="listbox" style={panelStyle(pos)}>
+          {groups.map((g) => {
+            const ids = g.entries.map((e) => e.id);
+            const all = ids.length > 0 && ids.every((id) => selected.includes(id));
+            return (
+              <div key={g.label}>
+                <button type="button" className={"enki-ratio-opt enki-gen-group" + (all ? " on" : "")}
+                  onClick={() => flipGroup(g)}>
+                  <span>{g.label}</span>
+                  {all && <Check size={13} className="enki-ratio-opt-sub" aria-hidden />}
+                </button>
+                {g.entries.map((e) => (
+                  <button key={e.id} type="button" role="option" aria-selected={selected.includes(e.id)}
+                    className={"enki-ratio-opt enki-gen-entry" + (selected.includes(e.id) ? " on" : "")}
+                    onClick={() => flip(e.id)}>
+                    <span>{e.name}</span>
+                    {selected.includes(e.id) && <Check size={13} className="enki-ratio-opt-sub" aria-hidden />}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+          {selected.length > 0 && (
+            <button type="button" className="enki-ratio-opt enki-gen-clear"
+              onClick={() => { onChange([]); close(); }}>
+              <span>Show all</span>
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function SearchChip({ open, setOpen }: { open: boolean; setOpen: (v: boolean | ((v: boolean) => boolean)) => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const [query, setQuery] = useState(params.get("q") || "");
   /* Open when it has something to show. A search that closed itself while a
      query was still filtering the feed would leave the user looking at a
      narrowed list with nothing on screen saying why. */
-  const [open, setOpen] = useState(Boolean(params.get("q")));
+  useEffect(() => {
+    if (params.get("q")) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const push = (value: string) => {

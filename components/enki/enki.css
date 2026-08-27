@@ -2248,3 +2248,57 @@
 }
 .enki-catbar-search.open input:focus { border-bottom-color: var(--enki-ember); }
 .enki-catbar-search input::placeholder { color: var(--enki-ink-3); }
+
+/* ── Search takeover: open search OWNS the category row (Kev, 2026-08-24:
+   "predominant temporarily aufgeklappt über den rubriken"). The bar is
+   position:fixed, so the field can overlay it absolutely while the chips
+   fade back; everything animates, nothing jumps. ── */
+.enki-catbar-all, .enki-catbar-divider, .enki-catbar-scroll, .enki-genchip-wrap {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.enki-catbar--searching .enki-catbar-all,
+.enki-catbar--searching .enki-catbar-divider,
+.enki-catbar--searching .enki-catbar-scroll,
+.enki-catbar--searching .enki-genchip-wrap {
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+}
+.enki-catbar--searching .enki-catbar-search {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 0;
+  bottom: 0;
+  padding-left: 0;
+}
+.enki-catbar--searching .enki-catbar-search input {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+/* ── Generator filter chip + panel (Kev, 2026-08-24) ── */
+.enki-genchip-wrap { flex: 0 0 auto; margin-left: 10px; }
+.enki-genchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--enki-ink-3);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.enki-genchip:hover { color: var(--enki-ink); border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule)); }
+.enki-genchip.active { color: var(--enki-ember); border-color: var(--enki-ember); }
+.enki-gen-panel { min-width: 210px; }
+.enki-gen-group { font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.05em; opacity: 0.85; }
+.enki-gen-entry { padding-left: 18px; }
+.enki-gen-clear { border-top: 1px solid var(--enki-rule, rgba(127,127,127,.35)); border-radius: 0; margin-top: 4px; opacity: 0.8; }

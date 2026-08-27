@@ -9,6 +9,8 @@ import GenerateLauncher from "@/components/GenerateLauncher";
 import EnkiDetailPanel from "@/components/enki/EnkiDetailPanel";
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { mapMarketplacePromptToEnkiPrompt } from "@/lib/enkiPromptAdapter";
+import { useModelCatalogue } from "@/hooks/useModelLimits";
+import { toModelFamily } from "@/lib/generation/model-family";
 
 function useLocalFavorites() {
   const [favs, setFavs] = useState<Record<string, boolean>>(() => {
@@ -35,6 +37,16 @@ function useLocalFavorites() {
 
 export default function EnkiFeedPage() {
   const [tags, setTags] = useState<string[]>([]);
+  /* Which generators feed the wall — ids from the model catalogue, grouped
+     Image/Video for the filter chip (Kev, 2026-08-24). The models table has
+     no media type yet, so every entry is Image; a Video group appears by
+     itself the day a video model lands in the catalogue. */
+  const [genFilter, setGenFilter] = useState<string[]>([]);
+  const catalogue = useModelCatalogue();
+  const generatorGroups = useMemo(() => {
+    const image = catalogue.map((c) => ({ id: c.id, name: c.name }));
+    return image.length ? [{ label: "Image", entries: image }] : [];
+  }, [catalogue]);
   const [open, setOpen] = useState<EnkiPrompt | null>(null);
   const { favs, toggleFav } = useLocalFavorites();
 
@@ -90,13 +102,23 @@ export default function EnkiFeedPage() {
     isFetchingNextPage,
     isPending,
   } = useInfiniteQuery<Page, Error, { pages: Page[]; pageParams: number[] }, string[], number>({
-    queryKey: ["/api/marketplace/prompts", "home"],
+    queryKey: ["/api/marketplace/prompts", "home", genFilter.join(",")],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({
         limit: "24",
         sortBy: "trending",
         cursor: String(pageParam),
       });
+      /* Generator filter: send EVERY alias of the picked generators — the
+         prompts table's ai_model carries names AND slugs mixed ("Flux
+         (free)", "nano-banana-pro"), so one id would miss half the rows. */
+      for (const id of genFilter) {
+        const entry = catalogue.find((c) => c.id === id);
+        if (!entry) continue;
+        for (const alias of new Set([entry.id, entry.name, toModelFamily(entry.name)])) {
+          if (alias) params.append("models", String(alias));
+        }
+      }
       const res = await fetch(`/api/marketplace/prompts?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load marketplace prompts");
       const json = await res.json();
@@ -223,7 +245,8 @@ export default function EnkiFeedPage() {
         />
       )}
 
-      <EnkiFilters active={tags} toggle={toggleTag} />
+      <EnkiFilters active={tags} toggle={toggleTag}
+        generators={generatorGroups} generatorFilter={genFilter} onGeneratorFilter={setGenFilter} />
     </>
   );
 }

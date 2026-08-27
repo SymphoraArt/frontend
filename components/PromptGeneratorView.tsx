@@ -46,6 +46,7 @@ import RatioSelect from "@/components/generation/RatioSelect";
 import { useBetaAccess } from "@/components/BetaGate";
 import { createPortal } from "react-dom";
 import { openCreator } from "@/lib/openCreator";
+import ResolutionSelect from "@/components/generation/ResolutionSelect";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -1624,18 +1625,19 @@ export default function PromptGeneratorView({
               <div className="pgv-field pgv-field--bare">
                 <RatioSelect value={aspect} options={aspects} onChange={setAspect} title="Aspect ratio" />
               </div>
-              <div className="pgv-field">
-                <Maximize2 size={12} aria-hidden />
-                <select
+              {/* Ratio-format resolution: the CLOSED trigger says "2K", the
+                  price rides only the OPEN panel's rows (Kev, 2026-08-24:
+                  "den preis NUR bei aufgeklappten feldern"). */}
+              <div className="pgv-field pgv-field--bare">
+                <ResolutionSelect
                   value={resolution}
-                  onChange={e => setResolution(e.target.value)}
+                  onChange={setResolution}
+                  options={core.tiers.map(t => ({ tier: t.tier, price: noCharge ? null : t.price }))}
                   title={noCharge
                     ? "Resolution — this run renders on the FREE route (Flux), which tops out at 2K. Paid models unlock 4K."
                     : "Resolution"}
-                  aria-label="Resolution"
-                >
-                  {core.tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}{!noCharge && t.price != null ? ` · $${t.price.toFixed(2)}` : ""}</option>)}
-                </select>
+                  disabled={generating}
+                />
               </div>
             </div>
             {/* Quality on its own row below — room to breathe instead of a

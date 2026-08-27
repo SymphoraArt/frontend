@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { X, Sparkles, Plus, ImageIcon, Ratio, Maximize2, Copy, Settings, FileText, CheckCircle2 } from "lucide-react";
 import { getVariableColors } from "../lib/variableColors";
 import { computeGenerationPrice, PLATFORM_FEE_PERCENT } from "../lib/pricing";
+import { toModelFamily } from "../lib/generation/model-family";
 import "../app/editor/mobile-modal.css"; // We will create this next
 
 const CATEGORY_OPTIONS = [
@@ -487,7 +488,15 @@ export default function EnkiMobileGenerateModal({
      no gpt quality lever, so NO quality is passed: pricing then applies the
      same tier default the server routes and renders with — a hardcoded
      "medium" here priced a 4K request that actually renders high. */
-  const genPrice = computeGenerationPrice(models.selected[0] || "", genResolution, genCountNum, {
+  /* Priced by the model FAMILY, not the catalogue uuid: pricing tables are
+     keyed "nano-banana-pro"/"gpt-image-2", and an unknown key silently fell
+     to DEFAULT_IMAGE_PRICING — which is why the boost toggle changed nothing
+     here for any generator (Kev, 2026-08-24: "why doesnt boost set up
+     change on quick create for nbp"). */
+  const selectedFamily = toModelFamily(
+    models.available.find((m) => m.id === models.selected[0])?.name || models.selected[0] || "",
+  );
+  const genPrice = computeGenerationPrice(selectedFamily, genResolution, genCountNum, {
     boost: !!boost,
   });
   const useApiPricing = !!hideReleaseTab;
