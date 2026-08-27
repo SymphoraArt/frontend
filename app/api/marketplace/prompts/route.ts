@@ -191,6 +191,16 @@ export async function GET(request: NextRequest) {
       // moment it was saved — see app/api/prompts/route.ts for the same fix.
       dbQuery = dbQuery.eq("is_listed", true);
 
+      /* ?models=<alias>&models=… narrows to prompts made with the picked
+         generators (Kev, 2026-08-24: filter the wall by launcher). The
+         client sends every alias per generator (id, name, family slug)
+         because prompts.ai_model historically stores names AND slugs mixed
+         — "Flux (free)" next to "nano-banana-pro". */
+      const modelAliases = searchParams.getAll("models").filter(Boolean);
+      if (modelAliases.length > 0) {
+        dbQuery = dbQuery.in("ai_model", modelAliases);
+      }
+
       /* ?creator=<handle|uuid> narrows to one artist's shelf — the foreign
          profile page (Kev, 2026-08-24: creators render like the own profile)
          reads its Released tab through the SAME query and mapping as the
