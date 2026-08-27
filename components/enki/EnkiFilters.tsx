@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, Search, X, Cpu, Check } from "lucide-react";
+import GeneratorLogo from "@/components/generation/GeneratorLogo";
 import "@/components/generation/ratio-select.css";
 
 /**
@@ -162,8 +163,9 @@ function GeneratorInline({ groups, selected, onChange }: {
               <button key={e.id} type="button" aria-pressed={selected.includes(e.id)}
                 className={"enki-fltr-chip" + (selected.includes(e.id) ? " active" : "")}
                 onClick={() => flip(e.id)}>
-                {selected.includes(e.id) && <Check size={11} aria-hidden />}
+                <GeneratorLogo name={e.name} size={13} />
                 {e.name}
+                {selected.includes(e.id) && <Check size={11} aria-hidden />}
               </button>
             ))}
           </span>
