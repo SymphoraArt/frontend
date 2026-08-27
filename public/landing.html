@@ -4539,6 +4539,9 @@ function hideResetFrame() {
 window.addEventListener('message', function (e) {
   if (!e || !e.data) return;
   if (e.data.type === 'enki-reset-back') hideResetFrame();
+  /* In-app "Log in" buttons route to /?login=1; the shell forwards that
+     here so the visitor lands IN the auth modal (Kev, 2026-08-24). */
+  if (e.data.type === 'enki-open-login') openAuth('login');
   /* ESC pressed while focus sits in the TOP window (outside this iframe):
      the app forwards it here — same behavior as a local ESC. */
   if (e.data.type === 'enki-esc') {
@@ -5224,6 +5227,39 @@ function insertVar() {
 </style>
 <button class="lp-login-float" type="button" onclick="openAuth('login')">Login</button>
 <script>
+/* Deep link into the auth modal: /?login=1 (or #login) opens it on load.
+   In-app "Log in" buttons (profile gate, creator notice) send people here
+   — they should land IN the modal, not on the marketing page hunting for
+   the button (Kev, 2026-08-24). */
+(function () {
+  var q = new URLSearchParams(window.location.search);
+  if (q.get('login') === '1' || window.location.hash === '#login') {
+    var open = function () { if (typeof openAuth === 'function') openAuth('login'); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', open);
+    else open();
+  }
+  /* EMBED mode (?modal=1): this page becomes ONLY the auth modal, on a
+     transparent ground — the shell's LoginModal component mounts it in an
+     iframe overlay, so the ONE login UI is pluggable anywhere without a
+     second implementation that could drift (Kev, 2026-08-24). Closing
+     tells the host; "Continue with Wallet" already postMessages the host
+     (enki-open-wallet), which opens the wallet picker above. */
+  if (q.get('modal') === '1') {
+    var embed = function () {
+      document.documentElement.classList.add('auth-embed');
+      document.body.classList.add('auth-embed');
+      if (typeof openAuth === 'function') openAuth('login');
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', embed);
+    else embed();
+    var origClose = window.closeAuth;
+    window.closeAuth = function (e) {
+      if (e && e.target !== document.getElementById('authBackdrop')) return;
+      try { window.parent.postMessage({ type: 'enki-login-close' }, '*'); } catch (err) {}
+      if (origClose) origClose(e);
+    };
+  }
+})();
 (function () {
   var btn = document.querySelector('.lp-login-float');
   var hero = document.querySelector('.hero');
@@ -5268,6 +5304,13 @@ function insertVar() {
   /* Bright mode: the scene pill label was too light — use the deep accent
      tone the pill gradient already uses. */
   .lp-light .kv-scene-label { color: var(--lp-deep) !important; }
+</style>
+<style>
+/* ── Auth-embed mode (?modal=1): nothing but the modal on transparent
+   ground. Same markup, same scripts, same ESC/tab behavior as the landing
+   — that sameness is the point of embedding instead of rebuilding. ── */
+html.auth-embed, body.auth-embed { background: transparent !important; }
+body.auth-embed > *:not(#authBackdrop) { display: none !important; }
 </style>
 </body>
 </html>

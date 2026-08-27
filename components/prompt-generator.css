@@ -355,6 +355,10 @@ html.dark .pgv-field select {
   -webkit-appearance: auto;
   appearance: auto;
 }
+/* Read-only generator line for guests — same frame family as the select,
+   nothing clickable about it. */
+.pgv-generator-readonly { display: flex; align-items: center; gap: 8px; height: 31px; padding: 0 10px; border: 1px solid var(--pgv-border); border-radius: 7px; background: var(--pgv-input-bg); color: var(--pgv-text); font-size: 12px; }
+
 .pgv-generator-select {
   width: 100%;
   background: var(--pgv-input-bg);

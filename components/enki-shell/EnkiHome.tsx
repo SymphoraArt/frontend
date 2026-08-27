@@ -18,12 +18,14 @@ import { useRecoveryStatus } from "@/hooks/useRecoveryStatus";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useMessages } from "@/hooks/useMessages";
 import EnkiFeedPage from "@/components/enki/EnkiFeedPage";
+import { openLogin } from "@/lib/openLogin";
 import EnkiSidebar, { type NavItem } from "./EnkiSidebar";
 import ReferModal from "./ReferModal";
 import BookmarksPanel from "./BookmarksPanel";
 import FeedbackModal from "./FeedbackModal";
 import NodeCreator from "./NodeCreator";
 import EnkiPanel from "./EnkiPanel";
+import LoginModal from "@/components/LoginModal";
 import { EDIT_PROMPT_EVENT, consumePromptEdit } from "./editorBridge";
 import { Icon } from "./icons";
 import SettingsView from "@/components/settings/SettingsView";
@@ -121,6 +123,15 @@ export default function EnkiHome() {
      consumed event (preventDefault) tells them the shell took over — only
      surfaces OUTSIDE the shell fall back to the /creators route. */
   const [creatorHandle, setCreatorHandle] = useState<string | null>(null);
+  /* The login popup, IN the shell (Kev, 2026-08-24): profile gate and
+     creator notice raise enki:open-login and the LANDING'S auth modal —
+     embedded, not rebuilt — opens right here. */
+  const [loginOpen, setLoginOpen] = useState(false);
+  useEffect(() => {
+    const onOpenLogin = (e: Event) => { e.preventDefault(); setLoginOpen(true); };
+    window.addEventListener("enki:open-login", onOpenLogin);
+    return () => window.removeEventListener("enki:open-login", onOpenLogin);
+  }, []);
   useEffect(() => {
     const onOpenCreator = (e: Event) => {
       const h = (e as CustomEvent<{ handle?: string }>).detail?.handle;
@@ -228,7 +239,14 @@ export default function EnkiHome() {
   useEffect(() => {
     const onEdit = () => { setEditPrompt(consumePromptEdit()); setPanel(null); setNodeOpen(true); setActiveNav("home"); };
     window.addEventListener(EDIT_PROMPT_EVENT, onEdit);
+    /* A pending edit can predate this mount: "Open in editor" on the
+       standalone /generator page stashes the prompt and navigates here —
+       the event fired before anyone listened, so the mount drains the
+       stash too (Kev, 2026-08-24). */
+    const pending = consumePromptEdit();
+    if (pending) { setEditPrompt(pending); setNodeOpen(true); }
     return () => window.removeEventListener(EDIT_PROMPT_EVENT, onEdit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const searchParams = useSearchParams();
@@ -488,12 +506,13 @@ export default function EnkiHome() {
         >
           <div className="ek-modal ek-notice" style={{ maxWidth: 330 }} onClick={(e) => e.stopPropagation()}>
             <p className="ek-notice-text">The prompt creator is for logged in users. Sign in and it opens right up.</p>
-            <button type="button" className="ek-btn" style={{ minHeight: 36, width: "100%" }} onClick={() => { setCreatorNotice(null); router.push("/"); }}>
+            <button type="button" className="ek-btn" style={{ minHeight: 36, width: "100%" }} onClick={() => { setCreatorNotice(null); openLogin(); }}>
               Sign in
             </button>
           </div>
         </div>
       )}
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       {referOpen && (
         <ReferModal
           userKey={walletAddress}

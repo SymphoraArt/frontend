@@ -16,6 +16,7 @@ import {
   Info,
   X,
   Copy,
+  PenSquare,
   Check,
   Sparkles,
   Loader2,
@@ -46,7 +47,9 @@ import RatioSelect from "@/components/generation/RatioSelect";
 import { useBetaAccess } from "@/components/BetaGate";
 import { createPortal } from "react-dom";
 import { openCreator } from "@/lib/openCreator";
+import { requestPromptEdit } from "@/components/enki-shell/editorBridge";
 import ResolutionSelect from "@/components/generation/ResolutionSelect";
+import GeneratorLogo from "@/components/generation/GeneratorLogo";
 
 /* ── Types ── */
 type VarType = "text" | "checkbox" | "single-select" | "multi-select" | "slider" | "radio";
@@ -1331,6 +1334,31 @@ export default function PromptGeneratorView({
                 >
                   {copied ? <Check size={12} /> : <Copy size={12} />}
                 </button>
+                {/* "Put prompt to editor" (Kev, 2026-08-24): carry the text —
+                    including your edits — into the node editor to shape and
+                    release your own version. The parent prompt's id rides
+                    along as lineage (derived_from_prompt_id), so who built
+                    on whom stays traceable for later creator payouts. */}
+                {!guest && (
+                  <button
+                    type="button"
+                    className="pgv-mode pgv-mode--copy"
+                    title="Open in the prompt editor — release your own version"
+                    aria-label="Open in the prompt editor"
+                    onClick={() => {
+                      requestPromptEdit({
+                        title,
+                        promptTemplate: editedPrompt ?? promptText ?? "",
+                        derivedFrom: promptId,
+                        variables: variables.map(v => ({ name: v.name, type: "text", value: vars[v.name] ?? v.defaultValue ?? "" })),
+                      });
+                      toast({ title: "Opened in the editor — shape it and release your own." });
+                      if (!window.location.pathname.startsWith("/home")) window.location.assign("/home");
+                    }}
+                  >
+                    <PenSquare size={12} />
+                  </button>
+                )}
               </div>
 
               {/* VARIABLES is the artist's text and stays read-only — its
@@ -1602,6 +1630,19 @@ export default function PromptGeneratorView({
               row instead of squeezing three controls into one line
               (Kev, 2026-08-22). Hidden for guests with the rest of the
               generation controls (Kev, 2026-08-24). */}
+          {/* Guests still SEE which generator made the showcase — read-only,
+              below the prompt: they cannot generate, so an editable picker
+              would be a lie, but hiding the model hid information
+              (Kev, 2026-08-24). */}
+          {guest && (
+            <div className="pgv-block">
+              <span className="pgv-section-label">Generator</span>
+              <div className="pgv-generator-readonly">
+                <GeneratorLogo name={generator} size={14} />
+                <span>{generator}</span>
+              </div>
+            </div>
+          )}
           {!guest && (<>
           <div className="pgv-block">
             <span className="pgv-section-label">Generator</span>

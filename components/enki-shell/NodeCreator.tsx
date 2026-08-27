@@ -281,7 +281,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const nodes: NodeT[] = [{ id: "prompt", type: "prompt", x, y }];
 
     // Editing an existing released prompt → rebuild its node graph.
-    const ep = editPrompt as { title?: string; promptTemplate?: string; price?: number; variables?: Array<{ name?: string; type?: string; value?: unknown }> } | null;
+    const ep = editPrompt as { title?: string; promptTemplate?: string; price?: number; derivedFrom?: string; variables?: Array<{ name?: string; type?: string; value?: unknown }> } | null;
     if (ep && (ep.promptTemplate || ep.title)) {
       const vars = Array.isArray(ep.variables) ? ep.variables : [];
       let ti = 0;
@@ -1571,12 +1571,25 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     onToast((autofill ? "Auto-filled & generating " : "Generating ") + n + " image" + (n > 1 ? "s" : "") + " · Nano Banana Pro");
   };
 
+  /* Lineage: when this editor was opened from another prompt ("put prompt
+     to editor"), the parent's id rides along and goes into the release body
+     as derivedFrom — prompts.derived_from_prompt_id is how Kev traces which
+     prompt was built from which (and later, how creator payout splits know
+     their chain). Held in a ref: a draft save/restore may lose it, but a
+     wrong parent is worse than a missing one. */
+  const derivedFromRef = useRef<string | undefined>(
+    (editPrompt as { derivedFrom?: string } | null)?.derivedFrom,
+  );
+
   const release = () => {
     const need = st.mode === "free" ? 1 : 4;
     const ready = outs.filter((o) => o.img && o.status === "ready");
     const picked = ready.filter((o) => o.picked);
     if (ready.length < need) { onToast("Generate " + need + " example" + (need > 1 ? "s" : "") + " first — fill variables and click ▶ on the prompt (" + ready.length + "/" + need + ")"); return; }
     if (picked.length < need) { onToast("Select " + need + " output" + (need > 1 ? "s" : "") + " to publish — tap the ★ on the ones you want shown (" + picked.length + "/" + need + ")"); return; }
+    /* When this becomes a real API release, derivedFromRef.current MUST ride
+       in the body as derivedFrom — the lineage column already exists. */
+    void derivedFromRef.current;
     onToast(picked.length + " selected output" + (picked.length > 1 ? "s" : "") + " published · prompt released to marketplace");
     clearDraft(); // released — a stale draft must not resurrect the old graph
     onClose();

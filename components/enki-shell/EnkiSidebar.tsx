@@ -215,11 +215,16 @@ export default function EnkiSidebar({
               <span className="ek-account-nametext">{clip10(account.name)}</span>
               <span className="ek-account-handle">@{clip10(account.handle)}</span>
             </span>
-            {/* money + log off stacked at the far right — long names stay clear */}
+            {/* money + log off stacked at the far right — long names stay clear.
+                No balance chip for guests: $0 opened the payment settings for
+                someone who cannot pay yet — login comes first (Kev,
+                2026-08-24). */}
             <span className="ek-account-side">
-              <span className="ek-balance" onClick={(e) => { e.stopPropagation(); onTopUp(); }} title="Add funds">
-                <Icon name="dollar" size={11} stroke={2.4} />{balance.toFixed(2)}
-              </span>
+              {!guest && (
+                <span className="ek-balance" onClick={(e) => { e.stopPropagation(); onTopUp(); }} title="Add funds">
+                  <Icon name="dollar" size={11} stroke={2.4} />{balance.toFixed(2)}
+                </span>
+              )}
               {onLogoff && (
                 <button
                   className="ek-logoff"

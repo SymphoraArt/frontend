@@ -207,6 +207,7 @@ function MiniSelect({
   icon,
   title,
   maxWidth,
+  fixedWidth,
 }: {
   value: string;
   options: { value: string; label: string }[];
@@ -214,6 +215,9 @@ function MiniSelect({
   icon?: React.ReactNode;
   title?: string;
   maxWidth?: number;
+  /** FIXED trigger width — the control never resizes with the selection
+      (Kev, 2026-08-24: "UIs change positions when changing things"). */
+  fixedWidth?: number;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -236,7 +240,7 @@ function MiniSelect({
         <button
           type="button"
           className="mobile-modal-select mobile-modal-select--mini mobile-modal-minisel-trigger"
-          style={maxWidth ? { maxWidth } : undefined}
+          style={fixedWidth ? { width: fixedWidth } : maxWidth ? { maxWidth } : undefined}
           onClick={() => setOpen((o) => !o)}
         >
           <span className="mobile-modal-minisel-value">{(current as { short?: string } | undefined)?.short ?? current?.label ?? value}</span>
@@ -1357,13 +1361,16 @@ export default function EnkiMobileGenerateModal({
                     )}
                   </div>
                 )}
-                {/* No width cap: the selected model's NAME must be fully
-                    visible on desktop and mobile (Kev, 2026-08-23). */}
+                {/* Sized to the LONGEST model name and pinned there: a
+                    trigger that resizes with the selection shoves every
+                    control beside it (Kev, 2026-08-24). ~7.2px/char at the
+                    12px trigger font, plus padding and the chevron. */}
                 <MiniSelect
                   title="Model"
                   value={models.selected[0] || ""}
                   options={models.available.map((m) => ({ value: m.id, label: m.name }))}
                   onChange={(v) => setModel && setModel(v)}
+                  fixedWidth={Math.min(230, Math.round(Math.max(8, ...models.available.map((m) => String(m.name ?? "").length)) * 7.2) + 34)}
                 />
                 <MiniSelect
                   title="Aspect ratio"

@@ -15,6 +15,7 @@ import {
 import type { EnkiPrompt } from "@/lib/enkiPromptAdapter";
 import { requestPromptEdit } from "@/components/enki-shell/editorBridge";
 import { useBetaAccess } from "@/components/BetaGate";
+import { openLogin } from "@/lib/openLogin";
 import { listCreations, subscribeCreations, type StoredCreation } from "@/lib/creations";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, Sparkles, ImageOff, User, Pencil, Loader2, ZoomIn, Heart } from "lucide-react";
@@ -663,7 +664,7 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
           <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--enki-ink-3)", margin: "0 0 22px" }}>
             Log in and this page fills with your prompts, your gallery and your numbers.
           </p>
-          <a href="/" style={{
+          <a href="/?login=1" onClick={(e) => { e.preventDefault(); openLogin(); }} style={{
             display: "inline-block", padding: "12px 26px", borderRadius: 12, textDecoration: "none",
             background: "linear-gradient(135deg,#d9863f,#e8a83a)", color: "#181209", fontSize: 14, fontWeight: 700,
           }}>
