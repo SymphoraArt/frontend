@@ -307,6 +307,13 @@ export async function POST(req: Request) {
       is_free_showcase: Boolean(body.isFreeShowcase ?? false),
       public_prompt_text: body.content.slice(0, 220),
       updated_at: nowIso,
+      /* Lineage (Kev, 2026-08-24): a prompt built via "put prompt to
+         editor" records its parent. The key is added only when a valid
+         uuid arrives, so saves without lineage never touch the column
+         (which lands with migrations/2026-08-24-prompt-provenance.sql). */
+      ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String((body as { derivedFrom?: unknown }).derivedFrom ?? ""))
+        ? { derived_from_prompt_id: String((body as { derivedFrom?: unknown }).derivedFrom) }
+        : {}),
     };
 
     // Moderation. This route had none: a listed prompt is the one piece of
