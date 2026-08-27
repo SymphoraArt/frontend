@@ -2306,8 +2306,17 @@
    whole medium, one chip per generator, everything one click, multiple
    choice. Fixed bar — the page scrolls, this does not. ── */
 .enki-fltr-icon { display: flex; align-items: center; color: var(--enki-ink-3); margin-right: 2px; }
-.enki-fltr-group { display: inline-flex; align-items: center; gap: 6px; }
-.enki-fltr-divider { width: 1px; height: 14px; background: rgba(127, 127, 127, 0.25); margin: 0 8px; }
+/* One SUPER-SOFT frame per medium (Kev, 2026-08-24): a whisper of a
+   border and an even quieter fill — the eye groups first, reads second. */
+.enki-fltr-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 5px;
+  border: 1px solid color-mix(in oklab, var(--enki-ink-3) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-ink-3) 5%, transparent);
+}
 .enki-fltr-glabel {
   border: none;
   background: none;

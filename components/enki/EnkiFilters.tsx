@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Search, X, Cpu, Check } from "lucide-react";
+import { LayoutGrid, Search, X, Cpu } from "lucide-react";
 import GeneratorLogo from "@/components/generation/GeneratorLogo";
 import "@/components/generation/ratio-select.css";
 
@@ -148,24 +148,26 @@ function GeneratorInline({ groups, selected, onChange }: {
   return (
     <>
       <span className="enki-fltr-icon" aria-hidden><Cpu size={13} /></span>
-      {groups.map((g, i) => {
+      {groups.map((g) => {
         const ids = g.entries.map((e) => e.id);
         const all = ids.length > 0 && ids.every((id) => selected.includes(id));
         return (
+          /* Each medium sits in its own SUPER-SOFT outline (Kev,
+             2026-08-24) — the frame does the grouping, no divider needed. */
           <span key={g.label} className="enki-fltr-group">
-            {i > 0 && <span className="enki-fltr-divider" aria-hidden />}
             <button type="button" className={"enki-fltr-glabel" + (all ? " active" : "")}
               title={all ? `Deselect all ${g.label} generators` : `Select all ${g.label} generators`}
               onClick={() => flipGroup(g)}>
               {g.label}
             </button>
+            {/* Selection is COLOR ONLY — a checkmark grew the chip and
+                shoved its neighbours (Kev, 2026-08-24). */}
             {g.entries.map((e) => (
               <button key={e.id} type="button" aria-pressed={selected.includes(e.id)}
                 className={"enki-fltr-chip" + (selected.includes(e.id) ? " active" : "")}
                 onClick={() => flip(e.id)}>
                 <GeneratorLogo name={e.name} size={13} />
                 {e.name}
-                {selected.includes(e.id) && <Check size={11} aria-hidden />}
               </button>
             ))}
           </span>
