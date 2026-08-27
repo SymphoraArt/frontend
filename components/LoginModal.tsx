@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WalletPickerModal } from "@/components/WalletPickerModal";
 
 /**
@@ -12,11 +12,30 @@ import { WalletPickerModal } from "@/components/WalletPickerModal";
  * so email/password, Request access, the tabs and every future change to
  * that form appear here automatically — one login UI, zero drift. The
  * page's "Continue with Wallet" already postMessages enki-open-wallet; here
- * that opens the wallet picker in the same overlay. Backdrop close inside
- * the iframe posts enki-login-close.
+ * that opens the wallet picker in the same overlay.
+ *
+ * SPEED (Kev, 2026-08-24: "dauert viel zu lange"): the iframe carries a
+ * whole page, so it is PREWARMED — mounted invisibly moments after a guest
+ * shell settles — and kept alive after closing. Opening then only flips
+ * visibility and re-asks the frame to show its modal.
  */
-export default function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function LoginModal({ open, onClose, prewarm = false }: {
+  open: boolean;
+  onClose: () => void;
+  /** Load the frame invisibly ahead of time (pass while the viewer is a guest). */
+  prewarm?: boolean;
+}) {
   const [walletOpen, setWalletOpen] = useState(false);
+  const [warm, setWarm] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // Warm up shortly after mount — never in the shell's critical first paint.
+  useEffect(() => {
+    if (!prewarm || warm) return;
+    const t = window.setTimeout(() => setWarm(true), 1200);
+    return () => window.clearTimeout(t);
+  }, [prewarm, warm]);
+  useEffect(() => { if (open) setWarm(true); }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,22 +48,29 @@ export default function LoginModal({ open, onClose }: { open: boolean; onClose: 
     return () => window.removeEventListener("message", onMessage);
   }, [open, onClose]);
 
-  if (!open) return null;
+  // A re-open after a close inside the frame (backdrop click) must re-open
+  // the frame's modal — the frame stays warm, so ask it instead of reloading.
+  useEffect(() => {
+    if (open) frameRef.current?.contentWindow?.postMessage({ type: "enki-open-login" }, "*");
+  }, [open]);
 
+  if (!warm && !open) return null;
+
+  const shown = open && !walletOpen;
   return (
     <>
       <iframe
+        ref={frameRef}
         src="/landing.html?modal=1"
         title="Log in"
         style={{
           position: "fixed", inset: 0, width: "100%", height: "100%",
           border: "none", zIndex: 2000, background: "transparent",
-          // Hidden while the wallet picker is on top — two stacked modals
-          // reading each other's scrims is noise.
-          visibility: walletOpen ? "hidden" : "visible",
+          visibility: shown ? "visible" : "hidden",
+          pointerEvents: shown ? "auto" : "none",
         }}
       />
-      <WalletPickerModal open={walletOpen} onClose={() => { setWalletOpen(false); onClose(); }} />
+      <WalletPickerModal open={open && walletOpen} onClose={() => { setWalletOpen(false); onClose(); }} />
     </>
   );
 }

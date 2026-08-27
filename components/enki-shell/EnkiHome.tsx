@@ -512,7 +512,7 @@ export default function EnkiHome() {
           </div>
         </div>
       )}
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginModal open={loginOpen} prewarm={!authed} onClose={() => setLoginOpen(false)} />
       {referOpen && (
         <ReferModal
           userKey={walletAddress}
