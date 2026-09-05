@@ -108,6 +108,8 @@ export default function EnkiFeedPage() {
     hasNextPage,
     isFetchingNextPage,
     isPending,
+    error,
+    refetch,
   } = useInfiniteQuery<Page, Error, { pages: Page[]; pageParams: number[] }, string[], number>({
     queryKey: ["/api/marketplace/prompts", "home", genFilter.join(",")],
     queryFn: async ({ pageParam }) => {
@@ -127,7 +129,12 @@ export default function EnkiFeedPage() {
         }
       }
       const res = await fetch(`/api/marketplace/prompts?${params.toString()}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load marketplace prompts");
+      if (!res.ok) {
+        // The server's own sentence (e.g. "database unreachable") beats a
+        // generic one — and a failure must never look like an empty feed.
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || `Couldn't load prompts (HTTP ${res.status}).`);
+      }
       const json = await res.json();
       return json as Page;
     },
@@ -216,6 +223,14 @@ export default function EnkiFeedPage() {
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={`sk-init-${i}`} className="enki-skeleton" />
             ))}
+          </section>
+        ) : error ? (
+          <section className="enki-empty-state">
+            <div className="enki-account-card">
+              <div className="serif" style={{ fontSize: 28, marginBottom: 8 }}>Couldn't load the feed.</div>
+              <p style={{ margin: 0, color: "var(--enki-ink-2)" }}>{error.message}</p>
+              <button type="button" className="ek-btn" style={{ marginTop: 16, minHeight: 40 }} onClick={() => void refetch()}>Try again</button>
+            </div>
           </section>
         ) : showEmpty ? (
           <section className="enki-empty-state">
