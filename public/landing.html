@@ -2168,7 +2168,7 @@
   /* ══ AUTH MODAL ══ */
   .auth-backdrop {
     position: fixed; inset: 0; z-index: 2000;
-    background: rgba(0,4,24,0.75); backdrop-filter: blur(10px);
+    background: rgba(0,4,24,0.75); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     display: none; align-items: center; justify-content: center;
     padding: 20px;
   }
@@ -5281,6 +5281,20 @@ function insertVar() {
       try { window.parent.postMessage({ type: 'enki-login-close' }, '*'); } catch (err) {}
       if (origClose) origClose(e);
     };
+    // "Done" on the access-request success card closes locally as well.
+    var origHard = window.closeAuthHard;
+    window.closeAuthHard = function () {
+      try { window.parent.postMessage({ type: 'enki-login-close' }, '*'); } catch (err) {}
+      if (origHard) origHard();
+    };
+    // Escape closes the modal locally (handler above) but never went through
+    // closeAuth, so the host kept an invisible, click-swallowing frame on top
+    // of the page. Capture phase: runs before that handler can hide the reset
+    // frame, so a first Escape inside the reset flow still only steps back.
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || document.getElementById('authResetWrap')) return;
+      try { window.parent.postMessage({ type: 'enki-login-close' }, '*'); } catch (err) {}
+    }, true);
   }
 })();
 (function () {
