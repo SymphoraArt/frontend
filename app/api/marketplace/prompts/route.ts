@@ -305,6 +305,8 @@ export async function GET(request: NextRequest) {
       }
 
     } catch (searchError) {
+      // A dead host is an answer, not an empty feed.
+      if (isDbUnreachable(searchError)) return dbUnavailableResponse();
       console.error('Search query failed:', searchError);
     }
 

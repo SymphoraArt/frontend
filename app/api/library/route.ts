@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
-import { resolveRecordingUserId } from "@/lib/generation/record";
+import { resolveSessionUserId } from "@/lib/session-user";
 import { isDbUnreachable, dbUnavailableResponse } from "@/lib/db-error";
 
 /**
@@ -19,12 +19,18 @@ const MAX_GRAPH_BYTES = 400_000;
 
 async function owner(request: NextRequest) {
   const supabase = getSupabaseServerClient();
-  const userId = await resolveRecordingUserId(supabase, request);
-  return { supabase, userId };
+  try {
+    const userId = await resolveSessionUserId(supabase, request.headers.get("X-Session-Token"));
+    return { supabase, userId, down: false };
+  } catch (e) {
+    if (isDbUnreachable(e)) return { supabase, userId: null, down: true };
+    throw e;
+  }
 }
 
 export async function GET(request: NextRequest) {
-  const { supabase, userId } = await owner(request);
+  const { supabase, userId, down } = await owner(request);
+  if (down) return dbUnavailableResponse();
   if (!userId) return NextResponse.json({ error: "Login required" }, { status: 401 });
   const { data, error } = await supabase
     .from("saved_workflows")
@@ -37,7 +43,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase, userId } = await owner(request);
+  const { supabase, userId, down } = await owner(request);
+  if (down) return dbUnavailableResponse();
   if (!userId) return NextResponse.json({ error: "Login required" }, { status: 401 });
   let body: { name?: unknown; kind?: unknown; graph?: unknown; promptText?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -60,7 +67,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { supabase, userId } = await owner(request);
+  const { supabase, userId, down } = await owner(request);
+  if (down) return dbUnavailableResponse();
   if (!userId) return NextResponse.json({ error: "Login required" }, { status: 401 });
   const id = request.nextUrl.searchParams.get("id") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
