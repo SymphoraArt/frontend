@@ -465,11 +465,16 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
   // The private library — fetched lazily the first time its tab opens.
   type LibItem = { id: string; name: string; kind: string; updated_at: string; graph: unknown; prompt_text: string | null };
   const [library, setLibrary] = useState<LibItem[] | null>(null);
-  const loadLibrary = () =>
-    fetch("/api/library", { headers: { ...sessionAuthHeaders() } })
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d) => setLibrary(Array.isArray(d.items) ? d.items : []))
-      .catch(() => setLibrary([]));
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const loadLibrary = async () => {
+    setLibraryError(null);
+    try {
+      const r = await fetch("/api/library", { headers: { ...sessionAuthHeaders() } });
+      const d = (await r.json().catch(() => ({}))) as { items?: LibItem[]; error?: string };
+      if (!r.ok) { setLibrary([]); setLibraryError(d.error || `Couldn't load your library (HTTP ${r.status}).`); return; }
+      setLibrary(Array.isArray(d.items) ? d.items : []);
+    } catch { setLibrary([]); setLibraryError("Couldn't load your library."); }
+  };
   useEffect(() => {
     if (activeTab !== "Library" || library !== null) return;
     void loadLibrary();
@@ -953,6 +958,12 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
         ) : activeTab === "Library" ? (
           library === null ? (
             <div style={{ padding: "60px 0", textAlign: "center", color: "var(--enki-ink-3)" }}>Loading…</div>
+          ) : libraryError ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}>
+              <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>Couldn't load your library.</div>
+              <p style={{ fontSize: 14, color: "var(--enki-ink-3)", maxWidth: 440, margin: "8px auto 0" }}>{libraryError}</p>
+              <button type="button" className="ek-btn" style={{ marginTop: 16, minHeight: 40 }} onClick={() => void loadLibrary()}>Try again</button>
+            </div>
           ) : library.length === 0 ? (
             <div style={{ padding: "80px 0", textAlign: "center" }}>
               <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>Your library is empty.</div>

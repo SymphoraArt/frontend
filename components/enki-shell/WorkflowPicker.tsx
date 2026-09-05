@@ -27,14 +27,18 @@ type MarketRow = { id: string; title: string; promptTemplate?: string; descripti
 export default function WorkflowPicker({ onPick, onClose }: { onPick: (w: WorkflowPick) => void; onClose: () => void }) {
   const [tab, setTab] = useState<"library" | "market">("library");
   const [lib, setLib] = useState<LibraryRow[] | null>(null);
+  const [libErr, setLibErr] = useState<string | null>(null);
   const [market, setMarket] = useState<MarketRow[] | null>(null);
   const [q, setQ] = useState("");
 
   useEffect(() => {
     fetch("/api/library", { headers: sessionAuthHeaders() })
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d) => setLib(Array.isArray(d.items) ? d.items : []))
-      .catch(() => setLib([]));
+      .then(async (r) => {
+        const d = (await r.json().catch(() => ({}))) as { items?: LibraryRow[]; error?: string };
+        if (!r.ok) { setLibErr(d.error || `Couldn't load your library (HTTP ${r.status}).`); setLib([]); return; }
+        setLib(Array.isArray(d.items) ? d.items : []);
+      })
+      .catch(() => { setLibErr("Couldn't load your library."); setLib([]); });
     fetch("/api/marketplace/prompts?limit=40&sortBy=newest&priceFilter=free", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { prompts: [] }))
       .then((d) => setMarket(Array.isArray(d.prompts) ? d.prompts : []))
@@ -66,6 +70,7 @@ export default function WorkflowPicker({ onPick, onClose }: { onPick: (w: Workfl
         <div className="nc-wfpick-list">
           {tab === "library" ? (
             lib === null ? <div className="nc-wfpick-empty">Loading…</div>
+            : libErr ? <div className="nc-wfpick-empty">{libErr}</div>
             : libRows.length === 0 ? <div className="nc-wfpick-empty">Nothing saved yet — use “Save to library” in the editor menu.</div>
             : libRows.map((r) => {
               const text = r.prompt_text ?? r.graph?.prompt ?? "";

@@ -626,7 +626,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
         body: JSON.stringify({ name, kind: "workflow", graph: buildExportJSON(), promptText: stRef.current.body }),
       });
-      onToast(res.ok ? `Saved "${name}" to your library` : "Couldn't save. Are you logged in?");
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      onToast(res.ok ? `Saved "${name}" to your library` : body.error || "Couldn't save. Are you logged in?");
     } catch { onToast("Couldn't save to your library"); }
     finally { setLibSaving(false); }
   };
