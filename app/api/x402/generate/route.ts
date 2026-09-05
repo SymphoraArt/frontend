@@ -39,6 +39,7 @@ import {
 } from "@/lib/payments/generation-pricing";
 import { usdcMint, feePayerKeypair, solanaConnection, solanaChainKey } from "@/lib/payments/solana";
 import { effectiveQuality } from "@/lib/pricing";
+import { reportPriceDrift } from "@/lib/generation/price-drift";
 import {
   parseXPayment, verifyAgentPayment, cosignAsFeePayer, submitAndConfirm, paymentResponseHeader,
 } from "@/lib/payments/x402-settle";
@@ -363,6 +364,15 @@ async function settleAndGenerate(input: Input, paymentHeader: string): Promise<N
   }
   if (route.modelProviderId && route.providerId) {
     after(reportSuccess(getSupabaseServerClient(), route.modelProviderId, route.providerId));
+  }
+  if (typeof result.usage?.costUsd === "number") {
+    after(reportPriceDrift(supabase, {
+      provider: route.provider,
+      modelFamily: input.modelFamily,
+      resolution: input.resolution,
+      quality: effQuality,
+      observedUsd: result.usage.costUsd,
+    }));
   }
 
   const dataUrl = `data:image/png;base64,${buffer.toString("base64")}`;

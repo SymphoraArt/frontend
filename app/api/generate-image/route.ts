@@ -22,6 +22,7 @@ import { moderate, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
 import { resolveModel, resolveModelByFamily, chooseRoute, type ResolvedModel } from "@/lib/generation/models";
 import { normalizeTier, clampTier } from "@/lib/generation/resolution";
 import { effectiveQuality } from "@/lib/pricing";
+import { reportPriceDrift } from "@/lib/generation/price-drift";
 import { toModelFamily } from "@/lib/generation/model-family";
 import { claimForGeneration, type ClaimMode } from "@/lib/payments/generation-claim";
 import { captureAndBroadcast, voidAndFlush, sweepAndFlush } from "@/lib/payments/settle";
@@ -1106,6 +1107,18 @@ export async function POST(request: NextRequest) {
       // over a week never add up to an outage.
       if (route.modelProviderId && route.providerId) {
         after(reportSuccess(getSupabaseServerClient(), route.modelProviderId, route.providerId));
+      }
+      /* Runtime price-drift check: the vendor's bill for THIS image against
+         the cell we charge by. A repriced provider is noticed on the first
+         image, and the admins are mailed (Kev, 2026-09-05). */
+      if (typeof geminiResult.usage?.costUsd === "number") {
+        after(reportPriceDrift(getSupabaseServerClientSafe(), {
+          provider: route.provider,
+          modelFamily: toModelFamily(chosen.name),
+          resolution: normalizeTier(paidResolution) ?? askedResolution ?? "2K",
+          quality: effQuality,
+          observedUsd: geminiResult.usage.costUsd,
+        }));
       }
     }
 
