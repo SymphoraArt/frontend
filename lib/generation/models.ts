@@ -112,7 +112,12 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
  */
 const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supportsResolution" | "supportsQuality">> = {
   "nano-banana-pro": {
-    normal: { provider: "wavespeed", providerModel: "google/nano-banana-pro/text-to-image" },
+    // Gemini direct is the primary host since 2026-09-05: WaveSpeed raised
+    // 1K/2K to $0.14 while Gemini stays $0.134 — and Gemini was already the
+    // 2-4x faster host boost used to sell. Cheapest and fastest coincide, so
+    // boost === normal and the toggle disappears; the WaveSpeed row in
+    // model_providers stays as the outage fallback.
+    normal: { provider: "gemini", providerModel: "gemini-3-pro-image" },
     boost: { provider: "gemini", providerModel: "gemini-3-pro-image" },
     supportsResolution: true,
     supportsQuality: false,
@@ -126,15 +131,15 @@ const BY_SLUG: Record<string, Pick<ResolvedModel, "normal" | "boost" | "supports
     supportsQuality: false,
   },
   "gpt-image-2": {
-    // Quality decides the host (Kev, 2026-08-24): OpenAI direct is CHEAPER
-    // below high (measured $0.107 vs WaveSpeed's flat $0.167 at 2K medium),
-    // WaveSpeed's flat price wins at high ($0.167 vs $0.428). The live
-    // model_providers rows carry that split as applies_when conditions; this
-    // fallback answers WaveSpeed. boost === normal on purpose — with every
-    // request already on its cheapest host there is no faster host to sell,
-    // so hasBoost() reports false and the toggle disappears for this model.
-    normal: { provider: "wavespeed", providerModel: "openai/gpt-image-2/text-to-image" },
-    boost: { provider: "wavespeed", providerModel: "openai/gpt-image-2/text-to-image" },
+    // OpenAI direct on every quality since 2026-09-05: WaveSpeed replaced its
+    // flat $0.167/$0.25 with a quality matrix whose high cells ($0.40/$0.72)
+    // would have lost money against what we charged, and its remaining
+    // advantage over OpenAI's measured cells is 1-3 cents in two cells — not
+    // worth a second, unmeasured host. WaveSpeed stays in model_providers as
+    // the outage fallback. boost === normal: the cheapest host is already the
+    // fastest, so hasBoost() is false and the toggle stays hidden.
+    normal: { provider: "openai", providerModel: "gpt-image-2" },
+    boost: { provider: "openai", providerModel: "gpt-image-2" },
     // OpenAI takes pixels rather than a tier; the service converts, so the
     // resolution the user picks really does change the image.
     supportsResolution: true,

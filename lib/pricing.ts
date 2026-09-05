@@ -29,8 +29,15 @@ export const MODEL_IMAGE_PRICING: Record<
   string,
   Record<ResolutionTier, number>
 > = {
+  /* nano-banana-pro runs Gemini direct since 2026-09-05: WaveSpeed raised
+     its 1K/2K to $0.14 while Gemini stays $0.134 (official page). */
   "nano-banana-pro": { "2K": 0.134, "4K": 0.24 },
-  "gpt-image-2": { "2K": 0.167, "4K": 0.25 },
+  /* gpt-image-2 runs OpenAI direct on EVERY quality since 2026-09-05 —
+     WaveSpeed dropped its flat $0.167/$0.25 for a quality matrix that would
+     have lost us money at high ($0.40/$0.72 vs our $0.167/$0.25). This row
+     is the MEDIUM cell (the picker's "from" price and the tier ratio); the
+     charged price per quality is GPT_OPENAI below. */
+  "gpt-image-2": { "2K": 0.107, "4K": 0.178 },
 };
 
 /** Fallback used when a model id isn't in the table above. */
@@ -95,18 +102,17 @@ const GPT_OPENAI: Record<GptQuality, Record<ResolutionTier, number>> = {
  * Published API cost (USD) for a single image at the given model, resolution
  * and (for gpt) quality.
  *
- * gpt-image-2 routes BY QUALITY (Kev, 2026-08-24: "use openai on low und
- * medium und bei high wavespeed"): OpenAI direct is cheaper below high
- * ($0.107 vs WaveSpeed's flat $0.167 at 2K medium), WaveSpeed's flat price
- * is far cheaper AT high ($0.167 vs $0.428). The price here is the cost of
- * the host that will actually run — the model_providers applies_when rows
- * and this table encode the SAME split, and both must move together.
+ * gpt-image-2 runs OpenAI direct on EVERY quality (Kev, 2026-09-05, after
+ * WaveSpeed dropped its flat price for a quality matrix: the 2026-08-24
+ * "high → WaveSpeed" split rested on a $0.167/$0.25 that no longer exists,
+ * and WaveSpeed's new high cells — $0.40/$0.72 — would have lost money
+ * against what we charged). Every cell here is a MEASURED OpenAI cost; the
+ * remaining WaveSpeed gpt row is an outage fallback only.
  */
 export function apiPricePerImage(modelId: string, resolution: string, quality?: string | null): number {
   const tier = toResolutionTier(resolution);
   if (modelId === "gpt-image-2") {
-    const q = effectiveQuality(resolution, quality);
-    return q === "high" ? MODEL_IMAGE_PRICING[modelId][tier] : GPT_OPENAI[q][tier];
+    return GPT_OPENAI[effectiveQuality(resolution, quality)][tier];
   }
   return (MODEL_IMAGE_PRICING[modelId] ?? DEFAULT_IMAGE_PRICING)[tier];
 }

@@ -33,7 +33,9 @@ describe("model → route resolution", () => {
 
   it("falls back to the slug bridge when the migration has not run", () => {
     const m = fromRow(NANO, "public");
-    expect(m.normal.provider).toBe("wavespeed");
+    // Gemini direct on both legs since 2026-09-05 (WaveSpeed raised 1K/2K to
+    // $0.14; Gemini stays $0.134 and is the faster host) — boost === normal.
+    expect(m.normal.provider).toBe("gemini");
     expect(m.boost.provider).toBe("gemini");
   });
 

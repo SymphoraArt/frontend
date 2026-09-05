@@ -1771,17 +1771,22 @@ export default function PromptGeneratorView({
                 there, still before the click, and reachable by hover, focus
                 and touch — but it stops competing with the price it qualifies.
                 Rendered only when the quote actually carries a fee. */}
-            {!noCharge && paidQuote && (
+            {/* The network fee is 0 since 2026-09-05 (Kev: only 10% on top of
+                the API cost) — the marker renders only when there is a fee
+                or a pricing rule to name, never "incl. $0 network fee". */}
+            {!noCharge && paidQuote && (Number(paidQuote.networkFeeUsd) > 0 || paidQuote.appliedRule) && (
               <span
                 className="pgv-fee-info"
                 tabIndex={0}
                 role="note"
-                aria-label={`Total includes a $${paidQuote.networkFeeUsd} network fee`}
+                aria-label={Number(paidQuote.networkFeeUsd) > 0
+                  ? `Total includes a $${paidQuote.networkFeeUsd} network fee`
+                  : `Pricing rule: ${paidQuote.appliedRule?.name}`}
               >
                 <Info size={11} aria-hidden />
                 <span className="pgv-fee-tip">
-                  incl. ${paidQuote.networkFeeUsd} network fee
-                  {paidQuote.appliedRule ? ` · ${paidQuote.appliedRule.name}` : ""}
+                  {Number(paidQuote.networkFeeUsd) > 0 ? `incl. $${paidQuote.networkFeeUsd} network fee` : ""}
+                  {paidQuote.appliedRule ? `${Number(paidQuote.networkFeeUsd) > 0 ? " · " : ""}${paidQuote.appliedRule.name}` : ""}
                 </span>
               </span>
             )}
