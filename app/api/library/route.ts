@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { resolveRecordingUserId } from "@/lib/generation/record";
+import { isDbUnreachable, dbUnavailableResponse } from "@/lib/db-error";
 
 /**
  * Private prompt / workflow library (Kev, 2026-09-05). Every row belongs to
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(200);
-  if (error) return NextResponse.json({ error: "Library unavailable" }, { status: 500 });
+  if (error) return isDbUnreachable(error) ? dbUnavailableResponse() : NextResponse.json({ error: "Library unavailable" }, { status: 500 });
   return NextResponse.json({ items: data ?? [] });
 }
 
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     .insert({ user_id: userId, name, kind, graph, prompt_text: promptText })
     .select("id, name, kind, graph, prompt_text, created_at, updated_at")
     .single();
-  if (error) return NextResponse.json({ error: "Could not save" }, { status: 500 });
+  if (error) return isDbUnreachable(error) ? dbUnavailableResponse() : NextResponse.json({ error: "Could not save" }, { status: 500 });
   return NextResponse.json({ item: data }, { status: 201 });
 }
 
@@ -69,7 +70,7 @@ export async function DELETE(request: NextRequest) {
     .delete({ count: "exact" })
     .eq("id", id)
     .eq("user_id", userId);
-  if (error) return NextResponse.json({ error: "Could not delete" }, { status: 500 });
+  if (error) return isDbUnreachable(error) ? dbUnavailableResponse() : NextResponse.json({ error: "Could not delete" }, { status: 500 });
   if (!count) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

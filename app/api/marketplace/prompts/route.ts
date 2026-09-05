@@ -1,3 +1,4 @@
+import { isDbUnreachable, dbUnavailableResponse } from "@/lib/db-error";
 /**
  * GET /api/marketplace/prompts
  * Advanced marketplace search and filtering with full-text search
@@ -460,6 +461,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    if (isDbUnreachable(error)) return dbUnavailableResponse();
     console.error('Error fetching marketplace prompts:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
