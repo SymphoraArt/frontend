@@ -262,7 +262,17 @@ export async function generateImagesWithOpenAI(
       };
     }
 
-    const json = (await res.json()) as { data?: { b64_json?: string; url?: string }[] };
+    const json = (await res.json()) as {
+      data?: { b64_json?: string; url?: string }[];
+      usage?: { output_tokens?: number; output_tokens_details?: { image_tokens?: number } };
+    };
+    /* The bill for THIS image: gpt-image bills image output tokens at $30/1M
+       (official rate, confirmed 2026-08-24). Carried out so the runtime
+       price-drift detector can compare it with what we charge. */
+    const imageOutputTokens = json.usage?.output_tokens_details?.image_tokens ?? json.usage?.output_tokens;
+    const usage = typeof imageOutputTokens === 'number'
+      ? { imageOutputTokens, costUsd: (imageOutputTokens * 30) / 1_000_000 }
+      : undefined;
     const first = json.data?.[0];
     // gpt-image models always answer with base64 — there is no url to follow.
     if (!first?.b64_json) {
@@ -279,6 +289,7 @@ export async function generateImagesWithOpenAI(
 
     return {
       success: true,
+      usage,
       imageBuffers: [buffer],
       generationTime: Date.now() - startTime,
       metadata: {

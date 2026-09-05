@@ -234,8 +234,17 @@ export async function generateImagesWithGemini(
       (measured ? ` — ${measured.width}x${measured.height} ${measured.format}, ${imageBuffers[0].length} bytes` : ''),
     );
 
+    /* The bill for THIS image: gemini-3-pro-image bills image output tokens
+       at $120/1M (official page, confirmed 2026-08-24: 1120 tokens per 1K/2K,
+       2000 per 4K). Carried out for the runtime price-drift detector. */
+    const imageOutputTokens = (response as { usageMetadata?: { candidatesTokenCount?: number } }).usageMetadata?.candidatesTokenCount;
+    const usage = typeof imageOutputTokens === 'number'
+      ? { imageOutputTokens, costUsd: (imageOutputTokens * 120) / 1_000_000 }
+      : undefined;
+
     return {
       success: true,
+      usage,
       imageBuffers,
       generationTime,
       metadata: {
@@ -336,9 +345,15 @@ export async function generateMultipleImagesWithGemini(
   let totalTime = 0;
   let anyRetryable = false;
 
+  let usageTokens = 0;
+  let usageSeen = false;
   for (const result of results) {
     if (result.success && result.imageBuffers) {
       allImageBuffers.push(...result.imageBuffers);
+      if (typeof result.usage?.imageOutputTokens === 'number') {
+        usageTokens += result.usage.imageOutputTokens;
+        usageSeen = true;
+      }
     } else if (result.error) {
       errors.push(result.error);
       if (result.retryable) {
@@ -352,6 +367,10 @@ export async function generateMultipleImagesWithGemini(
   if (allImageBuffers.length > 0) {
     return {
       success: true,
+      // Per-image bill: the drift detector compares ONE image with ONE cell.
+      usage: usageSeen
+        ? { imageOutputTokens: usageTokens / allImageBuffers.length, costUsd: ((usageTokens / allImageBuffers.length) * 120) / 1_000_000 }
+        : undefined,
       imageBuffers: allImageBuffers,
       generationTime: totalTime,
       error: errors.length > 0

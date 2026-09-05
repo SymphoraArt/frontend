@@ -40,6 +40,16 @@ export interface ImageGenerationResult {
   error?: string;
   generationTime?: number;
   retryable?: boolean;
+  /**
+   * What the vendor billed for THIS image, when its response says so
+   * (OpenAI usage.output_tokens, Gemini usageMetadata). Feeds the runtime
+   * price-drift detector (lib/generation/price-drift.ts) — a repriced
+   * provider is noticed on the first image, not on the next invoice.
+   */
+  usage?: {
+    imageOutputTokens?: number;
+    costUsd?: number;
+  };
   metadata?: {
     model: string;
     aspectRatio: string;
