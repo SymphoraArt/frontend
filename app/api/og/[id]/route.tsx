@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { aspectOf, gridFor } from "@/lib/og-grid";
 
 /**
  * Social preview card for a prompt — the image X, Discord, Telegram, Slack
@@ -18,14 +19,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   // The card must ALWAYS render: a database blip (or a deleted prompt) shows
   // the brand card rather than a broken unfurl on someone's timeline.
-  type Row = { title?: string | null; showcase_images?: unknown; price_usd_cents?: number | null; is_free_showcase?: boolean | null; creator_id?: string | null };
+  type Row = { title?: string | null; showcase_images?: unknown; price_usd_cents?: number | null; is_free_showcase?: boolean | null; creator_id?: string | null; aspect_ratio?: string | null };
   let p: Row | null = null;
   let handle: string | null = null;
   try {
     const supabase = getSupabaseServerClient();
     const { data } = await supabase
       .from("prompts")
-      .select("title, showcase_images, price_usd_cents, is_free_showcase, creator_id")
+      .select("title, showcase_images, price_usd_cents, is_free_showcase, creator_id, aspect_ratio")
       .eq("id", id)
       .maybeSingle();
     p = (data as Row | null) ?? null;
@@ -44,27 +45,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const free = p?.is_free_showcase === true || (p?.price_usd_cents ?? 0) === 0;
   const priceLabel = free ? "Free prompt" : `$${((p?.price_usd_cents ?? 0) / 100).toFixed(2)} per generation`;
 
-  // 1 image fills the card; 2 split it; 3-4 tile a 2x2 (a 3rd spans the bottom).
-  const cols = images.length <= 1 ? 1 : 2;
-  const rows = images.length <= 2 ? 1 : 2;
-  const cellW = W / cols;
-  const cellH = (H - 96) / rows;
+  /* Layout follows the renders' shape (Kev, 2026-09-05): portrait prompts
+     put their images side by side, square/landscape ones tile 2×2 — the
+     rule lives in lib/og-grid.ts with its own tests. */
+  const cells = gridFor(images.length, aspectOf(p?.aspect_ratio), W, H - 96);
 
   return new ImageResponse(
     (
       <div style={{ width: W, height: H, display: "flex", flexDirection: "column", background: "#0a1825", color: "#e4edf1", fontFamily: "sans-serif" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", width: W, height: H - 96 }}>
+        <div style={{ display: "flex", position: "relative", width: W, height: H - 96 }}>
           {images.length === 0 ? (
             <div style={{ width: W, height: H - 96, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 44, color: "#6a8493" }}>
               Enki Art
             </div>
           ) : (
             images.map((src, i) => {
-              const last = i === images.length - 1 && images.length === 3;
+              const c = cells[i];
               return (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={src} alt="" width={last ? W : cellW} height={cellH}
-                  style={{ width: last ? W : cellW, height: cellH, objectFit: "cover" }} />
+                <img key={i} src={src} alt="" width={c.w} height={c.h}
+                  style={{ position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h, objectFit: "cover" }} />
               );
             })
           )}
