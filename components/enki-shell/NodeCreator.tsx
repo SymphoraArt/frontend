@@ -21,6 +21,8 @@ import { generateWithModel, persistCreation, placeholderArt } from "./generation
 import { useModelLimits } from "@/hooks/useModelLimits";
 import DocView from "./DocView";
 import DiceButton from "@/components/DiceButton";
+import WorkflowPicker, { type WorkflowPick } from "./WorkflowPicker";
+import { wfToken, resolveWorkflowTokens } from "@/lib/editor/workflow-tokens";
 import { sessionAuthHeaders } from "@/lib/session-headers";
 import type { DiceValue } from "@/lib/generation/variable-dice";
 
@@ -85,7 +87,14 @@ const nid = (p: string) => p + NID++;
 export type Kind = "text" | "bool";
 export type NodeT = {
   id: string;
-  type: "prompt" | "ref" | "text" | "output";
+  type: "prompt" | "ref" | "text" | "output" | "workflow";
+  /* A WORKFLOW node embeds another prompt/workflow (Kev, 2026-09-05): its
+     text is read-only IP, its [variables] surface as text nodes owned by it
+     (`wfOf`), and {{wf:<id>}} marks its place in the body. `open` = unfolded
+     inline so the inside is visible. */
+  wf?: { promptId: string | null; title: string; author?: string; price?: number; text: string; vars: string[] };
+  open?: boolean;
+  wfOf?: string;
   x?: number; y?: number;
   index?: number; img?: string | null; userInput?: boolean;
   name?: string; kind?: Kind; pub?: boolean; value?: string; str?: string;
@@ -135,13 +144,25 @@ const randVals = (texts: TextNode[]) => {
 
 /* Approximate node footprints (used for tidy row/column placement). */
 const NODE_DIM: Record<string, { w: number; h: number }> = {
-  prompt: { w: 480, h: 360 }, ref: { w: 172, h: 210 }, text: { w: 260, h: 188 }, output: { w: 208, h: 250 },
+  prompt: { w: 480, h: 360 }, ref: { w: 172, h: 210 }, text: { w: 260, h: 188 }, output: { w: 208, h: 250 }, workflow: { w: 300, h: 150 },
 };
 
 /* build the literal prompt sent to Nano Banana Pro: substitute [var] tokens with
    their values, strip [Reference Image N] tokens (txt2img is text-only). */
-function buildPrompt(body: string, texts: TextNode[], valsOverride?: Record<string, string>) {
-  let out = body;
+function buildPrompt(body: string, texts: TextNode[], valsOverride?: Record<string, string>, workflows: NodeT[] = []) {
+  /* Embedded workflows first: each {{wf:id}} becomes the embedded text with
+     ITS variables filled from the text nodes it owns, so the host's own
+     [variables] below see one flat prompt. */
+  const wfVals = (w: NodeT) => {
+    const vals: Record<string, string> = {};
+    for (const v of w.wf?.vars ?? []) {
+      const t = texts.find((x) => x.wfOf === w.id && x.name === v);
+      const raw = valsOverride && t ? valsOverride["[" + t.name + "]"] ?? t.value : t?.value;
+      vals[v] = t?.kind === "bool" ? (raw === "on" || raw === "Yes" ? ((t.str && t.str.trim()) || v) : "") : (raw ?? "");
+    }
+    return vals;
+  };
+  let out = resolveWorkflowTokens(body, workflows.filter((w) => w.type === "workflow" && w.wf).map((w) => ({ id: w.id, text: w.wf!.text, vars: wfVals(w) })));
   texts.forEach((t) => {
     const tok = "[" + t.name + "]";
     const raw = valsOverride ? valsOverride[tok] : t.value;
@@ -450,8 +471,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
      an id, a `type`, a `pos:[x,y]`, and its widget values — plus top-level
      graph metadata. We mirror that shape so the file reads like a Comfy graph,
      while keeping every Enki-specific field needed for a lossless round-trip. */
-  const NTYPE_OUT: Record<NodeT["type"], string> = { prompt: "EnkiPrompt", ref: "EnkiReferenceImage", text: "EnkiTextInput", output: "EnkiOutputImage" };
-  const NTYPE_IN: Record<string, NodeT["type"]> = { EnkiPrompt: "prompt", EnkiReferenceImage: "ref", EnkiTextInput: "text", EnkiOutputImage: "output" };
+  const NTYPE_OUT: Record<NodeT["type"], string> = { prompt: "EnkiPrompt", ref: "EnkiReferenceImage", text: "EnkiTextInput", output: "EnkiOutputImage", workflow: "EnkiWorkflow" };
+  const NTYPE_IN: Record<string, NodeT["type"]> = { EnkiPrompt: "prompt", EnkiReferenceImage: "ref", EnkiTextInput: "text", EnkiOutputImage: "output", EnkiWorkflow: "workflow" };
   const buildExportJSON = () => {
     const s = stRef.current;
     const nodes = s.nodes.map((n) => {
@@ -468,6 +489,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       if (n.picked != null) out.picked = n.picked;
       if (n.sig != null) out.sig = n.sig;
       if (n.status != null) out.status = n.status;
+      if (n.wf) out.wf = n.wf;
+      if (n.open != null) out.open = n.open;
+      if (n.wfOf) out.wfOf = n.wfOf;
       if (n.index != null) out.index = n.index;
       if (n.vals != null) out.widgets_values = n.vals;
       return out;
@@ -514,6 +538,9 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       if (o.picked != null) n.picked = !!o.picked;
       if (o.sig != null) n.sig = String(o.sig);
       if (o.status != null) n.status = o.status as NodeT["status"];
+      if (o.wf && typeof o.wf === "object") n.wf = o.wf as NodeT["wf"];
+      if (o.open != null) n.open = !!o.open;
+      if (typeof o.wfOf === "string") n.wfOf = o.wfOf;
       if (o.index != null) n.index = Number(o.index);
       if (o.widgets_values != null) n.vals = o.widgets_values as Record<string, string>;
       return n;
@@ -560,6 +587,50 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     if (!isDirty()) { clearDraft(); onClose(); return; }
     setCloseConfirm(true);
   };
+  /* ── Workflow nodes (Kev, 2026-09-05) ── */
+  const [wfPickerOpen, setWfPickerOpen] = useState(false);
+  const addWorkflow = (pick: WorkflowPick) => {
+    setWfPickerOpen(false);
+    pushHist();
+    setSt((p) => {
+      const base = p.nodes.find((n) => n.id === "prompt");
+      const id = nid("w");
+      const existing = p.nodes.filter((n) => n.type === "workflow").length;
+      const dim = NODE_DIM.workflow;
+      const node: NodeT = {
+        id, type: "workflow", open: false,
+        x: (base?.x || 0) - dim.w - 80, y: (base?.y || 0) + 420 + existing * (dim.h + 18),
+        wf: { promptId: pick.promptId, title: pick.title, author: pick.author, text: pick.text, vars: pick.vars },
+      };
+      // Its inputs become text nodes it owns — fill and wire them like your own.
+      const tdim = NODE_DIM.text;
+      const inputs: NodeT[] = pick.vars.map((v, i) => ({
+        id: nid("t"), type: "text", kind: "text", pub: true, value: "", name: v, wfOf: id,
+        x: (node.x || 0) - tdim.w - 60, y: (node.y || 0) + i * (tdim.h + 14),
+      }));
+      const body = (p.body.trimEnd() + " " + wfToken(id)).trim();
+      return { ...p, body, nodes: [...p.nodes, node, ...inputs] };
+    });
+    onToast("Workflow inserted. Its inputs are the new text nodes; the {{wf}} marker in the prompt is where it speaks.");
+  };
+  const toggleWorkflowOpen = (id: string) => setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, open: !n.open } : n)) }));
+  const [libSaving, setLibSaving] = useState(false);
+  const saveToLibrary = async () => {
+    setMenuOpen(false);
+    if (libSaving) return;
+    const name = (stRef.current.title || "").trim() || "Untitled workflow";
+    setLibSaving(true);
+    try {
+      const res = await fetch("/api/library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...sessionAuthHeaders() },
+        body: JSON.stringify({ name, kind: "workflow", graph: buildExportJSON(), promptText: stRef.current.body }),
+      });
+      onToast(res.ok ? `Saved "${name}" to your library` : "Couldn't save. Are you logged in?");
+    } catch { onToast("Couldn't save to your library"); }
+    finally { setLibSaving(false); }
+  };
+
   const saveDraftAndClose = () => {
     // Quota failures must NOT close the editor while claiming success — with
     // data-URL reference images a draft easily exceeds the ~5MB localStorage cap.
@@ -578,6 +649,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
 
   // Restore a saved draft when opening fresh (not when editing a released prompt).
   useEffect(() => {
+    /* Opened from the profile's Library: the saved graph IS the editor
+       state — restore it as-is instead of rebuilding from fields. */
+    const libGraph = (editPrompt as { libraryGraph?: unknown } | null)?.libraryGraph;
+    if (libGraph) { applyImportJSON(libGraph, true); return; }
     if (editPrompt) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -1331,7 +1406,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const tx: TextNode[] = rv ? baseTx.map((t) => ({ ...t, value: rv["[" + t.name + "]"] ?? t.value })) : baseTx;
     const body = stRef.current.body;
     const vals: Record<string, string> = {}; tx.forEach((t) => { vals["[" + t.name + "]"] = t.value; });
-    const finalPrompt = buildPrompt(body, tx, vals);
+    const finalPrompt = buildPrompt(body, tx, vals, stRef.current.nodes);
     // Mirror the AI-filled values into the editor vars, like runGenerate does.
     const withFill = (nodes: NodeT[]) => (rv ? nodes.map((n) => (n.type === "text" ? { ...n, value: rv["[" + n.name + "]"] ?? n.value } : n)) : nodes);
     const sig = sigOf(body, tx);
@@ -1377,7 +1452,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       const con = (stRef.current.cons || []).find((c) => c.sig === o.sig);
       const bodyC = con?.body || stRef.current.body;
       const txC = stRef.current.nodes.filter((n) => n.type === "text") as TextNode[];
-      const fp = buildPrompt(bodyC, txC, o.vals || {});
+      const fp = buildPrompt(bodyC, txC, o.vals || {}, stRef.current.nodes);
       setSt((p) => ({ ...p, nodes: p.nodes.map((n) => (n.id === id ? { ...n, status: "loading" } : n)) }));
       finalizeOutput(id, fp);
     });
@@ -1410,9 +1485,10 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const deleteNodeId = (id: string) => commit((p) => {
     const node = p.nodes.find((n) => n.id === id);
     if (!node || node.type === "prompt") return p;
-    const nodes = p.nodes.filter((n) => n.id !== id);
+    const nodes = p.nodes.filter((n) => n.id !== id && n.wfOf !== id);
     let body = p.body;
     if (node.type === "text") body = body.split("[" + node.name + "]").join("").replace(/\s{2,}/g, " ").trim();
+    if (node.type === "workflow") body = body.split(wfToken(node.id)).join("").replace(/\s{2,}/g, " ").trim();
     if (node.type === "ref") {
       // Drop the deleted image's token and renumber the ones behind it.
       const refs = p.nodes.filter((n) => n.type === "ref");
@@ -1494,7 +1570,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
       // the bottom was the old, wrong behavior.)
       nodes = nodes.map((n) => (n.type === "text" && n.name === removed[0] ? { ...n, name: added[0] } : n));
     } else {
-      nodes = nodes.filter((n) => n.type !== "text" || present.has(n.name || ""));
+      nodes = nodes.filter((n) => n.type !== "text" || n.wfOf || present.has(n.name || ""));
       // Typing [brackets] CREATES the variable (both editors promise it) —
       // otherwise the literal token would leak into the generated prompt.
       const toAdd = added.filter((n) => n.trim() && !/^Reference Image \d+$/.test(n));
@@ -1557,7 +1633,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
     const created: { oid: string; vals: Record<string, string>; prompt: string }[] = [];
     for (let i = 0; i < n; i++) {
       const vals: Record<string, string> = {}; resolved.forEach((t) => { vals["[" + t.name + "]"] = t.value; });
-      created.push({ oid: nid("o"), vals, prompt: buildPrompt(body, resolved, vals) });
+      created.push({ oid: nid("o"), vals, prompt: buildPrompt(body, resolved, vals, stRef.current.nodes) });
     }
     setSt((p) => {
       let nodes = p.nodes.map((x) => ({ ...x }));
@@ -1762,9 +1838,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   const portPos = (n: NodeT, which?: string) => {
     if (n.type === "prompt") {
       if (which === "text") return { x: n.x || 0, y: (n.y || 0) + 123 };
+      if (which === "wf") return { x: n.x || 0, y: (n.y || 0) + 163 };
       return { x: (n.x || 0) + 480, y: (n.y || 0) + 123 };
     }
     if (n.type === "output") return { x: n.x || 0, y: (n.y || 0) + 30 };
+    if (n.type === "workflow") return { x: (n.x || 0) + (n.open ? 340 : 300), y: (n.y || 0) + 25.5 };
     return { x: (n.x || 0) + (n.type === "ref" ? 172 : 250), y: (n.y || 0) + 30 };
   };
   // Shared "bus" lines (like PCB traces): inputs converge on a trunk just left
@@ -1774,7 +1852,13 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
   // Output position = its grid/free slot + any drag offset.
   const outPos = (o: NodeT) => { const b = layout.map[o.id] || (o.status === "empty" ? { x: o.x || 0, y: o.y || 0 } : null); return b ? { x: b.x + (o.off?.x || 0), y: b.y + (o.off?.y || 0) } : null; };
   const edges: { from: { x: number; y: number }; to: { x: number; y: number }; trunk: number; c: string }[] = [];
-  texts.forEach((t) => edges.push({ from: portPos(t), to: portPos(prompt, "text"), trunk: IN_TRUNK, c: (textColor[t.name] || TEXT_PALETTE[0]).dot }));
+  const wfNodes = st.nodes.filter((n) => n.type === "workflow");
+  texts.forEach((t) => {
+    const w = t.wfOf ? wfNodes.find((n) => n.id === t.wfOf) : undefined;
+    if (w) edges.push({ from: portPos(t), to: { x: w.x || 0, y: (w.y || 0) + 25.5 }, trunk: (w.x || 0) - 36, c: (textColor[t.name] || TEXT_PALETTE[0]).dot });
+    else edges.push({ from: portPos(t), to: portPos(prompt, "text"), trunk: IN_TRUNK, c: (textColor[t.name] || TEXT_PALETTE[0]).dot });
+  });
+  wfNodes.forEach((w) => edges.push({ from: portPos(w), to: portPos(prompt, "wf"), trunk: IN_TRUNK, c: "var(--enki-turq)" }));
   outs.forEach((o) => { const pos = outPos(o); if (pos) edges.push({ from: portPos(prompt, "out"), to: { x: pos.x, y: pos.y + 30 }, trunk: OUT_TRUNK, c: palOf((st.cons.find((c) => c.sig === o.sig) || { cidx: 0 }).cidx || 0).bar }); });
   // Rounded orthogonal path: run to the shared trunk x, then branch to the target.
   const path = (a: { x: number; y: number }, b: { x: number; y: number }, tx: number) => {
@@ -2079,6 +2163,11 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
             <span className="nc-port-lab nc-port-lab--in" style={{ top: 116 }}>text</span>
             <button className="nc-port-add" style={{ left: -28, top: 115 }} title="Add a text input node"
               onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); addText(); }}><Icon name="plus" size={11} stroke={2.6} /></button>
+            {/* Embed a prompt or workflow as a node (Kev, 2026-09-05). */}
+            <span className="nc-port nc-port--io" style={{ left: -7.5, top: 155.5, background: "var(--enki-turq)" }} title="Workflows: embedded prompts speak here" />
+            <span className="nc-port-lab nc-port-lab--in" style={{ top: 156 }}>workflow</span>
+            <button className="nc-port-add" style={{ left: -28, top: 155 }} title="Insert a prompt or workflow as a node"
+              onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setWfPickerOpen(true); }}><Icon name="plus" size={11} stroke={2.6} /></button>
             <span className="nc-port nc-port--io" style={{ right: -7.5, top: 115.5, background: "var(--enki-ember)" }}
               title="Generated images output · drag out (or double-click) to render"
               onPointerDown={(e) => startConnect("out", e)} onDoubleClick={(e) => portDbl("out", e)} />
@@ -2089,6 +2178,8 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               onClick={(e) => { e.stopPropagation(); addOutput(); }}>
               <Icon name="plus" size={11} stroke={2.6} /></button>
           </div>
+
+          {wfPickerOpen && <WorkflowPicker onPick={addWorkflow} onClose={() => setWfPickerOpen(false)} />}
 
           {/* text nodes */}
           {texts.map((t) => { const c = textColor[t.name] || TEXT_PALETTE[0]; return (
@@ -2121,6 +2212,33 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
               <span className="nc-port" style={{ right: -7.5, top: 22.5, background: c.dot }} />
             </div>
           ); })}
+
+          {/* workflow nodes: embedded prompts; a compact card, unfold to see inside */}
+          {st.nodes.filter((n) => n.type === "workflow").map((w) => (
+            <div key={w.id} data-nid={w.id} className={"nc-node nc-workflow" + (sel === w.id || selSet.has(w.id) ? " sel" : "") + (w.open ? " open" : "")} style={{ left: w.x, top: w.y }}
+              onPointerDown={(e) => { if (e.ctrlKey || e.metaKey) { e.stopPropagation(); toggleSel(w.id); } else setSel(w.id); }}>
+              <div className="nc-nhead nc-workflow-head" onPointerDown={(e) => startNodeDrag(w.id, e)}>
+                <Icon name="link" size={13} stroke={2} />
+                <span className="nc-ntitle" title={w.wf?.title}>{w.wf?.title}</span>
+                <button className="nc-ntrash" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); deleteNodeId(w.id); }}><Icon name="trash" size={14} stroke={2} /></button>
+              </div>
+              <div className="nc-workflow-meta">
+                <span>{w.wf?.author ? `by ${w.wf.author}` : "from your library"}</span>
+                <span>{w.wf?.vars.length ?? 0} input{(w.wf?.vars.length ?? 0) === 1 ? "" : "s"} · {w.wf?.price ? `$${w.wf.price.toFixed(2)}/use` : "free"}</span>
+              </div>
+              <button type="button" className="nc-workflow-toggle" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); toggleWorkflowOpen(w.id); }} aria-expanded={!!w.open}>
+                <Icon name="expand" size={12} stroke={2.2} /> {w.open ? "Hide inside" : "Show inside"}
+              </button>
+              {w.open && (
+                <div className="nc-workflow-inside" title="Read-only: another artist's work. Its inputs are the text nodes wired into this card.">
+                  {(w.wf?.text ?? "").split(TOKEN_RE).map((part, i) => TOKEN_RE.test(part) && !isRefTok(part)
+                    ? <span key={i} className="nc-workflow-var">{part}</span>
+                    : <span key={i}>{part}</span>)}
+                </div>
+              )}
+              <span className="nc-port nc-port--io nc-workflow-out" title="Speaks into the prompt at its {{wf}} marker" />
+            </div>
+          ))}
 
           {/* output nodes */}
           {outs.map((o, oi) => {
@@ -2271,6 +2389,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
                   <span className="nc-menu-state">{mockMode ? "On" : "Off"}</span>
                 </button>
                 <div className="nc-menu-sep" />
+                <button className="nc-menu-item" role="menuitem" onClick={() => void saveToLibrary()}><Icon name="bookmark" size={15} stroke={2} /> Save to my library</button>
                 <button className="nc-menu-item" role="menuitem" onClick={exportPrompt}><Icon name="download" size={15} stroke={2} /> Export prompt as JSON</button>
                 <button className="nc-menu-item" role="menuitem" onClick={importPrompt}><Icon name="upload" size={15} stroke={2} /> Import prompt JSON</button>
                 <div className="nc-menu-sep" />
@@ -2502,7 +2621,7 @@ export default function NodeCreator({ onClose, onToast, userKey, sidebarW = 78, 
         const items = genConfirm.ids.map((id) => {
           const o = st.nodes.find((n) => n.id === id);
           const con = (st.cons || []).find((c) => c.sig === o?.sig);
-          const fp = o ? buildPrompt(con?.body || st.body, texts, o.vals || {}) : "";
+          const fp = o ? buildPrompt(con?.body || st.body, texts, o.vals || {}, st.nodes) : "";
           const vars = Object.entries((o?.vals) || {}).filter(([, v]) => v);
           return { id, fp, vars };
         });

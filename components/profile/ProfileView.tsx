@@ -445,8 +445,10 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
   // Likes is PRIVATE like History: only the owner's view carries the tab,
   // and the route it reads derives the list from the SESSION — a visitor
   // cannot request anyone else's likes (Kev, 2026-08-23).
+  /* Library is PRIVATE too (Kev, 2026-09-05): the owner's saved prompts and
+     workflows, one click from the editor. */
   const TABS = own
-    ? ["Released", "Gallery", "Likes", "Reviews", "About", "History"]
+    ? ["Released", "Gallery", "Library", "Likes", "Reviews", "About", "History"]
     : ["Released", "Gallery", "Reviews", "About"];
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Released");
@@ -460,6 +462,23 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
       .catch(() => setMyLikes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+  // The private library — fetched lazily the first time its tab opens.
+  type LibItem = { id: string; name: string; kind: string; updated_at: string; graph: unknown; prompt_text: string | null };
+  const [library, setLibrary] = useState<LibItem[] | null>(null);
+  const loadLibrary = () =>
+    fetch("/api/library", { headers: { ...sessionAuthHeaders() } })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setLibrary(Array.isArray(d.items) ? d.items : []))
+      .catch(() => setLibrary([]));
+  useEffect(() => {
+    if (activeTab !== "Library" || library !== null) return;
+    void loadLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+  const deleteLibraryItem = async (id: string) => {
+    const res = await fetch(`/api/library?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { ...sessionAuthHeaders() } });
+    if (res.ok) setLibrary((l) => (l ?? []).filter((x) => x.id !== id));
+  };
   const [open, setOpen] = useState<EnkiPrompt | null>(null);
   const searchParams = useSearchParams();
 
@@ -926,6 +945,33 @@ export default function ProfilePage({ onBack, isOwnProfile = true, handle }: { o
                     }}>
                       {c.prompt}
                     </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : activeTab === "Library" ? (
+          library === null ? (
+            <div style={{ padding: "60px 0", textAlign: "center", color: "var(--enki-ink-3)" }}>Loading…</div>
+          ) : library.length === 0 ? (
+            <div style={{ padding: "80px 0", textAlign: "center" }}>
+              <div className="serif" style={{ fontSize: 24, color: "var(--enki-ink-3)" }}>Your library is empty.</div>
+              <p style={{ fontSize: 14, color: "var(--enki-ink-3)", maxWidth: 440, margin: "8px auto 0" }}>
+                Only you see this tab. In the prompt editor, choose “Save to my library” — saved prompts and workflows open here in one click and can be inserted into other prompts as workflow nodes.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, padding: "18px 0" }}>
+              {library.map((it) => (
+                <div key={it.id} style={{ border: "1px solid var(--enki-rule)", borderRadius: 12, background: "var(--enki-paper-2)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{it.name}</span>
+                    <span className="mono" style={{ fontSize: 10.5, color: "var(--enki-ink-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{it.kind}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--enki-ink-3)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{it.prompt_text || "—"}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                    <button type="button" className="ek-btn" style={{ minHeight: 32, flex: 1 }} onClick={() => requestPromptEdit({ title: it.name, libraryGraph: it.graph })}>Open in editor</button>
+                    <button type="button" style={{ minHeight: 32, padding: "0 10px", border: "1px solid var(--enki-rule)", borderRadius: 8, background: "transparent", color: "var(--enki-ink-3)", cursor: "pointer" }} title="Delete from library" onClick={() => void deleteLibraryItem(it.id)}>Delete</button>
                   </div>
                 </div>
               ))}
