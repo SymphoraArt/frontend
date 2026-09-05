@@ -59,6 +59,11 @@ export default function LoginModal({ open, onClose, prewarm = false }: {
   const shown = open && !walletOpen;
   return (
     <>
+      {/* The login card mutes the whole page (the frame's backdrop). Handing
+          over to the wallet picker hides the frame; the picker's own backdrop
+          is styled as the same layer (colour, blur, z 2000 — see
+          WalletPickerModal), so the page stays muted through the handover
+          instead of snapping back to full brightness (Kev, 2026-09-05). */}
       <iframe
         ref={frameRef}
         src="/landing.html?modal=1"
